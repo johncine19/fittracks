@@ -241,12 +241,12 @@
                     iconHtml = `<span class="status-indicator-dot ${safeEscape(this.selectedItem.dotClass)}"></span>`;
                 }
 
-                let subtitleHtml = this.selectedItem.subtitle ? `<span style="font-size:11.5px; color:var(--muted); margin-left:3px;">(${safeEscape(this.selectedItem.subtitle)})</span>` : '';
-                let priceHtml = this.selectedItem.price ? `<span style="font-size:12px; font-weight:700; color:var(--lime); margin-left:auto; padding-right:4px;">${safeEscape(this.selectedItem.price)}</span>` : '';
+                let subtitleHtml = this.selectedItem.subtitle ? `<span style="font-size:11.5px; color:var(--muted); margin-left:3px; flex-shrink:0;">(${safeEscape(this.selectedItem.subtitle)})</span>` : '';
+                let priceHtml = this.selectedItem.price ? `<span style="font-size:12px; font-weight:700; color:var(--lime); margin-left:auto; padding-right:4px; flex-shrink:0;">${safeEscape(this.selectedItem.price)}</span>` : '';
 
                 this.triggerContent.innerHTML = `
                     ${iconHtml}
-                    <span style="font-weight:600; color:var(--ink); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    <span style="font-weight:600; color:var(--ink); font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex-shrink:1;">
                         ${safeEscape(this.selectedItem.label)}
                     </span>
                     ${subtitleHtml}
@@ -380,6 +380,17 @@
         _adjustMenuPosition() {
             if (!this.isOpen || !this.menu) return;
 
+            const parentModal = this.wrap.closest('.swal2-popup, dialog, .modal, .modal-dialog');
+            if (parentModal) {
+                this.menu.style.width = '100%';
+                this.menu.style.minWidth = '100%';
+                this.menu.style.maxWidth = '100%';
+                this.menu.style.left = '0';
+                this.menu.style.right = 'auto';
+                this.menu.style.boxSizing = 'border-box';
+                return;
+            }
+
             const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
             this.menu.style.maxWidth = `min(380px, calc(${viewportWidth}px - 20px))`;
 
@@ -394,7 +405,13 @@
                 const wrapRect = this.wrap.getBoundingClientRect();
                 const menuWidth = this.menu.offsetWidth || 300;
 
-                if (wrapRect.left + menuWidth > viewportWidth - 12) {
+                const parentModal = this.wrap.closest('.swal2-popup, dialog, .modal, .modal-dialog');
+                let maxRightEdge = viewportWidth - 12;
+                if (parentModal) {
+                    const modalRect = parentModal.getBoundingClientRect();
+                    maxRightEdge = Math.min(maxRightEdge, modalRect.right - 10);
+                }
+                if (wrapRect.left + menuWidth > maxRightEdge) {
                     this.menu.style.left = 'auto';
                     this.menu.style.right = '0';
                 } else {

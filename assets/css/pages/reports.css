@@ -820,6 +820,12 @@ select option {
     min-width: 0;
     flex: 1 1 auto;
 }
+.engagement-member-profile .avatar {
+    flex-shrink: 0;
+    aspect-ratio: 1 / 1;
+    min-width: 32px;
+    min-height: 32px;
+}
 .engagement-member-info {
     min-width: 0;
     overflow: hidden;

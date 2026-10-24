@@ -3345,13 +3345,34 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                     gap: 4px;
                 }
                 .workout-completed-banner {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    padding: 16px;
-                    gap: 12px;
+                    flex-direction: column !important;
+                    align-items: center !important;
+                    text-align: center !important;
+                    padding: 22px 18px 20px !important;
+                    gap: 12px !important;
+                }
+                .workout-completed-icon {
+                    margin: 0 auto !important;
+                }
+                .workout-completed-info {
+                    width: 100% !important;
+                    text-align: center !important;
+                }
+                .workout-completed-info h4 {
+                    text-align: center !important;
+                    font-size: 17px;
+                    margin: 0 0 5px 0;
+                }
+                .workout-completed-info p {
+                    text-align: center !important;
+                    max-width: 420px;
+                    margin: 0 auto;
+                    font-size: 13px;
+                    line-height: 1.5;
                 }
                 .workout-completed-banner .btn-workout-cta {
-                    width: 100%;
+                    width: 100% !important;
+                    justify-content: center !important;
                 }
             }
 
@@ -3370,6 +3391,37 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                 .btn-workout-cta {
                     flex: 1;
                     min-width: 160px;
+                }
+                .workout-completed-banner {
+                    flex-direction: column !important;
+                    align-items: center !important;
+                    text-align: center !important;
+                    padding: 22px 20px !important;
+                    gap: 12px !important;
+                }
+                .workout-completed-icon {
+                    margin: 0 auto !important;
+                }
+                .workout-completed-info {
+                    width: 100% !important;
+                    text-align: center !important;
+                }
+                .workout-completed-info h4 {
+                    text-align: center !important;
+                    font-size: 17px;
+                    margin: 0 0 5px 0;
+                }
+                .workout-completed-info p {
+                    text-align: center !important;
+                    max-width: 460px;
+                    margin: 0 auto;
+                    font-size: 13.5px;
+                    line-height: 1.5;
+                }
+                .workout-completed-banner .btn-workout-cta {
+                    width: auto !important;
+                    min-width: 200px;
+                    justify-content: center !important;
                 }
             }
             .btn-workout-primary {
@@ -3698,6 +3750,21 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             [data-theme="light"] .btn-mark-complete {
                 background: #16a34a;
                 color: #ffffff;
+            }
+            [data-theme="light"] .workout-completed-banner {
+                background: #f0fdf4;
+                border-color: #bbf7d0;
+            }
+            [data-theme="light"] .workout-completed-icon {
+                background: #dcfce7;
+                color: #16a34a;
+                border: 1px solid #86efac;
+            }
+            [data-theme="light"] .workout-completed-info h4 {
+                color: #0f172a;
+            }
+            [data-theme="light"] .workout-completed-info p {
+                color: #475569;
             }
         </style>
         <?php

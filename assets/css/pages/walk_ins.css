@@ -748,30 +748,47 @@
             border-top: 1px solid var(--line);
         }
 
-        /* MODALS */
-        .fit-modal {
-            max-width: 500px;
+        /* MODALS & BOTTOM SHEET */
+        dialog.fit-modal {
+            max-width: 480px;
             width: 95%;
-            border-radius: 16px;
+            border-radius: 18px;
             border: 1px solid var(--line);
             background: var(--surface);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
             padding: 0;
             overflow: hidden;
+            margin: auto;
         }
 
-        [data-theme="light"] .fit-modal {
+        dialog.fit-modal::backdrop {
+            background: rgba(8, 12, 20, 0.76);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            animation: fitFadeIn 0.2s ease;
+        }
+
+        [data-theme="light"] dialog.fit-modal {
             background: #ffffff;
             border-color: #cbd5e1;
-            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+            box-shadow: 0 24px 50px rgba(15, 23, 42, 0.16);
+        }
+
+        [data-theme="light"] dialog.fit-modal::backdrop {
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .fit-modal-sheet-handle {
+            display: none;
         }
 
         .fit-modal-header {
-            padding: 18px 22px;
+            padding: 16px 20px 14px;
             border-bottom: 1px solid var(--line);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            position: relative;
         }
 
         .fit-modal-icon {
@@ -791,22 +808,39 @@
             color: #f59e0b;
         }
 
+        .fit-modal-fee-tag {
+            background: color-mix(in srgb, var(--lime) 15%, transparent);
+            color: var(--lime);
+            border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 999px;
+            letter-spacing: 0.02em;
+        }
+
         .fit-modal-body {
-            padding: 18px 22px 22px;
+            padding: 16px 20px 20px;
         }
 
         .fit-modal-banner {
             display: flex;
-            align-items: flex-start;
-            gap: 10px;
+            align-items: center;
+            gap: 8px;
             background: color-mix(in srgb, var(--lime) 10%, transparent);
-            border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent);
-            border-radius: 9px;
-            padding: 11px 13px;
-            font-size: 12.5px;
+            border: 1px solid color-mix(in srgb, var(--lime) 24%, transparent);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
             color: var(--ink);
-            margin-bottom: 16px;
-            line-height: 1.4;
+            margin-bottom: 14px;
+            line-height: 1.35;
+        }
+
+        .fit-modal-banner.fit-modal-banner-compact {
+            padding: 7px 11px;
+            margin-bottom: 12px;
+            font-size: 11.5px;
         }
 
         .fit-modal-banner.is-amber-banner {
@@ -817,44 +851,51 @@
         .fit-modal-form {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 13px;
         }
 
         .fit-input-group {
             display: flex;
             flex-direction: column;
             gap: 5px;
+            min-width: 0;
+        }
+
+        .fit-input-group.fit-flex-1 {
+            flex: 1;
         }
 
         .fit-input-group label {
             font-size: 12px;
             font-weight: 700;
             color: var(--ink);
+            letter-spacing: -0.01em;
         }
 
         .fit-input-wrap {
             position: relative;
             display: flex;
             align-items: center;
+            width: 100%;
         }
 
         .fit-field-icon {
             position: absolute;
-            left: 12px;
+            left: 11px;
             color: var(--muted);
             pointer-events: none;
         }
 
         .fit-field-prefix {
             position: absolute;
-            left: 13px;
-            font-size: 14px;
+            left: 12px;
+            font-size: 13.5px;
             pointer-events: none;
         }
 
         .fit-input-wrap input {
             width: 100%;
-            padding: 9px 13px 9px 36px;
+            padding: 8px 12px 8px 34px;
             background: var(--bg);
             border: 1px solid var(--line);
             border-radius: 9px;
@@ -869,50 +910,101 @@
             box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
         }
 
-        .fit-payment-selector {
+        /* 2-COLUMN SPLIT ROW (Mobile Number & Amount Paid) */
+        .fit-form-row-split {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .fit-form-row-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
 
+        /* 2-COLUMN SEGMENTED PAYMENT SELECTOR */
+        .fit-payment-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+        }
+
+        .fit-pay-option {
+            cursor: pointer;
+            position: relative;
+            display: block;
+            margin: 0;
+        }
+
         .fit-pay-option input[type="radio"] {
-            display: none;
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
         }
 
         .fit-pay-box {
             display: flex;
             align-items: center;
             gap: 9px;
-            padding: 10px 12px;
+            padding: 9px 12px;
             border: 1.5px solid var(--line);
             border-radius: 10px;
             background: var(--bg);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            user-select: none;
+        }
+
+        .fit-pay-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
 
         .fit-pay-text strong {
             display: block;
             font-size: 13px;
+            font-weight: 800;
             color: var(--ink);
+            line-height: 1.2;
         }
 
         .fit-pay-text small {
-            font-size: 10.5px;
+            font-size: 10px;
             color: var(--muted);
+            display: block;
+            margin-top: 1px;
+            font-weight: 500;
         }
 
         .fit-pay-option input[type="radio"]:checked + .fit-pay-box {
             border-color: var(--lime);
-            background: color-mix(in srgb, var(--lime) 8%, transparent);
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 30%, transparent);
+            background: color-mix(in srgb, var(--lime) 9%, var(--bg));
+            box-shadow: 0 0 0 1px var(--lime), 0 3px 12px color-mix(in srgb, var(--lime) 20%, transparent);
+            transform: translateY(-1px);
+        }
+
+        [data-theme="light"] .fit-pay-box {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        [data-theme="light"] .fit-pay-option input[type="radio"]:checked + .fit-pay-box {
+            background: #f7fee7;
+            border-color: #65a30d;
+            box-shadow: 0 0 0 1px #65a30d, 0 3px 10px rgba(101, 163, 13, 0.15);
         }
 
         .fit-modal-submit {
             width: 100%;
             justify-content: center;
-            padding: 11px;
+            padding: 10px 16px;
             font-size: 13.5px;
+            font-weight: 800;
+            border-radius: 10px;
             margin-top: 4px;
         }
 
@@ -927,10 +1019,20 @@
             box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
         }
 
-        .fit-form-row-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+        @keyframes fitFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fitSheetSlideUp {
+            from {
+                transform: translateY(100%);
+                opacity: 0.6;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         /* ---------------------------------------------------------
@@ -1096,6 +1198,115 @@
             }
         }
 
+        /* Mobile Modal Bottom Sheet (<= 640px) */
+        @media (max-width: 640px) {
+            dialog.fit-modal {
+                position: fixed !important;
+                inset: auto 0 0 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                border-radius: 20px 20px 0 0 !important;
+                border-left: none !important;
+                border-right: none !important;
+                border-bottom: none !important;
+                max-height: 90dvh !important;
+                display: flex;
+                flex-direction: column;
+                padding-bottom: max(14px, env(safe-area-inset-bottom, 14px));
+                animation: fitSheetSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+                box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+            }
+
+            dialog.fit-modal:not([open]) {
+                display: none;
+            }
+
+            .fit-modal-sheet-handle {
+                display: block;
+                width: 38px;
+                height: 4px;
+                border-radius: 999px;
+                background: color-mix(in srgb, var(--ink) 25%, transparent);
+                margin: 8px auto 2px auto;
+                flex-shrink: 0;
+            }
+
+            .fit-modal-header {
+                padding: 10px 18px 12px;
+            }
+
+            .fit-modal-body {
+                padding: 12px 18px 16px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                max-height: calc(90dvh - 65px);
+            }
+
+            .fit-modal-form {
+                gap: 11px;
+            }
+
+            .fit-input-group label {
+                font-size: 11.5px;
+            }
+
+            .fit-input-wrap input {
+                padding: 8px 11px 8px 32px;
+                font-size: 13px;
+            }
+
+            .fit-field-icon {
+                left: 10px;
+                width: 15px;
+                height: 15px;
+            }
+
+            .fit-field-prefix {
+                left: 11px;
+                font-size: 13px;
+            }
+
+            /* Responsive 2-column paired layout */
+            .fit-form-row-split {
+                display: grid;
+                grid-template-columns: 1.35fr 1fr;
+                gap: 8px;
+            }
+
+            .fit-form-row-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+
+            /* Keep payment buttons 2-columns (Cash & GCash side-by-side) */
+            .fit-payment-selector {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 8px;
+            }
+
+            .fit-pay-box {
+                padding: 8px 10px;
+                gap: 7px;
+            }
+
+            .fit-pay-text strong {
+                font-size: 12.5px;
+            }
+
+            .fit-pay-text small {
+                font-size: 9.5px;
+            }
+
+            .fit-modal-submit {
+                padding: 10px 14px;
+                font-size: 13px;
+                margin-top: 4px;
+            }
+        }
+
         @media (max-width: 440px) {
             .fit-stat-grid {
                 gap: 8px;
@@ -1113,8 +1324,17 @@
                 font-size: 8.5px;
                 padding: 2px 4px;
             }
-            .fit-form-row-2,
+            /* Preserve clean 2-column pairing even on extra narrow mobile screens */
+            .fit-form-row-split {
+                grid-template-columns: 1.3fr 1fr;
+                gap: 7px;
+            }
+            .fit-form-row-2 {
+                grid-template-columns: 1fr 1fr;
+                gap: 7px;
+            }
             .fit-payment-selector {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr !important;
+                gap: 7px;
             }
         }

@@ -323,6 +323,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                         value: u.role,
                         searchable: false,
                         zIndex: 60,
+                        menuAlign: 'right',
                         items: editRoleItems,
                         onChange: function(item) {
                             const val = (item && typeof item === 'object') ? item.id : item;

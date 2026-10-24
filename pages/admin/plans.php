@@ -660,11 +660,13 @@ function plans_page(): void
                         </label>
                     </div>
                     
-                    <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13.5px; font-weight: 600;">Price (PHP) *
+                    <div style="display:flex; gap:12px;">
+                        <label style="display:flex; flex-direction:column; flex:1; min-width:0; color: var(--muted); font-size: 13.5px; font-weight: 600;">
+                            <span style="white-space: nowrap;">Price (PHP) *</span>
                             <input name="price" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
                         </label>
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13.5px; font-weight: 600;">Commission Rate (%) *
+                        <label style="display:flex; flex-direction:column; flex:1; min-width:0; color: var(--muted); font-size: 13.5px; font-weight: 600;">
+                            <span style="white-space: nowrap;">Comm. Rate (%) *</span>
                             <input name="commission_rate" type="number" step="0.01" class="form-control" placeholder="5.00" value="5.00" style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
                         </label>
                     </div>

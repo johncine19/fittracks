@@ -236,9 +236,9 @@ function render_avatar(array $row, string $size = 'small'): string
     if (!empty($row['profile_picture'])) {
         $dim = $size === 'small' ? '32px' : '36px';
         $src = upload_url($row['profile_picture'], 'uploads');
-        return '<img src="' . h($src) . '" alt="' . h($ini) . '" class="avatar ' . $size . '" loading="lazy" decoding="async" style="object-fit:cover;width:' . $dim . ';height:' . $dim . ';">';
+        return '<img src="' . h($src) . '" alt="' . h($ini) . '" class="avatar ' . $size . '" loading="lazy" decoding="async" style="object-fit:cover;width:' . $dim . ';height:' . $dim . ';flex-shrink:0;aspect-ratio:1/1;border-radius:50%;">';
     }
-    return '<span class="avatar ' . $size . '">' . h($ini) . '</span>';
+    return '<span class="avatar ' . $size . '" style="flex-shrink:0;aspect-ratio:1/1;border-radius:50%;">' . h($ini) . '</span>';
 }
 
 

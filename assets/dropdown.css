@@ -114,6 +114,17 @@
     text-align: left;
 }
 
+.swal2-popup .fit-dropdown-menu,
+dialog .fit-dropdown-menu,
+.modal .fit-dropdown-menu {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: auto !important;
+    box-sizing: border-box !important;
+}
+
 [data-theme="light"] .fit-dropdown-menu {
     background: #ffffff !important;
     border-color: #cbd5e1;

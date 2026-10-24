@@ -155,4 +155,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (currentFilter !== 'all') {
         applyWalkInFilters();
     }
+
+    // Dismiss modal on backdrop click
+    document.querySelectorAll('dialog.fit-modal').forEach(function (dlg) {
+        dlg.addEventListener('click', function (e) {
+            const rect = dlg.getBoundingClientRect();
+            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                                rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+            if (!isInDialog) {
+                dlg.close();
+            }
+        });
+    });
 });

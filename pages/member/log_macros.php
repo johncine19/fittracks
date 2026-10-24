@@ -271,6 +271,7 @@ function log_macros_page(): void
             'mode'         => $mode,
             'meal_type'    => $normalizedType,
             'meal_id'      => $mealId,
+            'food_items'   => $foodItems ?: null,
             'logged_at'    => $loggedAt ?? date('Y-m-d H:i:s'),
             'logged_time'  => $loggedTime ?? date('g:i A'),
             'added_cals'   => $addedCals,

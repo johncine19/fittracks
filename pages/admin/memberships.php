@@ -743,7 +743,73 @@ function memberships_page(): void
             'duration' => (int) ($p['duration_days'] ?? 30)
         ];
     }, $plans ?: []);
-    $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, p.plan_name, p.price, p.gym_id, g.name AS gym_name, g.brand_color AS gym_brand_color FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id LEFT JOIN gyms g ON g.gym_id = p.gym_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
+        $statusFilter = strtolower(trim((string)($_GET['status'] ?? 'all')));
+    if (!in_array($statusFilter, ['all', 'active', 'pending', 'expired'], true)) {
+        $statusFilter = 'all';
+    }
+    $planFilter = (int)($_GET['plan_id'] ?? 0);
+    $searchQuery = trim((string)($_GET['q'] ?? ''));
+
+    $statusCounts = ['all' => 0, 'active' => 0, 'pending' => 0, 'expired' => 0];
+    if ($user['role'] === 'gym_owner' && $gymId) {
+        $countBase = 'FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . (int)$gymId;
+        if ($planFilter > 0) {
+            $countBase .= ' AND m.plan_id = ' . (int)$planFilter;
+        }
+        if ($searchQuery !== '') {
+            $escQ = db()->quote('%' . $searchQuery . '%');
+            $countBase .= ' AND (u.first_name LIKE ' . $escQ . ' OR u.last_name LIKE ' . $escQ . ' OR CONCAT(u.first_name, " ", u.last_name) LIKE ' . $escQ . ' OR u.email LIKE ' . $escQ . ')';
+        }
+        $countRows = db()->query("
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN m.status = 'active' AND (m.end_date IS NULL OR m.end_date >= CURDATE()) THEN 1 ELSE 0 END) as active_count,
+                SUM(CASE WHEN m.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN m.status = 'expired' OR (m.status = 'active' AND m.end_date < CURDATE()) THEN 1 ELSE 0 END) as expired_count
+            {$countBase}
+        ")->fetch();
+        if ($countRows) {
+            $statusCounts['all'] = (int)($countRows['total'] ?? 0);
+            $statusCounts['active'] = (int)($countRows['active_count'] ?? 0);
+            $statusCounts['pending'] = (int)($countRows['pending_count'] ?? 0);
+            $statusCounts['expired'] = (int)($countRows['expired_count'] ?? 0);
+        }
+    }
+
+    $filteredWhere = $where;
+    if ($user['role'] === 'gym_owner') {
+        if ($planFilter > 0) {
+            $filteredWhere .= ' AND m.plan_id = ' . (int)$planFilter;
+        }
+        if ($searchQuery !== '') {
+            $escQ = db()->quote('%' . $searchQuery . '%');
+            $filteredWhere .= ' AND (u.first_name LIKE ' . $escQ . ' OR u.last_name LIKE ' . $escQ . ' OR CONCAT(u.first_name, " ", u.last_name) LIKE ' . $escQ . ' OR u.email LIKE ' . $escQ . ')';
+        }
+        if ($statusFilter === 'active') {
+            $filteredWhere .= " AND m.status = 'active' AND (m.end_date IS NULL OR m.end_date >= CURDATE())";
+        } elseif ($statusFilter === 'pending') {
+            $filteredWhere .= " AND m.status = 'pending'";
+        } elseif ($statusFilter === 'expired') {
+            $filteredWhere .= " AND (m.status = 'expired' OR (m.status = 'active' AND m.end_date < CURDATE()))";
+        }
+    }
+
+    $allMembershipsForGym = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.email, u.profile_picture, p.plan_name, p.price, p.gym_id FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id ' . $where . ' ORDER BY m.created_at DESC')->fetchAll();
+
+    $orderClause = ' ORDER BY 
+        CASE 
+            WHEN m.status = "active" AND (m.end_date IS NULL OR m.end_date >= CURDATE()) THEN 1
+            WHEN m.status = "pending" THEN 2
+            WHEN m.status = "expired" OR (m.status = "active" AND m.end_date < CURDATE()) THEN 3
+            ELSE 4
+        END ASC,
+        CASE 
+            WHEN m.status = "active" AND (m.end_date IS NULL OR m.end_date >= CURDATE()) THEN m.end_date
+            ELSE NULL
+        END ASC,
+        m.created_at DESC';
+
+    $rows    = db()->query('SELECT m.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.email, u.profile_picture, p.plan_name, p.price, p.gym_id, g.name AS gym_name, g.brand_color AS gym_brand_color FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans p ON p.plan_id = m.plan_id LEFT JOIN gyms g ON g.gym_id = p.gym_id ' . $filteredWhere . $orderClause)->fetchAll();
 
     $adminView = $_GET['view'] ?? 'memberships';
     if (!in_array($adminView, ['memberships', 'payments'], true)) {
@@ -801,7 +867,7 @@ function memberships_page(): void
             'label' => $name . ' — ' . ($m['plan_name'] ?? '') . ' (' . $mStatus . ')',
             'end_date' => !empty($m['end_date']) ? date('M j, Y', strtotime($m['end_date'])) : ''
         ];
-    }, $rows ?: []);
+    }, $allMembershipsForGym ?: []);
 
     $expiring = [];
     if ($user['role'] !== 'member') {
@@ -1069,24 +1135,9 @@ function memberships_page(): void
     </div>
     <section class="panel skeleton-content sk-display-block <?= $user['role'] === 'member' ? 'member-membership-panel' : '' ?>">
         <?php if ($user['role'] === 'gym_owner'): ?>
-            <div class="page-header" style="align-items:flex-start; margin-bottom:20px;">
-                <div>
-                    <h1 id="admin-page-title"><?= $adminView === 'payments' ? 'Payment History' : 'Memberships' ?></h1>
-                    <p id="admin-page-desc"><?= $adminView === 'payments' ? 'Record and track membership payment transactions.' : 'Manage member subscription plans and their validity periods.' ?></p>
-                </div>
-                <div class="memberships-header-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                    <button type="button" onclick="recordPayment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; display:inline-flex; align-items:center; gap:6px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        <span>Record Payment</span>
-                    </button>
-                    <button type="button" onclick="addMembership()" class="btn btn-secondary" style="font-weight:600; display:inline-flex; align-items:center; gap:6px;">
-                        <span>+ New Membership</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Gym Owner Top View Switcher -->
-            <div class="member-membership-nav admin-membership-nav" style="margin-bottom:24px; max-width:440px;">
+            <div class="memberships-top-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+                <!-- Gym Owner Top View Switcher -->
+                <div class="member-membership-nav admin-membership-nav" style="margin-bottom:0; max-width:440px;">
                 <button type="button" 
                     id="admin-tab-memberships" 
                     class="member-nav-tab <?= $adminView === 'memberships' ? 'active' : '' ?>" 
@@ -1113,6 +1164,17 @@ function memberships_page(): void
                     <span class="tab-label-compact">Payments</span>
                     <span class="tab-badge-pill"><?= count($paymentRows) ?></span>
                 </button>
+                </div>
+
+                <div class="memberships-header-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <button type="button" onclick="recordPayment()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold; display:inline-flex; align-items:center; gap:6px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Record Payment</span>
+                    </button>
+                    <button type="button" onclick="addMembership()" class="btn btn-secondary" style="font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                        <span>+ New Membership</span>
+                    </button>
+                </div>
             </div>
         <?php elseif ($user['role'] !== 'member'): ?>
             <div class="page-header">
@@ -1573,6 +1635,60 @@ function memberships_page(): void
                         </div>
                     </div>
 
+                    <!-- Filter & Search Toolbar -->
+                    <div class="fit-filter-panel" style="margin-bottom: 16px;">
+                        <form id="membershipFilterForm" method="GET" class="fit-search-form">
+                            <input type="hidden" name="page" value="memberships">
+                            <input type="hidden" name="view" value="memberships">
+                            <input type="hidden" name="status" id="membershipStatusFilterInput" value="<?= h($statusFilter) ?>">
+
+                            <div class="fit-search-input-wrap">
+                                <svg class="fit-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" name="q" value="<?= h($searchQuery) ?>" placeholder="Search member name or email..." autocomplete="off">
+                                <?php if ($searchQuery !== ''): ?>
+                                    <a href="?page=memberships&view=memberships&status=<?= urlencode($statusFilter) ?><?= $planFilter > 0 ? '&plan_id=' . (int)$planFilter : '' ?>" class="fit-search-clear" title="Clear search">&times;</a>
+                                <?php endif; ?>
+                            </div>
+
+                            <?php if (!empty($plans)): ?>
+                                <div class="fit-plan-select-wrap">
+                                    <select name="plan_id" class="input fit-plan-select" onchange="document.getElementById('membershipFilterForm').submit();">
+                                        <option value="0">All Plans</option>
+                                        <?php foreach ($plans as $p): ?>
+                                            <option value="<?= (int)$p['plan_id'] ?>" <?= $planFilter === (int)$p['plan_id'] ? 'selected' : '' ?>>
+                                                <?= h($p['plan_name']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            <?php endif; ?>
+                        </form>
+
+                        <div class="fit-filter-chips">
+                            <button type="button" onclick="setMembershipStatusFilter('all')" class="fit-chip <?= $statusFilter === 'all' ? 'is-active' : '' ?>">
+                                All (<?= $statusCounts['all'] ?>)
+                            </button>
+                            <button type="button" onclick="setMembershipStatusFilter('active')" class="fit-chip <?= $statusFilter === 'active' ? 'is-active' : '' ?>">
+                                Active (<?= $statusCounts['active'] ?>)
+                            </button>
+                            <button type="button" onclick="setMembershipStatusFilter('pending')" class="fit-chip <?= $statusFilter === 'pending' ? 'is-active' : '' ?>">
+                                Pending (<?= $statusCounts['pending'] ?>)
+                            </button>
+                            <button type="button" onclick="setMembershipStatusFilter('expired')" class="fit-chip <?= $statusFilter === 'expired' ? 'is-active' : '' ?>">
+                                Expired (<?= $statusCounts['expired'] ?>)
+                            </button>
+
+                            <?php if ($statusFilter !== 'all' || $planFilter > 0 || $searchQuery !== ''): ?>
+                                <a href="?page=memberships&view=memberships" class="fit-chip" style="color: #ef4444; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.08);" title="Reset all filters">
+                                    &times; Reset
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
                     <?php if ($expiring): ?>
                         <?php render_expiring_banner($expiring); ?>
                     <?php endif; ?>
@@ -1618,7 +1734,16 @@ function memberships_page(): void
                                             <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
                                             <td><span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span></td>
                                             <td>
-                                                <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
+                                                <?php if ($rowStatus === 'expired'): ?>
+                                                    <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="padding:4px 9px;font-size:12px;font-weight:700;background:var(--lime);color:var(--bg);border:none;display:inline-flex;align-items:center;gap:4px;" title="Renew Membership">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                                        </svg>
+                                                        Renew
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;" title="Edit Status">Update</button>
+                                                <?php endif; ?>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
@@ -1629,7 +1754,9 @@ function memberships_page(): void
                         <!-- Mobile Cards View for Memberships -->
                         <div class="membership-mobile-cards">
                             <?php foreach ($rows as $row):
-                                $statusClass = 'badge badge-' . $row['status'];
+                                $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
+                                $rowStatus = $isExpired ? 'expired' : $row['status'];
+                                $statusClass = 'badge badge-' . $rowStatus;
                             ?>
                                 <div class="membership-card-item">
                                     <div class="membership-card-header">
@@ -1640,7 +1767,7 @@ function memberships_page(): void
                                                 <div style="font-size: 12px; color: var(--muted);"><?= h($row['plan_name']) ?></div>
                                             </div>
                                         </div>
-                                        <span class="<?= $statusClass ?>"><?= h($row['status']) ?></span>
+                                        <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
                                     </div>
                                     <div class="membership-card-details">
                                         <div class="membership-card-detail-item">
@@ -1653,13 +1780,22 @@ function memberships_page(): void
                                         </div>
                                     </div>
                                     <div class="membership-card-actions">
-                                        <button type="button" onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($row['status']) ?>')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M12 20h9" />
-                                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                            </svg>
-                                            Update Status
-                                        </button>
+                                        <?php if ($rowStatus === 'expired'): ?>
+                                            <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--lime); color: var(--bg); border: none;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                                                </svg>
+                                                Renew Plan
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="button" onclick="editStatus(<?= $row['membership_id'] ?>, '<?= h($rowStatus) ?>')" class="btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M12 20h9" />
+                                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                                </svg>
+                                                Update Status
+                                            </button>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -1845,7 +1981,9 @@ function memberships_page(): void
                             </thead>
                             <tbody>
                                 <?php foreach ($rows as $row):
-                                    $statusClass = 'badge badge-' . $row['status'];
+                                    $isExpired = ($row['status'] === 'expired' || ($row['status'] === 'active' && !empty($row['end_date']) && strtotime($row['end_date']) < strtotime('today')));
+                                $rowStatus = $isExpired ? 'expired' : $row['status'];
+                                $statusClass = 'badge badge-' . $rowStatus;
                                 ?>
                                     <tr>
                                         <td>

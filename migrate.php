@@ -168,7 +168,10 @@ try {
         "CREATE INDEX idx_walkin_visit_date ON walk_in_transactions (visit_date)",
         "CREATE INDEX idx_jobs_available_attempts ON jobs (available_at, attempts, id)",
         "CREATE INDEX idx_sessions_expires ON sessions (expires_at)",
-        "CREATE INDEX idx_att_user_gym_checkout ON attendance (user_id, gym_id, check_out_time, check_in_time)"
+        "CREATE INDEX idx_att_user_gym_checkout ON attendance (user_id, gym_id, check_out_time, check_in_time)",
+        "CREATE INDEX idx_meal_logs_user_date_time ON member_meal_logs (user_id, log_date, logged_at)",
+        "ALTER TABLE daily_macros MODIFY COLUMN protein_g DECIMAL(6,1) DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) DEFAULT 0",
+        "ALTER TABLE member_meal_logs MODIFY COLUMN protein_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) NOT NULL DEFAULT 0"
     ];
 
     foreach ($migrations as $sql) {

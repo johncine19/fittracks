@@ -623,10 +623,11 @@ function getCsrfToken() {
             window.paymentPlansData = window.MEMBERSHIPS_CONFIG?.plans || [];
             window.paymentMembershipsData = window.MEMBERSHIPS_CONFIG?.memberships || [];
 
-            function recordPayment() {
+            function recordPayment(preselectUserId = null, preselectPlanId = null, preselectMemberName = '', preselectPlanName = '', preselectMemberEmail = '') {
                 const members = Array.isArray(window.paymentMembersData) ? window.paymentMembersData : [];
                 const plans = Array.isArray(window.paymentPlansData) ? window.paymentPlansData : [];
                 const memberships = Array.isArray(window.paymentMembershipsData) ? window.paymentMembershipsData : [];
+                const isRenewal = Boolean(preselectUserId);
 
                 const methodOptions = [
                     { id: 'cash', label: 'Cash', icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>' },
@@ -650,22 +651,51 @@ function getCsrfToken() {
                 let statusDrop = null;
                 let searchTimer = null;
 
+                const renewalNoticeHtml = isRenewal ? `
+                    <div style="font-size: 11.5px; color: var(--muted); line-height: 1.45; padding: 9px 12px; background: color-mix(in srgb, var(--lime) 8%, transparent); border-radius: 8px; border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent); display: flex; gap: 8px; align-items: flex-start;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <div>
+                            <strong style="color: var(--lime);">Renewing Plan:</strong> Recording this payment will start a fresh subscription cycle for <strong>${preselectMemberName || 'the member'}</strong> starting today.
+                        </div>
+                    </div>
+                ` : '';
+
+                const memberInitials = (preselectMemberName || 'M').split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
+
                 Swal.fire({
-                    title: 'Record Payment',
+                    title: isRenewal ? 'Renew Membership' : 'Record Payment',
                     width: '480px',
                     html: `
                         <form id="recordPaymentForm" method="post" action="index.php?page=memberships&view=payments" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px; min-height: 380px; position: relative;">
                             <input type="hidden" name="csrf_token" value="${getCsrfToken()}">
                             <input type="hidden" name="action" value="record_payment">
-                            <input type="hidden" name="user_id" id="modalPaymentUserId" value="">
+                            <input type="hidden" name="user_id" id="modalPaymentUserId" value="${preselectUserId || ''}">
                             <input type="hidden" name="membership_id" id="modalPaymentMembershipId" value="">
-                            <input type="hidden" name="plan_id" id="modalPaymentPlanId" value="">
+                            <input type="hidden" name="plan_id" id="modalPaymentPlanId" value="${preselectPlanId || ''}">
                             
-                            <!-- 1. Member Selector (Hybrid Live Search) -->
-                            <div>
-                                <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Member *</label>
-                                <div id="paymentMemberWrap"></div>
-                            </div>
+                            ${renewalNoticeHtml}
+
+                            <!-- 1. Member Selector / Display -->
+                            ${isRenewal ? `
+                                <div>
+                                    <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Member</label>
+                                    <div style="display:flex; align-items:center; gap:10px; padding:9px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 9px;">
+                                        <div style="width:34px; height:34px; border-radius:50%; background:rgba(34,197,94,0.15); color:var(--lime); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12.5px; flex-shrink:0;">
+                                            ${memberInitials}
+                                        </div>
+                                        <div style="min-width:0; flex:1;">
+                                            <div style="font-weight:600; color:var(--ink); font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${preselectMemberName || 'Member'}</div>
+                                            ${preselectMemberEmail ? `<div style="font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${preselectMemberEmail}</div>` : ''}
+                                        </div>
+                                        <span style="font-size:10.5px; padding:2px 7px; border-radius:6px; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.25); font-weight:700; text-transform:uppercase; letter-spacing:0.3px; flex-shrink:0;">Expired</span>
+                                    </div>
+                                </div>
+                            ` : `
+                                <div>
+                                    <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Member *</label>
+                                    <div id="paymentMemberWrap"></div>
+                                </div>
+                            `}
 
                             <!-- 2. Payment For / Plan Selector -->
                             <div>
@@ -706,7 +736,7 @@ function getCsrfToken() {
                         </form>
                     `,
                     showCancelButton: true,
-                    confirmButtonText: 'Record Payment',
+                    confirmButtonText: isRenewal ? 'Confirm & Renew' : 'Record Payment',
                     confirmButtonColor: 'var(--lime-dark)',
                     cancelButtonColor: 'var(--line)',
                     background: 'var(--bg)',
@@ -720,8 +750,8 @@ function getCsrfToken() {
                         function buildItemOptions(userId) {
                             if (!userId) return [];
                             const items = [];
-                            // 1. Existing memberships for this user
-                            const userMemberships = memberships.filter(m => String(m.user_id) === String(userId));
+                            // 1. Existing memberships for this user (only pending and active)
+                            const userMemberships = memberships.filter(m => String(m.user_id) === String(userId) && (m.status === 'pending' || m.status === 'active'));
                             // Sort so pending memberships appear at the very top
                             userMemberships.sort((a, b) => {
                                 if (a.status === 'pending' && b.status !== 'pending') return -1;
@@ -747,17 +777,27 @@ function getCsrfToken() {
 
                             // 2. All available plans for this gym
                             plans.forEach(p => {
+                                const isTargetRenewal = (isRenewal && Number(p.id) === Number(preselectPlanId));
                                 items.push({
                                     id: 'p_' + p.id,
                                     membershipId: null,
                                     planId: p.id,
-                                    label: `${p.name} (New Subscription)`,
-                                    subtitle: `${p.duration} days`,
+                                    label: isTargetRenewal ? `${p.name} (Renew)` : p.name,
+                                    subtitle: isTargetRenewal ? `Renew • ${p.duration} days` : `${p.duration} days`,
                                     price: p.formatted_price,
                                     rawPrice: p.price,
-                                    icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>'
+                                    icon: isTargetRenewal ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>' : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"></rect><line x1="3" y1="10" x2="21" y2="10"></line></svg>'
                                 });
                             });
+
+                            // Sort target renewal plan to very top if renewing
+                            if (isRenewal && preselectPlanId) {
+                                items.sort((a, b) => {
+                                    if (a.id === 'p_' + preselectPlanId) return -1;
+                                    if (b.id === 'p_' + preselectPlanId) return 1;
+                                    return 0;
+                                });
+                            }
 
                             return items;
                         }
@@ -781,54 +821,56 @@ function getCsrfToken() {
                             }
                         });
 
-                        memberDrop = new FitDropdown({
-                            container: '#paymentMemberWrap',
-                            placeholder: 'Search member by name or email...',
-                            searchable: true,
-                            searchPlaceholder: 'Search members...',
-                            allowClear: true,
-                            zIndex: 70,
-                            items: members,
-                            onSearch: (q, updateBadge, setResults) => {
-                                clearTimeout(searchTimer);
-                                if (!q.trim()) {
-                                    updateBadge('');
-                                    setResults(members);
-                                    return;
-                                }
-                                updateBadge('Searching...');
-                                searchTimer = setTimeout(() => {
-                                    fetch('index.php?page=memberships&action=search_members&q=' + encodeURIComponent(q.trim()))
-                                        .then(r => r.json())
-                                        .then(data => {
-                                            if (data && data.results && Array.isArray(data.results)) {
-                                                updateBadge(data.results.length + ' found');
-                                                setResults(data.results);
-                                            } else {
-                                                updateBadge('');
-                                            }
-                                        })
-                                        .catch(() => updateBadge(''));
-                                }, 200);
-                            },
-                            onChange: (selectedMember) => {
-                                if (selectedMember) {
-                                    userIdInput.value = selectedMember.id;
-                                    const newItems = buildItemOptions(selectedMember.id);
-                                    itemDrop.setItems(newItems);
-                                    if (newItems.length > 0) {
-                                        itemDrop.select(newItems[0].id, true);
+                        if (!isRenewal) {
+                            memberDrop = new FitDropdown({
+                                container: '#paymentMemberWrap',
+                                placeholder: 'Search member by name or email...',
+                                searchable: true,
+                                searchPlaceholder: 'Search members...',
+                                allowClear: true,
+                                zIndex: 70,
+                                items: members,
+                                onSearch: (q, updateBadge, setResults) => {
+                                    clearTimeout(searchTimer);
+                                    if (!q.trim()) {
+                                        updateBadge('');
+                                        setResults(members);
+                                        return;
                                     }
-                                } else {
-                                    userIdInput.value = '';
-                                    membershipIdInput.value = '';
-                                    planIdInput.value = '';
-                                    itemDrop.setItems([]);
-                                    itemDrop.select(null);
-                                    amountInput.value = '';
+                                    updateBadge('Searching...');
+                                    searchTimer = setTimeout(() => {
+                                        fetch('index.php?page=memberships&action=search_members&q=' + encodeURIComponent(q.trim()))
+                                            .then(r => r.json())
+                                            .then(data => {
+                                                if (data && data.results && Array.isArray(data.results)) {
+                                                    updateBadge(data.results.length + ' found');
+                                                    setResults(data.results);
+                                                } else {
+                                                    updateBadge('');
+                                                }
+                                            })
+                                            .catch(() => updateBadge(''));
+                                    }, 200);
+                                },
+                                onChange: (selectedMember) => {
+                                    if (selectedMember) {
+                                        userIdInput.value = selectedMember.id;
+                                        const newItems = buildItemOptions(selectedMember.id);
+                                        itemDrop.setItems(newItems);
+                                        if (newItems.length > 0) {
+                                            itemDrop.select(newItems[0].id, true);
+                                        }
+                                    } else {
+                                        userIdInput.value = '';
+                                        membershipIdInput.value = '';
+                                        planIdInput.value = '';
+                                        itemDrop.setItems([]);
+                                        itemDrop.select(null);
+                                        amountInput.value = '';
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
 
                         methodDrop = new FitDropdown({
                             container: '#paymentMethodWrap',
@@ -845,6 +887,22 @@ function getCsrfToken() {
                             zIndex: 40,
                             items: statusOptions
                         });
+
+                        if (isRenewal && preselectUserId) {
+                            userIdInput.value = preselectUserId;
+                            const newItems = buildItemOptions(preselectUserId);
+                            itemDrop.setItems(newItems);
+                            if (preselectPlanId) {
+                                const targetPlanItemId = 'p_' + preselectPlanId;
+                                if (newItems.some(it => it.id === targetPlanItemId)) {
+                                    itemDrop.select(targetPlanItemId, true);
+                                } else if (newItems.length > 0) {
+                                    itemDrop.select(newItems[0].id, true);
+                                }
+                            } else if (newItems.length > 0) {
+                                itemDrop.select(newItems[0].id, true);
+                            }
+                        }
                     },
                     preConfirm: () => {
                         const form = document.getElementById('recordPaymentForm');
@@ -872,6 +930,11 @@ function getCsrfToken() {
                 });
             }
             window.recordPayment = recordPayment;
+
+            function renewMembership(userId, planId, memberName, planName, memberEmail = '') {
+                recordPayment(userId, planId, memberName, planName, memberEmail);
+            }
+            window.renewMembership = renewMembership;
 
             function confirmPayment(paymentId, memberName, planName, amount, currentMethod, receiptNumber) {
                 const formattedAmount = '₱' + Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -920,11 +983,11 @@ function getCsrfToken() {
 
                             <div style="display:flex; gap:12px;">
                                 <div style="flex:1;">
-                                    <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Payment Date *</label>
+                                    <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500; white-space: nowrap;">Payment Date *</label>
                                     <input name="payment_date" type="date" class="wb-modal-date-input" value="${window.MEMBERSHIPS_CONFIG?.today || ''}" required>
                                 </div>
                                 <div style="flex:1;">
-                                    <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Receipt Number</label>
+                                    <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500; white-space: nowrap;">Receipt No.</label>
                                     <input name="receipt_number" class="wb-modal-input" value="${safeReceipt}" placeholder="Auto if blank">
                                 </div>
                             </div>
@@ -977,6 +1040,16 @@ function toggleMembershipsFab(forceState) {
     }
 }
 window.toggleMembershipsFab = toggleMembershipsFab;
+
+function setMembershipStatusFilter(status) {
+    const input = document.getElementById('membershipStatusFilterInput');
+    const form = document.getElementById('membershipFilterForm');
+    if (input && form) {
+        input.value = status;
+        form.submit();
+    }
+}
+window.setMembershipStatusFilter = setMembershipStatusFilter;
 
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {

@@ -1473,6 +1473,10 @@ html[data-theme="light"] .btn-card-action {
         grid-column: 1 / -1 !important;
         width: 100% !important;
     }
+    .edit-user-swal-modal #eu_role_wrap .fit-dropdown-menu {
+        left: auto !important;
+        right: 0 !important;
+    }
     .edit-user-swal-modal .swal2-actions {
         margin-top: 14px !important;
         gap: 10px !important;

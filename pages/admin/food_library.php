@@ -687,16 +687,13 @@ function food_library_page(): void
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                     <span>Filter</span>
                 </button>
-            </div>
-
-            <?php if ($searchQuery || $mealTypeFilter || $restrictionFilter || $scopeFilter !== 'all' || $statusFilter !== 'all'): ?>
-                <div class="filter-btn-col">
+                <?php if ($searchQuery || $mealTypeFilter || $restrictionFilter || $scopeFilter !== 'all' || $statusFilter !== 'all'): ?>
                     <a href="index.php?page=food_library&tab=library" class="btn btn-filter-reset" title="Reset all filters">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         <span>Reset</span>
                     </a>
-                </div>
-            <?php endif; ?>
+                <?php endif; ?>
+            </div>
         </form>
 
         <?php 

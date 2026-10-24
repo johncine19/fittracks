@@ -32,7 +32,21 @@
         grid-template-columns: 1fr;
     }
     .filter-btn-col {
-        grid-column: auto;
+        grid-column: 1 / -1;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .filter-btn-col .btn-filter-submit,
+    .filter-btn-col .btn-filter-reset {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        width: 100% !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
     }
 }
 

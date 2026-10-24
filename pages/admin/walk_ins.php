@@ -561,14 +561,18 @@ function walk_ins_page(): void
 
     <!-- FITTRACKS RECORD WALK-IN MODAL -->
     <dialog id="recordWalkInModal" class="modal fit-modal">
+        <div class="fit-modal-sheet-handle"></div>
         <div class="modal-header fit-modal-header">
             <div style="display:flex; align-items:center; gap:10px;">
                 <div class="fit-modal-icon">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
                 </div>
                 <div>
-                    <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--ink);">Issue Guest Walk-In Pass</h3>
-                    <div style="font-size:12px; color:var(--muted); margin-top:2px;">Front desk drop-in registration</div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <h3 style="margin:0; font-size:17px; font-weight:800; color:var(--ink);">Issue Guest Walk-In Pass</h3>
+                        <span class="fit-modal-fee-tag"><?= h(money($gymWalkInFee)) ?></span>
+                    </div>
+                    <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Front desk drop-in registration &bull; <?= h($gymName) ?></div>
                 </div>
             </div>
             <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
@@ -576,8 +580,8 @@ function walk_ins_page(): void
             </button>
         </div>
         <div class="modal-body fit-modal-body">
-            <div class="fit-modal-banner">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <div class="fit-modal-banner fit-modal-banner-compact">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 <span>Standard Walk-in Day Fee for <strong><?= h($gymName) ?></strong> is <strong><?= h(money($gymWalkInFee)) ?></strong>.</span>
             </div>
             <form method="post" class="form fit-modal-form">
@@ -590,46 +594,50 @@ function walk_ins_page(): void
                     </div>
                 </div>
 
-                <div class="fit-input-group">
-                    <label>Mobile Number (11 Digits) *</label>
-                    <div class="fit-input-wrap">
-                        <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                        <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                <!-- 2-COLUMN SPLIT ROW: Mobile Number & Amount Paid -->
+                <div class="fit-form-row-split">
+                    <div class="fit-input-group fit-flex-1">
+                        <label>Mobile Number (11 Digits) *</label>
+                        <div class="fit-input-wrap">
+                            <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                            <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                        </div>
+                    </div>
+
+                    <div class="fit-input-group fit-amount-group">
+                        <label>Amount (₱) *</label>
+                        <div class="fit-input-wrap">
+                            <span class="fit-field-prefix" style="color:var(--lime); font-weight:800;">₱</span>
+                            <input name="amount_paid" type="number" step="0.01" min="0" value="<?= h((string)($gymWalkInFee ?? '100.00')) ?>" placeholder="0.00" required>
+                        </div>
                     </div>
                 </div>
 
-                <div class="fit-input-group">
-                    <label>Amount Paid (₱) *</label>
-                    <div class="fit-input-wrap">
-                        <span class="fit-field-prefix" style="color:var(--lime); font-weight:800;">₱</span>
-                        <input name="amount_paid" type="number" step="0.01" min="0" value="<?= h((string)($gymWalkInFee ?? '100.00')) ?>" placeholder="0.00" required>
-                    </div>
-                </div>
-
+                <!-- 2-COLUMN PAYMENT SELECTOR: Cash vs GCash side-by-side -->
                 <div class="fit-input-group">
                     <label>Payment Method *</label>
                     <div class="fit-payment-selector">
                         <label class="fit-pay-option">
                             <input type="radio" name="payment_method" value="cash" checked>
                             <div class="fit-pay-box">
-                                <span class="fit-pay-icon">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
+                                <span class="fit-pay-icon is-cash-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2"></circle><path d="M6 12h.01M18 12h.01"></path></svg>
                                 </span>
                                 <div class="fit-pay-text">
                                     <strong>Cash</strong>
-                                    <small>Front desk cash box</small>
+                                    <small>Front desk box</small>
                                 </div>
                             </div>
                         </label>
                         <label class="fit-pay-option">
                             <input type="radio" name="payment_method" value="gcash">
                             <div class="fit-pay-box">
-                                <span class="fit-pay-icon">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                                <span class="fit-pay-icon is-gcash-icon">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2"><rect x="5" y="2" width="14" height="20" rx="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
                                 </span>
                                 <div class="fit-pay-text">
                                     <strong>GCash</strong>
-                                    <small>E-Wallet QR scan</small>
+                                    <small>E-Wallet QR</small>
                                 </div>
                             </div>
                         </label>
@@ -637,7 +645,7 @@ function walk_ins_page(): void
                 </div>
 
                 <button type="submit" class="fit-btn-primary fit-modal-submit">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     Issue Pass &amp; Record Payment
                 </button>
             </form>
@@ -646,14 +654,15 @@ function walk_ins_page(): void
 
     <!-- FITTRACKS MEMBER CONVERSION MODAL -->
     <dialog id="convertModal" class="modal fit-modal">
+        <div class="fit-modal-sheet-handle"></div>
         <div class="modal-header fit-modal-header">
             <div style="display:flex; align-items:center; gap:10px;">
                 <div class="fit-modal-icon is-amber">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                 </div>
                 <div>
-                    <h3 style="margin:0; font-size:18px; font-weight:800; color:var(--ink);">Upgrade to FitTracks Member</h3>
-                    <div style="font-size:12px; color:var(--muted); margin-top:2px;">Fast member registration with auto-sent credentials</div>
+                    <h3 style="margin:0; font-size:17px; font-weight:800; color:var(--ink);">Upgrade to FitTracks Member</h3>
+                    <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">Fast member registration with auto-sent credentials</div>
                 </div>
             </div>
             <button class="modal-close" onclick="this.closest('dialog').close()" aria-label="Close">
@@ -661,9 +670,9 @@ function walk_ins_page(): void
             </button>
         </div>
         <div class="modal-body fit-modal-body">
-            <div class="fit-modal-banner is-amber-banner">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                <span>A secure account and password will be generated automatically and dispatched to the member's email inbox.</span>
+            <div class="fit-modal-banner is-amber-banner fit-modal-banner-compact">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <span>A secure member account &amp; password will be generated and dispatched automatically via email.</span>
             </div>
             <form method="post" class="form fit-modal-form">
                 <?= csrf_field() ?>
@@ -702,7 +711,7 @@ function walk_ins_page(): void
                 </div>
 
                 <button type="submit" class="fit-btn-primary fit-modal-submit is-amber-btn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                     Create Member Account &amp; Send Credentials
                 </button>
             </form>

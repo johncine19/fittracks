@@ -168,6 +168,226 @@ function formatPortionQty(qty) {
     if (!form) return;
     const csrf = form.querySelector('[name="csrf_token"]').value;
 
+    // Segmented Logger Mode Tabs & Panels
+    const tabLoggerAi       = document.getElementById('tab-logger-ai');
+    const tabLoggerManual   = document.getElementById('tab-logger-manual');
+    const panelLoggerAi     = document.getElementById('panel-logger-ai');
+    const panelLoggerManual = document.getElementById('panel-logger-manual');
+    const badgeMode         = document.getElementById('logger-badge-mode');
+    const badgeModeTxt      = document.getElementById('logger-badge-mode-text');
+    const badgeModeIcon     = document.getElementById('logger-badge-mode-icon');
+    const subTitleEl        = document.getElementById('mobile-logger-sub-title');
+    const iconGlowEl        = document.getElementById('mobile-logger-icon-glow');
+    const inFoodItems       = document.getElementById('macro-input-food-items');
+
+    // Manual Entry Specific Inputs
+    const manualFoodName    = document.getElementById('manual-food-name');
+    const manualCals        = document.getElementById('manual-macro-cals');
+    const manualPro         = document.getElementById('manual-macro-pro');
+    const manualCarbs       = document.getElementById('manual-macro-carbs');
+    const manualFat         = document.getElementById('manual-macro-fat');
+
+    let activeLoggerTab = 'ai';
+
+    window.switchLoggerTab = function(tab, shouldFocus = true) {
+        activeLoggerTab = tab;
+
+        if (tab === 'manual') {
+            tabLoggerManual?.classList.add('active');
+            tabLoggerManual?.setAttribute('aria-selected', 'true');
+            tabLoggerAi?.classList.remove('active');
+            tabLoggerAi?.setAttribute('aria-selected', 'false');
+
+            if (panelLoggerAi) panelLoggerAi.style.display = 'none';
+            if (panelLoggerManual) {
+                panelLoggerManual.style.display = 'block';
+                panelLoggerManual.classList.add('active');
+            }
+
+            // Sync manual fields with current live values
+            if (manualCals && inCals)   manualCals.value  = inCals.value;
+            if (manualPro && inPro)    manualPro.value   = inPro.value;
+            if (manualCarbs && inCarbs) manualCarbs.value = inCarbs.value;
+            if (manualFat && inFat)    manualFat.value   = inFat.value;
+
+            // Update badge in header
+            if (badgeMode) badgeMode.classList.add('manual-mode');
+            if (badgeModeTxt) badgeModeTxt.textContent = 'Manual Entry';
+            if (badgeModeIcon) {
+                badgeModeIcon.innerHTML = '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>';
+            }
+
+            // Update mobile header
+            if (subTitleEl) subTitleEl.textContent = 'Direct Manual Macro Logging';
+            if (iconGlowEl) {
+                iconGlowEl.style.color = 'var(--macro-pro)';
+                iconGlowEl.style.background = 'color-mix(in srgb, var(--macro-pro) 15%, transparent)';
+            }
+
+            if (shouldFocus && manualFoodName) {
+                setTimeout(() => manualFoodName.focus(), 80);
+            }
+        } else {
+            // 'ai'
+            tabLoggerAi?.classList.add('active');
+            tabLoggerAi?.setAttribute('aria-selected', 'true');
+            tabLoggerManual?.classList.remove('active');
+            tabLoggerManual?.setAttribute('aria-selected', 'false');
+
+            if (panelLoggerManual) {
+                panelLoggerManual.style.display = 'none';
+                panelLoggerManual.classList.remove('active');
+            }
+            if (panelLoggerAi) panelLoggerAi.style.display = 'block';
+
+            // Sync form values from manual fields if they were entered
+            if (manualCals && inCals && manualCals.value)   inCals.value  = manualCals.value;
+            if (manualPro && inPro && manualPro.value)    inPro.value   = manualPro.value;
+            if (manualCarbs && inCarbs && manualCarbs.value) inCarbs.value = manualCarbs.value;
+            if (manualFat && inFat && manualFat.value)    inFat.value   = manualFat.value;
+
+            // Update badge in header
+            if (badgeMode) badgeMode.classList.remove('manual-mode');
+            if (badgeModeTxt) badgeModeTxt.textContent = 'AI Assistant';
+            if (badgeModeIcon) {
+                badgeModeIcon.innerHTML = '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>';
+            }
+
+            // Update mobile header
+            if (subTitleEl) subTitleEl.textContent = 'AI Assistant & Natural Language';
+            if (iconGlowEl) {
+                iconGlowEl.style.color = 'var(--lime)';
+                iconGlowEl.style.background = 'color-mix(in srgb, var(--lime) 15%, transparent)';
+            }
+
+            if (shouldFocus) {
+                const ninjaInputEl = document.getElementById('smart-ninja-input');
+                if (ninjaInputEl) setTimeout(() => ninjaInputEl.focus(), 80);
+            }
+        }
+    };
+
+    // Two-way sync: Manual Inputs -> Bottom Live Form Inputs
+    function syncManualToForm(field, val) {
+        if (field === 'cals' && inCals)   inCals.value  = val;
+        if (field === 'pro' && inPro)    inPro.value   = val;
+        if (field === 'carbs' && inCarbs) inCarbs.value = val;
+        if (field === 'fat' && inFat)    inFat.value   = val;
+    }
+
+    // Two-way sync: Bottom Live Form Inputs -> Manual Inputs
+    function syncFormToManual(field, val) {
+        if (field === 'cals' && manualCals)   manualCals.value  = val;
+        if (field === 'pro' && manualPro)    manualPro.value   = val;
+        if (field === 'carbs' && manualCarbs) manualCarbs.value = val;
+        if (field === 'fat' && manualFat)    manualFat.value   = val;
+    }
+
+    if (manualCals)  manualCals.addEventListener('input',  function() { syncManualToForm('cals', this.value); });
+    if (manualPro)   manualPro.addEventListener('input',   function() { syncManualToForm('pro', this.value); });
+    if (manualCarbs) manualCarbs.addEventListener('input', function() { syncManualToForm('carbs', this.value); });
+    if (manualFat)   manualFat.addEventListener('input',   function() { syncManualToForm('fat', this.value); });
+
+    if (inCals)  inCals.addEventListener('input',  function() { syncFormToManual('cals', this.value); });
+    if (inPro)   inPro.addEventListener('input',   function() { syncFormToManual('pro', this.value); });
+    if (inCarbs) inCarbs.addEventListener('input', function() { syncFormToManual('carbs', this.value); });
+    if (inFat)   inFat.addEventListener('input',   function() { syncFormToManual('fat', this.value); });
+
+    if (manualFoodName && inFoodItems) {
+        manualFoodName.addEventListener('input', function() {
+            inFoodItems.value = this.value;
+        });
+    }
+
+    window.clearManualLogInputs = function() {
+        if (manualFoodName) manualFoodName.value = '';
+        if (manualCals)     manualCals.value = '';
+        if (manualPro)      manualPro.value = '';
+        if (manualCarbs)    manualCarbs.value = '';
+        if (manualFat)      manualFat.value = '';
+        if (inFoodItems)    inFoodItems.value = '';
+        if (inCals)         inCals.value = '';
+        if (inPro)          inPro.value = '';
+        if (inCarbs)        inCarbs.value = '';
+        if (inFat)          inFat.value = '';
+        if (manualFoodName) manualFoodName.focus();
+
+        if (window.Swal) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 1600,
+                icon: 'info',
+                title: 'Cleared manual inputs'
+            });
+        }
+    };
+
+    window.addManualMacroIncrement = function(macroType, amount) {
+        let targetManual = null;
+        let targetForm = null;
+
+        if (macroType === 'cals') {
+            targetManual = manualCals;
+            targetForm = inCals;
+        } else if (macroType === 'pro') {
+            targetManual = manualPro;
+            targetForm = inPro;
+        } else if (macroType === 'carbs') {
+            targetManual = manualCarbs;
+            targetForm = inCarbs;
+        } else if (macroType === 'fat') {
+            targetManual = manualFat;
+            targetForm = inFat;
+        }
+
+        if (!targetManual || !targetForm) return;
+
+        const currentVal = parseFloat(targetManual.value || targetForm.value || 0) || 0;
+        const newVal = Math.round((currentVal + amount) * 10) / 10;
+        targetManual.value = newVal;
+        targetForm.value = newVal;
+
+        // Visual flash highlight
+        [targetManual, targetForm].forEach(el => {
+            if (el) {
+                el.classList.remove('field-highlight-flash');
+                void el.offsetWidth;
+                el.classList.add('field-highlight-flash');
+            }
+        });
+    };
+
+    window.calcManualCaloriesFromPcf = function() {
+        const p = parseFloat(manualPro?.value || inPro?.value || 0) || 0;
+        const c = parseFloat(manualCarbs?.value || inCarbs?.value || 0) || 0;
+        const f = parseFloat(manualFat?.value || inFat?.value || 0) || 0;
+
+        const totalCals = Math.round((p * 4) + (c * 4) + (f * 9));
+        if (manualCals) manualCals.value = totalCals;
+        if (inCals)     inCals.value = totalCals;
+
+        [manualCals, inCals].forEach(el => {
+            if (el) {
+                el.classList.remove('field-highlight-flash');
+                void el.offsetWidth;
+                el.classList.add('field-highlight-flash');
+            }
+        });
+
+        if (window.Swal) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000,
+                icon: 'success',
+                title: `Auto-calculated: ${totalCals} kcal (4P + 4C + 9F)`
+            });
+        }
+    };
+
     window.setMacroLogMode = function(mode) {
         if (!modeInput) return;
         modeInput.value = mode;
@@ -525,13 +745,28 @@ function formatPortionQty(qty) {
         if (window.innerWidth <= 768 && typeof window.toggleMobileMealLogger === 'function') {
             window.toggleMobileMealLogger(true);
         }
-        if (inCals)  inCals.value  = Math.round(parseFloat(cals) || 0);
-        if (inPro)   inPro.value   = Math.round((parseFloat(pro) || 0) * 10) / 10;
-        if (inCarbs) inCarbs.value = Math.round((parseFloat(carbs) || 0) * 10) / 10;
-        if (inFat)   inFat.value   = Math.round((parseFloat(fat) || 0) * 10) / 10;
+        const roundCals = Math.round(parseFloat(cals) || 0);
+        const roundPro  = Math.round((parseFloat(pro) || 0) * 10) / 10;
+        const roundCarb = Math.round((parseFloat(carbs) || 0) * 10) / 10;
+        const roundFat  = Math.round((parseFloat(fat) || 0) * 10) / 10;
+
+        if (inCals)  inCals.value  = roundCals;
+        if (inPro)   inPro.value   = roundPro;
+        if (inCarbs) inCarbs.value = roundCarb;
+        if (inFat)   inFat.value   = roundFat;
+
+        // Also sync manual inputs
+        if (manualCals)  manualCals.value  = roundCals;
+        if (manualPro)   manualPro.value   = roundPro;
+        if (manualCarbs) manualCarbs.value = roundCarb;
+        if (manualFat)   manualFat.value   = roundFat;
+        if (foodName) {
+            if (manualFoodName) manualFoodName.value = foodName;
+            if (inFoodItems)    inFoodItems.value = foodName;
+        }
 
         // Visual flash pulse on inputs
-        [inCals, inPro, inCarbs, inFat].forEach(inp => {
+        [inCals, inPro, inCarbs, inFat, manualCals, manualPro, manualCarbs, manualFat].forEach(inp => {
             if (!inp) return;
             inp.classList.remove('field-highlight-flash');
             void inp.offsetWidth; // trigger reflow
@@ -1249,8 +1484,13 @@ function formatPortionQty(qty) {
             });
 
             let toastMsg = 'Macros saved for today.';
+            const loggedItemName = data.food_items || (typeof currentSubmittedFoodName !== 'undefined' ? currentSubmittedFoodName : '');
             if (activeMode === 'add') {
-                toastMsg = `Added to today's log. Total: <strong>${data.logged_cals} kcal</strong>`;
+                if (loggedItemName) {
+                    toastMsg = `Added <strong>${escapeHtml(loggedItemName)}</strong> (${data.added_cals} kcal). Total: <strong>${data.logged_cals} kcal</strong>`;
+                } else {
+                    toastMsg = `Added to today's log. Total: <strong>${data.logged_cals} kcal</strong>`;
+                }
             } else if (activeMode === 'reset') {
                 toastMsg = 'Today\'s log reset to 0.';
             } else {
@@ -1260,6 +1500,8 @@ function formatPortionQty(qty) {
             Toast.fire({ icon: 'success', title: toastMsg });
         }
     };
+
+    let currentSubmittedFoodName = '';
 
     async function submitMacroLog(forcedMode = null) {
         saveBtn.disabled = true;
@@ -1293,7 +1535,13 @@ function formatPortionQty(qty) {
         // In 'add' mode, auto-fill calories if left empty but macros were entered
         if (activeMode === 'add' && (!inCals.value || inCals.value === '0') && (inPro.value || inCarbs.value || inFat.value)) {
             inCals.value = calcCaloriesFromMacros();
+            if (manualCals) manualCals.value = inCals.value;
         }
+
+        const foodNameVal = (activeLoggerTab === 'manual')
+            ? (manualFoodName?.value?.trim() || '')
+            : (inFoodItems?.value?.trim() || ninjaInput?.value?.trim() || '');
+        currentSubmittedFoodName = foodNameVal;
 
         const body = new URLSearchParams({
             mode:       activeMode,
@@ -1301,6 +1549,7 @@ function formatPortionQty(qty) {
             protein_g:  activeMode === 'reset' ? '0' : (inPro?.value   || '0'),
             carbs_g:    activeMode === 'reset' ? '0' : (inCarbs?.value || '0'),
             fat_g:      activeMode === 'reset' ? '0' : (inFat?.value   || '0'),
+            food_items: foodNameVal,
             csrf_token: csrf
         });
 
@@ -1343,10 +1592,17 @@ function formatPortionQty(qty) {
 
             // In 'add' or 'reset' mode, clear inputs ready for the next food entry
             if (activeMode === 'add' || activeMode === 'reset') {
-                inCals.value = '';
-                inPro.value = '';
-                inCarbs.value = '';
-                inFat.value = '';
+                if (inCals)  inCals.value  = '';
+                if (inPro)   inPro.value   = '';
+                if (inCarbs) inCarbs.value = '';
+                if (inFat)   inFat.value   = '';
+
+                if (manualCals)     manualCals.value     = '';
+                if (manualPro)      manualPro.value      = '';
+                if (manualCarbs)    manualCarbs.value    = '';
+                if (manualFat)      manualFat.value      = '';
+                if (manualFoodName) manualFoodName.value = '';
+                if (inFoodItems)    inFoodItems.value    = '';
             }
         } else {
             const bgVal  = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#121721';
@@ -1368,7 +1624,7 @@ function formatPortionQty(qty) {
     }
 
     // Input sanitization: block minus / negative typing & pasting on macro fields
-    [inCals, inPro, inCarbs, inFat].forEach(inp => {
+    [inCals, inPro, inCarbs, inFat, manualCals, manualPro, manualCarbs, manualFat].forEach(inp => {
         if (!inp) return;
         inp.addEventListener('keydown', function(e) {
             if (e.key === '-' || e.key === 'Subtract') {
@@ -1390,6 +1646,17 @@ function formatPortionQty(qty) {
         });
     });
 
+
+    // Allow pressing Enter in manual inputs to submit
+    [manualFoodName, manualCals, manualPro, manualCarbs, manualFat].forEach(inp => {
+        if (!inp) return;
+        inp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitMacroLog();
+            }
+        });
+    });
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -1425,25 +1692,147 @@ function switchDietTab(dayNum) {
     }
 }
 
-// Top View Switcher (Today's Macro Tracker vs Weekly Meal Plan)
+// Top View Switcher (Today's Macro Tracker vs Weekly Meal Plan vs Past Meal Logs)
 function switchDietView(view) {
     const btnTracker  = document.getElementById('btn-view-tracker');
     const btnPlan     = document.getElementById('btn-view-plan');
+    const btnHistory  = document.getElementById('btn-view-history');
     const viewTracker = document.getElementById('view-macro-tracker');
     const viewPlan    = document.getElementById('view-meal-plan');
+    const viewHistory = document.getElementById('view-meal-history');
+
+    btnTracker?.classList.remove('active');
+    btnPlan?.classList.remove('active');
+    btnHistory?.classList.remove('active');
+
+    if (viewTracker) viewTracker.style.display = 'none';
+    if (viewPlan) viewPlan.style.display = 'none';
+    if (viewHistory) viewHistory.style.display = 'none';
 
     if (view === 'plan') {
         btnPlan?.classList.add('active');
-        btnTracker?.classList.remove('active');
         if (viewPlan) viewPlan.style.display = 'block';
-        if (viewTracker) viewTracker.style.display = 'none';
         try { localStorage.setItem('fittracks_diet_active_tab', 'plan'); } catch (e) {}
+    } else if (view === 'history') {
+        btnHistory?.classList.add('active');
+        if (viewHistory) viewHistory.style.display = 'block';
+        try { localStorage.setItem('fittracks_diet_active_tab', 'history'); } catch (e) {}
     } else {
         btnTracker?.classList.add('active');
-        btnPlan?.classList.remove('active');
         if (viewTracker) viewTracker.style.display = 'block';
-        if (viewPlan) viewPlan.style.display = 'none';
         try { localStorage.setItem('fittracks_diet_active_tab', 'tracker'); } catch (e) {}
+    }
+}
+
+// ----------------------------------------------------
+// PAST MEAL LOGS HISTORY FILTERING
+// ----------------------------------------------------
+let currentHistoryTypeFilter = 'all';
+
+function setMealHistoryTypeFilter(type) {
+    currentHistoryTypeFilter = type;
+    const pills = document.querySelectorAll('.history-filter-pill');
+    pills.forEach(p => {
+        if (p.getAttribute('data-type') === type) {
+            p.classList.add('active');
+        } else {
+            p.classList.remove('active');
+        }
+    });
+    filterMealHistory();
+}
+
+function clearMealHistorySearch() {
+    const searchInp = document.getElementById('diet-history-search');
+    const clearBtn = document.getElementById('btn-clear-history-search');
+    if (searchInp) searchInp.value = '';
+    if (clearBtn) clearBtn.style.display = 'none';
+    filterMealHistory();
+}
+
+function resetMealHistoryFilters() {
+    const searchInp = document.getElementById('diet-history-search');
+    const rangeSel = document.getElementById('diet-history-range');
+    if (searchInp) searchInp.value = '';
+    if (rangeSel) rangeSel.value = 'all';
+    setMealHistoryTypeFilter('all');
+}
+
+function filterMealHistory() {
+    const searchInp = document.getElementById('diet-history-search');
+    const clearBtn = document.getElementById('btn-clear-history-search');
+    const rangeSel = document.getElementById('diet-history-range');
+    const query = (searchInp?.value || '').toLowerCase().trim();
+    const rangeVal = rangeSel?.value || 'all';
+    
+    if (clearBtn) {
+        clearBtn.style.display = query.length > 0 ? 'inline-flex' : 'none';
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const dayCards = document.querySelectorAll('.history-day-card');
+    let totalVisibleMeals = 0;
+    let totalVisibleDays = 0;
+
+    dayCards.forEach(card => {
+        const cardTimestamp = parseInt(card.getAttribute('data-timestamp') || '0', 10);
+        let passesDateRange = true;
+
+        if (rangeVal === '7') {
+            passesDateRange = (nowSec - cardTimestamp) <= (7 * 86400);
+        } else if (rangeVal === '30') {
+            passesDateRange = (nowSec - cardTimestamp) <= (30 * 86400);
+        }
+
+        if (!passesDateRange) {
+            card.style.display = 'none';
+            return;
+        }
+
+        const mealCards = card.querySelectorAll('.history-meal-card');
+        let visibleMealsInDay = 0;
+
+        if (mealCards.length === 0) {
+            const passesType = (currentHistoryTypeFilter === 'all');
+            const passesQuery = query === '' || card.textContent.toLowerCase().includes(query);
+            if (passesType && passesQuery) {
+                card.style.display = 'block';
+                totalVisibleDays++;
+                totalVisibleMeals++;
+            } else {
+                card.style.display = 'none';
+            }
+            return;
+        }
+
+        mealCards.forEach(mc => {
+            const mType = mc.getAttribute('data-meal-type') || '';
+            const foodText = mc.getAttribute('data-food-text') || '';
+
+            const matchesType = (currentHistoryTypeFilter === 'all') || 
+                                (mType.toLowerCase() === currentHistoryTypeFilter.toLowerCase());
+            const matchesQuery = (query === '') || foodText.includes(query) || mType.toLowerCase().includes(query);
+
+            if (matchesType && matchesQuery) {
+                mc.style.display = 'flex';
+                visibleMealsInDay++;
+                totalVisibleMeals++;
+            } else {
+                mc.style.display = 'none';
+            }
+        });
+
+        if (visibleMealsInDay > 0) {
+            card.style.display = 'block';
+            totalVisibleDays++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    const filterEmptyState = document.getElementById('diet-history-filter-empty');
+    if (filterEmptyState) {
+        filterEmptyState.style.display = (totalVisibleDays === 0 && dayCards.length > 0) ? 'flex' : 'none';
     }
 }
 
@@ -2550,6 +2939,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (tabParam === 'plan' || (!tabParam && savedTab === 'plan')) {
         switchDietView('plan');
+    } else if (tabParam === 'history' || (!tabParam && savedTab === 'history')) {
+        switchDietView('history');
     } else {
         switchDietView('tracker');
     }
@@ -2558,6 +2949,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // Explicit global window bindings for inline onclick event handlers
 window.switchDietTab = switchDietTab;
 window.switchDietView = switchDietView;
+window.setMealHistoryTypeFilter = setMealHistoryTypeFilter;
+window.clearMealHistorySearch = clearMealHistorySearch;
+window.resetMealHistoryFilters = resetMealHistoryFilters;
+window.filterMealHistory = filterMealHistory;
 window.normalizeMealType = normalizeMealType;
 window.handleAlreadyLoggedClick = handleAlreadyLoggedClick;
 window.handleViewOnlyClick = handleViewOnlyClick;
@@ -2602,37 +2997,84 @@ function closeDietPlanInfoModal() {
 window.openDietPlanInfoModal = openDietPlanInfoModal;
 window.closeDietPlanInfoModal = closeDietPlanInfoModal;
 
-function toggleMobileMealLogger(forceOpen = null) {
+function toggleMobileMealLogger(forceOpen = null, targetMode = null) {
     const tile = document.getElementById('bento-tile-logger');
     const btn = document.getElementById('btn-mobile-toggle-logger');
     const label = document.getElementById('mobile-logger-btn-label');
+    const menu = document.getElementById('mobile-logger-dropdown-menu');
+    if (menu) menu.style.display = 'none';
+
     if (!tile || !btn) return;
 
     const isOpen = tile.classList.contains('is-mobile-open');
     const shouldOpen = (forceOpen !== null) ? forceOpen : !isOpen;
 
+    const bar = document.getElementById('mobile-logger-trigger-bar');
+
     if (shouldOpen) {
         tile.classList.add('is-mobile-open');
         btn.classList.add('is-active');
+        if (bar) bar.classList.add('is-active');
         btn.setAttribute('aria-expanded', 'true');
         if (label) label.textContent = '✕ Close';
+
+        if (targetMode && typeof window.switchLoggerTab === 'function') {
+            window.switchLoggerTab(targetMode, false);
+        }
+
         setTimeout(() => {
-            const input = document.getElementById('smart-ninja-input');
-            if (input && typeof input.focus === 'function' && window.innerWidth <= 768 && forceOpen === null) {
-                input.focus();
+            const activeInput = (typeof activeLoggerTab !== 'undefined' && activeLoggerTab === 'manual')
+                ? document.getElementById('manual-food-name')
+                : document.getElementById('smart-ninja-input');
+            if (activeInput && typeof activeInput.focus === 'function' && window.innerWidth <= 768 && forceOpen === null) {
+                activeInput.focus();
             }
             if (tile && typeof tile.scrollIntoView === 'function') {
                 tile.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-        }, 50);
+        }, 60);
     } else {
         tile.classList.remove('is-mobile-open');
         btn.classList.remove('is-active');
+        if (bar) bar.classList.remove('is-active');
         btn.setAttribute('aria-expanded', 'false');
         if (label) label.textContent = '+ Log Food';
     }
 }
 
+function toggleMobileLoggerDropdown(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const menu = document.getElementById('mobile-logger-dropdown-menu');
+    if (!menu) return;
+
+    const isVisible = menu.style.display !== 'none';
+    menu.style.display = isVisible ? 'none' : 'block';
+}
+
+function openLoggerWithMode(mode) {
+    const menu = document.getElementById('mobile-logger-dropdown-menu');
+    if (menu) menu.style.display = 'none';
+
+    toggleMobileMealLogger(true, mode);
+    if (typeof window.switchLoggerTab === 'function') {
+        window.switchLoggerTab(mode, true);
+    }
+}
+
+// Global click-away to dismiss mobile logger dropdown
+document.addEventListener('click', function(e) {
+    const wrap = document.querySelector('.mobile-logger-trigger-wrap');
+    const menu = document.getElementById('mobile-logger-dropdown-menu');
+    if (menu && menu.style.display !== 'none' && wrap && !wrap.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
+
 window.toggleMobileMealLogger = toggleMobileMealLogger;
+window.toggleMobileLoggerDropdown = toggleMobileLoggerDropdown;
+window.openLoggerWithMode = openLoggerWithMode;
 
 

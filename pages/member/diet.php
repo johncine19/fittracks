@@ -925,6 +925,79 @@ foreach ($loggedMealsTodayRaw as $lm) {
     ];
 }
 
+// Fetch past meal logs for this member
+$stmtPastMealLogs = $pdo->prepare(
+    "SELECT mml.*, dpm.image_url, dpm.meal_type as plan_meal_type
+     FROM member_meal_logs mml
+     LEFT JOIN dietary_plan_meals dpm ON dpm.meal_id = mml.meal_id
+     WHERE mml.user_id = ?
+     ORDER BY mml.log_date DESC, mml.logged_at DESC"
+);
+$stmtPastMealLogs->execute([$userId]);
+$pastMealLogsRaw = $stmtPastMealLogs->fetchAll();
+
+// Fetch daily macro records for this member (to get accurate daily aggregates)
+$stmtDailyMacrosHistory = $pdo->prepare(
+    "SELECT * FROM daily_macros WHERE user_id = ? ORDER BY log_date DESC"
+);
+$stmtDailyMacrosHistory->execute([$userId]);
+$dailyMacrosHistory = $stmtDailyMacrosHistory->fetchAll();
+
+$dailyMacrosHistoryMap = [];
+foreach ($dailyMacrosHistory as $dmh) {
+    $dailyMacrosHistoryMap[$dmh['log_date']] = $dmh;
+}
+
+// Group meal logs by date
+$pastLogsByDate = [];
+foreach ($pastMealLogsRaw as $log) {
+    $d = $log['log_date'];
+    if (!isset($pastLogsByDate[$d])) {
+        $pastLogsByDate[$d] = [
+            'date' => $d,
+            'meals' => [],
+            'cals' => 0,
+            'pro' => 0.0,
+            'carbs' => 0.0,
+            'fat' => 0.0
+        ];
+    }
+    $pastLogsByDate[$d]['meals'][] = $log;
+    $pastLogsByDate[$d]['cals'] += (int) $log['calories'];
+    $pastLogsByDate[$d]['pro'] += (float) $log['protein_g'];
+    $pastLogsByDate[$d]['carbs'] += (float) $log['carbs_g'];
+    $pastLogsByDate[$d]['fat'] += (float) $log['fat_g'];
+}
+
+// Ensure any daily_macros entry with calories > 0 is included even if itemized slots were not recorded
+foreach ($dailyMacrosHistoryMap as $d => $dm) {
+    if ((int)$dm['calories'] > 0) {
+        if (!isset($pastLogsByDate[$d])) {
+            $pastLogsByDate[$d] = [
+                'date' => $d,
+                'meals' => [],
+                'cals' => (int) $dm['calories'],
+                'pro' => (float) $dm['protein_g'],
+                'carbs' => (float) $dm['carbs_g'],
+                'fat' => (float) $dm['fat_g']
+            ];
+        } else {
+            if ((int)$dm['calories'] > $pastLogsByDate[$d]['cals']) {
+                $pastLogsByDate[$d]['cals'] = (int)$dm['calories'];
+                $pastLogsByDate[$d]['pro'] = max($pastLogsByDate[$d]['pro'], (float)$dm['protein_g']);
+                $pastLogsByDate[$d]['carbs'] = max($pastLogsByDate[$d]['carbs'], (float)$dm['carbs_g']);
+                $pastLogsByDate[$d]['fat'] = max($pastLogsByDate[$d]['fat'], (float)$dm['fat_g']);
+            }
+        }
+    }
+}
+
+krsort($pastLogsByDate);
+
+$totalLoggedDaysCount = count($pastLogsByDate);
+$totalMealsLoggedCount = count($pastMealLogsRaw);
+$avgDailyCals = $totalLoggedDaysCount > 0 ? (int) round(array_sum(array_column($pastLogsByDate, 'cals')) / $totalLoggedDaysCount) : 0;
+
 $isDietSelfGuided = is_member_self_guided($userId) && empty($activePlan['trainer_id']);
 
 $calcMacroStatus = function(int $logged, int $target, string $type): array {
@@ -1138,7 +1211,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     <line x1="12" y1="20" x2="12" y2="4"></line>
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                 </svg>
-                <span class="nav-btn-lbl">Today's Tracker</span>
+                <span class="nav-btn-lbl nav-lbl-full">Today's Tracker</span>
+                <span class="nav-btn-lbl nav-lbl-short">Tracker</span>
                 <span class="diet-nav-badge tracker-badge"><?= $loggedCals ?> / <?= $targetCals ?> kcal</span>
             </button>
             <button type="button" class="diet-segmented-btn" id="btn-view-plan" onclick="switchDietView('plan')">
@@ -1148,8 +1222,18 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     <line x1="8" y1="2" x2="8" y2="6"></line>
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
-                <span class="nav-btn-lbl">Weekly Plan</span>
+                <span class="nav-btn-lbl nav-lbl-full">Weekly Plan</span>
+                <span class="nav-btn-lbl nav-lbl-short">Weekly</span>
                 <span class="diet-nav-badge plan-badge">7-Day</span>
+            </button>
+            <button type="button" class="diet-segmented-btn" id="btn-view-history" onclick="switchDietView('history')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span class="nav-btn-lbl nav-lbl-full">Past Logs</span>
+                <span class="nav-btn-lbl nav-lbl-short">Logs</span>
+                <span class="diet-nav-badge history-badge"><?= $totalLoggedDaysCount ?> Days</span>
             </button>
         </div>
     </div>
@@ -1171,6 +1255,10 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     <span class="tile-subtitle">Calories &amp; Macronutrients</span>
                 </div>
                 <div class="tile-header-actions">
+                    <button type="button" class="tile-mini-btn" onclick="switchDietView('history')" title="View past meal logs and macro history">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                        <span>History</span>
+                    </button>
                     <button type="button" id="btn-auto-calc-cals" class="tile-mini-btn" title="Auto-calc calories: 4P + 4C + 9F">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                         <span>Auto-calc</span>
@@ -1298,29 +1386,61 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
             </div>
         </div>
 
-        <!-- Mobile Trigger Button for Live Macro Logger (Mobile only, hidden on desktop) -->
-        <button type="button" 
-                id="btn-mobile-toggle-logger" 
-                class="mobile-logger-trigger-btn" 
-                onclick="toggleMobileMealLogger()" 
-                aria-expanded="false" 
-                aria-controls="bento-tile-logger">
-            <div class="mobile-logger-trigger-left">
-                <div class="mobile-logger-icon-glow">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                </div>
-                <div class="mobile-logger-title-wrap">
-                    <span class="mobile-logger-main-title">Live Macro Logger</span>
-                    <span class="mobile-logger-sub-title">AI Assistant &amp; Natural Language</span>
-                </div>
+        <!-- Mobile Trigger Bar for Live Macro Logger (Mobile only, hidden on desktop) -->
+        <div class="mobile-logger-trigger-wrap">
+            <div class="mobile-logger-trigger-bar" id="mobile-logger-trigger-bar">
+                <button type="button" 
+                        id="btn-mobile-toggle-logger" 
+                        class="mobile-logger-trigger-main-btn" 
+                        onclick="toggleMobileMealLogger()" 
+                        aria-expanded="false" 
+                        aria-controls="bento-tile-logger">
+                    <div class="mobile-logger-trigger-left">
+                        <div class="mobile-logger-icon-glow" id="mobile-logger-icon-glow">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                            </svg>
+                        </div>
+                        <div class="mobile-logger-title-wrap">
+                            <span class="mobile-logger-main-title">Live Macro Logger</span>
+                            <span class="mobile-logger-sub-title" id="mobile-logger-sub-title">AI Assistant &amp; Natural Language</span>
+                        </div>
+                    </div>
+                    <span id="mobile-logger-btn-label" class="mobile-logger-badge-btn">+ Log Food</span>
+                </button>
+
+                <button type="button" 
+                        id="btn-mobile-logger-dropdown" 
+                        class="mobile-logger-dropdown-trigger" 
+                        onclick="toggleMobileLoggerDropdown(event)" 
+                        title="Choose Logging Method"
+                        aria-label="Choose Logging Method">
+                    <svg class="mobile-logger-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
             </div>
-            <div class="mobile-logger-trigger-right">
-                <span id="mobile-logger-btn-label" class="mobile-logger-badge-btn">+ Log Food</span>
-                <svg class="mobile-logger-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+
+            <!-- Dropdown Menu for Mobile + Log Food -->
+            <div id="mobile-logger-dropdown-menu" class="mobile-logger-dropdown-menu" style="display: none;">
+                <button type="button" class="mobile-logger-menu-item" onclick="openLoggerWithMode('ai')">
+                    <div class="menu-item-icon-ai">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                    <div class="menu-item-text">
+                        <strong>AI Quick Log</strong>
+                        <span>Type what you ate in natural language</span>
+                    </div>
+                </button>
+                <button type="button" class="mobile-logger-menu-item" onclick="openLoggerWithMode('manual')">
+                    <div class="menu-item-icon-manual">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </div>
+                    <div class="menu-item-text">
+                        <strong>Custom / Manual Log</strong>
+                        <span>Enter food name, calories &amp; macros directly</span>
+                    </div>
+                </button>
             </div>
-        </button>
+        </div>
 
         <!-- ================================================ -->
         <!-- BENTO TILE 2: LIVE MACRO LOGGER (Right Tile)     -->
@@ -1334,9 +1454,9 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         </svg>
                         <span>Live Macro Logger</span>
                     </h3>
-                    <span class="smart-api-badge">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                        <span>AI Assistant</span>
+                    <span class="smart-api-badge" id="logger-badge-mode">
+                        <svg id="logger-badge-mode-icon" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                        <span id="logger-badge-mode-text">AI Assistant</span>
                     </span>
                 </div>
 
@@ -1349,64 +1469,205 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 </div>
             </div>
 
+            <!-- Mode Switch Tabs: AI Assistant vs Manual Entry -->
+            <div class="logger-nav-tabs" role="tablist" aria-label="Logging Mode">
+                <button type="button" id="tab-logger-ai" class="logger-tab-pill active" onclick="switchLoggerTab('ai')" role="tab" aria-selected="true">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
+                    <span>AI Assistant</span>
+                </button>
+                <button type="button" id="tab-logger-manual" class="logger-tab-pill" onclick="switchLoggerTab('manual')" role="tab" aria-selected="false">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    <span>Manual Entry</span>
+                </button>
+            </div>
+
             <!-- Assistant Body -->
             <div class="meal-logger-body">
-                <div class="smart-meal-input-wrap">
-                    <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="Type what you ate (e.g., 2 eggs, 1 slice wheat toast, 1 glass milk)..." autocomplete="off">
-                    <div class="smart-meal-btn-group">
-                        <button type="button" id="btn-clear-smart-ninja" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                            <span>Clear</span>
+                <!-- PANEL A: AI ASSISTANT -->
+                <div id="panel-logger-ai" class="logger-tab-panel active">
+                    <div class="smart-meal-input-wrap">
+                        <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="Type what you ate (e.g., 2 eggs, 1 slice wheat toast, 1 glass milk)..." autocomplete="off">
+                        <div class="smart-meal-btn-group">
+                            <button type="button" id="btn-clear-smart-ninja" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                <span>Clear</span>
+                            </button>
+                            <!-- Photo scan button (hidden for now) -->
+                            <button type="button" id="btn-scan-meal-photo" class="smart-meal-scan-btn" onclick="triggerMealPhotoScan()" title="Scan Nutrition Label, Menu, or Recipe" style="display:none;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                <span id="btn-scan-meal-photo-txt">Scan Label / Menu</span>
+                            </button>
+                            <input type="file" id="meal-photo-file-input" accept="image/*" style="display:none;" onchange="handleMealPhotoSelected(event)">
+                            <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span id="btn-analyze-ninja-txt">Analyze &amp; Fill</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Guidance tip for photo scanning (hidden for now) -->
+                    <div class="smart-photo-guide-chip" style="display:none;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <span><strong>Photo Scan:</strong> Reads <strong>printed text</strong> (nutrition labels, menus, receipts, or recipe cards). <em>Does not analyze actual food on a plate.</em></span>
+                    </div>
+
+                    <!-- Quick Suggestion Pills -->
+                    <div class="smart-quick-pills">
+                        <span class="quick-pill-label">Quick:</span>
+                        <button type="button" class="smart-pill" onclick="setQuickMealText('2 boiled eggs and 1 slice whole wheat bread')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+                            <span>2 Eggs &amp; Toast</span>
                         </button>
-                        <!-- Photo scan button (hidden for now) -->
-                        <button type="button" id="btn-scan-meal-photo" class="smart-meal-scan-btn" onclick="triggerMealPhotoScan()" title="Scan Nutrition Label, Menu, or Recipe" style="display:none;">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                            <span id="btn-scan-meal-photo-txt">Scan Label / Menu</span>
+                        <button type="button" class="smart-pill" onclick="setQuickMealText('150g grilled chicken breast and 1 cup white rice')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.5 4.5-3.5 5.5l1.5 6.5-3-1-3 1 1.5-6.5C8.5 11.5 7 9.5 7 7a5 5 0 0 1 5-5z"/></svg>
+                            <span>150g Chicken &amp; Rice</span>
                         </button>
-                        <input type="file" id="meal-photo-file-input" accept="image/*" style="display:none;" onchange="handleMealPhotoSelected(event)">
-                        <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            <span id="btn-analyze-ninja-txt">Analyze &amp; Fill</span>
+                        <button type="button" class="smart-pill" onclick="setQuickMealText('1 scoop whey protein and 1 cup milk')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2h12v3l-2 15a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2L6 5V2z"/><line x1="6" y1="7" x2="18" y2="7"/></svg>
+                            <span>Whey &amp; Milk</span>
                         </button>
+                        <button type="button" class="smart-pill" onclick="setQuickMealText('1 can tuna and 1 medium banana')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
+                            <span>Tuna &amp; Banana</span>
+                        </button>
+                    </div>
+
+                    <!-- CalorieNinjas Breakdown Container -->
+                    <div id="ninja-breakdown-wrap" style="display: none;" class="smart-breakdown-card">
+                        <div class="smart-breakdown-header">
+                            <span class="smart-breakdown-title">Meal Breakdown</span>
+                            <span class="smart-breakdown-badge">✓ Applied to values below</span>
+                        </div>
+                        <div id="ninja-breakdown-items" class="smart-breakdown-list"></div>
+                        <div class="smart-breakdown-totals-bar">
+                            <div id="ninja-breakdown-totals" class="smart-totals-grid"></div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Guidance tip for photo scanning (hidden for now) -->
-                <div class="smart-photo-guide-chip" style="display:none;">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                    <span><strong>Photo Scan:</strong> Reads <strong>printed text</strong> (nutrition labels, menus, receipts, or recipe cards). <em>Does not analyze actual food on a plate.</em></span>
-                </div>
+                <!-- PANEL B: MANUAL ENTRY -->
+                <div id="panel-logger-manual" class="logger-tab-panel" style="display: none;">
+                    <div class="manual-log-wrap">
+                        <div class="manual-food-row">
+                            <div class="manual-food-input-group">
+                                <div class="manual-input-icon">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                                </div>
+                                <input type="text" 
+                                       id="manual-food-name" 
+                                       class="manual-food-input" 
+                                       placeholder="Food / Meal Name (e.g. 1 Chicken Shawarma, Whey Shake...)" 
+                                       autocomplete="off">
+                                <button type="button" 
+                                        id="btn-clear-manual-food" 
+                                        class="manual-field-clear-btn" 
+                                        onclick="clearManualLogInputs()" 
+                                        title="Clear Inputs">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    <span>Clear</span>
+                                </button>
+                            </div>
+                        </div>
 
-                <!-- Quick Suggestion Pills -->
-                <div class="smart-quick-pills">
-                    <span class="quick-pill-label">Quick:</span>
-                    <button type="button" class="smart-pill" onclick="setQuickMealText('2 boiled eggs and 1 slice whole wheat bread')">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
-                        <span>2 Eggs &amp; Toast</span>
-                    </button>
-                    <button type="button" class="smart-pill" onclick="setQuickMealText('150g grilled chicken breast and 1 cup white rice')">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.5 4.5-3.5 5.5l1.5 6.5-3-1-3 1 1.5-6.5C8.5 11.5 7 9.5 7 7a5 5 0 0 1 5-5z"/></svg>
-                        <span>150g Chicken &amp; Rice</span>
-                    </button>
-                    <button type="button" class="smart-pill" onclick="setQuickMealText('1 scoop whey protein and 1 cup milk')">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2h12v3l-2 15a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2L6 5V2z"/><line x1="6" y1="7" x2="18" y2="7"/></svg>
-                        <span>Whey &amp; Milk</span>
-                    </button>
-                    <button type="button" class="smart-pill" onclick="setQuickMealText('1 can tuna and 1 medium banana')">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
-                        <span>Tuna &amp; Banana</span>
-                    </button>
-                </div>
+                        <!-- 4-Column Manual Macro Grid -->
+                        <div class="manual-macros-grid">
+                            <div class="manual-macro-card card-cals">
+                                <div class="manual-card-header">
+                                    <div class="manual-card-tag">
+                                        <span class="macro-stat-dot dot-cals"></span>
+                                        <span>Calories</span>
+                                    </div>
+                                    <span class="manual-card-unit">kcal</span>
+                                </div>
+                                <div class="manual-card-body">
+                                    <input type="number" 
+                                           id="manual-macro-cals" 
+                                           class="manual-num-input" 
+                                           min="0" 
+                                           step="1" 
+                                           placeholder="0" 
+                                           inputmode="numeric">
+                                </div>
+                            </div>
 
-                <!-- CalorieNinjas Breakdown Container -->
-                <div id="ninja-breakdown-wrap" style="display: none;" class="smart-breakdown-card">
-                    <div class="smart-breakdown-header">
-                        <span class="smart-breakdown-title">Meal Breakdown</span>
-                        <span class="smart-breakdown-badge">✓ Applied to values below</span>
-                    </div>
-                    <div id="ninja-breakdown-items" class="smart-breakdown-list"></div>
-                    <div class="smart-breakdown-totals-bar">
-                        <div id="ninja-breakdown-totals" class="smart-totals-grid"></div>
+                            <div class="manual-macro-card card-pro">
+                                <div class="manual-card-header">
+                                    <div class="manual-card-tag">
+                                        <span class="macro-stat-dot dot-pro"></span>
+                                        <span>Protein</span>
+                                    </div>
+                                    <span class="manual-card-unit">g</span>
+                                </div>
+                                <div class="manual-card-body">
+                                    <input type="number" 
+                                           id="manual-macro-pro" 
+                                           class="manual-num-input" 
+                                           min="0" 
+                                           step="0.1" 
+                                           placeholder="0" 
+                                           inputmode="decimal">
+                                </div>
+                            </div>
+
+                            <div class="manual-macro-card card-carbs">
+                                <div class="manual-card-header">
+                                    <div class="manual-card-tag">
+                                        <span class="macro-stat-dot dot-carbs"></span>
+                                        <span>Carbs</span>
+                                    </div>
+                                    <span class="manual-card-unit">g</span>
+                                </div>
+                                <div class="manual-card-body">
+                                    <input type="number" 
+                                           id="manual-macro-carbs" 
+                                           class="manual-num-input" 
+                                           min="0" 
+                                           step="0.1" 
+                                           placeholder="0" 
+                                           inputmode="decimal">
+                                </div>
+                            </div>
+
+                            <div class="manual-macro-card card-fat">
+                                <div class="manual-card-header">
+                                    <div class="manual-card-tag">
+                                        <span class="macro-stat-dot dot-fat"></span>
+                                        <span>Fat</span>
+                                    </div>
+                                    <span class="manual-card-unit">g</span>
+                                </div>
+                                <div class="manual-card-body">
+                                    <input type="number" 
+                                           id="manual-macro-fat" 
+                                           class="manual-num-input" 
+                                           min="0" 
+                                           step="0.1" 
+                                           placeholder="0" 
+                                           inputmode="decimal">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Helpers Row -->
+                        <div class="manual-helpers-row">
+                            <div class="manual-pills-wrap">
+                                <span class="manual-helper-label">Quick Add:</span>
+                                <button type="button" class="manual-quick-pill" onclick="addManualMacroIncrement('cals', 100)">+100 kcal</button>
+                                <button type="button" class="manual-quick-pill" onclick="addManualMacroIncrement('cals', 250)">+250 kcal</button>
+                                <button type="button" class="manual-quick-pill" onclick="addManualMacroIncrement('pro', 20)">+20g Pro</button>
+                                <button type="button" class="manual-quick-pill" onclick="addManualMacroIncrement('carbs', 30)">+30g Carb</button>
+                                <button type="button" class="manual-quick-pill" onclick="addManualMacroIncrement('fat', 10)">+10g Fat</button>
+                            </div>
+                            <button type="button" id="btn-manual-autocalc" class="manual-autocalc-btn" onclick="calcManualCaloriesFromPcf()" title="Calculate calories from (4P + 4C + 9F)">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                <span>Auto-calc Cals</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1415,42 +1676,47 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
             <form id="macro-log-form" action="index.php?page=log_macros" method="post" class="bento-macro-submit-bar">
                 <?= csrf_field() ?>
                 <input type="hidden" id="macro-input-mode" name="mode" value="add">
+                <input type="hidden" id="macro-input-food-items" name="food_items" value="">
                 
-                <div class="bento-live-preview-group">
+                <div class="bento-live-header-row">
                     <span class="bento-preview-label">Live Macros:</span>
-                    
-                    <div class="bento-inline-field field-cals" title="Calories">
-                        <span class="macro-stat-dot dot-cals"></span>
-                        <span id="lbl-text-cals" class="bento-field-tag">Cal</span>
-                        <input id="macro-input-cals" class="bento-field-input" type="number" min="0" name="calories" value="" required placeholder="+0" inputmode="numeric">
-                    </div>
-
-                    <div class="bento-inline-field field-pro" title="Protein (g)">
-                        <span class="macro-stat-dot dot-pro"></span>
-                        <span id="lbl-text-pro" class="bento-field-tag">Pro</span>
-                        <input id="macro-input-pro" class="bento-field-input" type="number" min="0" name="protein_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
-                        <span class="bento-field-unit">g</span>
-                    </div>
-
-                    <div class="bento-inline-field field-carbs" title="Carbs (g)">
-                        <span class="macro-stat-dot dot-carbs"></span>
-                        <span id="lbl-text-carbs" class="bento-field-tag">Carb</span>
-                        <input id="macro-input-carbs" class="bento-field-input" type="number" min="0" name="carbs_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
-                        <span class="bento-field-unit">g</span>
-                    </div>
-
-                    <div class="bento-inline-field field-fat" title="Fat (g)">
-                        <span class="macro-stat-dot dot-fat"></span>
-                        <span id="lbl-text-fat" class="bento-field-tag">Fat</span>
-                        <input id="macro-input-fat" class="bento-field-input" type="number" min="0" name="fat_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
-                        <span class="bento-field-unit">g</span>
-                    </div>
                 </div>
 
-                <button id="macro-save-btn" type="submit" class="bento-macro-save-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    <span id="btn-save-text">+ Add to Log</span>
-                </button>
+                <div class="bento-live-controls-row">
+                    <div class="bento-live-preview-group">
+                        <div class="bento-inline-field field-cals" title="Calories">
+                            <span class="macro-stat-dot dot-cals"></span>
+                            <span id="lbl-text-cals" class="bento-field-tag">Cal</span>
+                            <input id="macro-input-cals" class="bento-field-input" type="number" min="0" name="calories" value="" required placeholder="+0" inputmode="numeric">
+                        </div>
+
+                        <div class="bento-inline-field field-pro" title="Protein (g)">
+                            <span class="macro-stat-dot dot-pro"></span>
+                            <span id="lbl-text-pro" class="bento-field-tag">Pro</span>
+                            <input id="macro-input-pro" class="bento-field-input" type="number" min="0" name="protein_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
+                            <span class="bento-field-unit">g</span>
+                        </div>
+
+                        <div class="bento-inline-field field-carbs" title="Carbs (g)">
+                            <span class="macro-stat-dot dot-carbs"></span>
+                            <span id="lbl-text-carbs" class="bento-field-tag">Carb</span>
+                            <input id="macro-input-carbs" class="bento-field-input" type="number" min="0" name="carbs_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
+                            <span class="bento-field-unit">g</span>
+                        </div>
+
+                        <div class="bento-inline-field field-fat" title="Fat (g)">
+                            <span class="macro-stat-dot dot-fat"></span>
+                            <span id="lbl-text-fat" class="bento-field-tag">Fat</span>
+                            <input id="macro-input-fat" class="bento-field-input" type="number" min="0" name="fat_g" value="" placeholder="+0" inputmode="decimal" step="0.1">
+                            <span class="bento-field-unit">g</span>
+                        </div>
+                    </div>
+
+                    <button id="macro-save-btn" type="submit" class="bento-macro-save-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span id="btn-save-text">+ Add to Log</span>
+                    </button>
+                </div>
             </form>
         </div>
 
@@ -1675,6 +1941,265 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
     </div>
 </div>
 </div> <!-- Close #view-meal-plan -->
+
+<!-- ==================================================== -->
+<!-- VIEW 3: PAST MEAL LOGS HISTORY                       -->
+<!-- ==================================================== -->
+<div id="view-meal-history" class="diet-view-panel" style="display: none;">
+    <div class="diet-history-container">
+        <!-- Top Banner / Summary KPI Cards -->
+        <div class="diet-history-hero">
+            <div class="diet-history-hero-text">
+                <div class="diet-history-title-wrap">
+                    <div class="diet-history-icon-badge">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="diet-history-title">Past Meal Logs &amp; Nutrition History</h2>
+                        <p class="diet-history-subtitle">Review your logged meals, daily macro breakdown, and nutritional consistency over time.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Metric Cards -->
+            <div class="diet-history-kpis">
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Days Tracked</span>
+                    <strong class="history-kpi-val"><?= $totalLoggedDaysCount ?></strong>
+                    <span class="history-kpi-meta">Active logged days</span>
+                </div>
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Total Meals</span>
+                    <strong class="history-kpi-val"><?= $totalMealsLoggedCount ?></strong>
+                    <span class="history-kpi-meta">Logged entries</span>
+                </div>
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Avg Daily Intake</span>
+                    <strong class="history-kpi-val"><?= number_format($avgDailyCals) ?> <small>kcal</small></strong>
+                    <span class="history-kpi-meta">Across logged days</span>
+                </div>
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Daily Target</span>
+                    <strong class="history-kpi-val text-lime"><?= number_format($targetCals) ?> <small>kcal</small></strong>
+                    <span class="history-kpi-meta"><?= $targetPro ?>g P • <?= $targetCarbs ?>g C • <?= $targetFat ?>g F</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toolbar / Interactive Filters -->
+        <div class="diet-history-toolbar">
+            <div class="history-search-wrap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="diet-history-search" class="history-search-input" placeholder="Search meals or ingredients (e.g., Oatmeal, Tofu, Adobo)..." oninput="filterMealHistory()">
+                <button type="button" id="btn-clear-history-search" class="history-search-clear" onclick="clearMealHistorySearch()" style="display:none;" title="Clear search">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <div class="history-filters-wrap">
+                <!-- Meal Type Filter Pills -->
+                <div class="history-type-pills">
+                    <button type="button" class="history-filter-pill active" data-type="all" onclick="setMealHistoryTypeFilter('all')">All Meals</button>
+                    <button type="button" class="history-filter-pill" data-type="Breakfast" onclick="setMealHistoryTypeFilter('Breakfast')">Breakfast</button>
+                    <button type="button" class="history-filter-pill" data-type="Lunch" onclick="setMealHistoryTypeFilter('Lunch')">Lunch</button>
+                    <button type="button" class="history-filter-pill" data-type="Dinner" onclick="setMealHistoryTypeFilter('Dinner')">Dinner</button>
+                    <button type="button" class="history-filter-pill" data-type="Snack" onclick="setMealHistoryTypeFilter('Snack')">Snack</button>
+                </div>
+
+                <!-- Date Range Filter Dropdown -->
+                <select id="diet-history-range" class="history-range-select" onchange="filterMealHistory()">
+                    <option value="all">All Dates</option>
+                    <option value="7">Last 7 Days</option>
+                    <option value="30">Last 30 Days</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- History Timeline Container -->
+        <div id="diet-history-timeline" class="diet-history-timeline">
+            <?php if (empty($pastLogsByDate)): ?>
+                <!-- Empty State -->
+                <div class="diet-history-empty" id="diet-history-empty-state">
+                    <div class="history-empty-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                    </div>
+                    <h3 class="history-empty-title">No Past Meal Logs Yet</h3>
+                    <p class="history-empty-desc">You haven't logged any meals yet. When you log meals from your Weekly Plan or use the Live Macro Logger, your full nutrition history will appear here.</p>
+                    <button type="button" class="btn-history-log-today" onclick="switchDietView('tracker')">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Log Today's Meal</span>
+                    </button>
+                </div>
+            <?php else: ?>
+                <?php foreach ($pastLogsByDate as $logDate => $dayData): 
+                    $timestamp = strtotime($logDate);
+                    $isToday = ($logDate === date('Y-m-d'));
+                    $isYesterday = ($logDate === date('Y-m-d', strtotime('-1 day')));
+                    $dateLabel = date('l, F j, Y', $timestamp);
+                    if ($isToday) {
+                        $relativeTag = 'Today';
+                    } elseif ($isYesterday) {
+                        $relativeTag = 'Yesterday';
+                    } else {
+                        $diffDays = (int) round((time() - $timestamp) / 86400);
+                        $relativeTag = "{$diffDays} days ago";
+                    }
+                    
+                    $dayCals = (int) $dayData['cals'];
+                    $dayPro = round((float) $dayData['pro'], 1);
+                    $dayCarbs = round((float) $dayData['carbs'], 1);
+                    $dayFat = round((float) $dayData['fat'], 1);
+                    $adherencePct = $targetCals > 0 ? (int) round(($dayCals / $targetCals) * 100) : 0;
+                ?>
+                    <div class="history-day-card" data-date="<?= h($logDate) ?>" data-timestamp="<?= $timestamp ?>">
+                        <!-- Day Header -->
+                        <div class="history-day-header">
+                            <div class="history-day-left">
+                                <div class="history-day-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                </div>
+                                <div>
+                                    <div class="history-day-title-row">
+                                        <h4 class="history-day-date"><?= h($dateLabel) ?></h4>
+                                        <span class="history-day-tag <?= $isToday ? 'tag-today' : '' ?>"><?= h($relativeTag) ?></span>
+                                    </div>
+                                    <div class="history-day-meta">
+                                        <span><?= count($dayData['meals']) ?> meal<?= count($dayData['meals']) === 1 ? '' : 's' ?> logged</span>
+                                        <span class="meta-dot">•</span>
+                                        <span class="history-adherence <?= $adherencePct >= 90 && $adherencePct <= 110 ? 'adherence-good' : '' ?>">
+                                            <?= $adherencePct ?>% of target
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Day Macro Totals Bar -->
+                            <div class="history-day-macros">
+                                <div class="history-macro-pill pill-cals" title="Total Calories">
+                                    <span class="macro-stat-dot dot-cals"></span>
+                                    <strong><?= number_format($dayCals) ?></strong>
+                                    <span class="unit">kcal</span>
+                                </div>
+                                <div class="history-macro-pill pill-pro" title="Total Protein">
+                                    <span class="macro-stat-dot dot-pro"></span>
+                                    <strong><?= $dayPro ?>g</strong>
+                                    <span class="unit">Pro</span>
+                                </div>
+                                <div class="history-macro-pill pill-carbs" title="Total Carbohydrates">
+                                    <span class="macro-stat-dot dot-carbs"></span>
+                                    <strong><?= $dayCarbs ?>g</strong>
+                                    <span class="unit">Carb</span>
+                                </div>
+                                <div class="history-macro-pill pill-fat" title="Total Dietary Fat">
+                                    <span class="macro-stat-dot dot-fat"></span>
+                                    <strong><?= $dayFat ?>g</strong>
+                                    <span class="unit">Fat</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Meals List for this Day -->
+                        <div class="history-day-meals">
+                            <?php if (empty($dayData['meals'])): ?>
+                                <div class="history-custom-total-notice">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                    <span>Logged via Daily Macro Total (<?= number_format($dayCals) ?> kcal). No individual meal breakdown was saved for this day.</span>
+                                </div>
+                            <?php else: ?>
+                                <div class="history-meals-grid">
+                                    <?php foreach ($dayData['meals'] as $mealLog): 
+                                        $mType = ucfirst(strtolower(trim($mealLog['meal_type'])));
+                                        if (strpos(strtolower($mType), 'snack') !== false) $mType = 'Snack';
+                                        $mTime = date('g:i A', strtotime($mealLog['logged_at']));
+                                        $mCals = (int) $mealLog['calories'];
+                                        $mPro = round((float) $mealLog['protein_g'], 1);
+                                        $mCarbs = round((float) $mealLog['carbs_g'], 1);
+                                        $mFat = round((float) $mealLog['fat_g'], 1);
+                                        $photoUrl = get_meal_photo_url($mealLog['image_url'] ?? null, $mealLog['food_items'], $mealLog['meal_type']);
+                                    ?>
+                                        <div class="history-meal-card" data-meal-type="<?= h($mType) ?>" data-food-text="<?= h(strtolower($mealLog['food_items'] ?? '')) ?>">
+                                            <!-- Card Main Tier: Thumbnail + Details + Calories -->
+                                            <div class="history-meal-main">
+                                                <div class="history-meal-thumb-wrap">
+                                                    <img src="<?= h($photoUrl) ?>" alt="<?= h($mealLog['food_items']) ?>" class="history-meal-thumb" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80';">
+                                                    <span class="history-meal-type-chip type-<?= strtolower($mType) ?>"><?= h($mType) ?></span>
+                                                </div>
+                                                <div class="history-meal-body">
+                                                    <div class="history-meal-meta-bar">
+                                                        <div class="history-meal-meta-left">
+                                                            <span class="history-meal-time">
+                                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                                <?= h($mTime) ?>
+                                                            </span>
+                                                            <?php if (!empty($mealLog['meal_id'])): ?>
+                                                                <span class="history-planned-tag">
+                                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                                    Planned Meal
+                                                                </span>
+                                                            <?php else: ?>
+                                                                <span class="history-custom-tag">Custom Entry</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <div class="history-meal-cals-badge">
+                                                            <strong><?= number_format($mCals) ?></strong>
+                                                            <span>kcal</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="history-meal-name" title="<?= h($mealLog['food_items']) ?>">
+                                                        <?= nl2br(h($mealLog['food_items'] ?: 'Meal Logged')) ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Card Bottom Tier: 3-Macro Pills -->
+                                            <div class="history-meal-footer">
+                                                <div class="history-meal-macros-row">
+                                                    <span class="meal-macro-chip chip-pro" title="Protein">
+                                                        <span class="macro-stat-dot dot-pro"></span>
+                                                        <strong><?= $mPro ?>g</strong>
+                                                        <span class="macro-lbl">Protein</span>
+                                                    </span>
+                                                    <span class="meal-macro-chip chip-carbs" title="Carbohydrates">
+                                                        <span class="macro-stat-dot dot-carbs"></span>
+                                                        <strong><?= $mCarbs ?>g</strong>
+                                                        <span class="macro-lbl">Carbs</span>
+                                                    </span>
+                                                    <span class="meal-macro-chip chip-fat" title="Dietary Fat">
+                                                        <span class="macro-stat-dot dot-fat"></span>
+                                                        <strong><?= $mFat ?>g</strong>
+                                                        <span class="macro-lbl">Fat</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                
+                <!-- Filter Empty State (Hidden by default, shown when search/filter has 0 results) -->
+                <div class="diet-history-empty" id="diet-history-filter-empty" style="display: none;">
+                    <div class="history-empty-icon">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </div>
+                    <h3 class="history-empty-title">No Matching Meals Found</h3>
+                    <p class="history-empty-desc">No past meal logs match your current search and filter settings. Try clearing the search or choosing "All Meals".</p>
+                    <button type="button" class="btn-clear-filter-action" onclick="resetMealHistoryFilters()">Reset Filters</button>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div> <!-- Close #view-meal-history -->
 
 <!-- ==================================================== -->
 <!-- MODAL: INGREDIENT & MICRONUTRIENT INSPECTION         -->

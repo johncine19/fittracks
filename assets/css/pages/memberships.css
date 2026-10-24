@@ -28,6 +28,10 @@
     padding: 6px !important;
 }
 
+.memberships-top-bar .admin-membership-nav {
+    margin: 0 !important;
+}
+
 [data-theme="light"] .member-membership-nav {
     background: rgba(255, 255, 255, 0.96);
     border-color: #cbd5e1;
@@ -1844,5 +1848,187 @@
 
     .swal2-popup.membership-subscribe-swal .swal2-styled {
         width: 100% !important;
+    }
+}
+
+/* ============================================================
+   Membership Filter & Search Toolbar
+   ============================================================ */
+.fit-filter-panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+[data-theme="light"] .fit-filter-panel {
+    background: #ffffff;
+    border-color: #e2e8f0;
+}
+
+.fit-search-form {
+    flex: 1;
+    min-width: 250px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.fit-search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 200px;
+}
+
+.fit-search-icon {
+    position: absolute;
+    left: 12px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.fit-search-input-wrap input {
+    width: 100%;
+    padding: 9px 34px 9px 36px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: var(--ink);
+    font-size: 13px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+.fit-search-input-wrap input:focus {
+    outline: none;
+    border-color: var(--lime);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
+}
+
+.fit-search-clear {
+    position: absolute;
+    right: 12px;
+    font-size: 18px;
+    color: var(--muted);
+    text-decoration: none;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.fit-search-clear:hover {
+    color: var(--ink);
+}
+
+.fit-plan-select-wrap {
+    min-width: 160px;
+}
+
+.fit-plan-select-wrap select,
+.fit-plan-select {
+    width: 100%;
+    height: 38px;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-radius: 9px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+.fit-plan-select-wrap select:focus,
+.fit-plan-select:focus {
+    outline: none;
+    border-color: var(--lime);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime) 20%, transparent);
+}
+
+.fit-filter-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.fit-chip {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+.fit-chip:hover {
+    color: var(--ink);
+    border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+}
+
+.fit-chip.is-active {
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border-color: color-mix(in srgb, var(--lime) 50%, transparent);
+}
+
+@media (max-width: 768px) {
+    .fit-filter-panel {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .fit-search-form {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .fit-search-input-wrap,
+    .fit-plan-select-wrap {
+        width: 100% !important;
+        min-width: 0 !important;
+        flex: none !important;
+    }
+
+    .fit-plan-select-wrap select,
+    .fit-plan-select {
+        width: 100% !important;
+        display: block;
+    }
+
+    .fit-filter-chips {
+        width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+    }
+    .fit-filter-chips::-webkit-scrollbar {
+        display: none;
+    }
+
+    .fit-chip {
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 }
