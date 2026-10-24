@@ -52,91 +52,245 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
 // Data loaded from FT_CFG at top of controller
 
     function addAssignment() {
+        let currentStep = 1;
         let selectedTrainerId = null;
+        let selectedTrainerName = '';
+        let selectedTrainerIni = 'T';
         let selectedMemberIds = [];
         let memberDebounceTimer = null;
 
         Swal.fire({
-            title: 'New Assignment',
-            width: '520px',
+            title: '',
+            width: 'min(94vw, 500px)',
+            customClass: {
+                popup: 'na-assignment-modal'
+            },
             html: `
-                <form id="addAssignmentForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 15px;">
+                <!-- Stepper Title & Nav -->
+                <div style="text-align: left; margin-bottom: 12px;">
+                    <h3 style="margin: 0 0 10px; font-size: 1.25rem; font-weight: 700; color: var(--ink); text-align: center;">New Assignment</h3>
+                    
+                    <div class="na-stepper-header" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line);">
+                        <div id="naStepIndicator1" class="na-step-pill" style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 20px; background: rgba(132, 204, 22, 0.15); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.3); cursor: pointer; transition: all 0.2s;">
+                            <span id="naStep1Num" style="width: 18px; height: 18px; border-radius: 50%; background: var(--lime); color: var(--bg); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;">1</span>
+                            <span>Trainer & Date</span>
+                        </div>
+                        <div style="width: 20px; height: 2px; background: var(--line); border-radius: 2px;"></div>
+                        <div id="naStepIndicator2" class="na-step-pill" style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 20px; background: var(--panel-soft); color: var(--muted); border: 1px solid var(--line); cursor: pointer; transition: all 0.2s;">
+                            <span id="naStep2Num" style="width: 18px; height: 18px; border-radius: 50%; background: var(--line); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;">2</span>
+                            <span>Members</span>
+                            <span id="naStep2CountBadge" style="display: none; font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--lime); color: var(--bg); font-weight: 800;">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form id="addAssignmentForm" method="post" style="text-align: left;">
                     <input type="hidden" name="csrf_token" value="${ftCsrfToken}">
                     <input type="hidden" name="action" value="create">
                     <input type="hidden" name="trainer_id" id="na_trainer_id" value="">
                     <input type="hidden" name="member_user_ids" id="na_member_user_ids" value="">
-                    
-                    <!-- Activity / Task Title (Optional) -->
-                    <div>
-                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">
-                            Activity / Task Title <span style="font-size: 12px; color: var(--muted);">(Optional)</span>
-                        </label>
-                        <input type="text" name="activity_title" id="na_activity_title" placeholder="e.g. Group Conditioning, Boot Camp, Squad Strength..." autocomplete="off" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 10px 12px; border-radius: 8px; font-size: 13.5px; outline: none;">
-                        <span style="font-size: 11px; color: var(--muted); margin-top: 4px; display: block;">Leave blank for default assignment title.</span>
-                    </div>
 
-                    <!-- Trainer Searchable Combobox -->
-                    <div>
-                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Trainer *</label>
-                        <div style="position: relative; width: 100%;">
-                            <div id="naTrainerTrigger" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; font-size: 14px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
-                                <span id="naTrainerText" style="color: var(--muted); display: flex; align-items: center; gap: 8px;">Select Trainer...</span>
-                                <svg id="naTrainerChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s; color: var(--muted);"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                            <div id="naTrainerMenu" style="display: none; position: absolute; left: 0; right: 0; margin-top: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; max-height: 220px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1050;">
-                                <div style="padding: 8px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2;">
-                                    <input type="text" id="naTrainerSearch" placeholder="Search trainer..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 7px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 13px; outline: none;">
+                    <!-- STEP 1: TRAINER & DETAILS -->
+                    <div id="naStep1" style="display: flex; flex-direction: column; gap: 13px;">
+                        <!-- Trainer Searchable Combobox -->
+                        <div>
+                            <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Trainer *</label>
+                            <div style="position: relative; width: 100%;">
+                                <div id="naTrainerTrigger" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; font-size: 14px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                                    <span id="naTrainerText" style="color: var(--muted); display: flex; align-items: center; gap: 8px;">Select Trainer...</span>
+                                    <svg id="naTrainerChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s; color: var(--muted);"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                 </div>
-                                <div id="naTrainerList" style="padding: 4px;"></div>
+                                <div id="naTrainerMenu" style="display: none; position: absolute; left: 0; right: 0; margin-top: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.25); z-index: 1050;">
+                                    <div style="padding: 8px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2;">
+                                        <input type="text" id="naTrainerSearch" placeholder="Search trainer..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 7px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 13px; outline: none;">
+                                    </div>
+                                    <div id="naTrainerList" style="padding: 4px;"></div>
+                                </div>
                             </div>
+                        </div>
+
+                        <!-- Assigned Date -->
+                        <div>
+                            <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Assigned date *</label>
+                            <input type="date" name="assigned_date" id="na_assigned_date" class="form-control" value="${ftCurrentDate}" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 9px 12px; border-radius: 8px; font-size: 13.5px; color-scheme: dark light;" required>
+                            <div style="margin-top: 6px; padding: 7px 10px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.22); border-radius: 8px; font-size: 11.5px; color: #0284c7; display: flex; align-items: center; gap: 7px; line-height: 1.35;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                <span>Syncs automatically with each member's plan expiration date.</span>
+                            </div>
+                        </div>
+
+                        <!-- Activity / Task Title (Optional) -->
+                        <div>
+                            <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">
+                                Activity / Task Title <span style="font-size: 12px; color: var(--muted);">(Optional)</span>
+                            </label>
+                            <input type="text" name="activity_title" id="na_activity_title" placeholder="Default assignment title if left blank" autocomplete="off" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 9px 12px; border-radius: 8px; font-size: 13.5px; outline: none;">
                         </div>
                     </div>
 
-                    <!-- Member Multi-Select Combobox -->
-                    <div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <label style="color: var(--muted); font-size: 13.5px; font-weight: 500;">Assign Member(s) *</label>
-                            <span id="naMemberCountBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(132, 204, 22, 0.15); color: var(--lime); font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
-                                0 selected
-                            </span>
-                        </div>
-
-                        <!-- Selected Chips Box -->
-                        <div id="naSelectedChips" style="min-height: 42px; max-height: 90px; overflow-y: auto; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px;">
-                            <span id="naSelectedChipsEmpty" style="color: var(--muted); font-size: 12px; padding: 2px 4px;">No members selected yet. Search and check members below.</span>
-                        </div>
-
-                        <!-- Search and Quick Actions -->
-                        <div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: center;">
-                            <div style="position: relative; flex: 1;">
-                                <input type="text" id="naMemberSearch" placeholder="Search members to select..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 7px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 13px; outline: none;">
+                    <!-- STEP 2: MEMBER SELECTION -->
+                    <div id="naStep2" style="display: none; flex-direction: column; gap: 10px;">
+                        <!-- Step 1 Summary Header -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                                <div id="naStep2TrainerIni" style="width: 24px; height: 24px; border-radius: 50%; background: var(--panel-soft); color: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; border: 1px solid var(--line); flex-shrink: 0;">T</div>
+                                <div style="min-width: 0;">
+                                    <div id="naStep2TrainerName" style="font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Trainer</div>
+                                    <div id="naStep2DateText" style="font-size: 11px; color: var(--muted);">Date: ${ftCurrentDate}</div>
+                                </div>
                             </div>
-                            <button type="button" id="naSelectAllBtn" class="btn-sm btn-ghost" style="padding: 6px 9px; font-size: 11.5px; border: 1px solid var(--line); font-weight: 600; white-space: nowrap; cursor: pointer;">
-                                Select All
-                            </button>
-                            <button type="button" id="naClearAllBtn" class="btn-sm btn-ghost" style="padding: 6px 9px; font-size: 11.5px; border: 1px solid var(--line); color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer;">
-                                Clear
+                            <button type="button" id="naStep2BackLink" style="background: none; border: none; color: var(--lime); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 3px; padding: 4px 6px; white-space: nowrap;">
+                                Edit ✏️
                             </button>
                         </div>
 
-                        <!-- Member Checklist -->
-                        <div id="naMemberList" style="max-height: 175px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px;"></div>
-                    </div>
-                    
-                    <div>
-                        <label style="display:block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; font-weight: 500;">Assigned date *</label>
-                        <input type="date" name="assigned_date" class="form-control" value="${ftCurrentDate}" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 10px 12px; border-radius: 8px; font-size: 13.5px; color-scheme: dark light;" required>
-                        <div style="margin-top: 8px; padding: 8px 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; font-size: 11.5px; color: #0284c7; display: flex; align-items: center; gap: 8px; line-height: 1.4;">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                            <span><strong>Auto Expiration:</strong> Assignment end date automatically syncs with each member's active plan expiration date and extends automatically upon renewal.</span>
+                        <!-- Member Multi-Select Header -->
+                        <div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label style="color: var(--muted); font-size: 13px; font-weight: 500;">Assign Member(s) *</label>
+                                <span id="naMemberCountBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(132, 204, 22, 0.15); color: var(--lime); font-weight: 700; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                    0 selected
+                                </span>
+                            </div>
+
+                            <!-- Selected Chips Box (auto hidden when 0 selected) -->
+                            <div id="naSelectedChipsWrap" style="display: none; margin-bottom: 8px;">
+                                <div id="naSelectedChips" style="max-height: 80px; overflow-y: auto; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"></div>
+                            </div>
+
+                            <!-- Search and Quick Actions -->
+                            <div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: center;">
+                                <div style="position: relative; flex: 1;">
+                                    <input type="text" id="naMemberSearch" placeholder="Search members..." autocomplete="off" style="width: 100%; box-sizing: border-box; padding: 7px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 13px; outline: none;">
+                                </div>
+                                <button type="button" id="naSelectAllBtn" class="btn-sm btn-ghost" style="padding: 6px 9px; font-size: 11.5px; border: 1px solid var(--line); font-weight: 600; white-space: nowrap; cursor: pointer;">
+                                    Select All
+                                </button>
+                                <button type="button" id="naClearAllBtn" class="btn-sm btn-ghost" style="padding: 6px 9px; font-size: 11.5px; border: 1px solid var(--line); color: var(--muted); font-weight: 600; white-space: nowrap; cursor: pointer;">
+                                    Clear
+                                </button>
+                            </div>
+
+                            <!-- Member Checklist -->
+                            <div id="naMemberList" style="max-height: 200px; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px;"></div>
                         </div>
                     </div>
                 </form>
             `,
             showCancelButton: true,
-            confirmButtonText: 'Assign Members',
+            confirmButtonText: 'Next: Select Members →',
+            cancelButtonText: 'Cancel',
             confirmButtonColor: 'var(--lime-dark)',
             didOpen: () => {
+                const confirmBtn = Swal.getConfirmButton();
+                const cancelBtn = Swal.getCancelButton();
+                const step1Container = document.getElementById('naStep1');
+                const step2Container = document.getElementById('naStep2');
+                const stepInd1 = document.getElementById('naStepIndicator1');
+                const stepInd2 = document.getElementById('naStepIndicator2');
+                const step1Num = document.getElementById('naStep1Num');
+                const step2Num = document.getElementById('naStep2Num');
+                const step2CountBadge = document.getElementById('naStep2CountBadge');
+
+                function goToStep(step) {
+                    Swal.resetValidationMessage();
+                    if (step === 2) {
+                        const trainerHidden = document.getElementById('na_trainer_id');
+                        const assignedDateInput = document.getElementById('na_assigned_date');
+                        if (!trainerHidden || !trainerHidden.value) {
+                            Swal.showValidationMessage('Please select a trainer');
+                            return false;
+                        }
+                        if (!assignedDateInput || !assignedDateInput.value) {
+                            Swal.showValidationMessage('Please select an assigned date');
+                            return false;
+                        }
+
+                        currentStep = 2;
+                        step1Container.style.display = 'none';
+                        step2Container.style.display = 'flex';
+
+                        // Update Step 1 summary on Step 2
+                        const s2TrainerName = document.getElementById('naStep2TrainerName');
+                        const s2TrainerIni = document.getElementById('naStep2TrainerIni');
+                        const s2DateText = document.getElementById('naStep2DateText');
+                        if (s2TrainerName) s2TrainerName.textContent = selectedTrainerName;
+                        if (s2TrainerIni) s2TrainerIni.textContent = selectedTrainerIni;
+                        if (s2DateText) s2DateText.textContent = 'Date: ' + assignedDateInput.value;
+
+                        // Stepper UI
+                        stepInd1.style.background = 'var(--panel-soft)';
+                        stepInd1.style.color = 'var(--muted)';
+                        stepInd1.style.borderColor = 'var(--line)';
+                        step1Num.style.background = 'var(--line)';
+                        step1Num.style.color = 'var(--muted)';
+
+                        stepInd2.style.background = 'rgba(132, 204, 22, 0.15)';
+                        stepInd2.style.color = 'var(--lime)';
+                        stepInd2.style.borderColor = 'rgba(132, 204, 22, 0.3)';
+                        step2Num.style.background = 'var(--lime)';
+                        step2Num.style.color = 'var(--bg)';
+
+                        // Buttons
+                        confirmBtn.textContent = selectedMemberIds.length > 0 
+                            ? `Assign (${selectedMemberIds.length}) Member${selectedMemberIds.length > 1 ? 's' : ''}` 
+                            : 'Assign Members';
+                        cancelBtn.textContent = '← Back';
+
+                        setTimeout(() => {
+                            const mSearch = document.getElementById('naMemberSearch');
+                            if (mSearch) mSearch.focus();
+                        }, 50);
+                    } else {
+                        currentStep = 1;
+                        step1Container.style.display = 'flex';
+                        step2Container.style.display = 'none';
+
+                        // Stepper UI
+                        stepInd1.style.background = 'rgba(132, 204, 22, 0.15)';
+                        stepInd1.style.color = 'var(--lime)';
+                        stepInd1.style.borderColor = 'rgba(132, 204, 22, 0.3)';
+                        step1Num.style.background = 'var(--lime)';
+                        step1Num.style.color = 'var(--bg)';
+
+                        stepInd2.style.background = 'var(--panel-soft)';
+                        stepInd2.style.color = 'var(--muted)';
+                        stepInd2.style.borderColor = 'var(--line)';
+                        step2Num.style.background = 'var(--line)';
+                        step2Num.style.color = 'var(--muted)';
+
+                        confirmBtn.textContent = 'Next: Select Members →';
+                        cancelBtn.textContent = 'Cancel';
+                    }
+                }
+
+                // Intercept Cancel button to act as "Back" when on Step 2
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', (e) => {
+                        if (currentStep === 2) {
+                            e.stopImmediatePropagation();
+                            e.preventDefault();
+                            goToStep(1);
+                        }
+                    }, true);
+                }
+
+                // Stepper click handlers
+                if (stepInd1) {
+                    stepInd1.addEventListener('click', () => {
+                        if (currentStep === 2) goToStep(1);
+                    });
+                }
+                if (stepInd2) {
+                    stepInd2.addEventListener('click', () => {
+                        if (currentStep === 1) goToStep(2);
+                    });
+                }
+                const backLink = document.getElementById('naStep2BackLink');
+                if (backLink) {
+                    backLink.addEventListener('click', () => goToStep(1));
+                }
+
                 // Trainer Combobox Logic
                 const tTrigger = document.getElementById('naTrainerTrigger');
                 const tMenu = document.getElementById('naTrainerMenu');
@@ -171,12 +325,12 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                         el.addEventListener('mouseleave', () => { if (parseInt(el.getAttribute('data-id'), 10) !== selectedTrainerId) el.style.background = 'transparent'; });
                         el.addEventListener('click', () => {
                             selectedTrainerId = parseInt(el.getAttribute('data-id'), 10);
+                            selectedTrainerName = decodeURIComponent(el.getAttribute('data-name'));
+                            selectedTrainerIni = el.getAttribute('data-ini') || 'T';
                             tHidden.value = selectedTrainerId;
-                            const name = decodeURIComponent(el.getAttribute('data-name'));
-                            const ini = el.getAttribute('data-ini');
                             tText.innerHTML = `
-                                <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--panel-soft); color: var(--lime); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; border: 1px solid var(--line);">${ini}</span>
-                                <span style="color: var(--ink); font-weight: 600;">${name}</span>
+                                <span style="width: 22px; height: 22px; border-radius: 50%; background: var(--panel-soft); color: var(--lime); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; border: 1px solid var(--line);">${selectedTrainerIni}</span>
+                                <span style="color: var(--ink); font-weight: 600;">${selectedTrainerName}</span>
                             `;
                             tMenu.style.display = 'none';
                             tChevron.style.transform = 'rotate(0deg)';
@@ -204,30 +358,40 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                 const mSearch = document.getElementById('naMemberSearch');
                 const mList = document.getElementById('naMemberList');
                 const mChipsBox = document.getElementById('naSelectedChips');
-                const mChipsEmpty = document.getElementById('naSelectedChipsEmpty');
+                const mChipsWrap = document.getElementById('naSelectedChipsWrap');
                 const mCountBadge = document.getElementById('naMemberCountBadge');
                 const mHidden = document.getElementById('na_member_user_ids');
                 const btnSelectAll = document.getElementById('naSelectAllBtn');
                 const btnClearAll = document.getElementById('naClearAllBtn');
-                const confirmBtn = Swal.getConfirmButton();
 
                 function updateSelectedChips() {
                     mHidden.value = selectedMemberIds.join(',');
                     mCountBadge.textContent = selectedMemberIds.length + ' selected';
                     
-                    if (confirmBtn) {
+                    if (step2CountBadge) {
+                        if (selectedMemberIds.length > 0) {
+                            step2CountBadge.style.display = 'inline-block';
+                            step2CountBadge.textContent = selectedMemberIds.length;
+                        } else {
+                            step2CountBadge.style.display = 'none';
+                        }
+                    }
+
+                    if (confirmBtn && currentStep === 2) {
                         confirmBtn.textContent = selectedMemberIds.length > 0 
                             ? `Assign (${selectedMemberIds.length}) Member${selectedMemberIds.length > 1 ? 's' : ''}` 
                             : 'Assign Members';
                     }
 
                     if (selectedMemberIds.length === 0) {
-                        mChipsBox.innerHTML = '<span id="naSelectedChipsEmpty" style="color: var(--muted); font-size: 12px; padding: 2px 4px;">No members selected yet. Search and check members below.</span>';
+                        if (mChipsWrap) mChipsWrap.style.display = 'none';
+                        mChipsBox.innerHTML = '';
                         const existingWarnBox = document.getElementById('naDoubleAssignWarning');
                         if (existingWarnBox) existingWarnBox.remove();
                         return;
                     }
 
+                    if (mChipsWrap) mChipsWrap.style.display = 'block';
                     mChipsBox.innerHTML = selectedMemberIds.map(id => {
                         const m = ftMembersData.find(item => item.id === id) || { name: 'Member #' + id, initials: 'M' };
                         const displayName = m.full_name || m.name.split(' (')[0];
@@ -240,7 +404,7 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                         `;
                     }).join('');
 
-                    // Display gentle warning callout if any selected members are already active with another coach
+                    // Display warning if any selected members are already active with another coach
                     const warningMembers = selectedMemberIds
                         .map(id => ftMembersData.find(item => item.id === id))
                         .filter(m => m && m.active_trainer);
@@ -256,8 +420,8 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                         `;
                         if (existingWarnBox) {
                             existingWarnBox.outerHTML = warnHtml;
-                        } else {
-                            mChipsBox.insertAdjacentHTML('afterend', warnHtml);
+                        } else if (mChipsWrap) {
+                            mChipsWrap.insertAdjacentHTML('afterend', warnHtml);
                         }
                     } else if (existingWarnBox) {
                         existingWarnBox.remove();
@@ -384,6 +548,63 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
             },
             preConfirm: () => {
                 const form = document.getElementById('addAssignmentForm');
+                if (currentStep === 1) {
+                    if (!form.trainer_id.value) {
+                        Swal.showValidationMessage('Please select a trainer');
+                        return false;
+                    }
+                    if (!form.assigned_date.value) {
+                        Swal.showValidationMessage('Please select an assigned date');
+                        return false;
+                    }
+                    // Advance to Step 2
+                    const step1Container = document.getElementById('naStep1');
+                    const step2Container = document.getElementById('naStep2');
+                    const stepInd1 = document.getElementById('naStepIndicator1');
+                    const stepInd2 = document.getElementById('naStepIndicator2');
+                    const step1Num = document.getElementById('naStep1Num');
+                    const step2Num = document.getElementById('naStep2Num');
+                    const confirmBtn = Swal.getConfirmButton();
+                    const cancelBtn = Swal.getCancelButton();
+
+                    currentStep = 2;
+                    Swal.resetValidationMessage();
+                    step1Container.style.display = 'none';
+                    step2Container.style.display = 'flex';
+
+                    const s2TrainerName = document.getElementById('naStep2TrainerName');
+                    const s2TrainerIni = document.getElementById('naStep2TrainerIni');
+                    const s2DateText = document.getElementById('naStep2DateText');
+                    if (s2TrainerName) s2TrainerName.textContent = selectedTrainerName;
+                    if (s2TrainerIni) s2TrainerIni.textContent = selectedTrainerIni;
+                    if (s2DateText) s2DateText.textContent = 'Date: ' + form.assigned_date.value;
+
+                    stepInd1.style.background = 'var(--panel-soft)';
+                    stepInd1.style.color = 'var(--muted)';
+                    stepInd1.style.borderColor = 'var(--line)';
+                    step1Num.style.background = 'var(--line)';
+                    step1Num.style.color = 'var(--muted)';
+
+                    stepInd2.style.background = 'rgba(132, 204, 22, 0.15)';
+                    stepInd2.style.color = 'var(--lime)';
+                    stepInd2.style.borderColor = 'rgba(132, 204, 22, 0.3)';
+                    step2Num.style.background = 'var(--lime)';
+                    step2Num.style.color = 'var(--bg)';
+
+                    confirmBtn.textContent = selectedMemberIds.length > 0 
+                        ? `Assign (${selectedMemberIds.length}) Member${selectedMemberIds.length > 1 ? 's' : ''}` 
+                        : 'Assign Members';
+                    cancelBtn.textContent = '← Back';
+
+                    setTimeout(() => {
+                        const mSearch = document.getElementById('naMemberSearch');
+                        if (mSearch) mSearch.focus();
+                    }, 50);
+
+                    return false;
+                }
+
+                // Step 2 Submission
                 if (!form.trainer_id.value) {
                     Swal.showValidationMessage('Please select a trainer');
                     return false;
@@ -400,7 +621,6 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
             }
         });
     }
-
     // ── Manage Members in an Existing Assignment ──────────────────────────
     function manageGroupMembers(groupId) {
         Swal.fire({
