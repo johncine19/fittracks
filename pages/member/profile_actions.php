@@ -631,13 +631,18 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                     // End active trainer assignments
                     $pdo->prepare('UPDATE trainer_assignments SET status = "ended" WHERE member_user_id = ? AND status = "active"')
                         ->execute([$userId]);
-                    // Remove personal health/biometric & log data
-                    $pdo->prepare('DELETE FROM member_profiles WHERE user_id = ?')->execute([$userId]);
-                    $pdo->prepare('DELETE FROM progress_logs WHERE user_id = ?')->execute([$userId]);
-                    $pdo->prepare('DELETE FROM member_meal_logs WHERE user_id = ?')->execute([$userId]);
-                    $pdo->prepare('DELETE FROM daily_macros WHERE user_id = ?')->execute([$userId]);
-                    $pdo->prepare('DELETE FROM exercise_completions WHERE user_id = ?')->execute([$userId]);
-                    $pdo->prepare('DELETE FROM gym_members WHERE user_id = ?')->execute([$userId]);
+                    // Remove personal health/biometric & log data (safe if table is newly added or not present)
+                    $deleteIfExists = static function (string $table, string $col, int $val) use ($pdo): void {
+                        try {
+                            $pdo->prepare("DELETE FROM `{$table}` WHERE `{$col}` = ?")->execute([$val]);
+                        } catch (Throwable) {}
+                    };
+                    $deleteIfExists('member_profiles', 'user_id', $userId);
+                    $deleteIfExists('progress_logs', 'user_id', $userId);
+                    $deleteIfExists('member_meal_logs', 'user_id', $userId);
+                    $deleteIfExists('daily_macros', 'user_id', $userId);
+                    $deleteIfExists('exercise_completions', 'user_id', $userId);
+                    $deleteIfExists('gym_members', 'user_id', $userId);
                 }
 
                 // Consume OTP token
@@ -646,19 +651,35 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 // Anonymize & deactivate the user row while preserving FK integrity for financial audit logs
                 $anonEmail = 'deleted_' . $role . '_' . $userId . '_' . time() . '@deleted.local';
                 $anonLabel = $role === 'gym_owner' ? 'Owner' : 'Member';
-                $pdo->prepare(
-                    'UPDATE users
-                     SET first_name = "Deleted",
-                         last_name = ?,
-                         email = ?,
-                         phone = NULL,
-                         password_hash = "",
-                         google_id = NULL,
-                         profile_picture = NULL,
-                         status = "inactive",
-                         session_token = NULL
-                     WHERE user_id = ?'
-                )->execute([$anonLabel, $anonEmail, $userId]);
+
+                $userCols = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
+                $updateFields = [
+                    'first_name = "Deleted"',
+                    'last_name = ?',
+                    'email = ?',
+                    'phone = NULL',
+                    'password_hash = ""',
+                    'profile_picture = NULL',
+                    'status = "inactive"'
+                ];
+                $updateParams = [$anonLabel, $anonEmail];
+
+                if (in_array('google_id', $userCols, true)) {
+                    $updateFields[] = 'google_id = NULL';
+                }
+                if (in_array('qr_token', $userCols, true)) {
+                    $updateFields[] = 'qr_token = NULL';
+                }
+                if (in_array('qr_expires_at', $userCols, true)) {
+                    $updateFields[] = 'qr_expires_at = NULL';
+                }
+                if (in_array('session_token', $userCols, true)) {
+                    $updateFields[] = 'session_token = NULL';
+                }
+
+                $updateParams[] = $userId;
+                $sql = 'UPDATE users SET ' . implode(', ', $updateFields) . ' WHERE user_id = ?';
+                $pdo->prepare($sql)->execute($updateParams);
 
                 audit_log($userId, 'delete_account', 'user', (string) $userId, "Permanently deleted and anonymized {$role} account via Email OTP");
                 $pdo->commit();

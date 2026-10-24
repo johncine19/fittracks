@@ -3836,8 +3836,481 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
 
 function render_exercise_recommendations(int $userId, bool $compact = false): void
 {
+    static $cssRendered = false;
     $recs = get_exercise_recommendations($userId);
     $profile = member_profile($userId);
+
+    if (!$cssRendered) {
+        $cssRendered = true;
+        ?>
+        <style>
+            .exercise-recs {
+                position: relative;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .rec-header-wrap {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-bottom: 6px;
+                min-width: 0;
+                width: 100%;
+            }
+            .rec-sub {
+                font-size: 13px;
+                margin: 4px 0 0 0;
+                color: var(--muted);
+            }
+            .rec-goal-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 7px;
+                padding: 5px 13px;
+                border-radius: 20px;
+                font-size: 11.5px;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                background: var(--panel-soft);
+                color: var(--ink);
+                border: 1px solid var(--line);
+                flex-shrink: 0;
+            }
+            .rec-goal-dot {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--lime);
+                box-shadow: 0 0 6px color-mix(in srgb, var(--lime) 60%, transparent);
+            }
+            .badge-cat {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                flex-shrink: 0;
+                white-space: nowrap;
+            }
+            .badge-strength { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+            .badge-cardio   { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+            .badge-core     { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
+
+            .rec-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+                gap: 14px;
+                margin-top: 14px;
+                min-width: 0;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .rec-card {
+                background: var(--panel-soft);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 16px;
+                transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                position: relative;
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+            .rec-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+                border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
+            }
+            .rec-card.rec-high {
+                border-left: 3px solid var(--lime);
+                background: linear-gradient(90deg, color-mix(in srgb, var(--lime) 6%, transparent) 0%, var(--panel-soft) 100%);
+            }
+            .rec-card-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 8px;
+                margin-bottom: 6px;
+                min-width: 0;
+                width: 100%;
+            }
+            .rec-card-title {
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--ink);
+                line-height: 1.3;
+                min-width: 0;
+                flex: 1;
+                word-break: break-word;
+            }
+            .rec-muscle-row {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 12px;
+                color: var(--muted);
+                margin-bottom: 12px;
+                min-width: 0;
+            }
+            .rec-muscle-row svg {
+                color: var(--lime);
+                flex-shrink: 0;
+            }
+            .rec-params {
+                display: flex;
+                gap: 6px;
+                flex-wrap: wrap;
+                margin-bottom: 10px;
+                min-width: 0;
+                width: 100%;
+            }
+            .rec-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--ink);
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid var(--line);
+                padding: 3px 8px;
+                border-radius: 6px;
+                flex-shrink: 0;
+            }
+            .rec-chip svg {
+                color: var(--muted);
+                flex-shrink: 0;
+            }
+            .rec-card-hint {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 11px;
+                color: var(--muted);
+                padding-top: 8px;
+                border-top: 1px solid var(--line);
+                min-width: 0;
+                width: 100%;
+                max-width: 100%;
+                overflow: hidden;
+                box-sizing: border-box;
+            }
+            .rec-card-hint svg {
+                color: var(--lime);
+                flex-shrink: 0;
+            }
+            .rec-card-hint span {
+                min-width: 0;
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                display: block;
+            }
+            .rec-footer-cta {
+                margin-top: 16px;
+                display: flex;
+                justify-content: flex-start;
+                min-width: 0;
+                width: 100%;
+            }
+            .rec-explore-btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 16px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 700;
+                text-decoration: none;
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--ink);
+                border: 1px solid var(--line);
+                transition: all 0.2s ease;
+            }
+            .rec-explore-btn:hover {
+                background: color-mix(in srgb, var(--lime) 12%, transparent);
+                border-color: var(--lime);
+                color: var(--lime);
+                transform: translateX(3px);
+            }
+
+            /* ============================================================
+               Refined Empty State (No Christmas Lights)
+               ============================================================ */
+            .rec-empty-state {
+                margin-top: 16px;
+                padding: 28px 20px 24px;
+                background: color-mix(in srgb, var(--panel-soft) 60%, transparent);
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                box-sizing: border-box;
+                width: 100%;
+            }
+            .rec-empty-icon-wrap {
+                width: 48px;
+                height: 48px;
+                border-radius: 12px;
+                background: var(--bg);
+                border: 1px solid var(--line);
+                color: var(--lime);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 14px;
+            }
+            .rec-empty-title {
+                margin: 0 0 6px 0;
+                font-size: 16px;
+                font-weight: 700;
+                color: var(--ink);
+            }
+            .rec-empty-desc {
+                margin: 0 auto 20px;
+                font-size: 13px;
+                color: var(--muted);
+                max-width: 520px;
+                line-height: 1.5;
+            }
+            .rec-empty-desc strong {
+                color: var(--ink);
+                font-weight: 600;
+            }
+            .rec-empty-actions-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+                gap: 10px;
+                width: 100%;
+                max-width: 760px;
+                margin: 0 auto;
+                text-align: left;
+                box-sizing: border-box;
+            }
+            .rec-empty-action-card {
+                display: flex;
+                align-items: center;
+                gap: 11px;
+                padding: 12px 14px;
+                background: var(--bg);
+                border: 1px solid var(--line);
+                border-radius: 10px;
+                text-decoration: none;
+                transition: all 0.2s ease;
+                box-sizing: border-box;
+                color: var(--ink);
+            }
+            .rec-empty-action-card:hover {
+                border-color: color-mix(in srgb, var(--lime) 45%, var(--line));
+                transform: translateY(-2px);
+                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+            }
+            .rec-action-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                background: var(--panel-soft);
+                color: var(--ink);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+            .rec-action-info {
+                min-width: 0;
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .rec-action-title {
+                font-size: 12.5px;
+                font-weight: 600;
+                color: var(--ink);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .rec-action-sub {
+                font-size: 11px;
+                color: var(--muted);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .rec-action-arrow {
+                color: var(--muted);
+                margin-left: auto;
+                flex-shrink: 0;
+                transition: all 0.2s ease;
+            }
+            .rec-empty-action-card:hover .rec-action-arrow {
+                color: var(--lime);
+                transform: translateX(3px);
+            }
+
+            /* Responsive rules */
+            @media (max-width: 680px) {
+                .rec-header-wrap {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 8px;
+                }
+                .rec-goal-pill {
+                    align-self: flex-start;
+                    font-size: 11px;
+                    padding: 4px 10px;
+                }
+                .rec-footer-cta {
+                    width: 100%;
+                }
+                .rec-explore-btn {
+                    width: 100%;
+                    justify-content: center;
+                    padding: 11px 16px;
+                    box-sizing: border-box;
+                }
+                .rec-empty-state {
+                    padding: 22px 14px 18px;
+                }
+                .rec-empty-actions-grid {
+                    grid-template-columns: 1fr;
+                    gap: 8px;
+                }
+            }
+            @media (max-width: 540px) {
+                .rec-grid {
+                    grid-template-columns: minmax(0, 1fr);
+                    gap: 10px;
+                }
+                .rec-card {
+                    padding: 14px;
+                }
+            }
+            @media (min-width: 541px) and (max-width: 860px) {
+                .rec-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 12px;
+                }
+            }
+
+            /* LIGHT MODE ADAPTATION */
+            [data-theme="light"] .rec-sub {
+                color: #64748b;
+            }
+            [data-theme="light"] .rec-goal-pill {
+                background: #f1f5f9;
+                color: #1e293b;
+                border-color: #cbd5e1;
+            }
+            [data-theme="light"] .rec-goal-dot {
+                background: #16a34a;
+                box-shadow: 0 0 5px rgba(22, 163, 74, 0.45);
+            }
+            [data-theme="light"] .rec-card {
+                background: #ffffff;
+                border-color: #e2e8f0;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+            }
+            [data-theme="light"] .rec-card:hover {
+                border-color: #94a3b8;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            }
+            [data-theme="light"] .rec-card.rec-high {
+                border-left-color: #16a34a;
+                background: linear-gradient(90deg, #f0fdf4 0%, #ffffff 100%);
+            }
+            [data-theme="light"] .rec-card-title {
+                color: #0f172a;
+            }
+            [data-theme="light"] .rec-muscle-row {
+                color: #64748b;
+            }
+            [data-theme="light"] .rec-muscle-row svg {
+                color: #16a34a;
+            }
+            [data-theme="light"] .rec-chip {
+                background: #f1f5f9;
+                color: #1e293b;
+                border-color: #e2e8f0;
+            }
+            [data-theme="light"] .rec-chip svg {
+                color: #64748b;
+            }
+            [data-theme="light"] .rec-card-hint {
+                border-top-color: #f1f5f9;
+                color: #64748b;
+            }
+            [data-theme="light"] .rec-explore-btn {
+                background: #ffffff;
+                color: #0f172a;
+                border-color: #cbd5e1;
+            }
+            [data-theme="light"] .rec-explore-btn:hover {
+                background: #f8fafc;
+                border-color: #65a30d;
+                color: #4d7c0f;
+            }
+            [data-theme="light"] .badge-strength { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+            [data-theme="light"] .badge-cardio   { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+            [data-theme="light"] .badge-core     { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+
+            [data-theme="light"] .rec-empty-state {
+                background: #f8fafc;
+                border-color: #e2e8f0;
+            }
+            [data-theme="light"] .rec-empty-icon-wrap {
+                background: #ffffff;
+                border-color: #e2e8f0;
+                color: #16a34a;
+            }
+            [data-theme="light"] .rec-empty-title {
+                color: #0f172a;
+            }
+            [data-theme="light"] .rec-empty-desc {
+                color: #64748b;
+            }
+            [data-theme="light"] .rec-empty-desc strong {
+                color: #1e293b;
+            }
+            [data-theme="light"] .rec-empty-action-card {
+                background: #ffffff;
+                border-color: #e2e8f0;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            }
+            [data-theme="light"] .rec-empty-action-card:hover {
+                border-color: #94a3b8;
+                box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            }
+            [data-theme="light"] .rec-action-icon {
+                background: #f1f5f9;
+                color: #0f172a;
+            }
+            [data-theme="light"] .rec-action-title {
+                color: #0f172a;
+            }
+            [data-theme="light"] .rec-action-sub {
+                color: #64748b;
+            }
+            [data-theme="light"] .rec-empty-action-card:hover .rec-action-arrow {
+                color: #16a34a;
+            }
+        </style>
+        <?php
+    }
 
     echo '<section class="panel exercise-recs">';
     echo '<div class="rec-header-wrap">';
@@ -3856,15 +4329,66 @@ function render_exercise_recommendations(int $userId, bool $compact = false): vo
 
     if (!$recs) {
         if (!$profile) {
-            echo '<div style="padding: 12px 0;">';
-            echo '  <p class="muted" style="margin-bottom:10px;">Set up your physical profile to unlock personalized exercise recommendations tailored to your goals.</p>';
-            echo '  <a href="index.php?page=profile" class="btn btn-secondary" style="font-size:12.5px; padding:6px 14px; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">Set Up Profile</a>';
+            echo '<div class="rec-empty-state">';
+            echo '  <div class="rec-empty-icon-wrap">';
+            echo '    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+            echo '      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>';
+            echo '    </svg>';
+            echo '  </div>';
+            echo '  <h3 class="rec-empty-title">Complete Your Fitness Profile</h3>';
+            echo '  <p class="rec-empty-desc">Set up your height, weight, and fitness goals to unlock tailored exercise routines designed specifically for your body.</p>';
+            echo '  <a href="index.php?page=profile" class="btn btn-secondary" style="font-size:13px; font-weight:700; padding:8px 18px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; border-radius:8px;">';
+            echo '    <span>Set Up Physical Profile</span>';
+            echo '    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+            echo '  </a>';
             echo '</div>';
         } else {
             $goalText = !empty($profile['primary_goal']) ? ucwords(str_replace('_', ' ', $profile['primary_goal'])) : 'your selected goal';
-            echo '<div style="padding: 12px 0;">';
-            echo '  <p class="muted" style="margin-bottom:4px;">Custom exercise recommendations for <strong>' . h($goalText) . '</strong> are currently being prepared.</p>';
-            echo '  <p class="muted" style="font-size:12px; margin:0;">Check back soon or consult your gym trainer to add exercises to your catalog.</p>';
+            echo '<div class="rec-empty-state">';
+            echo '  <div class="rec-empty-icon-wrap">';
+            echo '    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+            echo '      <path d="M6 5v14M18 5v14M2 9h4M18 9h4M2 15h4M18 15h4M6 12h12"/>';
+            echo '    </svg>';
+            echo '  </div>';
+            echo '  <h3 class="rec-empty-title">Curating Your Recommended Routine</h3>';
+            echo '  <p class="rec-empty-desc">Custom recommendations for <strong>' . h($goalText) . '</strong> are currently being prepared for your fitness level. In the meantime, explore available exercises or connect with your coach.</p>';
+            
+            echo '  <div class="rec-empty-actions-grid">';
+            
+            echo '    <a href="index.php?page=my_workout" class="rec-empty-action-card">';
+            echo '      <div class="rec-action-icon">';
+            echo '        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10M6 10h10"/></svg>';
+            echo '      </div>';
+            echo '      <div class="rec-action-info">';
+            echo '        <span class="rec-action-title">Browse Exercise Catalog</span>';
+            echo '        <span class="rec-action-sub">View movement library & form guides</span>';
+            echo '      </div>';
+            echo '      <svg class="rec-action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+            echo '    </a>';
+
+            echo '    <a href="index.php?page=trainers" class="rec-empty-action-card">';
+            echo '      <div class="rec-action-icon">';
+            echo '        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+            echo '      </div>';
+            echo '      <div class="rec-action-info">';
+            echo '        <span class="rec-action-title">Consult Gym Trainer</span>';
+            echo '        <span class="rec-action-sub">Request a coach to assign exercises</span>';
+            echo '      </div>';
+            echo '      <svg class="rec-action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+            echo '    </a>';
+
+            echo '    <a href="index.php?page=profile" class="rec-empty-action-card">';
+            echo '      <div class="rec-action-icon">';
+            echo '        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+            echo '      </div>';
+            echo '      <div class="rec-action-info">';
+            echo '        <span class="rec-action-title">Adjust Fitness Profile</span>';
+            echo '        <span class="rec-action-sub">Update activity level & target goals</span>';
+            echo '      </div>';
+            echo '      <svg class="rec-action-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>';
+            echo '    </a>';
+
+            echo '  </div>';
             echo '</div>';
         }
         echo '</section>';
@@ -3930,313 +4454,6 @@ function render_exercise_recommendations(int $userId, bool $compact = false): vo
     }
 
     echo '</section>';
-    ?>
-    <style>
-        .exercise-recs {
-            position: relative;
-            min-width: 0;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .rec-header-wrap {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 6px;
-            min-width: 0;
-            width: 100%;
-        }
-        .rec-sub {
-            font-size: 13px;
-            margin: 4px 0 0 0;
-            color: var(--muted);
-        }
-        .rec-goal-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            background: color-mix(in srgb, #a855f7 15%, transparent);
-            color: #c084fc;
-            border: 1px solid color-mix(in srgb, #a855f7 35%, transparent);
-            flex-shrink: 0;
-        }
-        .rec-goal-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #c084fc;
-            box-shadow: 0 0 6px #c084fc;
-        }
-        .badge-cat {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            flex-shrink: 0;
-            white-space: nowrap;
-        }
-        .badge-strength { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
-        .badge-cardio   { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
-        .badge-core     { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.3); }
-
-        .rec-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
-            gap: 14px;
-            margin-top: 14px;
-            min-width: 0;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .rec-card {
-            background: var(--panel-soft);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            padding: 16px;
-            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            position: relative;
-            min-width: 0;
-            max-width: 100%;
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-        .rec-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
-            border-color: color-mix(in srgb, var(--lime) 40%, var(--line));
-        }
-        .rec-card.rec-high {
-            border-left: 3px solid #a855f7;
-            background: linear-gradient(90deg, rgba(168, 85, 247, 0.06) 0%, var(--panel-soft) 100%);
-        }
-        .rec-card-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 6px;
-            min-width: 0;
-            width: 100%;
-        }
-        .rec-card-title {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--ink);
-            line-height: 1.3;
-            min-width: 0;
-            flex: 1;
-            word-break: break-word;
-        }
-        .rec-muscle-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 12px;
-            min-width: 0;
-        }
-        .rec-muscle-row svg {
-            color: var(--lime);
-            flex-shrink: 0;
-        }
-        .rec-params {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
-            min-width: 0;
-            width: 100%;
-        }
-        .rec-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--ink);
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--line);
-            padding: 3px 8px;
-            border-radius: 6px;
-            flex-shrink: 0;
-        }
-        .rec-chip svg {
-            color: var(--muted);
-            flex-shrink: 0;
-        }
-        .rec-card-hint {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 11px;
-            color: var(--muted);
-            padding-top: 8px;
-            border-top: 1px solid var(--line);
-            min-width: 0;
-            width: 100%;
-            max-width: 100%;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-        .rec-card-hint svg {
-            color: var(--lime);
-            flex-shrink: 0;
-        }
-        .rec-card-hint span {
-            min-width: 0;
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            display: block;
-        }
-        .rec-footer-cta {
-            margin-top: 16px;
-            display: flex;
-            justify-content: flex-start;
-            min-width: 0;
-            width: 100%;
-        }
-        .rec-explore-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 700;
-            text-decoration: none;
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--ink);
-            border: 1px solid var(--line);
-            transition: all 0.2s ease;
-        }
-        .rec-explore-btn:hover {
-            background: color-mix(in srgb, var(--lime) 12%, transparent);
-            border-color: var(--lime);
-            color: var(--lime);
-            transform: translateX(3px);
-        }
-
-        /* Responsive rules across mobile, tablet, and desktop */
-        @media (max-width: 680px) {
-            .rec-header-wrap {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 8px;
-            }
-            .rec-goal-pill {
-                align-self: flex-start;
-                font-size: 10.5px;
-                padding: 3px 9px;
-            }
-            .rec-footer-cta {
-                width: 100%;
-            }
-            .rec-explore-btn {
-                width: 100%;
-                justify-content: center;
-                padding: 11px 16px;
-                box-sizing: border-box;
-            }
-        }
-        @media (max-width: 540px) {
-            .rec-grid {
-                grid-template-columns: minmax(0, 1fr);
-                gap: 10px;
-            }
-            .rec-card {
-                padding: 14px;
-            }
-        }
-        @media (min-width: 541px) and (max-width: 860px) {
-            .rec-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 12px;
-            }
-        }
-
-        /* LIGHT MODE ADAPTATION */
-        [data-theme="light"] .rec-sub {
-            color: #475569;
-        }
-        [data-theme="light"] .rec-goal-pill {
-            background: #faf5ff;
-            color: #7e22ce;
-            border-color: #e9d5ff;
-        }
-        [data-theme="light"] .rec-goal-dot {
-            background: #7e22ce;
-            box-shadow: 0 0 6px #7e22ce;
-        }
-        [data-theme="light"] .rec-card {
-            background: #ffffff;
-            border-color: #e2e8f0;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
-        }
-        [data-theme="light"] .rec-card:hover {
-            border-color: #94a3b8;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-        }
-        [data-theme="light"] .rec-card.rec-high {
-            border-left-color: #9333ea;
-            background: linear-gradient(90deg, #faf5ff 0%, #ffffff 100%);
-        }
-        [data-theme="light"] .rec-card-title {
-            color: #0f172a;
-        }
-        [data-theme="light"] .rec-muscle-row {
-            color: #64748b;
-        }
-        [data-theme="light"] .rec-muscle-row svg {
-            color: #16a34a;
-        }
-        [data-theme="light"] .rec-chip {
-            background: #f1f5f9;
-            color: #1e293b;
-            border-color: #e2e8f0;
-        }
-        [data-theme="light"] .rec-chip svg {
-            color: #64748b;
-        }
-        [data-theme="light"] .rec-card-hint {
-            border-top-color: #f1f5f9;
-            color: #64748b;
-        }
-        [data-theme="light"] .rec-card-hint svg {
-            color: #16a34a;
-        }
-        [data-theme="light"] .rec-explore-btn {
-            background: #ffffff;
-            color: #0f172a;
-            border-color: #cbd5e1;
-        }
-        [data-theme="light"] .rec-explore-btn:hover {
-            background: #f8fafc;
-            border-color: #65a30d;
-            color: #4d7c0f;
-        }
-        [data-theme="light"] .badge-strength { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-        [data-theme="light"] .badge-cardio   { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-        [data-theme="light"] .badge-core     { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-    </style>
-    <?php
 }
 
 
