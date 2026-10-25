@@ -49,7 +49,8 @@ class SessionRedisHandler implements SessionHandlerInterface
         }
 
         try {
-            $isAuthenticated = str_contains($data, '"user_id"')
+            $isAuthenticated = str_contains($data, 'user_id|')
+                || str_contains($data, '"user_id"')
                 || str_contains($data, 'pending_verify_')
                 || str_contains($data, 'reset_email');
 

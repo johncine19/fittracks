@@ -31,7 +31,17 @@ class SessionDbHandler implements SessionHandlerInterface
         if ($row !== false) {
             $data = (string) $row['session_data'];
             $this->lastReadHash = hash('xxh3', $data);
-            $this->existedOnRead = ((int) $row['expires_at'] - time()) > 600;
+            $remaining = (int) $row['expires_at'] - time();
+            $isAuthenticated = str_contains($data, 'user_id|')
+                || str_contains($data, '"user_id"')
+                || str_contains($data, 'pending_verify_')
+                || str_contains($data, 'reset_email');
+
+            // For auth sessions (24h TTL), allow up to 30 mins before refreshing DB expires_at.
+            // For guest sessions (15m TTL), allow up to 5 mins before refreshing DB expires_at.
+            $this->existedOnRead = $isAuthenticated
+                ? ($remaining > (86400 - 1800))
+                : ($remaining > 600);
             return $data;
         }
         $this->lastReadHash = '';
@@ -49,7 +59,8 @@ class SessionDbHandler implements SessionHandlerInterface
             return true;
         }
 
-        $isAuthenticated = str_contains($data, '"user_id"')
+        $isAuthenticated = str_contains($data, 'user_id|')
+            || str_contains($data, '"user_id"')
             || str_contains($data, 'pending_verify_')
             || str_contains($data, 'reset_email');
 

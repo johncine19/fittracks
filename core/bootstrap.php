@@ -106,6 +106,23 @@ session_set_cookie_params([
 
 session_set_save_handler($sessionHandler, true);
 session_start();
+
+// Extend session cookie expiration on user activity (sliding 24-hour inactivity window)
+if (!empty($_SESSION['user_id'])) {
+    $lastCookieRefresh = (int)($_SESSION['_last_cookie_refresh'] ?? 0);
+    if (time() - $lastCookieRefresh > 1800) {
+        $_SESSION['_last_cookie_refresh'] = time();
+        if (!headers_sent()) {
+            setcookie(session_name(), session_id(), [
+                'expires' => time() + 86400,
+                'path' => '/',
+                'secure' => $isHttps,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        }
+    }
+}
 ob_start(); // Buffer all output so setup_error() can set HTTP headers even mid-render
 require __DIR__ . '/csrf.php';
 require __DIR__ . '/validators.php';
