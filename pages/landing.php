@@ -26,6 +26,10 @@ if (!function_exists('landing_icon')) {
             'alert-circle' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
             'shield' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
             'play' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 4 20 12 6 20 6 4"/></svg>',
+            'map-pin' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+            'search' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+            'navigation' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
+            'external-link' => '<svg' . $classAttr . ' xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
         ];
 
         return $icons[$name] ?? '';
@@ -190,6 +194,31 @@ function landing_page(): void
     $platformStats   = Cache::remember('landing:platform_rating_stats', 300, fn() => get_platform_rating_stats());
     $platformReviews = Cache::remember('landing:platform_reviews_12', 300, fn() => get_platform_reviews(12));
 
+    // ── Partner Facilities Network ─────────────────────────────────
+    $partnerGyms = [];
+    try {
+        $partnerGyms = Cache::remember('landing:partner_gyms_list', 120, function() {
+            return query_all("
+                SELECT g.gym_id, g.name, g.address, g.latitude, g.longitude, g.logo_url, g.cover_image_url,
+                       g.brand_color, g.walk_in_fee, g.public_description,
+                       COUNT(DISTINCT m.user_id) AS member_count,
+                       COUNT(DISTINCT p.plan_id) AS plan_count,
+                       MIN(p.price) AS min_plan_price,
+                       COALESCE(AVG(r.rating), 0) AS avg_rating,
+                       COUNT(DISTINCT r.rating_id) AS review_count
+                FROM gyms g
+                LEFT JOIN gym_members m ON g.gym_id = m.gym_id
+                LEFT JOIN membership_plans p ON g.gym_id = p.gym_id AND p.is_active = 1
+                LEFT JOIN gym_ratings r ON g.gym_id = r.gym_id
+                WHERE g.status = 'approved'
+                GROUP BY g.gym_id, g.name, g.address, g.latitude, g.longitude, g.logo_url, g.cover_image_url, g.brand_color, g.walk_in_fee, g.public_description
+                ORDER BY member_count DESC, g.name ASC
+            ");
+        });
+    } catch (\Throwable $e) {
+        $partnerGyms = [];
+    }
+
 
     // ── Platform Subscription Plans ──────────────────────────────────
     $platformPlans = get_platform_subscription_plans();
@@ -306,7 +335,8 @@ function landing_page(): void
         <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-hero.css')) ?>">
         <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-architecture.css')) ?>">
         <link rel="stylesheet" href="<?= h(asset_url('css/pages/landing-terminal.css')) ?>">
-        <link rel="preload" as="image" href="assets/landing/hero_gym.png" fetchpriority="high">
+        <link rel="preload" as="image" href="<?= h(asset_url('landing/hero_gym.png')) ?>" fetchpriority="high">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
     </head>
@@ -346,6 +376,7 @@ function landing_page(): void
                     <li><a href="#features" class="nav-link">Features</a></li>
                     <li><a href="#terminal" class="nav-link">Terminal</a></li>
                     <li><a href="#how-it-works" class="nav-link">How It Works</a></li>
+                    <li><a href="#partner-gyms" class="nav-link">Partner Gyms</a></li>
                     <li><a href="#testimonials" class="nav-link">Testimonials</a></li>
                     <li><a href="#pricing" class="nav-link">Pricing</a></li>
                     <li><a href="#faq" class="nav-link">FAQ</a></li>
@@ -396,6 +427,7 @@ function landing_page(): void
             <a href="#features" class="mobile-drawer-link" onclick="closeMobileMenu()">Features</a>
             <a href="#terminal" class="mobile-drawer-link" onclick="closeMobileMenu()">Terminal</a>
             <a href="#how-it-works" class="mobile-drawer-link" onclick="closeMobileMenu()">How It Works</a>
+            <a href="#partner-gyms" class="mobile-drawer-link" onclick="closeMobileMenu()">Partner Gyms</a>
             <a href="#testimonials" class="mobile-drawer-link" onclick="closeMobileMenu()">Testimonials</a>
             <a href="#pricing" class="mobile-drawer-link" onclick="closeMobileMenu()">Pricing</a>
             <a href="#faq" class="mobile-drawer-link" onclick="closeMobileMenu()">FAQ</a>
@@ -434,7 +466,7 @@ function landing_page(): void
             <div class="hx-stage" aria-hidden="true">
                 <div class="hx-dolly">
                     <div class="hx-drift">
-                        <img class="hx-photo" src="assets/landing/hero_gym.png" alt="" width="1024" height="1024" fetchpriority="high" decoding="async">
+                        <img class="hx-photo" src="<?= h(asset_url('landing/hero_gym.png')) ?>" alt="" width="1024" height="1024" fetchpriority="high" decoding="async">
                     </div>
                 </div>
                 <div class="hx-dim"></div>
@@ -888,7 +920,7 @@ function landing_page(): void
        06. CORE FEATURES (Platform Capabilities - Serpentine Hexagon Infographic)
        ========================================================================== -->
         <section class="has-parallax-orbs features-section reveal-on-scroll" id="features">
-            <img class="capabilities-background" src="assets/landing/hero_gym.png" alt="" aria-hidden="true" loading="lazy" decoding="async">
+            <img class="capabilities-background" src="<?= h(asset_url('landing/hero_gym.png')) ?>" alt="" aria-hidden="true" loading="lazy" decoding="async">
             <div class="parallax-orbs" aria-hidden="true">
                 <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
                 <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
@@ -1174,7 +1206,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_members.png" alt="Member Training" class="feature-media-photo">
+                        <img src="<?= h(asset_url('landing/gym_members.png')) ?>" alt="Member Training" class="feature-media-photo">
                     </div>
                 </div>
 
@@ -1203,7 +1235,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_qr_scan.png" alt="Dynamic QR Turnstile Entrance" class="feature-media-photo">
+                        <img src="<?= h(asset_url('landing/gym_qr_scan.png')) ?>" alt="Dynamic QR Turnstile Entrance" class="feature-media-photo">
                     </div>
                 </div>
 
@@ -1232,7 +1264,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_trainer.png" alt="Trainer Guidance" class="feature-media-photo">
+                        <img src="<?= h(asset_url('landing/gym_trainer.png')) ?>" alt="Trainer Guidance" class="feature-media-photo">
                     </div>
                 </div>
 
@@ -1261,7 +1293,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_analytics_tablet.png" alt="Gym Operations Analytics Tablet" class="feature-media-photo">
+                        <img src="<?= h(asset_url('landing/gym_analytics_tablet.png')) ?>" alt="Gym Operations Analytics Tablet" class="feature-media-photo">
                     </div>
                 </div>
             </div>
@@ -1324,38 +1356,38 @@ function landing_page(): void
                             <div class="laptop-slides-viewport">
                                 <div class="laptop-slide active" data-slide-label="Gym Dashboard"
                                     data-slide-url="fittrack.app/admin/dashboard">
-                                    <img src="assets/landing/slide_dashboard.png"
+                                    <img src="<?= h(asset_url('landing/slide_dashboard.png')) ?>"
                                         alt="FitTrack Dashboard — Active Members, Revenue, Check-ins Overview"
                                         loading="lazy">
                                 </div>
                                 <div class="laptop-slide" data-slide-label="Member Management"
                                     data-slide-url="fittrack.app/admin/members">
-                                    <img src="assets/landing/slide_members.png"
+                                    <img src="<?= h(asset_url('landing/slide_members.png')) ?>"
                                         alt="FitTrack Member Management — Digital Records & Profiles" loading="lazy">
                                 </div>
                                 <div class="laptop-slide" data-slide-label="QR Attendance"
                                     data-slide-url="fittrack.app/admin/attendance">
-                                    <img src="assets/landing/slide_attendance.png"
+                                    <img src="<?= h(asset_url('landing/slide_attendance.png')) ?>"
                                         alt="FitTrack QR Attendance — Dynamic Gate Verification" loading="lazy">
                                 </div>
                                 <div class="laptop-slide" data-slide-label="Payment Transactions"
                                     data-slide-url="fittrack.app/admin/payments">
-                                    <img src="assets/landing/slide_payments.png"
+                                    <img src="<?= h(asset_url('landing/slide_payments.png')) ?>"
                                         alt="FitTrack Payments — Revenue Tracking & Billing" loading="lazy">
                                 </div>
                                 <div class="laptop-slide" data-slide-label="Equipment Inventory"
                                     data-slide-url="fittrack.app/admin/equipment">
-                                    <img src="assets/landing/slide_equipment.png"
+                                    <img src="<?= h(asset_url('landing/slide_equipment.png')) ?>"
                                         alt="FitTrack Equipment — Inventory & Maintenance Tracking" loading="lazy">
                                 </div>
                                 <div class="laptop-slide" data-slide-label="Membership Plans"
                                     data-slide-url="fittrack.app/admin/plans">
-                                    <img src="assets/landing/slide_plans.png"
+                                    <img src="<?= h(asset_url('landing/slide_plans.png')) ?>"
                                         alt="FitTrack Plans — Membership Tier Configuration" loading="lazy">
                                 </div>
                                 <div class="laptop-slide" data-slide-label="Trainer Management"
                                     data-slide-url="fittrack.app/admin/trainers">
-                                    <img src="assets/landing/slide_trainers.png"
+                                    <img src="<?= h(asset_url('landing/slide_trainers.png')) ?>"
                                         alt="FitTrack Trainers — Workout Coaching & Client Roster" loading="lazy">
                                 </div>
                             </div>
@@ -1691,131 +1723,178 @@ function landing_page(): void
         </section>
 
         <!-- ==========================================================================
-       10. USER EXPERIENCE BY USER TYPE
+       10. PARTNER GYMS & INTERACTIVE LOCATION MAP
        ========================================================================== -->
-        <section class="has-parallax-orbs users-section reveal-on-scroll">
+        <section class="has-parallax-orbs partner-gyms-section reveal-on-scroll" id="partner-gyms">
             <div class="parallax-orbs" aria-hidden="true">
                 <span class="parallax-orb orb-lime" data-parallax="0.22"></span>
                 <span class="parallax-orb orb-sky" data-parallax="-0.12"></span>
             </div>
             <div class="container">
                 <div class="section-header">
-                    <span class="section-label">Tailored Interfaces</span>
-                    <h2 class="section-title">Designed for Every User in Your Facility</h2>
-                    <p class="section-desc">Customized experiences optimized for the specific tasks of owners, staff, coaches, and
-                        members.</p>
+                    <span class="section-label">Verified Facility Network</span>
+                    <h2 class="section-title">Explore Our Partner Gyms</h2>
+                    <p class="section-desc">Discover verified fitness centers operating on FitTrack's turnstile access, digital attendance, and member management system. Locate nearby partner gyms, check live rates, and join today.</p>
                 </div>
 
-                <div class="users-tabs-container">
-                    <div class="users-tab-header">
-                        <button class="user-tab-btn active" data-user="user-owners">For Gym Owners</button>
-                        <button class="user-tab-btn" data-user="user-staff">For Front Desk Staff</button>
-                        <button class="user-tab-btn" data-user="user-trainers">For Trainers</button>
-                        <button class="user-tab-btn" data-user="user-members">For Members</button>
+                <!-- Network Stats Counter Bar -->
+                <div class="partner-stats-bar">
+                    <div class="partner-stat-pill">
+                        <span class="stat-icon"><?= landing_icon('building') ?></span>
+                        <div class="stat-meta">
+                            <span class="stat-num" id="partner-count-display"><?= max(count($partnerGyms), $stat_gyms) ?></span>
+                            <span class="stat-lbl">Partner Gyms</span>
+                        </div>
+                    </div>
+                    <div class="partner-stat-pill">
+                        <span class="stat-icon"><?= landing_icon('qr') ?></span>
+                        <div class="stat-meta">
+                            <span class="stat-num">100%</span>
+                            <span class="stat-lbl">Turnstile &amp; QR Ready</span>
+                        </div>
+                    </div>
+                    <div class="partner-stat-pill">
+                        <span class="stat-icon"><?= landing_icon('users') ?></span>
+                        <div class="stat-meta">
+                            <span class="stat-num"><?= number_format(max(count($partnerGyms) * 45, $stat_members)) ?>+</span>
+                            <span class="stat-lbl">Active Members Served</span>
+                        </div>
+                    </div>
+                    <div class="partner-stat-pill">
+                        <span class="stat-icon"><?= landing_icon('map-pin') ?></span>
+                        <div class="stat-meta">
+                            <span class="stat-num">Real-Time</span>
+                            <span class="stat-lbl">Interactive Map Locator</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Two-Column Layout: Searchable Directory + Leaflet Map -->
+                <div class="partner-showcase-container">
+                    <!-- Left: Searchable Directory Column -->
+                    <div class="partner-directory-col">
+                        <div class="partner-search-box">
+                            <div class="search-input-wrap">
+                                <?= landing_icon('search', 'search-icon') ?>
+                                <input type="text" id="partner-search-input" placeholder="Search gyms by name or city..." autocomplete="off">
+                                <button type="button" id="partner-search-clear" class="search-clear-btn" aria-label="Clear search" style="display:none;">&times;</button>
+                            </div>
+                            <button type="button" id="partner-near-me-btn" class="partner-near-me-btn" title="Sort by closest distance using GPS">
+                                <?= landing_icon('navigation', 'nav-icon') ?>
+                                <span class="near-me-text">Near Me</span>
+                            </button>
+                        </div>
+
+                        <div class="partner-list-header">
+                            <span class="list-count-badge" id="partner-list-count">Showing <?= count($partnerGyms) ?> Partner <?= count($partnerGyms) === 1 ? 'Gym' : 'Gyms' ?></span>
+                            <span class="list-live-indicator"><span class="live-dot"></span> Verified Network</span>
+                        </div>
+
+                        <div class="partner-gyms-scroll" id="partner-gyms-list">
+                            <?php if (empty($partnerGyms)): ?>
+                                <div class="partner-empty-state">
+                                    <p>No partner gyms found matching your query.</p>
+                                </div>
+                            <?php else: ?>
+                                <?php foreach ($partnerGyms as $idx => $gym): 
+                                    $initial = strtoupper(substr($gym['name'] ?? 'G', 0, 1));
+                                    $brand = !empty($gym['brand_color']) ? htmlspecialchars($gym['brand_color']) : 'var(--lime)';
+                                    $avgRating = (float)($gym['avg_rating'] ?? 0);
+                                    $reviewCnt = (int)($gym['review_count'] ?? 0);
+                                    $walkIn = !empty($gym['walk_in_fee']) && (float)$gym['walk_in_fee'] > 0 ? (float)$gym['walk_in_fee'] : null;
+                                    $minPlan = !empty($gym['min_plan_price']) ? (float)$gym['min_plan_price'] : null;
+                                    $hasCoords = !empty($gym['latitude']) && !empty($gym['longitude']) && is_numeric($gym['latitude']) && is_numeric($gym['longitude']);
+                                ?>
+                                    <div class="partner-card" 
+                                         id="partner-card-<?= (int)$gym['gym_id'] ?>"
+                                         data-gym-id="<?= (int)$gym['gym_id'] ?>" 
+                                         data-gym-index="<?= $idx ?>"
+                                         data-name="<?= htmlspecialchars(strtolower($gym['name'])) ?>"
+                                         data-address="<?= htmlspecialchars(strtolower($gym['address'] ?? '')) ?>"
+                                         data-lat="<?= htmlspecialchars((string)($gym['latitude'] ?? '')) ?>"
+                                         data-lng="<?= htmlspecialchars((string)($gym['longitude'] ?? '')) ?>"
+                                         style="--gym-brand: <?= $brand ?>;">
+                                        <div class="partner-card-header">
+                                            <div class="partner-avatar" style="border-color: <?= $brand ?>;">
+                                                <?php if (!empty($gym['logo_url'])): ?>
+                                                    <img src="<?= htmlspecialchars($gym['logo_url']) ?>" alt="<?= htmlspecialchars($gym['name']) ?> Logo" loading="lazy" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+                                                    <span class="avatar-fallback" style="display:none;"><?= $initial ?></span>
+                                                <?php else: ?>
+                                                    <span class="avatar-fallback"><?= $initial ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="partner-title-area">
+                                                <div class="partner-name-row">
+                                                    <h3 class="partner-name"><?= htmlspecialchars($gym['name']) ?></h3>
+                                                    <span class="partner-verified-tag" title="Verified FitTrack Partner Facility">
+                                                        <?= landing_icon('shield') ?> Verified
+                                                    </span>
+                                                </div>
+                                                <p class="partner-address">
+                                                    <?= landing_icon('map-pin') ?>
+                                                    <span><?= htmlspecialchars($gym['address'] ?? 'Address on map') ?></span>
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div class="partner-chips-row">
+                                            <?php if ($avgRating > 0): ?>
+                                                <span class="partner-chip chip-rating">
+                                                    <?= landing_icon('star') ?> <?= number_format($avgRating, 1) ?> (<?= $reviewCnt ?>)
+                                                </span>
+                                            <?php endif; ?>
+                                            <?php if ($walkIn): ?>
+                                                <span class="partner-chip">
+                                                    Day Pass ₱<?= number_format($walkIn, 0) ?>
+                                                </span>
+                                            <?php endif; ?>
+                                            <?php if ($minPlan): ?>
+                                                <span class="partner-chip chip-accent">
+                                                    From ₱<?= number_format($minPlan, 0) ?>/mo
+                                                </span>
+                                            <?php endif; ?>
+                                            <span class="partner-chip">
+                                                <?= (int)$gym['plan_count'] ?> <?= (int)$gym['plan_count'] === 1 ? 'Plan' : 'Plans' ?>
+                                            </span>
+                                            <span class="partner-dist-chip" id="dist-chip-<?= (int)$gym['gym_id'] ?>" style="display:none;"></span>
+                                        </div>
+
+                                        <div class="partner-card-actions">
+                                            <?php if ($hasCoords): ?>
+                                                <button type="button" class="btn-locate-gym" onclick="focusGymOnMap(<?= (int)$gym['gym_id'] ?>)">
+                                                    <?= landing_icon('map-pin') ?> Locate Pin
+                                                </button>
+                                            <?php endif; ?>
+                                            <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>&from=partner_gyms" class="btn-view-facility">
+                                                View Gym <?= landing_icon('arrow-right') ?>
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
 
-                    <div class="user-pane-content active" id="user-owners">
-                        <div>
-                            <h3 class="user-pane-title">Complete Business Oversight</h3>
-                            <p class="user-pane-desc">
-                                Monitor peak occupancy, membership revenue, staff commissions, and churn metrics from a
-                                single executive dashboard.
-                            </p>
-                            <ul class="user-benefit-list">
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Live turnstile capacity metrics
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Subscription billing reports
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Staff role permission management
-                                </li>
-                            </ul>
-                        </div>
-                        <img src="assets/landing/gym_management.png" alt="Gym Management"
-                            style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
-                    </div>
+                    <!-- Right: Leaflet Interactive Map Column -->
+                    <div class="partner-map-col">
+                        <div class="partner-map-wrapper">
+                            <div id="partner-gyms-map" class="partner-leaflet-container" aria-label="Interactive Partner Gyms Map"></div>
+                            
+                            <!-- Floating Map Controls Overlay -->
+                            <div class="partner-map-overlay-tools">
+                                <button type="button" id="map-btn-fit-all" class="map-overlay-btn" title="Fit all partner gyms in view" aria-label="Fit All">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                                </button>
+                                <button type="button" id="map-btn-recenter" class="map-overlay-btn" title="Center on my location" aria-label="My Location">
+                                    <?= landing_icon('navigation') ?>
+                                </button>
+                            </div>
 
-                    <div class="user-pane-content" id="user-staff">
-                        <div>
-                            <h3 class="user-pane-title">Fast Front-Desk & Gate Operations</h3>
-                            <p class="user-pane-desc">
-                                Accelerate daily operations with quick QR turnstile scanning, fast walk-in guest check-ins,
-                                and instant cash or digital payment processing.
-                            </p>
-                            <ul class="user-benefit-list">
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Instant QR code scanner for member attendance
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Walk-in guest ticketing and day-pass sales
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    On-the-spot payment collection & receipts
-                                </li>
-                            </ul>
+                            <div class="partner-map-legend">
+                                <span class="legend-pulse"></span>
+                                <span class="legend-text">Live Partner Locations</span>
+                            </div>
                         </div>
-                        <img src="assets/landing/gym_qr_scan.png" alt="Front Desk & QR Scanning"
-                            style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
-                    </div>
-
-                    <div class="user-pane-content" id="user-trainers">
-                        <div>
-                            <h3 class="user-pane-title">Professional Client Management</h3>
-                            <p class="user-pane-desc">
-                                Build workout templates, create dietary plans, track client assessment metrics, and
-                                communicate seamlessly.
-                            </p>
-                            <ul class="user-benefit-list">
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Custom routine library builder
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Calorie & macro calculator integration
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Direct member progress tracking
-                                </li>
-                            </ul>
-                        </div>
-                        <img src="assets/landing/gym_trainer.png" alt="Trainer Workflows"
-                            style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
-                    </div>
-
-                    <div class="user-pane-content" id="user-members">
-                        <div>
-                            <h3 class="user-pane-title">Frictionless Member Mobile Experience</h3>
-                            <p class="user-pane-desc">
-                                Scan dynamic QR codes at the gate, track workout logs, follow diet plans, and view live
-                                equipment availability queues.
-                            </p>
-                            <ul class="user-benefit-list">
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Instant QR check-in
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Goal achievement & streak logs
-                                </li>
-                                <li class="user-benefit-item">
-                                    <span class="bullet-check"><?= landing_icon('check', 'check-svg') ?></span>
-                                    Equipment queue status
-                                </li>
-                            </ul>
-                        </div>
-                        <img src="assets/landing/gym_members.png" alt="Member Mobile App"
-                            style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
                     </div>
                 </div>
             </div>
@@ -2668,6 +2747,316 @@ function landing_page(): void
         <script src="<?= h(asset_url('js/pages/landing-hero.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-architecture.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-terminal.js')) ?>"></script>
+        
+        <!-- Leaflet Map JS and Partner Gyms Network Controller -->
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+        <script>
+        (function() {
+            const partnerGymsData = <?= json_encode($partnerGyms, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+            let partnerMap = null;
+            let markersLayer = null;
+            const markersById = new Map();
+            let userLocationMarker = null;
+            let userCoords = null;
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function haversineDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; // km
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            }
+
+            function formatDistance(distKm) {
+                if (distKm === null || isNaN(distKm)) return '';
+                if (distKm < 1) return Math.round(distKm * 1000) + ' m away';
+                return distKm.toFixed(1) + ' km away';
+            }
+
+            function buildPopupContent(gym) {
+                const brand = gym.brand_color || '#c7ff22';
+                const rating = parseFloat(gym.avg_rating) || 0;
+                const reviewCnt = parseInt(gym.review_count, 10) || 0;
+                const walkIn = parseFloat(gym.walk_in_fee) || 0;
+                const minPlan = parseFloat(gym.min_plan_price) || 0;
+                const initial = (gym.name || 'G').charAt(0).toUpperCase();
+
+                let logoHtml = gym.logo_url
+                    ? `<img src="${escapeHtml(gym.logo_url)}" alt="Logo" loading="lazy" onerror="this.outerHTML='<span class=\\'fallback-initial\\'>${escapeHtml(initial)}</span>';">`
+                    : `<span class="fallback-initial">${escapeHtml(initial)}</span>`;
+
+                return `
+                    <div class="partner-map-popup">
+                        <div class="popup-top">
+                            <div class="popup-logo" style="border-color: ${brand};">${logoHtml}</div>
+                            <div class="popup-meta">
+                                <h4 class="popup-title">${escapeHtml(gym.name)}</h4>
+                                <p class="popup-addr">${escapeHtml(gym.address || 'Partner Facility')}</p>
+                            </div>
+                        </div>
+                        <div class="popup-stats">
+                            ${rating > 0 ? `<span class="popup-chip rating">★ ${rating.toFixed(1)} (${reviewCnt})</span>` : ''}
+                            ${walkIn > 0 ? `<span class="popup-chip">Day Pass ₱${Math.round(walkIn)}</span>` : ''}
+                            ${minPlan > 0 ? `<span class="popup-chip highlight">From ₱${Math.round(minPlan)}/mo</span>` : ''}
+                        </div>
+                        <div class="popup-actions">
+                            <a href="index.php?page=view_gym&gym_id=${gym.gym_id}&from=partner_gyms" class="popup-btn primary">View Facility &amp; Plans &rarr;</a>
+                            ${gym.latitude && gym.longitude ? `
+                                <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(gym.latitude + ',' + gym.longitude)}" target="_blank" rel="noopener" class="popup-btn secondary" title="Open Google Maps Directions">Directions ↗</a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            function initPartnerMap() {
+                const mapEl = document.getElementById('partner-gyms-map');
+                if (!mapEl || typeof L === 'undefined') return;
+
+                let defaultCenter = [12.8797, 121.7740]; // Philippines default
+                let defaultZoom = 6;
+
+                const firstValid = partnerGymsData.find(g => g.latitude && g.longitude && !isNaN(parseFloat(g.latitude)) && !isNaN(parseFloat(g.longitude)));
+                if (firstValid) {
+                    defaultCenter = [parseFloat(firstValid.latitude), parseFloat(firstValid.longitude)];
+                    defaultZoom = 8;
+                }
+
+                partnerMap = L.map('partner-gyms-map', {
+                    center: defaultCenter,
+                    zoom: defaultZoom,
+                    zoomControl: true,
+                    scrollWheelZoom: false
+                });
+
+                mapEl.addEventListener('click', function() {
+                    partnerMap.scrollWheelZoom.enable();
+                });
+                document.addEventListener('click', function(e) {
+                    if (!mapEl.contains(e.target) && partnerMap) {
+                        partnerMap.scrollWheelZoom.disable();
+                    }
+                });
+
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+                    maxZoom: 19
+                }).addTo(partnerMap);
+
+                markersLayer = L.featureGroup().addTo(partnerMap);
+
+                partnerGymsData.forEach(function(gym, idx) {
+                    if (!gym.latitude || !gym.longitude) return;
+                    const lat = parseFloat(gym.latitude);
+                    const lng = parseFloat(gym.longitude);
+                    if (isNaN(lat) || isNaN(lng)) return;
+
+                    const brand = gym.brand_color || '#c7ff22';
+                    const initial = (gym.name || 'G').charAt(0).toUpperCase();
+
+                    const customIcon = L.divIcon({
+                        className: 'partner-custom-pin-wrap',
+                        html: `
+                            <div class="partner-custom-pin" style="--pin-color: ${brand};" data-gym-id="${gym.gym_id}">
+                                <div class="pin-pulse"></div>
+                                <div class="pin-badge">${escapeHtml(initial)}</div>
+                            </div>
+                        `,
+                        iconSize: [36, 36],
+                        iconAnchor: [18, 36],
+                        popupAnchor: [0, -36]
+                    });
+
+                    const marker = L.marker([lat, lng], { icon: customIcon, title: gym.name });
+                    marker.bindPopup(buildPopupContent(gym), {
+                        maxWidth: 320,
+                        minWidth: 260,
+                        className: 'partner-leaflet-popup'
+                    });
+
+                    markersLayer.addLayer(marker);
+                    markersById.set(parseInt(gym.gym_id, 10), marker);
+                });
+
+                fitAllGyms();
+            }
+
+            function fitAllGyms() {
+                if (!partnerMap || !markersLayer || markersLayer.getLayers().length === 0) return;
+                const group = L.featureGroup(markersLayer.getLayers());
+                if (userLocationMarker) group.addLayer(userLocationMarker);
+                partnerMap.fitBounds(group.getBounds().pad(0.2));
+            }
+
+            window.focusGymOnMap = function(gymId) {
+                const marker = markersById.get(parseInt(gymId, 10));
+                const card = document.getElementById('partner-card-' + gymId);
+
+                document.querySelectorAll('.partner-card').forEach(c => c.classList.remove('is-active'));
+                if (card) {
+                    card.classList.add('is-active');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+
+                if (marker && partnerMap) {
+                    const latLng = marker.getLatLng();
+                    partnerMap.flyTo(latLng, 14, { duration: 1.2 });
+                    setTimeout(() => {
+                        marker.openPopup();
+                    }, 800);
+                }
+            };
+
+            const searchInput = document.getElementById('partner-search-input');
+            const searchClear = document.getElementById('partner-search-clear');
+            const listCount = document.getElementById('partner-list-count');
+            const partnerCards = document.querySelectorAll('.partner-card');
+
+            function applyFilter() {
+                const q = (searchInput?.value || '').trim().toLowerCase();
+                if (searchClear) searchClear.style.display = q ? 'block' : 'none';
+
+                let visibleCount = 0;
+                partnerCards.forEach(card => {
+                    const name = card.getAttribute('data-name') || '';
+                    const addr = card.getAttribute('data-address') || '';
+                    const match = !q || name.includes(q) || addr.includes(q);
+
+                    card.style.display = match ? 'flex' : 'none';
+                    if (match) visibleCount++;
+
+                    const gymId = parseInt(card.getAttribute('data-gym-id'), 10);
+                    const marker = markersById.get(gymId);
+                    if (marker && markersLayer) {
+                        if (match) {
+                            if (!markersLayer.hasLayer(marker)) markersLayer.addLayer(marker);
+                        } else {
+                            if (markersLayer.hasLayer(marker)) markersLayer.removeLayer(marker);
+                        }
+                    }
+                });
+
+                if (listCount) {
+                    listCount.textContent = `Showing ${visibleCount} Partner ${visibleCount === 1 ? 'Gym' : 'Gyms'}`;
+                }
+            }
+
+            if (searchInput) searchInput.addEventListener('input', applyFilter);
+            if (searchClear) {
+                searchClear.addEventListener('click', function() {
+                    if (searchInput) searchInput.value = '';
+                    applyFilter();
+                });
+            }
+
+            const fitAllBtn = document.getElementById('map-btn-fit-all');
+            if (fitAllBtn) fitAllBtn.addEventListener('click', fitAllGyms);
+
+            const nearMeBtn = document.getElementById('partner-near-me-btn');
+            const recenterBtn = document.getElementById('map-btn-recenter');
+
+            function handleNearMe() {
+                if (!navigator.geolocation) {
+                    alert('Geolocation is not supported by your browser.');
+                    return;
+                }
+
+                const nearMeText = nearMeBtn ? nearMeBtn.querySelector('.near-me-text') : null;
+                if (nearMeBtn) nearMeBtn.classList.add('is-locating');
+                if (nearMeText) nearMeText.textContent = 'Locating...';
+
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        userCoords = { lat, lng };
+
+                        if (nearMeBtn) {
+                            nearMeBtn.classList.remove('is-locating');
+                            nearMeBtn.classList.add('is-active');
+                            if (nearMeText) nearMeText.textContent = 'Nearest';
+                        }
+                        if (recenterBtn) recenterBtn.classList.add('is-active');
+
+                        const userIcon = L.divIcon({
+                            className: 'partner-user-pin-wrap',
+                            html: '<div class="partner-user-pulse"><div class="user-pulse-dot"></div></div>',
+                            iconSize: [22, 22],
+                            iconAnchor: [11, 11]
+                        });
+
+                        if (userLocationMarker && partnerMap) {
+                            userLocationMarker.setLatLng([lat, lng]);
+                        } else if (partnerMap) {
+                            userLocationMarker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 }).addTo(partnerMap);
+                            userLocationMarker.bindTooltip('Your Location', { permanent: false, direction: 'top' });
+                        }
+
+                        const listContainer = document.getElementById('partner-gyms-list');
+                        const cardsArray = Array.from(partnerCards);
+
+                        cardsArray.forEach(card => {
+                            const cLat = parseFloat(card.getAttribute('data-lat'));
+                            const cLng = parseFloat(card.getAttribute('data-lng'));
+                            const gymId = card.getAttribute('data-gym-id');
+                            const distChip = document.getElementById('dist-chip-' + gymId);
+
+                            if (!isNaN(cLat) && !isNaN(cLng)) {
+                                const dist = haversineDistance(lat, lng, cLat, cLng);
+                                card._distKm = dist;
+                                if (distChip) {
+                                    distChip.textContent = '📍 ' + formatDistance(dist);
+                                    distChip.style.display = 'inline-flex';
+                                }
+                            } else {
+                                card._distKm = 999999;
+                            }
+                        });
+
+                        cardsArray.sort((a, b) => (a._distKm || 999999) - (b._distKm || 999999));
+                        cardsArray.forEach(card => listContainer.appendChild(card));
+
+                        fitAllGyms();
+                    },
+                    function(err) {
+                        if (nearMeBtn) nearMeBtn.classList.remove('is-locating');
+                        if (nearMeText) nearMeText.textContent = 'Near Me';
+                        alert('Unable to retrieve your location. Please check browser permissions.');
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+                );
+            }
+
+            if (nearMeBtn) nearMeBtn.addEventListener('click', handleNearMe);
+            if (recenterBtn) {
+                recenterBtn.addEventListener('click', function() {
+                    if (userCoords && partnerMap) {
+                        partnerMap.flyTo([userCoords.lat, userCoords.lng], 13, { duration: 1 });
+                    } else {
+                        handleNearMe();
+                    }
+                });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initPartnerMap);
+            } else {
+                initPartnerMap();
+            }
+        })();
+        </script>
         <script>
         if (window.location.hash) {
             window.addEventListener('load', function () {

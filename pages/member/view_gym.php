@@ -11,6 +11,7 @@ function view_gym_page(): void
     $pdo = db();
     
     $gymId = (int) ($_GET['gym_id'] ?? 0);
+    $fromLanding = (($_GET['from'] ?? '') === 'partner_gyms' || ($_GET['from'] ?? '') === 'landing');
     $fromGymSelection = ($user && ($user['role'] ?? '') === 'member' && ($_GET['from'] ?? '') === 'gym_selection');
     if (!$gymId) {
         flash('Invalid gym ID.', 'danger');
@@ -110,12 +111,12 @@ function view_gym_page(): void
     $backUrl = match($user['role'] ?? null) {
         'gym_owner' => 'index.php?page=gym_profile',
         'platform_admin' => 'index.php?page=gyms',
-        default => ($fromGymSelection ? 'index.php?page=gym_selection' : 'index.php?page=dashboard#explore'),
+        default => (($fromLanding || !$user) ? 'index.php#partner-gyms' : ($fromGymSelection ? 'index.php?page=gym_selection' : 'index.php?page=dashboard#explore')),
     };
     $backLabel = match($user['role'] ?? null) {
         'gym_owner' => 'Back to Gym Profile',
         'platform_admin' => 'Back to All Gyms',
-        default => ($fromGymSelection ? 'Back to Gyms' : 'Back to Dashboard'),
+        default => (($fromLanding || !$user) ? 'Back to Partner Gyms' : ($fromGymSelection ? 'Back to Gyms' : 'Back to Dashboard')),
     };
 
     render_header($gym['name'] . ' - Partner Gym', $user);
