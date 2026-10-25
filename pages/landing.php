@@ -1174,11 +1174,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_member.png" alt="Member Training" class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
-                        <div class="feature-media-ui-overlay">
-                            <div class="media-ui-title">MEMBER STATUS</div>
-                            <div class="media-ui-val">Active Annual Membership • Verified</div>
-                        </div>
+                        <img src="assets/landing/gym_members.png" alt="Member Training" class="feature-media-photo">
                     </div>
                 </div>
 
@@ -1207,12 +1203,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_qr_scan.png" alt="Dynamic QR Turnstile Entrance"
-                            class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
-                        <div class="feature-media-ui-overlay">
-                            <div class="media-ui-title">DYNAMIC QR SCANNER</div>
-                            <div class="media-ui-val">QR Code Verified — Turnstile Unlocked (08:42 AM)</div>
-                        </div>
+                        <img src="assets/landing/gym_qr_scan.png" alt="Dynamic QR Turnstile Entrance" class="feature-media-photo">
                     </div>
                 </div>
 
@@ -1241,11 +1232,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_trainer.png" alt="Trainer Guidance" class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
-                        <div class="feature-media-ui-overlay">
-                            <div class="media-ui-title">COACHING DASHBOARD</div>
-                            <div class="media-ui-val">12 Active Clients Assigned • 98% Program Compliance</div>
-                        </div>
+                        <img src="assets/landing/gym_trainer.png" alt="Trainer Guidance" class="feature-media-photo">
                     </div>
                 </div>
 
@@ -1274,12 +1261,7 @@ function landing_page(): void
                         </ul>
                     </div>
                     <div class="feature-media-frame">
-                        <img src="assets/landing/gym_analytics_tablet.png" alt="Gym Operations Analytics Tablet"
-                            class="feature-media-photo" data-parallax="0.1" data-parallax-scale="1.2" data-parallax-sm="0">
-                        <div class="feature-media-ui-overlay">
-                            <div class="media-ui-title">OPERATIONS CONTROL</div>
-                            <div class="media-ui-val">Live Facility Analytics • 100% System Synchronization</div>
-                        </div>
+                        <img src="assets/landing/gym_analytics_tablet.png" alt="Gym Operations Analytics Tablet" class="feature-media-photo">
                     </div>
                 </div>
             </div>
@@ -1832,7 +1814,7 @@ function landing_page(): void
                                 </li>
                             </ul>
                         </div>
-                        <img src="assets/landing/gym_member.png" alt="Member Mobile App"
+                        <img src="assets/landing/gym_members.png" alt="Member Mobile App"
                             style="border-radius: var(--radius-lg); border: 1px solid var(--border-medium);">
                     </div>
                 </div>

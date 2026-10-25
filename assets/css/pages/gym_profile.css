@@ -544,6 +544,31 @@
             margin-top: 2px;
         }
 
+        /* EOD Gate Select and Field Styles */
+        .eod-gate-select {
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            background: var(--surface);
+            color: var(--ink);
+            border: 1px solid var(--line);
+            cursor: pointer;
+            max-width: 170px;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .eod-gate-select:focus {
+            outline: none;
+            border-color: var(--lime, #84cc16);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
+        }
+
+        .overview-doc-item.is-retention-input .overview-doc-right {
+            width: 140px;
+        }
+
         /* Compact Gallery Strip */
         .overview-gallery-strip {
             display: flex;
@@ -1219,6 +1244,65 @@
             }
         }
 
+        @media (max-width: 680px) {
+            .overview-doc-item.is-eod-gate {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-left {
+                width: 100% !important;
+                align-items: flex-start !important;
+                gap: 12px !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-icon {
+                margin-top: 2px !important;
+                flex-shrink: 0 !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-info {
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-name {
+                white-space: normal !important;
+                line-height: 1.35 !important;
+                font-size: 13.5px !important;
+                font-weight: 700 !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-status {
+                white-space: normal !important;
+                line-height: 1.4 !important;
+                margin-top: 4px !important;
+                display: block !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-right {
+                width: 100% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: stretch !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-right .eod-gate-select,
+            .overview-doc-item.is-eod-gate .overview-doc-right select {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 42px !important;
+                font-size: 14px !important;
+                padding: 8px 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-right .tier-pill {
+                align-self: flex-start;
+            }
+        }
+
         @media (max-width: 600px) {
             .profile-page-header {
                 flex-direction: column;
@@ -1299,19 +1383,75 @@
                 justify-content: flex-end !important;
             }
 
-            .overview-doc-item.is-stacked-field {
+            .overview-doc-item.is-stacked-field,
+            .overview-doc-item.is-eod-gate,
+            .overview-doc-item.is-retention-input {
                 flex-direction: column !important;
                 align-items: stretch !important;
-                gap: 10px !important;
+                gap: 12px !important;
             }
 
-            .overview-doc-item.is-stacked-field .overview-doc-left {
+            .overview-doc-item.is-stacked-field .overview-doc-left,
+            .overview-doc-item.is-eod-gate .overview-doc-left,
+            .overview-doc-item.is-retention-input .overview-doc-left {
                 width: 100% !important;
+                align-items: flex-start !important;
+                gap: 12px !important;
             }
 
-            .overview-doc-item.is-stacked-field .overview-doc-right {
+            .overview-doc-item.is-eod-gate .overview-doc-icon,
+            .overview-doc-item.is-retention-input .overview-doc-icon {
+                margin-top: 2px !important;
+                flex-shrink: 0 !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-info,
+            .overview-doc-item.is-retention-input .overview-doc-info {
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-name,
+            .overview-doc-item.is-retention-input .overview-doc-name {
+                white-space: normal !important;
+                line-height: 1.35 !important;
+                font-size: 13.5px !important;
+                font-weight: 700 !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-status,
+            .overview-doc-item.is-retention-input .overview-doc-status {
+                white-space: normal !important;
+                line-height: 1.4 !important;
+                margin-top: 4px !important;
+                display: block !important;
+            }
+
+            .overview-doc-item.is-stacked-field .overview-doc-right,
+            .overview-doc-item.is-eod-gate .overview-doc-right,
+            .overview-doc-item.is-retention-input .overview-doc-right {
                 width: 100% !important;
                 display: flex !important;
+                align-items: center !important;
+                justify-content: stretch !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-right .eod-gate-select,
+            .overview-doc-item.is-eod-gate .overview-doc-right select {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 42px !important;
+                font-size: 14px !important;
+                padding: 8px 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            .overview-doc-item.is-retention-input .overview-doc-right .input-icon-wrap {
+                width: 100% !important;
+            }
+
+            .overview-doc-item.is-eod-gate .overview-doc-right .tier-pill {
+                align-self: flex-start;
             }
 
             .overview-doc-item.is-stacked-field .branding-custom-input,

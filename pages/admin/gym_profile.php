@@ -769,7 +769,7 @@ function gym_profile_page(): void
                             </div>
 
                             <!-- Item 5: EOD Gate Opening Time -->
-                            <div class="overview-doc-item">
+                            <div class="overview-doc-item is-eod-gate">
                                 <div class="overview-doc-left">
                                     <div class="overview-doc-icon" style="background: rgba(245, 158, 11, 0.12); color: #f59e0b;">
                                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -815,7 +815,7 @@ function gym_profile_page(): void
                                                 '23:00' => '11:00 PM',
                                             ];
                                         ?>
-                                        <select name="eod_gate_time" id="eod_gate_time_select" data-current-gate="<?= h($activeGate) ?>" style="padding: 7px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; background: var(--surface); color: var(--ink); border: 1px solid var(--line); cursor: pointer; max-width: 170px;">
+                                        <select name="eod_gate_time" id="eod_gate_time_select" class="eod-gate-select" data-current-gate="<?= h($activeGate) ?>">
                                             <?php foreach ($timeOptions as $val => $lbl): ?>
                                                 <option value="<?= $val ?>" <?= $val === $selectedGate ? 'selected' : '' ?>><?= $lbl ?></option>
                                             <?php endforeach; ?>
@@ -989,7 +989,7 @@ function gym_profile_page(): void
                         </div>
 
                         <!-- Item 2: Inactivity Threshold -->
-                        <div class="overview-doc-item">
+                        <div class="overview-doc-item is-retention-input">
                             <div class="overview-doc-left">
                                 <div class="overview-doc-icon is-optional">
                                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -1001,7 +1001,7 @@ function gym_profile_page(): void
                                     </div>
                                 </div>
                             </div>
-                            <div class="overview-doc-right" style="width: 140px;">
+                            <div class="overview-doc-right">
                                 <div class="input-icon-wrap">
                                     <span class="input-icon">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -1012,7 +1012,7 @@ function gym_profile_page(): void
                         </div>
 
                         <!-- Item 3: Re-send Cooldown -->
-                        <div class="overview-doc-item">
+                        <div class="overview-doc-item is-retention-input">
                             <div class="overview-doc-left">
                                 <div class="overview-doc-icon is-optional">
                                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -1024,7 +1024,7 @@ function gym_profile_page(): void
                                     </div>
                                 </div>
                             </div>
-                            <div class="overview-doc-right" style="width: 140px;">
+                            <div class="overview-doc-right">
                                 <div class="input-icon-wrap">
                                     <span class="input-icon">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
