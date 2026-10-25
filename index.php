@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
 
+// Defense-in-depth: Immediately block crawler/bot probe requests for sensitive dotfiles
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+if (preg_match('#(?:^|/)\.(?:env|git|htaccess|htpasswd|ssh|aws|docker|kilo|svn)#i', $requestPath)) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('403 Forbidden');
+}
+
 require __DIR__ . '/core/bootstrap.php';
 
 try {
