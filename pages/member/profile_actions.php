@@ -297,12 +297,12 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 if (function_exists('release_user_equipment_on_checkout')) {
                     release_user_equipment_on_checkout($userId, $gymId);
                 }
-                // End active trainer assignments belonging to trainers at this gym
+                // End active/pending trainer assignments belonging to trainers at this gym
                 $pdo->prepare(
                     'UPDATE trainer_assignments ta
-                     JOIN trainer_profiles tp ON tp.user_id = ta.trainer_user_id
-                     SET ta.status = "ended"
-                     WHERE ta.member_user_id = ? AND tp.gym_id = ? AND ta.status = "active"'
+                     JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id
+                     SET ta.status = "ended", ta.ended_date = NOW()
+                     WHERE ta.member_user_id = ? AND tp.gym_id = ? AND ta.status IN ("active", "pending_trainer", "pending_admin")'
                 )->execute([$userId, $gymId]);
                 $pdo->prepare('DELETE FROM gym_members WHERE user_id = ? AND gym_id = ?')
                     ->execute([$userId, $gymId]);
