@@ -111,11 +111,23 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
 
                         <!-- Assigned Date -->
                         <div>
-                            <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 6px; font-weight: 500;">Assigned date *</label>
-                            <input type="date" name="assigned_date" id="na_assigned_date" class="form-control" value="${ftCurrentDate}" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 9px 12px; border-radius: 8px; font-size: 13.5px; color-scheme: dark light;" required>
-                            <div style="margin-top: 6px; padding: 7px 10px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.22); border-radius: 8px; font-size: 11.5px; color: #0284c7; display: flex; align-items: center; gap: 7px; line-height: 1.35;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <label style="color: var(--muted); font-size: 13px; font-weight: 500;">Assigned date *</label>
+                                <span id="naDateSelectedLabel" style="font-size: 11.5px; color: var(--lime); font-weight: 600;">Today</span>
+                            </div>
+                            <input type="date" name="assigned_date" id="na_assigned_date" class="form-control" value="${ftCurrentDate}" min="${ftCurrentDate}" style="width: 100%; box-sizing: border-box; background-color: var(--panel); color: var(--ink); border: 1px solid var(--line); padding: 9px 12px; border-radius: 8px; font-size: 13.5px; color-scheme: dark light; cursor: pointer;" required autocomplete="off">
+                            
+                            <!-- Quick Future Date Shortcut Pills -->
+                            <div class="na-date-presets" style="margin-top: 8px;">
+                                <button type="button" class="na-date-pill active" data-offset="0">Today</button>
+                                <button type="button" class="na-date-pill" data-offset="1">Tomorrow</button>
+                                <button type="button" class="na-date-pill" data-offset="3">+3 days</button>
+                                <button type="button" class="na-date-pill" data-offset="7">+1 week</button>
+                            </div>
+
+                            <div style="margin-top: 8px; padding: 7px 10px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.22); border-radius: 8px; font-size: 11.5px; color: #0284c7; display: flex; align-items: center; gap: 7px; line-height: 1.35;">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                <span>Syncs automatically with each member's plan expiration date.</span>
+                                <span>Assignments can only be scheduled for today or future dates.</span>
                             </div>
                         </div>
 
@@ -203,6 +215,10 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                         }
                         if (!assignedDateInput || !assignedDateInput.value) {
                             Swal.showValidationMessage('Please select an assigned date');
+                            return false;
+                        }
+                        if (assignedDateInput.value < ftCurrentDate) {
+                            Swal.showValidationMessage('Cannot assign on past days. Please choose today or a future date.');
                             return false;
                         }
 
@@ -352,6 +368,80 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                 if (tSearch) {
                     tSearch.addEventListener('input', (e) => renderTrainers(e.target.value));
                     tSearch.addEventListener('click', (e) => e.stopPropagation());
+                }
+
+                // Assigned Date Logic & Presets (Enforcing Today or Future Only)
+                const assignedDateInput = document.getElementById('na_assigned_date');
+                const dateLabel = document.getElementById('naDateSelectedLabel');
+                const datePills = document.querySelectorAll('.na-date-pill');
+
+                if (assignedDateInput) {
+                    // Strictly enforce min date as today
+                    assignedDateInput.setAttribute('min', ftCurrentDate);
+
+                    function updateDateLabelAndPills(val) {
+                        if (!val) return;
+                        if (val < ftCurrentDate) {
+                            if (dateLabel) {
+                                dateLabel.textContent = 'Past date not allowed';
+                                dateLabel.style.color = 'var(--crimson, #ef4444)';
+                            }
+                            return;
+                        }
+
+                        const parts = val.split('-');
+                        if (parts.length === 3) {
+                            const chosen = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                            const now = new Date();
+                            now.setHours(0, 0, 0, 0);
+                            const diffDays = Math.round((chosen - now) / (1000 * 60 * 60 * 24));
+
+                            let text = diffDays === 0 ? 'Today' : (diffDays === 1 ? 'Tomorrow' : `In ${diffDays} days`);
+                            if (dateLabel) {
+                                dateLabel.textContent = text;
+                                dateLabel.style.color = 'var(--lime)';
+                            }
+
+                            datePills.forEach(p => {
+                                const off = parseInt(p.getAttribute('data-offset'), 10);
+                                p.classList.toggle('active', off === diffDays);
+                            });
+
+                            const s2DateText = document.getElementById('naStep2DateText');
+                            if (s2DateText) s2DateText.textContent = 'Date: ' + val;
+                        }
+                    }
+
+                    function enforceNonPast() {
+                        if (assignedDateInput.value && assignedDateInput.value < ftCurrentDate) {
+                            assignedDateInput.value = ftCurrentDate;
+                            Swal.showValidationMessage('Past days are not allowed. Date reset to today.');
+                        } else {
+                            Swal.resetValidationMessage();
+                        }
+                        updateDateLabelAndPills(assignedDateInput.value);
+                    }
+
+                    assignedDateInput.addEventListener('input', enforceNonPast);
+                    assignedDateInput.addEventListener('change', enforceNonPast);
+
+                    datePills.forEach(p => {
+                        p.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const off = parseInt(p.getAttribute('data-offset'), 10);
+                            if (off < 0) return;
+                            const target = new Date();
+                            target.setDate(target.getDate() + off);
+                            const y = target.getFullYear();
+                            const m = String(target.getMonth() + 1).padStart(2, '0');
+                            const d = String(target.getDate()).padStart(2, '0');
+                            const str = `${y}-${m}-${d}`;
+                            assignedDateInput.value = str;
+                            Swal.resetValidationMessage();
+                            updateDateLabelAndPills(str);
+                        });
+                    });
                 }
 
                 // Member Multi-Select Logic
@@ -557,6 +647,10 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                         Swal.showValidationMessage('Please select an assigned date');
                         return false;
                     }
+                    if (form.assigned_date.value < ftCurrentDate) {
+                        Swal.showValidationMessage('Cannot assign on past days. Please choose today or a future date.');
+                        return false;
+                    }
                     // Advance to Step 2
                     const step1Container = document.getElementById('naStep1');
                     const step2Container = document.getElementById('naStep2');
@@ -615,6 +709,10 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                 }
                 if (!form.assigned_date.value) {
                     Swal.showValidationMessage('Please select an assigned date');
+                    return false;
+                }
+                if (form.assigned_date.value < ftCurrentDate) {
+                    Swal.showValidationMessage('Cannot assign on past days. Please choose today or a future date.');
                     return false;
                 }
                 form.submit();

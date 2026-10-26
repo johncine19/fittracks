@@ -422,6 +422,13 @@ function trainer_assignments_page(): void
             $activityTitle = trim((string) post('activity_title'));
             $assignedDate = post('assigned_date') ?: date('Y-m-d H:i:s');
 
+            $assignedDay = date('Y-m-d', strtotime($assignedDate));
+            $today = date('Y-m-d');
+            if ($assignedDay < $today) {
+                flash('Cannot assign trainer on past days. Please select today or a future date.', 'danger');
+                redirect('trainer_assignments');
+            }
+
             $memberIds = [];
             if (!empty($_POST['member_user_ids'])) {
                 if (is_array($_POST['member_user_ids'])) {

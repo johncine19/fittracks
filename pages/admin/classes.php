@@ -25,6 +25,32 @@ function classes_page(): void
             flash('Class created.');
         } elseif ($action === 'schedule') {
             $class_id = post('class_id');
+            $startDatetime = post('start_datetime');
+            $endDatetime = post('end_datetime');
+
+            if (!$class_id || !$startDatetime || !$endDatetime) {
+                flash('Please select a class and provide both start and end times.', 'danger');
+                redirect('classes');
+            }
+
+            $startTimestamp = strtotime($startDatetime);
+            $endTimestamp = strtotime($endDatetime);
+            if ($startTimestamp === false || $endTimestamp === false) {
+                flash('Invalid date or time format provided.', 'danger');
+                redirect('classes');
+            }
+
+            // Disallow scheduling on past days or past times (60s tolerance for latency)
+            if ($startTimestamp < (time() - 60)) {
+                flash('Cannot schedule a session on past days or times. Please select an upcoming date and time.', 'danger');
+                redirect('classes');
+            }
+
+            if ($endTimestamp <= $startTimestamp) {
+                flash('End Date/Time must be after Start Date/Time.', 'danger');
+                redirect('classes');
+            }
+
             if (!$isAdmin) {
                 $c = db()->prepare('SELECT instructor_id, gym_id FROM classes WHERE class_id=?');
                 $c->execute([$class_id]);
@@ -35,9 +61,9 @@ function classes_page(): void
                 if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
             }
             db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')
-                ->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime')]);
+                ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime]);
             
-            $startTime = date('M j, Y g:i A', strtotime(post('start_datetime')));
+            $startTime = date('M j, Y g:i A', $startTimestamp);
             Queue::push('broadcast_class_schedule_job', [
                 'class_id' => (int) $class_id,
                 'start_time' => $startTime,
@@ -71,9 +97,35 @@ function classes_page(): void
         } elseif ($action === 'edit_schedule') {
             $schedule_id = post('schedule_id');
             $class_id = post('class_id');
+            $startDatetime = post('start_datetime');
+            $endDatetime = post('end_datetime');
+
+            if (!$schedule_id || !$class_id || !$startDatetime || !$endDatetime) {
+                flash('Please complete all required fields.', 'danger');
+                redirect('classes');
+            }
+
+            $startTimestamp = strtotime($startDatetime);
+            $endTimestamp = strtotime($endDatetime);
+            if ($startTimestamp === false || $endTimestamp === false) {
+                flash('Invalid date or time format provided.', 'danger');
+                redirect('classes');
+            }
+
+            // Disallow scheduling on past days or past times
+            if ($startTimestamp < (time() - 60)) {
+                flash('Cannot schedule a session on past days or times. Please select an upcoming date and time.', 'danger');
+                redirect('classes');
+            }
+
+            if ($endTimestamp <= $startTimestamp) {
+                flash('End Date/Time must be after Start Date/Time.', 'danger');
+                redirect('classes');
+            }
+
             if (!$isAdmin) {
-                $c = db()->prepare('SELECT instructor_id, gym_id FROM classes WHERE class_id=?');
-                $c->execute([$class_id]);
+                $c = db()->prepare('SELECT c.instructor_id, c.gym_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
+                $c->execute([$schedule_id]);
                 $cls = $c->fetch();
                 if (!$cls) redirect('classes');
                 
@@ -81,7 +133,7 @@ function classes_page(): void
                 if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
             }
             db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')
-                ->execute([$class_id, post('room_location'), post('start_datetime'), post('end_datetime'), $schedule_id]);
+                ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime, $schedule_id]);
             audit_log($user['user_id'], 'edit', 'class_schedule', (string) $schedule_id, json_encode(['class_id' => $class_id]));
             flash('Schedule updated.');
         } elseif ($action === 'delete_schedule') {
@@ -317,6 +369,10 @@ function classes_page(): void
         }
         .schedule-select-trigger:focus-visible {
             box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #ea580c) 22%, transparent);
+        }
+        .schedule-select-trigger[aria-invalid="true"] {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
         }
         .schedule-select-value {
             min-width: 0;
@@ -586,7 +642,7 @@ function classes_page(): void
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     New Class Type
                 </button>
-                <button type="button" class="classes-banner-btn-primary" onclick="document.getElementById('scheduleModal').showModal()">
+                <button type="button" class="classes-banner-btn-primary" onclick="openScheduleModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Schedule Session
                 </button>
@@ -740,7 +796,7 @@ function classes_page(): void
             </button>
         </div>
         <div class="modal-body">
-            <form method="post" class="classes-modal-form">
+            <form method="post" id="createScheduleForm" class="classes-modal-form">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="schedule">
                 <label><span class="label-title">Class Type <span class="req-star">*</span></span>
@@ -753,9 +809,10 @@ function classes_page(): void
                 </label>
                 <label>Room / Location <input type="text" name="room_location" class="form-control" placeholder="e.g. Studio A"></label>
                 <div class="schedule-datetime-grid">
-                    <label><span class="label-title">Start Date/Time <span class="req-star">*</span></span> <input type="datetime-local" lang="en-US" name="start_datetime" class="form-control" required></label>
-                    <label><span class="label-title">End Date/Time <span class="req-star">*</span></span> <input type="datetime-local" lang="en-US" name="end_datetime" class="form-control" required></label>
+                    <label><span class="label-title">Start Date/Time <span class="req-star">*</span></span> <input type="datetime-local" lang="en-US" name="start_datetime" id="sched_start_datetime" class="form-control" required></label>
+                    <label><span class="label-title">End Date/Time <span class="req-star">*</span></span> <input type="datetime-local" lang="en-US" name="end_datetime" id="sched_end_datetime" class="form-control" required></label>
                 </div>
+                <div id="schedDateWarning" style="display: none; padding: 7px 10px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; font-size: 12px; color: #ef4444; margin-top: -4px;"></div>
                 <button type="submit" class="btn btn-primary classes-modal-submit">Save Schedule</button>
             </form>
         </div>
@@ -800,6 +857,11 @@ function classes_page(): void
                 select.value = option.value;
                 trigger.querySelector('.schedule-select-value').textContent = option.textContent;
                 trigger.removeAttribute('aria-invalid');
+                const warning = select.closest('form')?.querySelector('#schedDateWarning');
+                if (warning && warning.textContent.includes('Class Type')) {
+                    warning.textContent = '';
+                    warning.style.display = 'none';
+                }
                 menu.querySelectorAll('.schedule-select-option').forEach((entry) => {
                     entry.setAttribute('aria-selected', entry.dataset.value === option.value ? 'true' : 'false');
                 });
@@ -841,6 +903,11 @@ function classes_page(): void
                     event.preventDefault();
                     const requiredTrigger = requiredSelect.parentElement.querySelector('.schedule-select-trigger');
                     requiredTrigger.setAttribute('aria-invalid', 'true');
+                    const warning = form.querySelector('#schedDateWarning');
+                    if (warning) {
+                        warning.textContent = 'Please select a Class Type to save the schedule.';
+                        warning.style.display = 'block';
+                    }
                     requiredTrigger.focus();
                 }
             });
@@ -910,6 +977,135 @@ function classes_page(): void
         });
     }
 
+    function getNowLocalIsoMinutes() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const h = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${day}T${h}:${min}`;
+    }
+
+    function initScheduleModalDateTime() {
+        const startInput = document.getElementById('sched_start_datetime');
+        const endInput = document.getElementById('sched_end_datetime');
+        const warning = document.getElementById('schedDateWarning');
+        const form = document.getElementById('createScheduleForm');
+        if (!startInput || !endInput) return;
+
+        const nowIso = getNowLocalIsoMinutes();
+        startInput.setAttribute('min', nowIso);
+        endInput.setAttribute('min', nowIso);
+
+        function showWarning(msg) {
+            if (!warning) return;
+            warning.textContent = msg;
+            warning.style.display = 'block';
+        }
+        function clearWarning() {
+            if (!warning) return;
+            warning.textContent = '';
+            warning.style.display = 'none';
+        }
+
+        // Keep track of previous start date to auto-sync end date when start date changes
+        let prevStartDate = startInput.value ? startInput.value.split('T')[0] : '';
+
+        startInput.addEventListener('input', () => {
+            const currentNow = getNowLocalIsoMinutes();
+            if (startInput.value && startInput.value < currentNow) {
+                startInput.value = currentNow;
+                showWarning('Cannot schedule in the past. Start time reset to current time.');
+                setTimeout(clearWarning, 4000);
+            } else {
+                clearWarning();
+            }
+
+            if (startInput.value) {
+                const newStartDate = startInput.value.split('T')[0];
+                endInput.setAttribute('min', startInput.value);
+                endInput.removeAttribute('max'); // Allow selecting any valid upcoming date
+
+                // If end is blank, or earlier than start, or start date just changed:
+                // Auto-sync end date to match start date with +1 hour default
+                if (!endInput.value || endInput.value <= startInput.value || (prevStartDate && prevStartDate !== newStartDate)) {
+                    const startDateObj = new Date(startInput.value);
+                    if (!isNaN(startDateObj.getTime())) {
+                        startDateObj.setHours(startDateObj.getHours() + 1);
+                        const sy = startDateObj.getFullYear();
+                        const sm = String(startDateObj.getMonth() + 1).padStart(2, '0');
+                        const sd = String(startDateObj.getDate()).padStart(2, '0');
+                        const sh = String(startDateObj.getHours()).padStart(2, '0');
+                        const smin = String(startDateObj.getMinutes()).padStart(2, '0');
+                        endInput.value = `${sy}-${sm}-${sd}T${sh}:${smin}`;
+                    }
+                }
+                prevStartDate = newStartDate;
+            }
+        });
+
+        endInput.addEventListener('input', () => {
+            if (!startInput.value || !endInput.value) return;
+            if (endInput.value <= startInput.value) {
+                showWarning('End Date/Time must be after the Start Date/Time.');
+            } else {
+                clearWarning();
+            }
+        });
+
+        if (form && !form.dataset.dateValidationBound) {
+            form.dataset.dateValidationBound = 'true';
+            form.addEventListener('submit', (e) => {
+                const currentNow = getNowLocalIsoMinutes();
+                if (startInput.value && startInput.value < currentNow) {
+                    e.preventDefault();
+                    showWarning('Cannot schedule a session in the past. Please choose an upcoming date and time.');
+                    startInput.focus();
+                    return false;
+                }
+                if (endInput.value && startInput.value && endInput.value <= startInput.value) {
+                    e.preventDefault();
+                    showWarning('End Date/Time must be after Start Date/Time.');
+                    endInput.focus();
+                    return false;
+                }
+            });
+        }
+    }
+
+    function openScheduleModal() {
+        const modal = document.getElementById('scheduleModal');
+        if (!modal) return;
+        const startInput = document.getElementById('sched_start_datetime');
+        const endInput = document.getElementById('sched_end_datetime');
+        const nowIso = getNowLocalIsoMinutes();
+        if (startInput) {
+            startInput.setAttribute('min', nowIso);
+            if (!startInput.value || startInput.value < nowIso) {
+                startInput.value = nowIso;
+            }
+        }
+        if (endInput) {
+            const startVal = (startInput && startInput.value) ? startInput.value : nowIso;
+            endInput.setAttribute('min', startVal);
+            endInput.removeAttribute('max');
+
+            // Default end to 1 hour after start
+            const d = new Date(startVal);
+            d.setHours(d.getHours() + 1);
+            const ey = d.getFullYear();
+            const em = String(d.getMonth() + 1).padStart(2, '0');
+            const ed = String(d.getDate()).padStart(2, '0');
+            const eh = String(d.getHours()).padStart(2, '0');
+            const emin = String(d.getMinutes()).padStart(2, '0');
+            endInput.value = `${ey}-${em}-${ed}T${eh}:${emin}`;
+        }
+        modal.showModal();
+    }
+
+    initScheduleModalDateTime();
+
     function editSchedule(s) {
         Swal.fire({
             title: 'Edit Schedule',
@@ -931,13 +1127,33 @@ function classes_page(): void
                 </form>
             `,
             didOpen: () => {
+                const nowIso = getNowLocalIsoMinutes();
+                const esStart = document.getElementById('es_start');
+                const esEnd = document.getElementById('es_end');
                 document.getElementById('es_id').value = s.schedule_id;
                 document.getElementById('es_class').value = s.class_id;
                 enhanceScheduleSelect(document.getElementById('es_class'));
                 document.getElementById('es_loc').value = s.room_location || '';
                 // format datetime-local
-                document.getElementById('es_start').value = s.start_datetime.substring(0,16);
-                document.getElementById('es_end').value = s.end_datetime.substring(0,16);
+                esStart.value = s.start_datetime.substring(0,16);
+                esEnd.value = s.end_datetime.substring(0,16);
+                esStart.setAttribute('min', nowIso);
+                esEnd.setAttribute('min', esStart.value || nowIso);
+                esEnd.removeAttribute('max');
+
+                let prevEsStart = esStart.value ? esStart.value.split('T')[0] : '';
+                esStart.addEventListener('input', () => {
+                    if (esStart.value) {
+                        esEnd.setAttribute('min', esStart.value);
+                        const newDate = esStart.value.split('T')[0];
+                        if (prevEsStart && prevEsStart !== newDate) {
+                            // Automatically sync the date portion to match new start date
+                            const eTime = esEnd.value ? esEnd.value.split('T')[1] : '12:00';
+                            esEnd.value = `${newDate}T${eTime}`;
+                        }
+                        prevEsStart = newDate;
+                    }
+                });
             },
             showCancelButton: true,
             confirmButtonText: 'Save Changes',
@@ -947,8 +1163,17 @@ function classes_page(): void
             color: 'var(--ink)',
             preConfirm: () => {
                 const form = document.getElementById('editSchedForm');
+                const nowIso = getNowLocalIsoMinutes();
                 if (!form.start_datetime.value || !form.end_datetime.value) {
                     Swal.showValidationMessage('Start and end times are required');
+                    return false;
+                }
+                if (form.start_datetime.value < nowIso) {
+                    Swal.showValidationMessage('Cannot schedule a session in the past. Please select an upcoming date and time.');
+                    return false;
+                }
+                if (form.end_datetime.value <= form.start_datetime.value) {
+                    Swal.showValidationMessage('End Date/Time must be after Start Date/Time');
                     return false;
                 }
                 form.submit();
