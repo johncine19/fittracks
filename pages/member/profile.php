@@ -1321,20 +1321,25 @@ function profile_page(): void
                     <div class="settings-sub-grid">
                         <!-- Card 1: Subscription & Plan -->
                         <div class="settings-sub-card">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px;">
-                                <div>
+                            <div class="settings-sub-plan-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px;">
+                                <div style="min-width: 0; flex: 1;">
                                     <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;">Current Plan</span>
-                                    <h3 style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink);">
+                                    <h3 class="settings-sub-plan-title" style="margin: 4px 0 0; font-size: 1.25rem; font-weight: 800; color: var(--ink); line-height: 1.25;">
                                         <?php if ($ownerTrialInfo['is_trial_active']): ?>
-                                             Free Trial (50 Members &bull; 2 Trainers &bull; 2 Staff)
+                                            Free Trial
                                         <?php elseif ($ownerTrialInfo['is_free']): ?>
                                             Free Tier
                                         <?php else: ?>
                                             <?= h($subPlan) ?><?= $subPlan !== 'No Active Plan' ? ' Plan' : '' ?>
                                         <?php endif; ?>
                                     </h3>
+                                    <?php if ($ownerTrialInfo['is_trial_active']): ?>
+                                        <div style="font-size: 12px; color: var(--muted); margin-top: 3px; font-weight: 500; line-height: 1.4;">
+                                            50 Members &bull; 2 Trainers &bull; 2 Staff
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
-                                <span class="badge" style="background: <?= $badgeBg ?>; color: <?= $badgeColor ?>; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap;">
+                                <span class="badge" style="background: <?= $badgeBg ?>; color: <?= $badgeColor ?>; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;">
                                     <?= h($badgeText) ?>
                                 </span>
                             </div>

@@ -1,8 +1,8 @@
 {
-  "name": "FitTrack Attendance Terminal",
+  "name": "FitTrack Gym Management",
   "short_name": "FitTrack",
-  "description": "FitTrack Gym Management & Offline-Ready Attendance Terminal",
-  "start_url": "index.php?page=scanner",
+  "description": "FitTrack Gym Management & Fitness Tracking Platform",
+  "start_url": "index.php",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

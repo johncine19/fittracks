@@ -2427,6 +2427,14 @@ input:checked+.toggle-slider:before {
 
     .settings-sub-card {
         padding: 18px;
+    }
+
+    .settings-sub-plan-header {
+        gap: 8px;
+    }
+
+    .settings-sub-plan-title {
+        font-size: 1.15rem !important;
     }
 }
 

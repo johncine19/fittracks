@@ -3,7 +3,7 @@
  * Enables scanner and attendance recording during network brownouts & outages.
  */
 
-const CACHE_NAME = 'fittracks-terminal-v2';
+const CACHE_NAME = 'fittracks-terminal-v3';
 
 const STATIC_ASSETS = [
     './manifest.json',
@@ -65,11 +65,14 @@ self.addEventListener('fetch', (event) => {
                     return networkRes;
                 })
                 .catch(async () => {
-                    // Offline fallback: try exact match, then try scanner cached page
+                    // Offline fallback: try exact match
                     const cached = await caches.match(req);
                     if (cached) return cached;
-                    const fallbackScanner = await caches.match('index.php?page=scanner');
-                    if (fallbackScanner) return fallbackScanner;
+                    // Only fallback to scanner if the user was requesting the scanner page
+                    if (url.searchParams.get('page') === 'scanner') {
+                        const fallbackScanner = await caches.match('index.php?page=scanner');
+                        if (fallbackScanner) return fallbackScanner;
+                    }
                     return new Response(
                         '<div style="font-family:sans-serif;text-align:center;padding:50px;background:#05080c;color:#fff;">' +
                         '<h2>⚡ FitTracks Terminal Offline</h2>' +

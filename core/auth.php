@@ -106,6 +106,7 @@ function require_roles(array $roles): array
 function handle_logout(): never
 {
     $silent = isset($_GET['silent']) || (isset($_SERVER['HTTP_REFERER']) && str_contains($_SERVER['HTTP_REFERER'], 'gym_rejected'));
+    unset($_SESSION['return_to']);
     session_destroy();
     session_start();
     if (!$silent) {
