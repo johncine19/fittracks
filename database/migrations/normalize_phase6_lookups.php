@@ -109,32 +109,38 @@ function run_normalize_phase6_migration(?PDO $pdo = null): void
         WHERE mb.badge_id IS NULL
     ');
 
-    // Triggers for member_badges
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_member_badges_bi');
-    $pdo->exec("
-        CREATE TRIGGER trg_member_badges_bi BEFORE INSERT ON member_badges
-        FOR EACH ROW
-        BEGIN
-            IF NEW.badge_id IS NULL AND NEW.badge_type IS NOT NULL THEN
-                SET NEW.badge_id = (SELECT badge_id FROM badges WHERE badge_key = NEW.badge_type LIMIT 1);
-            ELSEIF NEW.badge_type IS NULL AND NEW.badge_id IS NOT NULL THEN
-                SET NEW.badge_type = (SELECT badge_key FROM badges WHERE badge_id = NEW.badge_id LIMIT 1);
-            END IF;
-        END
-    ");
+    // Triggers for member_badges (MySQL only; skipped on TiDB)
+    if (function_exists('db_supports_triggers') ? db_supports_triggers($pdo) : true) {
+        try {
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_member_badges_bi');
+            $pdo->exec("
+                CREATE TRIGGER trg_member_badges_bi BEFORE INSERT ON member_badges
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.badge_id IS NULL AND NEW.badge_type IS NOT NULL THEN
+                        SET NEW.badge_id = (SELECT badge_id FROM badges WHERE badge_key = NEW.badge_type LIMIT 1);
+                    ELSEIF NEW.badge_type IS NULL AND NEW.badge_id IS NOT NULL THEN
+                        SET NEW.badge_type = (SELECT badge_key FROM badges WHERE badge_id = NEW.badge_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_member_badges_bu');
-    $pdo->exec("
-        CREATE TRIGGER trg_member_badges_bu BEFORE UPDATE ON member_badges
-        FOR EACH ROW
-        BEGIN
-            IF NEW.badge_type != OLD.badge_type OR (OLD.badge_id IS NULL AND NEW.badge_id IS NULL) THEN
-                SET NEW.badge_id = (SELECT badge_id FROM badges WHERE badge_key = NEW.badge_type LIMIT 1);
-            ELSEIF NEW.badge_id != OLD.badge_id THEN
-                SET NEW.badge_type = (SELECT badge_key FROM badges WHERE badge_id = NEW.badge_id LIMIT 1);
-            END IF;
-        END
-    ");
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_member_badges_bu');
+            $pdo->exec("
+                CREATE TRIGGER trg_member_badges_bu BEFORE UPDATE ON member_badges
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.badge_type != OLD.badge_type OR (OLD.badge_id IS NULL AND NEW.badge_id IS NULL) THEN
+                        SET NEW.badge_id = (SELECT badge_id FROM badges WHERE badge_key = NEW.badge_type LIMIT 1);
+                    ELSEIF NEW.badge_id != OLD.badge_id THEN
+                        SET NEW.badge_type = (SELECT badge_key FROM badges WHERE badge_id = NEW.badge_id LIMIT 1);
+                    END IF;
+                END
+            ");
+        } catch (Throwable) {
+            // TiDB Cloud and engines without trigger support: gracefully skip DB triggers
+        }
+    }
 
     // View v_member_badges
     $pdo->exec('
@@ -240,44 +246,50 @@ function run_normalize_phase6_migration(?PDO $pdo = null): void
         WHERE e.muscle_group_id IS NULL AND e.muscle_group IS NOT NULL
     ");
 
-    // Triggers for exercises
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_exercises_bi');
-    $pdo->exec("
-        CREATE TRIGGER trg_exercises_bi BEFORE INSERT ON exercises
-        FOR EACH ROW
-        BEGIN
-            IF NEW.category_id IS NULL AND NEW.category IS NOT NULL THEN
-                SET NEW.category_id = (SELECT category_id FROM exercise_categories WHERE category_code = LOWER(TRIM(NEW.category)) LIMIT 1);
-            ELSEIF NEW.category IS NULL AND NEW.category_id IS NOT NULL THEN
-                SET NEW.category = (SELECT category_code FROM exercise_categories WHERE category_id = NEW.category_id LIMIT 1);
-            END IF;
+    // Triggers for exercises (MySQL only; skipped on TiDB)
+    if (function_exists('db_supports_triggers') ? db_supports_triggers($pdo) : true) {
+        try {
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_exercises_bi');
+            $pdo->exec("
+                CREATE TRIGGER trg_exercises_bi BEFORE INSERT ON exercises
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.category_id IS NULL AND NEW.category IS NOT NULL THEN
+                        SET NEW.category_id = (SELECT category_id FROM exercise_categories WHERE category_code = LOWER(TRIM(NEW.category)) LIMIT 1);
+                    ELSEIF NEW.category IS NULL AND NEW.category_id IS NOT NULL THEN
+                        SET NEW.category = (SELECT category_code FROM exercise_categories WHERE category_id = NEW.category_id LIMIT 1);
+                    END IF;
 
-            IF NEW.muscle_group_id IS NULL AND NEW.muscle_group IS NOT NULL THEN
-                SET NEW.muscle_group_id = (SELECT muscle_group_id FROM muscle_groups WHERE muscle_group_code = LOWER(TRIM(REPLACE(NEW.muscle_group, ' ', '_'))) LIMIT 1);
-            ELSEIF NEW.muscle_group IS NULL AND NEW.muscle_group_id IS NOT NULL THEN
-                SET NEW.muscle_group = (SELECT muscle_group_code FROM muscle_groups WHERE muscle_group_id = NEW.muscle_group_id LIMIT 1);
-            END IF;
-        END
-    ");
+                    IF NEW.muscle_group_id IS NULL AND NEW.muscle_group IS NOT NULL THEN
+                        SET NEW.muscle_group_id = (SELECT muscle_group_id FROM muscle_groups WHERE muscle_group_code = LOWER(TRIM(REPLACE(NEW.muscle_group, ' ', '_'))) LIMIT 1);
+                    ELSEIF NEW.muscle_group IS NULL AND NEW.muscle_group_id IS NOT NULL THEN
+                        SET NEW.muscle_group = (SELECT muscle_group_code FROM muscle_groups WHERE muscle_group_id = NEW.muscle_group_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_exercises_bu');
-    $pdo->exec("
-        CREATE TRIGGER trg_exercises_bu BEFORE UPDATE ON exercises
-        FOR EACH ROW
-        BEGIN
-            IF NEW.category != OLD.category OR (OLD.category_id IS NULL AND NEW.category_id IS NULL) THEN
-                SET NEW.category_id = (SELECT category_id FROM exercise_categories WHERE category_code = LOWER(TRIM(NEW.category)) LIMIT 1);
-            ELSEIF NEW.category_id != OLD.category_id THEN
-                SET NEW.category = (SELECT category_code FROM exercise_categories WHERE category_id = NEW.category_id LIMIT 1);
-            END IF;
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_exercises_bu');
+            $pdo->exec("
+                CREATE TRIGGER trg_exercises_bu BEFORE UPDATE ON exercises
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.category != OLD.category OR (OLD.category_id IS NULL AND NEW.category_id IS NULL) THEN
+                        SET NEW.category_id = (SELECT category_id FROM exercise_categories WHERE category_code = LOWER(TRIM(NEW.category)) LIMIT 1);
+                    ELSEIF NEW.category_id != OLD.category_id THEN
+                        SET NEW.category = (SELECT category_code FROM exercise_categories WHERE category_id = NEW.category_id LIMIT 1);
+                    END IF;
 
-            IF NEW.muscle_group != OLD.muscle_group OR (OLD.muscle_group_id IS NULL AND NEW.muscle_group_id IS NULL) THEN
-                SET NEW.muscle_group_id = (SELECT muscle_group_id FROM muscle_groups WHERE muscle_group_code = LOWER(TRIM(REPLACE(NEW.muscle_group, ' ', '_'))) LIMIT 1);
-            ELSEIF NEW.muscle_group_id != OLD.muscle_group_id THEN
-                SET NEW.muscle_group = (SELECT muscle_group_code FROM muscle_groups WHERE muscle_group_id = NEW.muscle_group_id LIMIT 1);
-            END IF;
-        END
-    ");
+                    IF NEW.muscle_group != OLD.muscle_group OR (OLD.muscle_group_id IS NULL AND NEW.muscle_group_id IS NULL) THEN
+                        SET NEW.muscle_group_id = (SELECT muscle_group_id FROM muscle_groups WHERE muscle_group_code = LOWER(TRIM(REPLACE(NEW.muscle_group, ' ', '_'))) LIMIT 1);
+                    ELSEIF NEW.muscle_group_id != OLD.muscle_group_id THEN
+                        SET NEW.muscle_group = (SELECT muscle_group_code FROM muscle_groups WHERE muscle_group_id = NEW.muscle_group_id LIMIT 1);
+                    END IF;
+                END
+            ");
+        } catch (Throwable) {
+            // TiDB Cloud and engines without trigger support: gracefully skip DB triggers
+        }
+    }
 
     // View v_exercises
     $pdo->exec('
@@ -413,140 +425,147 @@ function run_normalize_phase6_migration(?PDO $pdo = null): void
         WHERE dp.goal_id IS NULL AND dp.goal IS NOT NULL
     ");
 
-    // Triggers for member_profiles goal sync
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_member_profiles_bi');
-    $pdo->exec("
-        CREATE TRIGGER trg_member_profiles_bi BEFORE INSERT ON member_profiles
-        FOR EACH ROW
-        BEGIN
-            IF NEW.goal_id IS NULL AND NEW.primary_goal IS NOT NULL THEN
-                SET NEW.goal_id = (
-                    SELECT goal_id FROM fitness_goals 
-                    WHERE goal_code = LOWER(TRIM(REPLACE(NEW.primary_goal, ' ', '_'))) 
-                       OR LOWER(display_name) = LOWER(TRIM(NEW.primary_goal))
-                       OR (NEW.primary_goal LIKE '%fat%' AND goal_code = 'fat_loss')
-                       OR (NEW.primary_goal LIKE '%mass%' AND goal_code = 'muscle_gain')
-                       OR (NEW.primary_goal LIKE '%strength%' AND goal_code = 'strength')
-                       OR (NEW.primary_goal LIKE '%lifestyle%' AND goal_code = 'casual')
-                    LIMIT 1
-                );
-            ELSEIF NEW.primary_goal IS NULL AND NEW.goal_id IS NOT NULL THEN
-                SET NEW.primary_goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
-            END IF;
-        END
-    ");
+    // Triggers for member_profiles, training_plans, dietary_plans goal sync (MySQL only; skipped on TiDB)
+    if (function_exists('db_supports_triggers') ? db_supports_triggers($pdo) : true) {
+        try {
+            // Triggers for member_profiles goal sync
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_member_profiles_bi');
+            $pdo->exec("
+                CREATE TRIGGER trg_member_profiles_bi BEFORE INSERT ON member_profiles
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.goal_id IS NULL AND NEW.primary_goal IS NOT NULL THEN
+                        SET NEW.goal_id = (
+                            SELECT goal_id FROM fitness_goals 
+                            WHERE goal_code = LOWER(TRIM(REPLACE(NEW.primary_goal, ' ', '_'))) 
+                               OR LOWER(display_name) = LOWER(TRIM(NEW.primary_goal))
+                               OR (NEW.primary_goal LIKE '%fat%' AND goal_code = 'fat_loss')
+                               OR (NEW.primary_goal LIKE '%mass%' AND goal_code = 'muscle_gain')
+                               OR (NEW.primary_goal LIKE '%strength%' AND goal_code = 'strength')
+                               OR (NEW.primary_goal LIKE '%lifestyle%' AND goal_code = 'casual')
+                            LIMIT 1
+                        );
+                    ELSEIF NEW.primary_goal IS NULL AND NEW.goal_id IS NOT NULL THEN
+                        SET NEW.primary_goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_member_profiles_bu');
-    $pdo->exec("
-        CREATE TRIGGER trg_member_profiles_bu BEFORE UPDATE ON member_profiles
-        FOR EACH ROW
-        BEGIN
-            IF NEW.primary_goal != OLD.primary_goal OR (OLD.goal_id IS NULL AND NEW.goal_id IS NULL) THEN
-                SET NEW.goal_id = (
-                    SELECT goal_id FROM fitness_goals 
-                    WHERE goal_code = LOWER(TRIM(REPLACE(NEW.primary_goal, ' ', '_'))) 
-                       OR LOWER(display_name) = LOWER(TRIM(NEW.primary_goal))
-                       OR (NEW.primary_goal LIKE '%fat%' AND goal_code = 'fat_loss')
-                       OR (NEW.primary_goal LIKE '%mass%' AND goal_code = 'muscle_gain')
-                       OR (NEW.primary_goal LIKE '%strength%' AND goal_code = 'strength')
-                       OR (NEW.primary_goal LIKE '%lifestyle%' AND goal_code = 'casual')
-                    LIMIT 1
-                );
-            ELSEIF NEW.goal_id != OLD.goal_id THEN
-                SET NEW.primary_goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
-            END IF;
-        END
-    ");
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_member_profiles_bu');
+            $pdo->exec("
+                CREATE TRIGGER trg_member_profiles_bu BEFORE UPDATE ON member_profiles
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.primary_goal != OLD.primary_goal OR (OLD.goal_id IS NULL AND NEW.goal_id IS NULL) THEN
+                        SET NEW.goal_id = (
+                            SELECT goal_id FROM fitness_goals 
+                            WHERE goal_code = LOWER(TRIM(REPLACE(NEW.primary_goal, ' ', '_'))) 
+                               OR LOWER(display_name) = LOWER(TRIM(NEW.primary_goal))
+                               OR (NEW.primary_goal LIKE '%fat%' AND goal_code = 'fat_loss')
+                               OR (NEW.primary_goal LIKE '%mass%' AND goal_code = 'muscle_gain')
+                               OR (NEW.primary_goal LIKE '%strength%' AND goal_code = 'strength')
+                               OR (NEW.primary_goal LIKE '%lifestyle%' AND goal_code = 'casual')
+                            LIMIT 1
+                        );
+                    ELSEIF NEW.goal_id != OLD.goal_id THEN
+                        SET NEW.primary_goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    // Triggers for training_plans goal sync
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_training_plans_bi');
-    $pdo->exec("
-        CREATE TRIGGER trg_training_plans_bi BEFORE INSERT ON training_plans
-        FOR EACH ROW
-        BEGIN
-            IF NEW.goal_id IS NULL AND NEW.goal IS NOT NULL THEN
-                SET NEW.goal_id = (
-                    SELECT goal_id FROM fitness_goals 
-                    WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
-                       OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
-                       OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
-                       OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
-                       OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
-                       OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
-                    LIMIT 1
-                );
-            ELSEIF NEW.goal IS NULL AND NEW.goal_id IS NOT NULL THEN
-                SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
-            END IF;
-        END
-    ");
+            // Triggers for training_plans goal sync
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_training_plans_bi');
+            $pdo->exec("
+                CREATE TRIGGER trg_training_plans_bi BEFORE INSERT ON training_plans
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.goal_id IS NULL AND NEW.goal IS NOT NULL THEN
+                        SET NEW.goal_id = (
+                            SELECT goal_id FROM fitness_goals 
+                            WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
+                               OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
+                               OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
+                               OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
+                               OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
+                               OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
+                            LIMIT 1
+                        );
+                    ELSEIF NEW.goal IS NULL AND NEW.goal_id IS NOT NULL THEN
+                        SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_training_plans_bu');
-    $pdo->exec("
-        CREATE TRIGGER trg_training_plans_bu BEFORE UPDATE ON training_plans
-        FOR EACH ROW
-        BEGIN
-            IF NEW.goal != OLD.goal OR (OLD.goal_id IS NULL AND NEW.goal_id IS NULL) THEN
-                SET NEW.goal_id = (
-                    SELECT goal_id FROM fitness_goals 
-                    WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
-                       OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
-                       OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
-                       OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
-                       OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
-                       OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
-                    LIMIT 1
-                );
-            ELSEIF NEW.goal_id != OLD.goal_id THEN
-                SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
-            END IF;
-        END
-    ");
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_training_plans_bu');
+            $pdo->exec("
+                CREATE TRIGGER trg_training_plans_bu BEFORE UPDATE ON training_plans
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.goal != OLD.goal OR (OLD.goal_id IS NULL AND NEW.goal_id IS NULL) THEN
+                        SET NEW.goal_id = (
+                            SELECT goal_id FROM fitness_goals 
+                            WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
+                               OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
+                               OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
+                               OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
+                               OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
+                               OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
+                            LIMIT 1
+                        );
+                    ELSEIF NEW.goal_id != OLD.goal_id THEN
+                        SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    // Triggers for dietary_plans goal sync
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_dietary_plans_bi');
-    $pdo->exec("
-        CREATE TRIGGER trg_dietary_plans_bi BEFORE INSERT ON dietary_plans
-        FOR EACH ROW
-        BEGIN
-            IF NEW.goal_id IS NULL AND NEW.goal IS NOT NULL THEN
-                SET NEW.goal_id = (
-                    SELECT goal_id FROM fitness_goals 
-                    WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
-                       OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
-                       OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
-                       OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
-                       OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
-                       OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
-                    LIMIT 1
-                );
-            ELSEIF NEW.goal IS NULL AND NEW.goal_id IS NOT NULL THEN
-                SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
-            END IF;
-        END
-    ");
+            // Triggers for dietary_plans goal sync
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_dietary_plans_bi');
+            $pdo->exec("
+                CREATE TRIGGER trg_dietary_plans_bi BEFORE INSERT ON dietary_plans
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.goal_id IS NULL AND NEW.goal IS NOT NULL THEN
+                        SET NEW.goal_id = (
+                            SELECT goal_id FROM fitness_goals 
+                            WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
+                               OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
+                               OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
+                               OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
+                               OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
+                               OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
+                            LIMIT 1
+                        );
+                    ELSEIF NEW.goal IS NULL AND NEW.goal_id IS NOT NULL THEN
+                        SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
+                    END IF;
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_dietary_plans_bu');
-    $pdo->exec("
-        CREATE TRIGGER trg_dietary_plans_bu BEFORE UPDATE ON dietary_plans
-        FOR EACH ROW
-        BEGIN
-            IF NEW.goal != OLD.goal OR (OLD.goal_id IS NULL AND NEW.goal_id IS NULL) THEN
-                SET NEW.goal_id = (
-                    SELECT goal_id FROM fitness_goals 
-                    WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
-                       OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
-                       OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
-                       OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
-                       OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
-                       OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
-                    LIMIT 1
-                );
-            ELSEIF NEW.goal_id != OLD.goal_id THEN
-                SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
-            END IF;
-        END
-    ");
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_dietary_plans_bu');
+            $pdo->exec("
+                CREATE TRIGGER trg_dietary_plans_bu BEFORE UPDATE ON dietary_plans
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.goal != OLD.goal OR (OLD.goal_id IS NULL AND NEW.goal_id IS NULL) THEN
+                        SET NEW.goal_id = (
+                            SELECT goal_id FROM fitness_goals 
+                            WHERE goal_code = LOWER(TRIM(REPLACE(NEW.goal, ' ', '_'))) 
+                               OR LOWER(display_name) = LOWER(TRIM(NEW.goal))
+                               OR (NEW.goal LIKE '%fat%' AND goal_code = 'fat_loss')
+                               OR (NEW.goal LIKE '%mass%' AND goal_code = 'muscle_gain')
+                               OR (NEW.goal LIKE '%strength%' AND goal_code = 'strength')
+                               OR (NEW.goal LIKE '%lifestyle%' AND goal_code = 'casual')
+                            LIMIT 1
+                        );
+                    ELSEIF NEW.goal_id != OLD.goal_id THEN
+                        SET NEW.goal = (SELECT display_name FROM fitness_goals WHERE goal_id = NEW.goal_id LIMIT 1);
+                    END IF;
+                END
+            ");
+        } catch (Throwable) {
+            // TiDB Cloud and engines without trigger support: gracefully skip DB triggers
+        }
+    }
 
     // View v_member_profiles_unified
     $pdo->exec('

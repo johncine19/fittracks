@@ -228,68 +228,75 @@ function run_normalize_phase5_migration(?PDO $pdo = null): void
     ");
 
     // =========================================================================
-    // 7. Setup Bidirectional Sync Triggers on trainer_assignments
+    // 7. Setup Bidirectional Sync Triggers on trainer_assignments (MySQL only; skipped on TiDB)
     // =========================================================================
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_insert');
-    $pdo->exec("
-        CREATE TRIGGER trg_trainer_assignments_insert AFTER INSERT ON trainer_assignments
-        FOR EACH ROW
-        BEGIN
-            DECLARE resolved_group_id VARCHAR(36);
-            DECLARE resolved_gym_id INT UNSIGNED;
+    $canTrigger = function_exists('db_supports_triggers') ? db_supports_triggers($pdo) : true;
+    if ($canTrigger) {
+        try {
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_insert');
+            $pdo->exec("
+                CREATE TRIGGER trg_trainer_assignments_insert AFTER INSERT ON trainer_assignments
+                FOR EACH ROW
+                BEGIN
+                    DECLARE resolved_group_id VARCHAR(36);
+                    DECLARE resolved_gym_id INT UNSIGNED;
 
-            SET resolved_group_id = IF(NEW.group_id IS NOT NULL AND NEW.group_id != '', NEW.group_id, UUID());
+                    SET resolved_group_id = IF(NEW.group_id IS NOT NULL AND NEW.group_id != '', NEW.group_id, UUID());
 
-            SELECT gym_id INTO resolved_gym_id FROM trainer_profiles WHERE trainer_id = NEW.trainer_id LIMIT 1;
+                    SELECT gym_id INTO resolved_gym_id FROM trainer_profiles WHERE trainer_id = NEW.trainer_id LIMIT 1;
 
-            INSERT INTO assignment_groups (group_id, gym_id, trainer_id, activity_title, assigned_by, assigned_date, status)
-            VALUES (resolved_group_id, resolved_gym_id, NEW.trainer_id, COALESCE(NEW.activity_title, 'Personal Training'), NEW.assigned_by, NEW.assigned_date, NEW.status)
-            ON DUPLICATE KEY UPDATE
-                activity_title = VALUES(activity_title),
-                status = VALUES(status);
+                    INSERT INTO assignment_groups (group_id, gym_id, trainer_id, activity_title, assigned_by, assigned_date, status)
+                    VALUES (resolved_group_id, resolved_gym_id, NEW.trainer_id, COALESCE(NEW.activity_title, 'Personal Training'), NEW.assigned_by, NEW.assigned_date, NEW.status)
+                    ON DUPLICATE KEY UPDATE
+                        activity_title = VALUES(activity_title),
+                        status = VALUES(status);
 
-            INSERT INTO assignment_group_members (assignment_id, group_id, member_user_id, status, assigned_date, ended_date, rejection_reason)
-            VALUES (NEW.assignment_id, resolved_group_id, NEW.member_user_id, NEW.status, NEW.assigned_date, NEW.ended_date, NEW.rejection_reason)
-            ON DUPLICATE KEY UPDATE
-                status = VALUES(status),
-                ended_date = VALUES(ended_date),
-                rejection_reason = VALUES(rejection_reason);
-        END
-    ");
+                    INSERT INTO assignment_group_members (assignment_id, group_id, member_user_id, status, assigned_date, ended_date, rejection_reason)
+                    VALUES (NEW.assignment_id, resolved_group_id, NEW.member_user_id, NEW.status, NEW.assigned_date, NEW.ended_date, NEW.rejection_reason)
+                    ON DUPLICATE KEY UPDATE
+                        status = VALUES(status),
+                        ended_date = VALUES(ended_date),
+                        rejection_reason = VALUES(rejection_reason);
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_update');
-    $pdo->exec("
-        CREATE TRIGGER trg_trainer_assignments_update AFTER UPDATE ON trainer_assignments
-        FOR EACH ROW
-        BEGIN
-            UPDATE assignment_groups
-            SET trainer_id = NEW.trainer_id,
-                activity_title = COALESCE(NEW.activity_title, activity_title),
-                status = NEW.status
-            WHERE group_id = NEW.group_id;
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_update');
+            $pdo->exec("
+                CREATE TRIGGER trg_trainer_assignments_update AFTER UPDATE ON trainer_assignments
+                FOR EACH ROW
+                BEGIN
+                    UPDATE assignment_groups
+                    SET trainer_id = NEW.trainer_id,
+                        activity_title = COALESCE(NEW.activity_title, activity_title),
+                        status = NEW.status
+                    WHERE group_id = NEW.group_id;
 
-            UPDATE assignment_group_members
-            SET group_id = NEW.group_id,
-                member_user_id = NEW.member_user_id,
-                status = NEW.status,
-                assigned_date = NEW.assigned_date,
-                ended_date = NEW.ended_date,
-                rejection_reason = NEW.rejection_reason
-            WHERE assignment_id = NEW.assignment_id;
-        END
-    ");
+                    UPDATE assignment_group_members
+                    SET group_id = NEW.group_id,
+                        member_user_id = NEW.member_user_id,
+                        status = NEW.status,
+                        assigned_date = NEW.assigned_date,
+                        ended_date = NEW.ended_date,
+                        rejection_reason = NEW.rejection_reason
+                    WHERE assignment_id = NEW.assignment_id;
+                END
+            ");
 
-    $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_delete');
-    $pdo->exec("
-        CREATE TRIGGER trg_trainer_assignments_delete AFTER DELETE ON trainer_assignments
-        FOR EACH ROW
-        BEGIN
-            DELETE FROM assignment_group_members WHERE assignment_id = OLD.assignment_id;
-            IF NOT EXISTS (SELECT 1 FROM assignment_group_members WHERE group_id = OLD.group_id) THEN
-                DELETE FROM assignment_groups WHERE group_id = OLD.group_id;
-            END IF;
-        END
-    ");
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_delete');
+            $pdo->exec("
+                CREATE TRIGGER trg_trainer_assignments_delete AFTER DELETE ON trainer_assignments
+                FOR EACH ROW
+                BEGIN
+                    DELETE FROM assignment_group_members WHERE assignment_id = OLD.assignment_id;
+                    IF NOT EXISTS (SELECT 1 FROM assignment_group_members WHERE group_id = OLD.group_id) THEN
+                        DELETE FROM assignment_groups WHERE group_id = OLD.group_id;
+                    END IF;
+                END
+            ");
+        } catch (Throwable) {
+            // TiDB Cloud and engines without trigger support: gracefully skip DB triggers
+        }
+    }
 
     // =========================================================================
     // 8. Create v_assignment_group_details View

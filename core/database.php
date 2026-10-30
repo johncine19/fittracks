@@ -67,4 +67,25 @@ function query_one(string $sql, array $params = []): ?array
     return $row ? (array) $row : null;
 }
 
+function db_supports_triggers(?PDO $pdo = null): bool
+{
+    static $supports = null;
+    if ($supports !== null) {
+        return $supports;
+    }
+    try {
+        $pdo = $pdo ?? db();
+        $ver = (string)$pdo->query('SELECT VERSION()')->fetchColumn();
+        if (stripos($ver, 'TiDB') !== false) {
+            $supports = false;
+            return false;
+        }
+        $supports = true;
+        return true;
+    } catch (Throwable) {
+        $supports = false;
+        return false;
+    }
+}
+
 

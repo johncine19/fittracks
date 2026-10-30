@@ -489,10 +489,21 @@ function platform_demo_requests_page(): void
                                         <?php endif; ?>
                                     </td>
                                     <td style="max-width:280px;">
-                                        <?php if (!empty($req['message'])): ?>
+                                        <?php if (!empty($req['message'])): 
+                                            $msgLen = mb_strlen($req['message']);
+                                            $hasMore = ($msgLen > 60 || str_contains($req['message'], "\n"));
+                                        ?>
                                             <span style="font-size:12.5px; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;" title="<?= h($req['message']) ?>">
                                                 <?= h($req['message']) ?>
                                             </span>
+                                            <?php if ($hasMore): ?>
+                                                <button type="button" 
+                                                        onclick="openInquiryModal(<?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['gym_name'] ?: 'No Facility specified'), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode(date('M j, Y \a\t g:i A', strtotime($req['created_at']))), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['message']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['work_email']), ENT_QUOTES, 'UTF-8') ?>)" 
+                                                        style="background:none; border:none; padding:0; margin-top:3px; color:var(--lime); text-decoration:underline; font-size:11.5px; font-weight:600; cursor:pointer; display:inline-block;"
+                                                        title="Read full message">
+                                                    <u>more</u>
+                                                </button>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <span style="color:var(--muted); font-size:12px;">—</span>
                                         <?php endif; ?>
@@ -572,10 +583,23 @@ function platform_demo_requests_page(): void
                             <div style="font-size:11.5px; color:var(--muted); margin-top:2px;"><?= date('M j, Y \a\t g:i A', strtotime($req['created_at'])) ?></div>
                         </div>
 
-                        <?php if (!empty($req['message'])): ?>
+                        <?php if (!empty($req['message'])): 
+                            $mobLen = mb_strlen($req['message']);
+                            $mobHasMore = ($mobLen > 90 || str_contains($req['message'], "\n"));
+                        ?>
                             <div style="background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:12.5px; color:var(--muted); line-height:1.4;">
                                 <strong style="color:var(--ink); display:block; margin-bottom:2px;">Inquiry Note:</strong>
-                                <?= h($req['message']) ?>
+                                <span style="<?= $mobHasMore ? 'display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;' : '' ?>">
+                                    <?= h($req['message']) ?>
+                                </span>
+                                <?php if ($mobHasMore): ?>
+                                    <button type="button" 
+                                            onclick="openInquiryModal(<?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['gym_name'] ?: 'No Facility specified'), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode(date('M j, Y \a\t g:i A', strtotime($req['created_at']))), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['message']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['work_email']), ENT_QUOTES, 'UTF-8') ?>)" 
+                                            style="background:none; border:none; padding:0; margin-top:4px; color:var(--lime); text-decoration:underline; font-size:11.5px; font-weight:600; cursor:pointer; display:inline-block;"
+                                            title="Read full message">
+                                        <u>more</u>
+                                    </button>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
@@ -631,6 +655,29 @@ function platform_demo_requests_page(): void
         </div>
     </div>
 
+    <!-- Plain & Clean Inquiry Message Modal -->
+    <div id="inquiryModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:16px;">
+        <div style="background:var(--panel); border:1px solid var(--line); border-radius:14px; max-width:520px; width:100%; padding:22px; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:12px;">
+                <div>
+                    <h3 style="margin:0 0 4px 0; font-size:16px; color:var(--ink);">Inquiry Message</h3>
+                    <div id="inquiryModalSubtitle" style="font-size:12px; color:var(--muted);"></div>
+                </div>
+                <button type="button" onclick="closeInquiryModal()" style="background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; padding:2px 6px;">&times;</button>
+            </div>
+            
+            <div id="inquiryModalBody" style="background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; font-size:13.5px; line-height:1.6; color:var(--ink); white-space:pre-wrap; word-break:break-word; max-height:360px; overflow-y:auto; margin-bottom:16px;"></div>
+            
+            <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px;">
+                <a id="inquiryModalEmailBtn" href="#" class="btn btn-sm btn-lime" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    Reply via Email
+                </a>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="closeInquiryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function openNotesModal(id, notes) {
             document.getElementById('notesModalId').value = id;
@@ -642,6 +689,37 @@ function platform_demo_requests_page(): void
             const modal = document.getElementById('notesModal');
             modal.style.display = 'none';
         }
+
+        function openInquiryModal(name, gym, dateStr, message, email) {
+            document.getElementById('inquiryModalSubtitle').textContent = (name || 'Prospect') + (gym ? (' • ' + gym) : '') + (dateStr ? (' • ' + dateStr) : '');
+            document.getElementById('inquiryModalBody').textContent = message || '';
+            const emailBtn = document.getElementById('inquiryModalEmailBtn');
+            if (email) {
+                emailBtn.href = 'mailto:' + encodeURIComponent(email) + '?subject=FitTracks%20Live%20Demo%20Walkthrough&body=Hi%20' + encodeURIComponent(name || '') + ',';
+                emailBtn.style.display = 'inline-flex';
+            } else {
+                emailBtn.style.display = 'none';
+            }
+            const modal = document.getElementById('inquiryModal');
+            modal.style.display = 'flex';
+        }
+        function closeInquiryModal() {
+            const modal = document.getElementById('inquiryModal');
+            modal.style.display = 'none';
+        }
+
+        document.getElementById('inquiryModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeInquiryModal();
+        });
+        document.getElementById('notesModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeNotesModal();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeInquiryModal();
+                closeNotesModal();
+            }
+        });
     </script>
 
     <?php
