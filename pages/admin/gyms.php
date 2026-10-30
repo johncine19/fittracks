@@ -962,12 +962,14 @@ function gyms_page(): void
         position: absolute !important;
         right: 0 !important;
         top: calc(100% + 5px) !important;
-        min-width: 175px !important;
-        background: var(--panel, #121820) !important;
-        border: 1px solid var(--line, rgba(255, 255, 255, 0.15)) !important;
-        border-radius: 9px !important;
+        min-width: 180px !important;
+        background: #10131b !important;
+        background-color: #10131b !important;
+        opacity: 1 !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        border-radius: 10px !important;
         padding: 5px !important;
-        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.6), 0 4px 10px -2px rgba(0, 0, 0, 0.3) !important;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.45) !important;
         display: none !important;
         z-index: 1060 !important;
         box-sizing: border-box !important;
@@ -975,8 +977,9 @@ function gyms_page(): void
     html[data-theme="light"] .action-kebab-menu,
     [data-theme="light"] .action-kebab-menu {
         background: #ffffff !important;
+        background-color: #ffffff !important;
         border-color: #cbd5e1 !important;
-        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.12) !important;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12) !important;
     }
     .action-kebab-dropdown.drop-up .action-kebab-menu {
         top: auto !important;
@@ -991,11 +994,11 @@ function gyms_page(): void
         display: flex !important;
         align-items: center !important;
         gap: 8px !important;
-        padding: 6px 10px !important;
+        padding: 7px 10px !important;
         border-radius: 6px !important;
         font-size: 12.5px !important;
         font-weight: 500 !important;
-        color: var(--ink, #f8fafc) !important;
+        color: #f8fafc !important;
         background: transparent !important;
         border: none !important;
         width: 100% !important;
@@ -1006,8 +1009,11 @@ function gyms_page(): void
         box-sizing: border-box !important;
     }
     .action-kebab-item:hover {
-        background: color-mix(in srgb, var(--panel-soft) 80%, transparent) !important;
-        color: var(--ink) !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #ffffff !important;
+    }
+    html[data-theme="light"] .action-kebab-item {
+        color: #0f172a !important;
     }
     html[data-theme="light"] .action-kebab-item:hover,
     [data-theme="light"] .action-kebab-item:hover {
@@ -1018,7 +1024,7 @@ function gyms_page(): void
         color: #f59e0b !important;
     }
     .action-kebab-item.is-warning:hover {
-        background: rgba(245, 158, 11, 0.12) !important;
+        background: rgba(245, 158, 11, 0.15) !important;
     }
     .action-kebab-item.is-success {
         color: var(--lime, #84cc16) !important;
@@ -1030,12 +1036,16 @@ function gyms_page(): void
         color: #ef4444 !important;
     }
     .action-kebab-item.is-danger:hover {
-        background: rgba(239, 68, 68, 0.12) !important;
+        background: rgba(239, 68, 68, 0.15) !important;
     }
     .action-kebab-divider {
         height: 1px !important;
-        background: var(--line, rgba(255, 255, 255, 0.1)) !important;
-        margin: 3px 0 !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+        margin: 4px 0 !important;
+    }
+    html[data-theme="light"] .action-kebab-divider,
+    [data-theme="light"] .action-kebab-divider {
+        background: #e2e8f0 !important;
     }
 
     @media (max-width: 768px) {
