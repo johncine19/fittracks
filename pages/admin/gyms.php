@@ -134,22 +134,148 @@ function gyms_page(): void
 
             flash("Payout settings for '{$gymName}' updated successfully.", 'success');
         }
+        $returnUrl = trim((string) post('return_url'));
+        if ($returnUrl !== '' && str_starts_with($returnUrl, 'index.php?page=gyms')) {
+            header('Location: ' . $returnUrl);
+            exit;
+        }
         redirect('gyms');
     }
 
     // Auto-sync any expired subscriptions immediately so records and view stay accurate
     auto_expire_lapsed_gym_subscriptions();
 
-    $gyms = $pdo->query('
+    // ── Filter, Search & Pagination Parameters ──
+    $q = trim((string)($_GET['q'] ?? ''));
+    $facilityStatus = strtolower(trim((string)($_GET['status'] ?? 'all')));
+    if (!in_array($facilityStatus, ['all', 'approved', 'suspended'], true)) {
+        $facilityStatus = 'all';
+    }
+
+    $planFilter = trim((string)($_GET['plan'] ?? 'all'));
+    $subStatusFilter = strtolower(trim((string)($_GET['sub_status'] ?? 'all')));
+    if (!in_array($subStatusFilter, ['all', 'active', 'trialing', 'expired', 'inactive'], true)) {
+        $subStatusFilter = 'all';
+    }
+
+    $page = max(1, (int)($_GET['p'] ?? 1));
+    $perPage = 10;
+
+    // Fast count for facility status navigation tabs
+    $countsStmt = $pdo->query('
+        SELECT 
+            COUNT(*) AS total_all,
+            SUM(CASE WHEN status = "approved" THEN 1 ELSE 0 END) AS total_approved,
+            SUM(CASE WHEN status = "suspended" THEN 1 ELSE 0 END) AS total_suspended
+        FROM gyms
+        WHERE status IN ("approved", "suspended")
+    ');
+    $tabCounts = $countsStmt->fetch(PDO::FETCH_ASSOC) ?: ['total_all' => 0, 'total_approved' => 0, 'total_suspended' => 0];
+
+    // Build WHERE clause
+    $where = ['g.status IN ("approved", "suspended")'];
+    $params = [];
+
+    if ($facilityStatus !== 'all') {
+        $where[] = 'g.status = :facility_status';
+        $params[':facility_status'] = $facilityStatus;
+    }
+
+    if ($q !== '') {
+        $where[] = '(
+            g.name LIKE :q 
+            OR CONCAT(u.first_name, " ", u.last_name) LIKE :q 
+            OR u.first_name LIKE :q 
+            OR u.last_name LIKE :q 
+            OR u.email LIKE :q 
+            OR u.phone LIKE :q 
+            OR g.address LIKE :q
+        )';
+        $params[':q'] = '%' . $q . '%';
+    }
+
+    if ($planFilter !== 'all' && $planFilter !== '') {
+        if (strtolower($planFilter) === 'none') {
+            $where[] = '(g.subscription_plan IS NULL OR g.subscription_plan = "" OR LOWER(g.subscription_plan) = "none")';
+        } else {
+            $where[] = 'LOWER(g.subscription_plan) = LOWER(:plan)';
+            $params[':plan'] = $planFilter;
+        }
+    }
+
+    if ($subStatusFilter !== 'all') {
+        if ($subStatusFilter === 'active') {
+            $where[] = 'g.subscription_status = "active" AND (g.subscription_renewal_date IS NULL OR g.subscription_renewal_date >= CURDATE())';
+        } elseif ($subStatusFilter === 'trialing') {
+            $where[] = 'g.subscription_status = "trialing" AND (g.subscription_renewal_date IS NULL OR g.subscription_renewal_date >= CURDATE())';
+        } elseif ($subStatusFilter === 'expired') {
+            $where[] = '(g.subscription_status = "expired" OR (g.subscription_status IN ("active", "trialing") AND g.subscription_renewal_date IS NOT NULL AND g.subscription_renewal_date < CURDATE()))';
+        } elseif ($subStatusFilter === 'inactive') {
+            $where[] = '(g.subscription_status = "inactive" OR g.subscription_status IS NULL OR g.subscription_status = "")';
+        }
+    }
+
+    $whereSql = implode(' AND ', $where);
+
+    // Total filtered records
+    $countStmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM gyms g 
+        JOIN users u ON u.user_id = g.owner_user_id 
+        WHERE {$whereSql}
+    ");
+    foreach ($params as $k => $v) {
+        $countStmt->bindValue($k, $v);
+    }
+    $countStmt->execute();
+    $totalGyms = (int) $countStmt->fetchColumn();
+
+    $totalPages = max(1, (int) ceil($totalGyms / $perPage));
+    if ($page > $totalPages) {
+        $page = $totalPages;
+    }
+    $offset = ($page - 1) * $perPage;
+
+    // Fetch paginated slice
+    $dataStmt = $pdo->prepare("
         SELECT g.*, u.first_name, u.last_name, u.email 
         FROM gyms g 
         JOIN users u ON u.user_id = g.owner_user_id 
-        WHERE g.status IN ("approved", "suspended") 
-        ORDER BY g.created_at DESC
-    ')->fetchAll();
+        WHERE {$whereSql} 
+        ORDER BY g.created_at DESC 
+        LIMIT :limit OFFSET :offset
+    ");
+    foreach ($params as $k => $v) {
+        $dataStmt->bindValue($k, $v);
+    }
+    $dataStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $dataStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $dataStmt->execute();
+    $gyms = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
     if (function_exists('hydrate_gym_rows')) {
         $gyms = hydrate_gym_rows($gyms);
     }
+
+    $availablePlatformPlans = get_platform_subscription_plans();
+    $hasActiveFilters = ($facilityStatus !== 'all' || ($planFilter !== 'all' && $planFilter !== '') || $subStatusFilter !== 'all' || $q !== '');
+
+    // Build pagination base URL preserving active filters
+    $paginationParams = ['page' => 'gyms'];
+    if ($facilityStatus !== 'all') {
+        $paginationParams['status'] = $facilityStatus;
+    }
+    if ($planFilter !== 'all' && $planFilter !== '') {
+        $paginationParams['plan'] = $planFilter;
+    }
+    if ($subStatusFilter !== 'all') {
+        $paginationParams['sub_status'] = $subStatusFilter;
+    }
+    if ($q !== '') {
+        $paginationParams['q'] = $q;
+    }
+    $paginationBaseUrl = 'index.php?' . http_build_query($paginationParams);
+    $currentQueryUrl = 'index.php?' . http_build_query(array_merge(['page' => 'gyms'], $_GET));
 
     foreach ($gyms as &$gItem) {
         $gDocs = [];
@@ -605,6 +731,202 @@ function gyms_page(): void
         color: #3b82f6 !important;
         background: rgba(59, 130, 246, 0.12) !important;
     }
+
+    /* ── Gyms Toolbar, Tabs & Filters ── */
+    .gyms-toolbar {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin: 18px 0 16px;
+    }
+    .gyms-tabs-pills {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .gyms-nav-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        text-decoration: none;
+        background: color-mix(in srgb, var(--panel-soft) 40%, transparent);
+        border: 1px solid var(--line);
+        transition: all 0.16s ease;
+        white-space: nowrap;
+    }
+    .gyms-nav-pill:hover {
+        color: var(--ink);
+        border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+    }
+    .gyms-nav-pill.active {
+        background: color-mix(in srgb, var(--lime) 15%, transparent);
+        color: var(--lime);
+        border-color: color-mix(in srgb, var(--lime) 50%, transparent);
+        font-weight: 700;
+    }
+    html[data-theme="light"] .gyms-nav-pill.active,
+    [data-theme="light"] .gyms-nav-pill.active {
+        background: rgba(132, 204, 22, 0.15);
+        color: #3f6212;
+        border-color: #84cc16;
+    }
+    .gyms-pill-badge {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        color: inherit;
+        font-weight: 700;
+    }
+    .gyms-nav-pill.active .gyms-pill-badge {
+        background: var(--lime);
+        color: #080b0d;
+    }
+    .badge-suspended-count {
+        background: rgba(239, 68, 68, 0.25) !important;
+        color: #ef4444 !important;
+    }
+
+    .gyms-filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .gyms-search-wrap {
+        position: relative;
+        flex: 1;
+        min-width: 250px;
+        max-width: 380px;
+    }
+    .gyms-search-input {
+        width: 100%;
+        height: 38px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 30px 8px 34px;
+        font-size: 13px;
+        color: var(--ink);
+        box-sizing: border-box;
+        outline: none;
+        transition: border-color 0.18s ease;
+    }
+    .gyms-search-input:focus {
+        border-color: var(--lime);
+    }
+    .gyms-search-icon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        pointer-events: none;
+    }
+    .gyms-search-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 16px;
+        line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+    }
+    .gyms-search-clear:hover {
+        color: var(--ink);
+    }
+    .gyms-selects-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .gyms-select {
+        height: 38px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 10px;
+        font-size: 13px;
+        color: var(--ink);
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.18s ease;
+    }
+    .gyms-select:focus {
+        border-color: var(--lime);
+    }
+    .gyms-reset-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel-soft) 40%, transparent);
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.16s ease;
+    }
+    .gyms-reset-btn:hover {
+        color: var(--danger);
+        border-color: var(--danger);
+    }
+    .gyms-meta-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--muted);
+        margin: 4px 0 12px;
+    }
+    .gyms-filtered-tag {
+        display: inline-block;
+        font-size: 10.5px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--lime) 15%, transparent);
+        color: var(--lime);
+        font-weight: 700;
+        margin-left: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    @media (max-width: 768px) {
+        .gyms-filter-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .gyms-search-wrap {
+            max-width: 100%;
+            min-width: 100%;
+        }
+        .gyms-selects-wrap {
+            width: 100%;
+        }
+        .gyms-selects-wrap .gyms-select {
+            flex: 1;
+            min-width: 130px;
+        }
+    }
     </style>
 
     <section class="panel">
@@ -615,10 +937,113 @@ function gyms_page(): void
             </div>
         </div>
 
-        <?php if (!$gyms): ?>
-            <div class="empty-state" style="padding: 40px 20px; text-align: center;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
-                <p style="margin-top: 10px; color: var(--muted);">No active or suspended gyms found.</p>
+        <?php
+        $statusNavUrl = function(string $s) use ($q, $planFilter, $subStatusFilter): string {
+            $params = ['page' => 'gyms', 'status' => $s];
+            if ($planFilter !== 'all' && $planFilter !== '') $params['plan'] = $planFilter;
+            if ($subStatusFilter !== 'all') $params['sub_status'] = $subStatusFilter;
+            if ($q !== '') $params['q'] = $q;
+            return 'index.php?' . http_build_query($params);
+        };
+        $clearSearchUrl = function() use ($facilityStatus, $planFilter, $subStatusFilter): string {
+            $params = ['page' => 'gyms'];
+            if ($facilityStatus !== 'all') $params['status'] = $facilityStatus;
+            if ($planFilter !== 'all' && $planFilter !== '') $params['plan'] = $planFilter;
+            if ($subStatusFilter !== 'all') $params['sub_status'] = $subStatusFilter;
+            return 'index.php?' . http_build_query($params);
+        };
+        ?>
+
+        <!-- ── Toolbar: Status Navigation, Search & Filters ── -->
+        <div class="gyms-toolbar">
+            <nav class="gyms-tabs-pills" aria-label="Filter Facility Status">
+                <a href="<?= h($statusNavUrl('all')) ?>" class="gyms-nav-pill <?= $facilityStatus === 'all' ? 'active' : '' ?>">
+                    <span>All Facilities</span>
+                    <span class="gyms-pill-badge"><?= (int)$tabCounts['total_all'] ?></span>
+                </a>
+                <a href="<?= h($statusNavUrl('approved')) ?>" class="gyms-nav-pill <?= $facilityStatus === 'approved' ? 'active' : '' ?>">
+                    <span>Approved</span>
+                    <span class="gyms-pill-badge"><?= (int)$tabCounts['total_approved'] ?></span>
+                </a>
+                <a href="<?= h($statusNavUrl('suspended')) ?>" class="gyms-nav-pill <?= $facilityStatus === 'suspended' ? 'active' : '' ?>">
+                    <span>Suspended</span>
+                    <span class="gyms-pill-badge <?= (int)$tabCounts['total_suspended'] > 0 ? 'badge-suspended-count' : '' ?>"><?= (int)$tabCounts['total_suspended'] ?></span>
+                </a>
+            </nav>
+
+            <form method="get" action="index.php" class="gyms-filter-form">
+                <input type="hidden" name="page" value="gyms">
+                <?php if ($facilityStatus !== 'all'): ?>
+                    <input type="hidden" name="status" value="<?= h($facilityStatus) ?>">
+                <?php endif; ?>
+
+                <div class="gyms-search-wrap">
+                    <svg class="gyms-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" name="q" class="gyms-search-input" placeholder="Search gym name, owner, email, phone..." value="<?= h($q) ?>">
+                    <?php if ($q !== ''): ?>
+                        <a href="<?= h($clearSearchUrl()) ?>" class="gyms-search-clear" title="Clear search">&times;</a>
+                    <?php endif; ?>
+                </div>
+
+                <div class="gyms-selects-wrap">
+                    <select name="plan" class="gyms-select" onchange="this.form.submit()">
+                        <option value="all" <?= selected($planFilter, 'all') ?>>All Plans</option>
+                        <option value="Free Trial" <?= selected(strtolower($planFilter), 'free trial') ?>>Free Trial</option>
+                        <?php foreach ($availablePlatformPlans as $pk => $pDef): ?>
+                            <option value="<?= h($pDef['name']) ?>" <?= selected(strtolower($planFilter), strtolower($pDef['name'])) ?>><?= h($pDef['name']) ?> Plan</option>
+                        <?php endforeach; ?>
+                        <option value="None" <?= selected(strtolower($planFilter), 'none') ?>>None / No Plan</option>
+                    </select>
+
+                    <select name="sub_status" class="gyms-select" onchange="this.form.submit()">
+                        <option value="all" <?= selected($subStatusFilter, 'all') ?>>All Sub Statuses</option>
+                        <option value="active" <?= selected($subStatusFilter, 'active') ?>>Active</option>
+                        <option value="trialing" <?= selected($subStatusFilter, 'trialing') ?>>Trialing</option>
+                        <option value="expired" <?= selected($subStatusFilter, 'expired') ?>>Expired</option>
+                        <option value="inactive" <?= selected($subStatusFilter, 'inactive') ?>>Inactive</option>
+                    </select>
+
+                    <?php if ($hasActiveFilters): ?>
+                        <a href="index.php?page=gyms" class="gyms-reset-btn" title="Reset all filters">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                            <span>Reset</span>
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+
+        <!-- ── Meta Results Count Bar ── -->
+        <div class="gyms-meta-row">
+            <div>
+                <?php if ($totalGyms > 0): ?>
+                    Showing <strong><?= $offset + 1 ?>–<?= min($totalGyms, $offset + count($gyms)) ?></strong> of <strong><?= $totalGyms ?></strong> <?= $totalGyms === 1 ? 'gym' : 'gyms' ?>
+                    <?php if ($hasActiveFilters): ?>
+                        <span class="gyms-filtered-tag">Filtered</span>
+                    <?php endif; ?>
+                <?php else: ?>
+                    Showing <strong>0</strong> gyms
+                <?php endif; ?>
+            </div>
+            <?php if ($totalPages > 1): ?>
+                <div style="font-size: 12.5px; color: var(--muted);">
+                    Page <strong><?= $page ?></strong> of <strong><?= $totalPages ?></strong>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($totalGyms === 0): ?>
+            <div class="empty-state" style="padding: 48px 20px; text-align: center; background: color-mix(in srgb, var(--panel-soft) 25%, transparent); border: 1px dashed var(--line); border-radius: 12px; margin: 12px 0 24px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted); opacity:0.6;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <h3 style="margin: 12px 0 6px; font-size: 16px; color: var(--ink);">No Gyms Found</h3>
+                <p style="margin: 0 0 16px; color: var(--muted); font-size: 13.5px;">
+                    <?= $hasActiveFilters ? 'No registered gyms match your active search and filter criteria.' : 'No active or suspended gyms are registered on the platform.' ?>
+                </p>
+                <?php if ($hasActiveFilters): ?>
+                    <a href="index.php?page=gyms" class="btn-sm btn-primary" style="display:inline-flex; align-items:center; gap:6px; padding:7px 14px; text-decoration:none; font-weight:600;">
+                        Clear All Filters
+                    </a>
+                <?php endif; ?>
             </div>
         <?php else: ?>
         <!-- Desktop / Tablet Table View (>= 769px) -->
@@ -763,6 +1188,7 @@ function gyms_page(): void
                                     <?php if ($gym['status'] === 'approved'): ?>
                                         <form method="post" action="index.php?page=gyms" style="margin:0;">
                                             <?= csrf_field() ?>
+                                            <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                             <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                             <input type="hidden" name="action" value="suspend">
                                             <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); padding: 4px 8px; font-size: 12px;" data-confirm="Are you sure you want to suspend this gym? Their members will lose access.">Suspend</button>
@@ -770,6 +1196,7 @@ function gyms_page(): void
                                     <?php elseif ($gym['status'] === 'suspended'): ?>
                                         <form method="post" action="index.php?page=gyms" style="margin:0;">
                                             <?= csrf_field() ?>
+                                            <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                             <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                             <input type="hidden" name="action" value="reactivate">
                                             <button type="submit" class="btn-sm btn-primary" style="padding: 4px 8px; font-size: 12px;" data-confirm="Reactivate this gym?">Reactivate</button>
@@ -778,6 +1205,7 @@ function gyms_page(): void
 
                                     <form method="post" action="index.php?page=gyms" style="margin:0;">
                                         <?= csrf_field() ?>
+                                        <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                         <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                         <input type="hidden" name="action" value="delete">
                                         <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); border-color:var(--danger); padding: 4px 8px; font-size: 12px;" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">Delete</button>
@@ -964,6 +1392,7 @@ function gyms_page(): void
                         <?php if ($gym['status'] === 'approved'): ?>
                             <form method="post" action="index.php?page=gyms" style="margin:0;">
                                 <?= csrf_field() ?>
+                                <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                 <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                 <input type="hidden" name="action" value="suspend">
                                 <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger);" data-confirm="Are you sure you want to suspend this gym? Their members will lose access.">
@@ -974,6 +1403,7 @@ function gyms_page(): void
                         <?php elseif ($gym['status'] === 'suspended'): ?>
                             <form method="post" action="index.php?page=gyms" style="margin:0;">
                                 <?= csrf_field() ?>
+                                <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                 <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                 <input type="hidden" name="action" value="reactivate">
                                 <button type="submit" class="btn-sm btn-primary" data-confirm="Reactivate this gym?">
@@ -985,6 +1415,7 @@ function gyms_page(): void
 
                         <form method="post" action="index.php?page=gyms" style="margin:0;">
                             <?= csrf_field() ?>
+                            <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                             <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                             <input type="hidden" name="action" value="delete">
                             <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); border-color:var(--danger);" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">
@@ -996,12 +1427,26 @@ function gyms_page(): void
                 </div>
             <?php endforeach; ?>
         </div>
+
+        <!-- ── Pagination ── -->
+        <?php if ($totalPages > 1): ?>
+            <div class="gyms-pagination-wrap" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; padding: 14px 4px 4px; border-top: 1px solid var(--line);">
+                <div style="font-size: 13px; color: var(--muted);">
+                    Showing page <strong><?= $page ?></strong> of <strong><?= $totalPages ?></strong> (<?= $totalGyms ?> total <?= $totalGyms === 1 ? 'gym' : 'gyms' ?>)
+                </div>
+                <div>
+                    <?php render_pagination($page, $totalPages, $paginationBaseUrl, 'p'); ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php endif; ?>
     </section>
 
     <!-- Hidden Form for Edit Subscription Submission -->
     <form id="edit-sub-form" method="post" action="index.php?page=gyms" style="display:none;">
         <?= csrf_field() ?>
+        <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
         <input type="hidden" name="action" value="update_subscription">
         <input type="hidden" name="gym_id" id="modal-sub-gym-id" value="">
         <input type="hidden" name="subscription_plan" id="modal-sub-plan" value="">
@@ -1016,6 +1461,7 @@ function gyms_page(): void
     <!-- Hidden Form for Edit Payout Settings Submission -->
     <form id="edit-payout-form" method="post" action="index.php?page=gyms" style="display:none;">
         <?= csrf_field() ?>
+        <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
         <input type="hidden" name="action" value="update_payout">
         <input type="hidden" name="gym_id" id="modal-payout-gym-id" value="">
         <input type="hidden" name="xendit_subaccount_id" id="modal-payout-xendit-account" value="">
