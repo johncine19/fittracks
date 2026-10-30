@@ -851,25 +851,37 @@ function gyms_page(): void
         color: var(--ink);
     }
     .gyms-selects-wrap {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+        flex-shrink: 0 !important;
     }
     .gyms-select {
-        height: 38px;
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 0 10px;
-        font-size: 13px;
-        color: var(--ink);
-        cursor: pointer;
-        outline: none;
-        transition: border-color 0.18s ease;
+        height: 38px !important;
+        width: auto !important;
+        min-width: 140px !important;
+        max-width: 175px !important;
+        display: inline-block !important;
+        flex: 0 0 auto !important;
+        background: var(--panel) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: 8px !important;
+        padding: 0 28px 0 12px !important;
+        font-size: 13px !important;
+        color: var(--ink) !important;
+        cursor: pointer !important;
+        outline: none !important;
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238792ad' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 10px center !important;
+        transition: border-color 0.18s ease !important;
     }
     .gyms-select:focus {
-        border-color: var(--lime);
+        border-color: var(--lime) !important;
     }
     .gyms-reset-btn {
         display: inline-flex;
@@ -910,21 +922,141 @@ function gyms_page(): void
         text-transform: uppercase;
         letter-spacing: 0.03em;
     }
+
+    /* ── Table Action Buttons & Kebab Menu ── */
+    .gym-actions-wrap {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        justify-content: flex-end !important;
+        white-space: nowrap !important;
+    }
+    .action-kebab-dropdown {
+        position: relative !important;
+        display: inline-block !important;
+    }
+    .action-kebab-dropdown.is-open {
+        z-index: 1050 !important;
+    }
+    .action-kebab-btn {
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 6px !important;
+        border: 1px solid var(--line, rgba(255, 255, 255, 0.12)) !important;
+        background: var(--panel-soft, rgba(255, 255, 255, 0.05)) !important;
+        color: var(--muted, #8792ad) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        padding: 0 !important;
+        transition: all 0.15s ease !important;
+    }
+    .action-kebab-btn:hover,
+    .action-kebab-dropdown.is-open .action-kebab-btn {
+        background: color-mix(in srgb, var(--lime) 15%, transparent) !important;
+        color: var(--lime) !important;
+        border-color: color-mix(in srgb, var(--lime) 40%, transparent) !important;
+    }
+    .action-kebab-menu {
+        position: absolute !important;
+        right: 0 !important;
+        top: calc(100% + 5px) !important;
+        min-width: 175px !important;
+        background: var(--panel, #121820) !important;
+        border: 1px solid var(--line, rgba(255, 255, 255, 0.15)) !important;
+        border-radius: 9px !important;
+        padding: 5px !important;
+        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.6), 0 4px 10px -2px rgba(0, 0, 0, 0.3) !important;
+        display: none !important;
+        z-index: 1060 !important;
+        box-sizing: border-box !important;
+    }
+    html[data-theme="light"] .action-kebab-menu,
+    [data-theme="light"] .action-kebab-menu {
+        background: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.12) !important;
+    }
+    .action-kebab-dropdown.drop-up .action-kebab-menu {
+        top: auto !important;
+        bottom: calc(100% + 5px) !important;
+    }
+    .action-kebab-dropdown.is-open .action-kebab-menu {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+    }
+    .action-kebab-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 6px 10px !important;
+        border-radius: 6px !important;
+        font-size: 12.5px !important;
+        font-weight: 500 !important;
+        color: var(--ink, #f8fafc) !important;
+        background: transparent !important;
+        border: none !important;
+        width: 100% !important;
+        text-align: left !important;
+        text-decoration: none !important;
+        cursor: pointer !important;
+        transition: background 0.12s ease !important;
+        box-sizing: border-box !important;
+    }
+    .action-kebab-item:hover {
+        background: color-mix(in srgb, var(--panel-soft) 80%, transparent) !important;
+        color: var(--ink) !important;
+    }
+    html[data-theme="light"] .action-kebab-item:hover,
+    [data-theme="light"] .action-kebab-item:hover {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+    .action-kebab-item.is-warning {
+        color: #f59e0b !important;
+    }
+    .action-kebab-item.is-warning:hover {
+        background: rgba(245, 158, 11, 0.12) !important;
+    }
+    .action-kebab-item.is-success {
+        color: var(--lime, #84cc16) !important;
+    }
+    .action-kebab-item.is-success:hover {
+        background: color-mix(in srgb, var(--lime) 15%, transparent) !important;
+    }
+    .action-kebab-item.is-danger {
+        color: #ef4444 !important;
+    }
+    .action-kebab-item.is-danger:hover {
+        background: rgba(239, 68, 68, 0.12) !important;
+    }
+    .action-kebab-divider {
+        height: 1px !important;
+        background: var(--line, rgba(255, 255, 255, 0.1)) !important;
+        margin: 3px 0 !important;
+    }
+
     @media (max-width: 768px) {
         .gyms-filter-form {
-            flex-direction: column;
-            align-items: stretch;
+            flex-direction: column !important;
+            align-items: stretch !important;
         }
         .gyms-search-wrap {
-            max-width: 100%;
-            min-width: 100%;
+            max-width: 100% !important;
+            width: 100% !important;
         }
         .gyms-selects-wrap {
-            width: 100%;
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr auto !important;
+            gap: 8px !important;
         }
         .gyms-selects-wrap .gyms-select {
-            flex: 1;
-            min-width: 130px;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
         }
     }
     </style>
@@ -1060,7 +1192,7 @@ function gyms_page(): void
                         <th>Subscription Plan</th>
                         <th>Sub Status</th>
                         <th>Renewal Date</th>
-                        <th style="width: 270px;">Actions</th>
+                        <th style="width: 145px; min-width: 145px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1154,11 +1286,11 @@ function gyms_page(): void
                                 </span>
                             </td>
                             <td><small style="color:var(--muted);"><?= h($renewal) ?></small></td>
-                            <td>
-                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                            <td style="white-space: nowrap; width: 145px; text-align: right;">
+                                <div class="gym-actions-wrap">
                                     <button type="button" 
                                             class="btn-sm btn-primary" 
-                                            style="padding: 4px 10px; font-size: 12px; font-weight: 700;"
+                                            style="padding: 5px 11px; font-size: 12px; font-weight: 700; white-space: nowrap;"
                                             data-gym-id="<?= (int)$gym['gym_id'] ?>"
                                             data-gym-name="<?= h($gym['name']) ?>"
                                             data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
@@ -1166,50 +1298,80 @@ function gyms_page(): void
                                             data-status="<?= h($subStatus) ?>"
                                             data-renewal="<?= h($gym['subscription_renewal_date'] ?? '') ?>"
                                             data-cycle="<?= h($gym['subscription_billing_cycle'] ?? 'monthly') ?>"
-                                            onclick="handleEditSubClick(this)">
+                                            onclick="handleEditSubClick(this)"
+                                            title="Edit Subscription Tier">
                                         Edit Sub
                                     </button>
 
-                                    <button type="button" 
-                                            class="btn-sm btn-secondary" 
-                                            style="padding: 4px 10px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"
-                                            data-gym-id="<?= (int)$gym['gym_id'] ?>"
-                                            data-gym-name="<?= h($gym['name']) ?>"
-                                            data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
-                                            data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
-                                            data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
-                                            data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
-                                            data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
-                                            onclick="handleEditPayoutClick(this)">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                        Payout
-                                    </button>
+                                    <div class="action-kebab-dropdown" id="action-dropdown-<?= (int)$gym['gym_id'] ?>">
+                                        <button type="button" 
+                                                class="action-kebab-btn" 
+                                                onclick="toggleActionDropdown(<?= (int)$gym['gym_id'] ?>, event)" 
+                                                title="More actions">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <circle cx="12" cy="12" r="1.5"></circle>
+                                                <circle cx="12" cy="5" r="1.5"></circle>
+                                                <circle cx="12" cy="19" r="1.5"></circle>
+                                            </svg>
+                                        </button>
+                                        <div class="action-kebab-menu" id="action-menu-<?= (int)$gym['gym_id'] ?>">
+                                            <button type="button" 
+                                                    class="action-kebab-item"
+                                                    data-gym-id="<?= (int)$gym['gym_id'] ?>"
+                                                    data-gym-name="<?= h($gym['name']) ?>"
+                                                    data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
+                                                    data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
+                                                    data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
+                                                    data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
+                                                    data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
+                                                    onclick="closeAllActionDropdowns(); handleEditPayoutClick(this)">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                                <span>Payout Settings</span>
+                                            </button>
 
-                                    <?php if ($gym['status'] === 'approved'): ?>
-                                        <form method="post" action="index.php?page=gyms" style="margin:0;">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
-                                            <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
-                                            <input type="hidden" name="action" value="suspend">
-                                            <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); padding: 4px 8px; font-size: 12px;" data-confirm="Are you sure you want to suspend this gym? Their members will lose access.">Suspend</button>
-                                        </form>
-                                    <?php elseif ($gym['status'] === 'suspended'): ?>
-                                        <form method="post" action="index.php?page=gyms" style="margin:0;">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
-                                            <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
-                                            <input type="hidden" name="action" value="reactivate">
-                                            <button type="submit" class="btn-sm btn-primary" style="padding: 4px 8px; font-size: 12px;" data-confirm="Reactivate this gym?">Reactivate</button>
-                                        </form>
-                                    <?php endif; ?>
+                                            <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>" class="action-kebab-item" onclick="closeAllActionDropdowns()">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
+                                                <span>View Gym Profile</span>
+                                            </a>
 
-                                    <form method="post" action="index.php?page=gyms" style="margin:0;">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
-                                        <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
-                                        <input type="hidden" name="action" value="delete">
-                                        <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); border-color:var(--danger); padding: 4px 8px; font-size: 12px;" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">Delete</button>
-                                    </form>
+                                            <div class="action-kebab-divider"></div>
+
+                                            <?php if ($gym['status'] === 'approved'): ?>
+                                                <form method="post" action="index.php?page=gyms" style="margin:0; width:100%;">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
+                                                    <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                                                    <input type="hidden" name="action" value="suspend">
+                                                    <button type="submit" class="action-kebab-item is-warning" data-confirm="Are you sure you want to suspend this gym? Their members will lose access.">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+                                                        <span>Suspend Facility</span>
+                                                    </button>
+                                                </form>
+                                            <?php elseif ($gym['status'] === 'suspended'): ?>
+                                                <form method="post" action="index.php?page=gyms" style="margin:0; width:100%;">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
+                                                    <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                                                    <input type="hidden" name="action" value="reactivate">
+                                                    <button type="submit" class="action-kebab-item is-success" data-confirm="Reactivate this gym?">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                        <span>Reactivate Facility</span>
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
+
+                                            <form method="post" action="index.php?page=gyms" style="margin:0; width:100%;">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
+                                                <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
+                                                <input type="hidden" name="action" value="delete">
+                                                <button type="submit" class="action-kebab-item is-danger" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                                    <span>Delete Gym</span>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -1809,6 +1971,42 @@ function gyms_page(): void
         }
     }
 
+    // Action Dropdown Menu Handlers
+    function toggleActionDropdown(gymId, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        const dropdown = document.getElementById('action-dropdown-' + gymId);
+        if (!dropdown) return;
+
+        const isOpen = dropdown.classList.contains('is-open');
+        closeAllActionDropdowns();
+        closeAllDocDropdowns();
+
+        if (!isOpen) {
+            dropdown.classList.remove('drop-up');
+            dropdown.classList.add('is-open');
+
+            const trigger = dropdown.querySelector('.action-kebab-btn');
+            if (trigger) {
+                const triggerRect = trigger.getBoundingClientRect();
+                const container = dropdown.closest('.table-container') || document.body;
+                const containerRect = container.getBoundingClientRect();
+
+                const spaceBelow = Math.min(window.innerHeight - triggerRect.bottom, containerRect.bottom - triggerRect.bottom);
+                const spaceAbove = triggerRect.top - Math.max(0, containerRect.top);
+
+                if (spaceBelow < 210 && spaceAbove > spaceBelow) {
+                    dropdown.classList.add('drop-up');
+                }
+            }
+        }
+    }
+
+    function closeAllActionDropdowns() {
+        document.querySelectorAll('.action-kebab-dropdown.is-open').forEach(el => el.classList.remove('is-open'));
+    }
+
     // Document Dropdown & SweetAlert Viewer
     function toggleDocDropdown(gymId, event) {
         if (event) {
@@ -1819,6 +2017,7 @@ function gyms_page(): void
 
         const isOpen = dropdown.classList.contains('is-open');
         closeAllDocDropdowns();
+        closeAllActionDropdowns();
 
         if (!isOpen) {
             dropdown.classList.remove('drop-up');
@@ -1858,6 +2057,9 @@ function gyms_page(): void
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.doc-pill-dropdown')) {
             closeAllDocDropdowns();
+        }
+        if (!e.target.closest('.action-kebab-dropdown')) {
+            closeAllActionDropdowns();
         }
     });
 
