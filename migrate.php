@@ -237,30 +237,34 @@ try {
     run_normalize_phase6_migration($pdo);
     echo "<li><span style='color:green;'>Success:</span> Normalized Phase 6 lookup tables (badges, exercise_categories, muscle_groups, fitness_goals, v_member_badges, v_exercises, v_member_profiles_unified)</li>";
     
-    // Automatically align tables to utf8mb4_0900_ai_ci (reverts any tables from utf8mb4_bin / utf8mb4_unicode_ci to match MySQL 8 & TiDB schema)
-    try {
-        $targetCollation = 'utf8mb4_0900_ai_ci';
-        $mismatched = $pdo->query("
-            SELECT TABLE_NAME, TABLE_COLLATION 
-            FROM information_schema.TABLES 
-            WHERE TABLE_SCHEMA = DATABASE() 
-              AND TABLE_COLLATION IS NOT NULL 
-              AND TABLE_COLLATION != '{$targetCollation}'
-        ")->fetchAll(PDO::FETCH_ASSOC);
+    // Automatically align tables to utf8mb4_0900_ai_ci on MySQL (skipped on TiDB Cloud where online index collation conversion is unsupported - error 8200)
+    if (!db_is_tidb($pdo)) {
+        try {
+            $targetCollation = 'utf8mb4_0900_ai_ci';
+            $mismatched = $pdo->query("
+                SELECT TABLE_NAME, TABLE_COLLATION 
+                FROM information_schema.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_COLLATION IS NOT NULL 
+                  AND TABLE_COLLATION != '{$targetCollation}'
+            ")->fetchAll(PDO::FETCH_ASSOC);
 
-        if (!empty($mismatched)) {
-            echo "<h3>Aligning Table Collations to {$targetCollation}...</h3><ul>";
-            foreach ($mismatched as $t) {
-                try {
-                    $pdo->exec("ALTER TABLE `{$t['TABLE_NAME']}` CONVERT TO CHARACTER SET utf8mb4 COLLATE {$targetCollation}");
-                    echo "<li><span style='color:green;'>Unified:</span> Table `{$t['TABLE_NAME']}` ({$t['TABLE_COLLATION']} &rarr; {$targetCollation})</li>";
-                } catch (Throwable $ce) {
-                    echo "<li><span style='color:gray;'>Notice on `{$t['TABLE_NAME']}`:</span> " . htmlspecialchars($ce->getMessage()) . "</li>";
+            if (!empty($mismatched)) {
+                echo "<h3>Aligning Table Collations to {$targetCollation}...</h3><ul>";
+                foreach ($mismatched as $t) {
+                    try {
+                        $pdo->exec("ALTER TABLE `{$t['TABLE_NAME']}` CONVERT TO CHARACTER SET utf8mb4 COLLATE {$targetCollation}");
+                        echo "<li><span style='color:green;'>Unified:</span> Table `{$t['TABLE_NAME']}` ({$t['TABLE_COLLATION']} &rarr; {$targetCollation})</li>";
+                    } catch (Throwable $ce) {
+                        echo "<li><span style='color:gray;'>Notice on `{$t['TABLE_NAME']}`:</span> " . htmlspecialchars($ce->getMessage()) . "</li>";
+                    }
                 }
+                echo "</ul>";
             }
-            echo "</ul>";
-        }
-    } catch (Throwable) {}
+        } catch (Throwable) {}
+    } else {
+        echo "<li><span style='color:green;'>TiDB Cloud Verified:</span> Skipping online collation conversion on indexed tables (preserves TiDB distributed key encoding).</li>";
+    }
 
     echo "</ul><p><strong>Migration complete!</strong></p>";
 

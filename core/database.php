@@ -67,25 +67,29 @@ function query_one(string $sql, array $params = []): ?array
     return $row ? (array) $row : null;
 }
 
-function db_supports_triggers(?PDO $pdo = null): bool
+function db_is_tidb(?PDO $pdo = null): bool
 {
-    static $supports = null;
-    if ($supports !== null) {
-        return $supports;
+    static $isTiDB = null;
+    if ($isTiDB !== null) {
+        return $isTiDB;
     }
     try {
         $pdo = $pdo ?? db();
         $ver = (string)$pdo->query('SELECT VERSION()')->fetchColumn();
-        if (stripos($ver, 'TiDB') !== false) {
-            $supports = false;
-            return false;
-        }
-        $supports = true;
-        return true;
+        $isTiDB = (stripos($ver, 'TiDB') !== false);
+        return $isTiDB;
     } catch (Throwable) {
-        $supports = false;
+        $isTiDB = false;
         return false;
     }
+}
+
+function db_supports_triggers(?PDO $pdo = null): bool
+{
+    if (db_is_tidb($pdo)) {
+        return false;
+    }
+    return true;
 }
 
 
