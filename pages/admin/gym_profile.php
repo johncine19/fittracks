@@ -18,17 +18,33 @@ function clean_doc_name(?string $url): string
 
 function gym_profile_page(): void
 {
-    $user = require_roles(['gym_owner']);
+    $user = require_roles(['gym_owner', 'platform_admin']);
     $pdo = db();
+    $isPlatformAdmin = (($user['role'] ?? '') === 'platform_admin');
 
-    $gym = $pdo->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'] . ' LIMIT 1')->fetch();
+    if ($isPlatformAdmin) {
+        $targetGymId = (int)($_GET['gym_id'] ?? post('gym_id') ?? 0);
+        if ($targetGymId > 0) {
+            $stmt = $pdo->prepare('SELECT * FROM gyms WHERE gym_id = ? LIMIT 1');
+            $stmt->execute([$targetGymId]);
+            $gym = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $gym = $pdo->query('SELECT * FROM gyms ORDER BY gym_id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+        }
+        if (!$gym) {
+            flash('Gym facility not found.', 'danger');
+            redirect('gyms');
+        }
+    } else {
+        $gym = $pdo->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'] . ' LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+        if (!$gym) {
+            flash('No gym found for your account. Please complete registration if you haven\'t.', 'danger');
+            redirect('dashboard');
+        }
+    }
+
     if (function_exists('hydrate_gym_row')) {
         $gym = hydrate_gym_row($gym);
-    }
-    
-    if (!$gym) {
-        flash('No gym found for your account. Please complete registration if you haven\'t.', 'danger');
-        redirect('dashboard');
     }
 
     $canCustomBrand = gym_has_feature('custom_branding', $gym);
@@ -234,7 +250,7 @@ function gym_profile_page(): void
                 'eod_gate_effective_date'   => $pendingGateEffectiveDate,
             ]);
             flash('Gym settings updated successfully.', 'success');
-            redirect('gym_profile');
+            redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id']) : 'gym_profile');
         } else {
             flash('Facility name and physical address are required.', 'danger');
         }
@@ -249,9 +265,9 @@ function gym_profile_page(): void
         if ($image) {
             FileUpload::deleteGymGalleryImage($image['image_url']);
             $pdo->prepare('DELETE FROM gym_images WHERE id = ?')->execute([$imageId]);
-            redirect('gym_profile?open_gallery=1&gallery_deleted=1');
+            redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id'] . '&open_gallery=1&gallery_deleted=1') : 'gym_profile?open_gallery=1&gallery_deleted=1');
         }
-        redirect('gym_profile?open_gallery=1');
+        redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id'] . '&open_gallery=1') : 'gym_profile?open_gallery=1');
     }
 
     $galleryImages = $pdo->query('SELECT * FROM gym_images WHERE gym_id = ' . (int)$gym['gym_id'] . ' ORDER BY created_at DESC')->fetchAll();
@@ -323,6 +339,11 @@ function gym_profile_page(): void
             </div>
 
             <div class="profile-actions-bar">
+                <?php if ($isPlatformAdmin): ?>
+                    <a href="index.php?page=gyms" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; font-weight:600;">
+                        <span>← Back to All Gyms</span>
+                    </a>
+                <?php endif; ?>
                 <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>" target="_blank" class="btn btn-secondary action-btn-preview" style="display: inline-flex; align-items: center; gap: 6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     <span>Preview Public Page</span>
@@ -332,6 +353,7 @@ function gym_profile_page(): void
 
         <form method="post" enctype="multipart/form-data" id="gym-profile-form" onsubmit="return handleFormSubmit(this, event)">
             <?= csrf_field() ?>
+            <input type="hidden" name="gym_id" value="<?= (int)$gym['gym_id'] ?>">
 
             <div class="gym-settings-layout">
                 <!-- Sidebar Navigation Tabs -->

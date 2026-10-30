@@ -993,7 +993,7 @@ function gyms_page(): void
     .action-kebab-item {
         display: flex !important;
         align-items: center !important;
-        gap: 8px !important;
+        gap: 9px !important;
         padding: 7px 10px !important;
         border-radius: 6px !important;
         font-size: 12.5px !important;
@@ -1007,6 +1007,26 @@ function gyms_page(): void
         cursor: pointer !important;
         transition: background 0.12s ease !important;
         box-sizing: border-box !important;
+        white-space: nowrap !important;
+    }
+    .action-item-icon {
+        width: 18px !important;
+        height: 18px !important;
+        min-width: 18px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+    }
+    .action-item-icon svg {
+        width: 15px !important;
+        height: 15px !important;
+        display: block !important;
+        flex-shrink: 0 !important;
+    }
+    .action-item-text {
+        flex: 1 !important;
+        text-align: left !important;
     }
     .action-kebab-item:hover {
         background: rgba(255, 255, 255, 0.08) !important;
@@ -1335,13 +1355,24 @@ function gyms_page(): void
                                                     data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
                                                     data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
                                                     onclick="closeAllActionDropdowns(); handleEditPayoutClick(this)">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                                <span>Payout Settings</span>
+                                                <span class="action-item-icon">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                                </span>
+                                                <span class="action-item-text">Payout Settings</span>
                                             </button>
 
                                             <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>" class="action-kebab-item" onclick="closeAllActionDropdowns()">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
-                                                <span>View Gym Profile</span>
+                                                <span class="action-item-icon">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
+                                                </span>
+                                                <span class="action-item-text">View Gym Profile</span>
+                                            </a>
+
+                                            <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>" target="_blank" rel="noopener noreferrer" class="action-kebab-item" onclick="closeAllActionDropdowns()">
+                                                <span class="action-item-icon">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                </span>
+                                                <span class="action-item-text">Public Page ↗</span>
                                             </a>
 
                                             <div class="action-kebab-divider"></div>
@@ -1353,8 +1384,10 @@ function gyms_page(): void
                                                     <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                                     <input type="hidden" name="action" value="suspend">
                                                     <button type="submit" class="action-kebab-item is-warning" data-confirm="Are you sure you want to suspend this gym? Their members will lose access.">
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
-                                                        <span>Suspend Facility</span>
+                                                        <span class="action-item-icon">
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
+                                                        </span>
+                                                        <span class="action-item-text">Suspend Facility</span>
                                                     </button>
                                                 </form>
                                             <?php elseif ($gym['status'] === 'suspended'): ?>
@@ -1364,8 +1397,10 @@ function gyms_page(): void
                                                     <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                                     <input type="hidden" name="action" value="reactivate">
                                                     <button type="submit" class="action-kebab-item is-success" data-confirm="Reactivate this gym?">
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                                        <span>Reactivate Facility</span>
+                                                        <span class="action-item-icon">
+                                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                                        </span>
+                                                        <span class="action-item-text">Reactivate Facility</span>
                                                     </button>
                                                 </form>
                                             <?php endif; ?>
@@ -1376,8 +1411,10 @@ function gyms_page(): void
                                                 <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                                 <input type="hidden" name="action" value="delete">
                                                 <button type="submit" class="action-kebab-item is-danger" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                                    <span>Delete Gym</span>
+                                                    <span class="action-item-icon">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                                    </span>
+                                                    <span class="action-item-text">Delete Gym</span>
                                                 </button>
                                             </form>
                                         </div>
