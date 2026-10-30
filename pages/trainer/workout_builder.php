@@ -24,9 +24,7 @@ function workout_builder_page(): void
         redirect('training');
     }
     
-    $profileStmt = $pdo->prepare('SELECT primary_goal, weight_kg, activity_level, weekly_workout_target, preferred_duration_mins, preferred_workout_days FROM member_profiles WHERE user_id = ?');
-    $profileStmt->execute([$memberId]);
-    $profile = $profileStmt->fetch() ?: [];
+    $profile = member_profile((int)$memberId) ?: [];
 
     // Specific training days chosen by the member take precedence and cannot be overridden by staff
     $prefWorkoutDays = [];
@@ -36,6 +34,31 @@ function workout_builder_page(): void
     }
     // This target is authoritative for plans created in this builder.
     $prefDays = !empty($prefWorkoutDays) ? count($prefWorkoutDays) : max(1, min(7, (int)($profile['weekly_workout_target'] ?: 3)));
+
+    // Authoritative athlete experience level derived from fitness tier and activity
+    $rawActivity = strtolower((string)($profile['activity_level'] ?? ''));
+    $activityLabel = !empty($rawActivity) ? ucwords(str_replace('_', ' ', $rawActivity)) : 'Moderate';
+    $rawTier = (int)($profile['fitness_tier'] ?? 0);
+    if ($rawTier >= 5) {
+        $expLevel = 3;
+    } elseif ($rawTier >= 3) {
+        $expLevel = 2;
+    } elseif ($rawTier >= 1) {
+        $expLevel = 1;
+    } else {
+        if (in_array($rawActivity, ['sedentary', 'light', 'lightly_active'], true)) {
+            $expLevel = 1;
+        } elseif (in_array($rawActivity, ['very_active', 'extra_active', 'active'], true)) {
+            $expLevel = 3;
+        } else {
+            $expLevel = 2;
+        }
+    }
+    $tierNames = [1 => 'Beginner', 2 => 'Intermediate', 3 => 'Advanced'];
+    $tierKeys = [1 => 'beginner', 2 => 'intermediate', 3 => 'advanced'];
+    $memberTierLabel = $tierNames[$expLevel] ?? 'Intermediate';
+    $memberExpKey = $tierKeys[$expLevel] ?? 'intermediate';
+    $fitnessTier = $expLevel;
     $getScheduledDaysCount = static function (PDO $pdo, int $planId): int {
         $stmt = $pdo->prepare('SELECT COUNT(DISTINCT day_of_week) FROM training_plan_exercises WHERE plan_id = ?');
         $stmt->execute([$planId]);
@@ -43,12 +66,15 @@ function workout_builder_page(): void
     };
     
     // Fetch active membership to sync dates
-    $membershipStmt = $pdo->prepare('SELECT start_date, end_date FROM memberships WHERE user_id = ? AND status = "active" ORDER BY end_date DESC LIMIT 1');
+    $membershipStmt = $pdo->prepare('SELECT m.start_date, m.end_date, mp.plan_name, mp.duration_days FROM memberships m LEFT JOIN membership_plans mp ON m.plan_id = mp.plan_id WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE() ORDER BY m.end_date DESC LIMIT 1');
     $membershipStmt->execute([$memberId]);
     $membership = $membershipStmt->fetch();
     $hasMembership = (bool) $membership;
-    $defaultStart = $membership ? $membership['start_date'] : date('Y-m-d');
-    $defaultEnd = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+28 days'));
+    $today = date('Y-m-d');
+    $defaultStart = $today;
+    $defaultEnd = $membership ? $membership['end_date'] : date('Y-m-d', strtotime('+7 days'));
+    $membershipEndDate = $membership ? $membership['end_date'] : null;
+    $membershipPlanName = $membership['plan_name'] ?? null;
     
     // Fetch trainer ID & gym_id
     $trainerId = ensure_coach_profile((int)$user['user_id']);
@@ -87,7 +113,7 @@ function workout_builder_page(): void
             exit;
         }
         $searchStmt = $pdo->prepare('
-            SELECT exercise_id, name, muscle_group, category, difficulty_level 
+            SELECT exercise_id, name, muscle_group, category, difficulty_level, description 
             FROM exercises 
             WHERE gym_id = ? AND (name LIKE ? OR muscle_group LIKE ? OR category LIKE ?)
             ORDER BY muscle_group, name
@@ -102,82 +128,135 @@ function workout_builder_page(): void
                 'name' => $row['name'],
                 'muscle_group' => !empty($row['muscle_group']) ? ucwords((string)$row['muscle_group']) : 'General',
                 'category' => !empty($row['category']) ? ucwords((string)$row['category']) : '',
-                'difficulty' => (int)($row['difficulty_level'] ?? 1)
+                'difficulty' => (int)($row['difficulty_level'] ?? 1),
+                'description' => (string)($row['description'] ?? '')
             ];
         }
         echo json_encode(['results' => $results]);
         exit;
     }
     
-    // Check if there is an active draft plan for this member by this trainer (scoped to current facility)
-    if ($trainerGymId > 0) {
-        $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND (gym_id = ? OR gym_id IS NULL) AND status = "draft" LIMIT 1');
-        $stmt->execute([$memberId, $trainerId, $trainerGymId]);
-    } else {
-        $stmt = $pdo->prepare('SELECT * FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "draft" LIMIT 1');
-        $stmt->execute([$memberId, $trainerId]);
+    // Resolve target plan (Approach 1: Direct Editing + Approach 2: Lazy Draft on Mutation)
+    $requestedPlanId = (int) ($_GET['plan_id'] ?? 0);
+    $plan = null;
+
+    // 1. If explicit plan_id is provided, bind directly to that specific plan (active or draft)
+    if ($requestedPlanId > 0) {
+        $reqStmt = $pdo->prepare('SELECT * FROM training_plans WHERE plan_id = ? AND member_user_id = ?');
+        $reqStmt->execute([$requestedPlanId, $memberId]);
+        $plan = $reqStmt->fetch() ?: null;
     }
-    $draft = $stmt->fetch();
-    
-    if (!$draft) {
-        // Create an empty draft
+
+    // 2. If no plan_id was specified, check for an existing draft for this member in this facility
+    if (!$plan) {
+        if ($trainerGymId > 0) {
+            $stmt = $pdo->prepare('
+                SELECT * FROM training_plans 
+                WHERE member_user_id = ? 
+                  AND (gym_id = ? OR gym_id IS NULL) 
+                  AND status = "draft" 
+                ORDER BY plan_id DESC LIMIT 1
+            ');
+            $stmt->execute([$memberId, $trainerGymId]);
+        } else {
+            $stmt = $pdo->prepare('
+                SELECT * FROM training_plans 
+                WHERE member_user_id = ? 
+                  AND status = "draft" 
+                ORDER BY plan_id DESC LIMIT 1
+            ');
+            $stmt->execute([$memberId]);
+        }
+        $plan = $stmt->fetch() ?: null;
+    }
+
+    // 3. If no draft exists, check for an active plan for this member in this facility (Direct edit)
+    if (!$plan) {
+        if ($trainerGymId > 0) {
+            $activePlanStmt = $pdo->prepare('
+                SELECT * FROM training_plans 
+                WHERE member_user_id = ? 
+                  AND (gym_id = ? OR gym_id IS NULL) 
+                  AND status = "active" 
+                ORDER BY plan_id DESC LIMIT 1
+            ');
+            $activePlanStmt->execute([$memberId, $trainerGymId]);
+        } else {
+            $activePlanStmt = $pdo->prepare('
+                SELECT * FROM training_plans 
+                WHERE member_user_id = ? 
+                  AND status = "active" 
+                ORDER BY plan_id DESC LIMIT 1
+            ');
+            $activePlanStmt->execute([$memberId]);
+        }
+        $plan = $activePlanStmt->fetch() ?: null;
+    }
+
+    $planId = $plan ? (int)$plan['plan_id'] : 0;
+    if ($plan) {
+        if (!empty($plan['start_date']) && $plan['start_date'] >= $today) { $defaultStart = $plan['start_date']; } else { $defaultStart = $today; }
+        if ($hasMembership && !empty($membership['end_date'])) { $defaultEnd = $membership['end_date']; } elseif (!empty($plan['end_date']) && $plan['end_date'] >= $defaultStart) { $defaultEnd = $plan['end_date']; }
+    }
+
+    // Lazy initialization helper: on HTTP GET, do NOT create database rows!
+    // Only create a draft row when a mutation (POST action) actually occurs.
+    $ensurePlanId = function () use (&$planId, &$plan, $pdo, $memberId, $trainerId, $trainerGymId, $profile, $member, $defaultStart, $defaultEnd, $user): int {
+        if ($planId > 0) {
+            return $planId;
+        }
         $goal = $profile['primary_goal'] ?? 'general_health';
-        $title = 'Workout Plan for ' . $member['first_name'];
+        $title = 'Workout Plan for ' . ($member['first_name'] ?? 'Member');
         $stmt = $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, ?, ?, "draft")');
         $stmt->execute([$memberId, $trainerId, $trainerGymId > 0 ? $trainerGymId : null, $title, $goal, $defaultStart, $defaultEnd]);
         $planId = (int) $pdo->lastInsertId();
 
+        $fetchStmt = $pdo->prepare('SELECT * FROM training_plans WHERE plan_id = ?');
+        $fetchStmt->execute([$planId]);
+        $plan = $fetchStmt->fetch() ?: null;
+
         if (function_exists('log_plan_change')) {
             log_plan_change('workout', $planId, $trainerGymId > 0 ? $trainerGymId : null, (int)$user['user_id'], 'created', 'Draft workout plan initialized');
         }
-        
-        // Copy exercises from the most recent active plan for this facility (if one exists)
-        if ($trainerGymId > 0) {
-            $activePlan = $pdo->prepare('SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND (gym_id = ? OR gym_id IS NULL) AND status = "active" ORDER BY plan_id DESC LIMIT 1');
-            $activePlan->execute([$memberId, $trainerId, $trainerGymId]);
-        } else {
-            $activePlan = $pdo->prepare('SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
-            $activePlan->execute([$memberId, $trainerId]);
-        }
-        $lastActivePlanId = $activePlan->fetchColumn();
-        
-        if ($lastActivePlanId) {
-            $pdo->prepare('
-                INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe)
-                SELECT ?, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe
-                FROM training_plan_exercises
-                WHERE plan_id = ?
-            ')->execute([$planId, $lastActivePlanId]);
-        }
-    } else {
-        $planId = (int) $draft['plan_id'];
-        if (!empty($draft['start_date'])) $defaultStart = $draft['start_date'];
-        if (!empty($draft['end_date'])) $defaultEnd = $draft['end_date'];
-    }
+        return $planId;
+    };
 
-    // Drafts created before gym scoping was enforced may contain exercises from
-    // another gym. Remove those unavailable exercises before the draft is shown
-    // or modified so this plan can only use the current gym's library.
-    if ($exerciseLibraryGymId > 0) {
+    // Clean up any exercises not part of the current gym or global library
+    if ($planId > 0 && $exerciseLibraryGymId > 0) {
         $pdo->prepare(
             'DELETE FROM training_plan_exercises
              WHERE plan_id = ?
-               AND exercise_id NOT IN (SELECT exercise_id FROM exercises WHERE gym_id = ?)'
+               AND exercise_id NOT IN (SELECT exercise_id FROM exercises WHERE gym_id = ? OR gym_id = 0 OR gym_id IS NULL)'
         )->execute([$planId, $exerciseLibraryGymId]);
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');
         
+        // 0. Discard Draft
+        if ($action === 'discard_draft') {
+            if ($plan && ($plan['status'] ?? '') === 'draft') {
+                $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
+                $pdo->prepare('DELETE FROM training_plans WHERE plan_id = ?')->execute([$planId]);
+                if (function_exists('log_plan_change')) {
+                    log_plan_change('workout', $planId, $trainerGymId > 0 ? $trainerGymId : null, (int)$user['user_id'], 'deleted', 'Discarded draft workout plan');
+                }
+                flash('Draft workout plan discarded.', 'info');
+            }
+            redirect('training');
+        }
+
         // 1. Auto Generate Entire Plan
         if ($action === 'auto_generate') {
+            try {
+                $planId = $ensurePlanId();
             $options = [
                 'goal' => post('goal') ?: null,
                 // Do not accept a staff-supplied override: use the member's
                 // recorded workout frequency for every generated plan.
                 'days_count' => $prefDays,
                 'split_type' => post('split_type') ?: 'auto',
-                'experience_level' => post('experience_level') ?: 'intermediate',
+                'experience_level' => post('experience_level') ?: $memberExpKey,
             ];
             
             $options['library_gym_id'] = $exerciseLibraryGymId;
@@ -186,12 +265,18 @@ function workout_builder_page(): void
             } else {
                 flash("This member's gym exercise library is empty. Add exercises before generating a plan.", 'error');
             }
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
         
         // 2. Auto Generate Specific Day
         if ($action === 'auto_generate_day') {
+            try {
+                $planId = $ensurePlanId();
             $dayOfWeek = (int) post('day_of_week');
             if ($dayOfWeek < 1 || $dayOfWeek > 7) {
                 flash('Please select a valid day of the week.', 'error');
@@ -216,12 +301,18 @@ function workout_builder_page(): void
             } else {
                 flash("This member's gym exercise library has no suitable exercises for that routine.", 'error');
             }
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
 
         // 3. Apply Preset Template
         if ($action === 'apply_template') {
+            try {
+                $planId = $ensurePlanId();
             $templateKey = post('template_key') ?: '';
             $template = get_workout_templates()[$templateKey] ?? null;
             $templateDays = is_array($template['days'] ?? null) ? count($template['days']) : 0;
@@ -233,24 +324,48 @@ function workout_builder_page(): void
             } else {
                 flash("Choose a {$prefDays}-day preset to match this member's workout frequency.", 'error');
             }
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
 
         // 4. Clear Specific Day
         if ($action === 'clear_day') {
+            try {
             $dayOfWeek = (int) post('day_of_week');
             $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ?')
                 ->execute([$planId, $dayOfWeek]);
             flash(workout_day_name($dayOfWeek) . ' exercises cleared.', 'success');
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
 
         // 5. Publish Plan
         if ($action === 'publish') {
             $startDate = post('start_date') ?: date('Y-m-d');
-            $endDate = post('end_date') ?: date('Y-m-d', strtotime('+4 weeks'));
+            $endDate = post('end_date') ?: ($defaultEnd ?? date('Y-m-d', strtotime('+4 weeks')));
+            $curToday = date('Y-m-d');
+
+            if ($startDate < $curToday) {
+                flash('Start date cannot be in the past. Please select today or a future date.', 'error');
+                redirect('workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
+            }
+            if ($endDate < $startDate) {
+                flash('End date cannot be earlier than start date.', 'error');
+                redirect('workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
+            }
+            if ($hasMembership && !empty($membership['end_date']) && $endDate > $membership['end_date']) {
+                flash("End date cannot exceed member's active membership plan expiration date (" . date('M j, Y', strtotime($membership['end_date'])) . ").", 'error');
+                redirect('workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
+            }
+
             
             $scheduledDays = $getScheduledDaysCount($pdo, $planId);
             if ($scheduledDays !== $prefDays) {
@@ -273,19 +388,24 @@ function workout_builder_page(): void
                     ->execute([$memberId, $trainerId]);
             }
             // Set draft to active with the selected dates and gym_id
-            $pdo->prepare('UPDATE training_plans SET status = "active", gym_id = COALESCE(gym_id, ?), start_date = ?, end_date = ? WHERE plan_id = ?')->execute([$trainerGymId > 0 ? $trainerGymId : null, $startDate, $endDate, $planId]);
+            $assignedTrainer = (int) (scalar('SELECT trainer_id FROM trainer_assignments WHERE member_user_id = ? AND status = "active" LIMIT 1', [$memberId]) ?? 0);
+            $planTrainerId = ($user['role'] === 'trainer') ? $trainerId : ($assignedTrainer ?: $trainerId);
+            $pdo->prepare('UPDATE training_plans SET status = "active", trainer_id = COALESCE(trainer_id, ?), gym_id = COALESCE(gym_id, ?), start_date = ?, end_date = ? WHERE plan_id = ?')
+                ->execute([$planTrainerId, $trainerGymId > 0 ? $trainerGymId : null, $startDate, $endDate, $planId]);
             
             if (function_exists('log_plan_change')) {
                 log_plan_change('workout', $planId, $trainerGymId > 0 ? $trainerGymId : null, (int)$user['user_id'], 'published', "Published workout plan active from {$startDate} to {$endDate}");
             }
 
             notify_user($memberId, 'system', 'New Workout Plan Published!', 'Your coach has published an updated training routine for you.');
-            flash('Workout plan published successfully!', 'success');
+            flash('Workout plan ' . (($plan['status'] ?? '') === 'draft' ? 'published' : 'updated') . ' successfully!', 'success');
             redirect('training');
         }
 
         // 6. Add Exercise
         if ($action === 'add_exercise') {
+            try {
+                $planId = $ensurePlanId();
             $dayOfWeek = (int) post('day_of_week');
             if ($dayOfWeek < 1 || $dayOfWeek > 7) {
                 flash('Please select a valid day of the week.', 'error');
@@ -312,7 +432,13 @@ function workout_builder_page(): void
             $rest = max(0, (int) post('rest_seconds'));
             $tempo = trim((string) post('tempo')) ?: null;
             $rpe = trim((string) post('rpe')) ?: null;
-            $notes = trim((string) post('notes')) ?: null;
+            $notes = trim((string) post('notes')) ?: null;
+            if ($notes === null && $exerciseId > 0) {
+                $defaultDesc = scalar('SELECT description FROM exercises WHERE exercise_id = ?', [$exerciseId]);
+                if (!empty($defaultDesc)) {
+                    $notes = trim((string)$defaultDesc);
+                }
+            }
 
             $maxOrder = $pdo->query("SELECT MAX(sequence_order) FROM training_plan_exercises WHERE plan_id = $planId AND day_of_week = $dayOfWeek")->fetchColumn();
             $order = $maxOrder ? ((int)$maxOrder + 1) : 1;
@@ -320,12 +446,17 @@ function workout_builder_page(): void
             $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$planId, $exerciseId, $dayOfWeek, $order, $sets, $reps, $targetWeight, $rest, $notes, $tempo, $rpe]);
             flash('Exercise added to ' . workout_day_name($dayOfWeek) . '.', 'success');
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
 
         // 7. Edit Exercise
         if ($action === 'edit_exercise') {
+            try {
             $planExId = (int) post('plan_exercise_id');
             $sets = max(1, (int) post('sets'));
             $reps = trim((string) post('reps')) ?: '10';
@@ -343,16 +474,25 @@ function workout_builder_page(): void
             ');
             $stmt->execute([$sets, $reps, $targetWeight, $rest, $tempo, $rpe, $notes, $planExId, $planId]);
             flash('Exercise prescription updated.', 'success');
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
 
         // 8. Remove Exercise
         if ($action === 'remove_exercise') {
+            try {
             $planExId = (int) post('plan_exercise_id');
             $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_exercise_id = ? AND plan_id = ?')->execute([$planExId, $planId]);
             flash('Exercise removed.', 'success');
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId);
+            } catch (Throwable $e) {
+                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
+            }
+            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
             exit;
         }
         
@@ -396,32 +536,80 @@ function workout_builder_page(): void
         }
     }
 
-    // Fetch exercises for the dropdown - strictly scoped to the gym matching exercises page
+    // Fetch exercises for the dropdown - prioritize gym-specific exercises over global library duplicates
     if ($exerciseLibraryGymId > 0) {
-        $stmt = $pdo->prepare('SELECT exercise_id, name, muscle_group, category, difficulty_level FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
-        $stmt->execute([$exerciseLibraryGymId]);
-        $allExercises = $stmt->fetchAll();
+        $stmt = $pdo->prepare('
+            SELECT exercise_id, name, muscle_group, category, difficulty_level, gym_id, description 
+            FROM exercises 
+            WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) 
+            ORDER BY (gym_id = ?) DESC, muscle_group, name
+        ');
+        $stmt->execute([$exerciseLibraryGymId, $exerciseLibraryGymId]);
+        $rawExercises = $stmt->fetchAll();
     } else {
-        $allExercises = [];
+        $stmt = $pdo->query('
+            SELECT exercise_id, name, muscle_group, category, difficulty_level, gym_id, description 
+            FROM exercises 
+            WHERE (gym_id = 0 OR gym_id IS NULL) 
+            ORDER BY muscle_group, name
+        ');
+        $rawExercises = $stmt->fetchAll();
     }
 
+    // Deduplicate by normalized exercise name so gym-specific overrides win and duplicates are eliminated
+    $seenExerciseNames = [];
+    $allExercises = [];
+    foreach ($rawExercises as $ex) {
+        $normName = strtolower(trim((string)$ex['name']));
+        if (isset($seenExerciseNames[$normName])) {
+            continue;
+        }
+        $seenExerciseNames[$normName] = true;
+        $allExercises[] = $ex;
+    }
+
+    usort($allExercises, function ($a, $b) {
+        $grpCmp = strcasecmp((string)$a['muscle_group'], (string)$b['muscle_group']);
+        if ($grpCmp !== 0) return $grpCmp;
+        return strcasecmp((string)$a['name'], (string)$b['name']);
+    });
+
+    $diffMap = [1 => 'Beginner', 2 => 'Intermediate', 3 => 'Expert'];
     $exercisesData = [];
     foreach ($allExercises as $ex) {
+        $dLevel = (int)($ex['difficulty_level'] ?? 1);
         $exercisesData[] = [
             'id' => (int)$ex['exercise_id'],
             'name' => $ex['name'],
             'muscle_group' => !empty($ex['muscle_group']) ? ucwords((string)$ex['muscle_group']) : 'General',
             'category' => !empty($ex['category']) ? ucwords((string)$ex['category']) : '',
-            'difficulty' => (int)($ex['difficulty_level'] ?? 1)
+            'difficulty' => $dLevel,
+            'difficulty_label' => $diffMap[$dLevel] ?? 'Beginner',
+            'description' => (string)($ex['description'] ?? '')
         ];
     }
     $exercisesJson = json_encode($exercisesData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 
+    $rawActivity = strtolower((string)($profile['activity_level'] ?? ''));
+    $activityLabel = !empty($rawActivity) ? ucwords(str_replace('_', ' ', $rawActivity)) : 'Moderate';
+    $fitnessTier = (int)($profile['fitness_tier'] ?? 0);
+    if (false) {
+        if (in_array($rawActivity, ['sedentary', 'light', 'lightly_active'], true)) {
+            $fitnessTier = 1;
+        } elseif (in_array($rawActivity, ['very_active', 'extra_active', 'active'], true)) {
+            $fitnessTier = 3;
+        } else {
+            $fitnessTier = 2;
+        }
+    }
+    $tierNames = [1 => 'Beginner', 2 => 'Intermediate', 3 => 'Expert'];
+    $memberTierLabel = $tierNames[$expLevel] ?? 'Intermediate';
+
     // Fetch assigned exercises for this draft
     $stmt = $pdo->prepare('
-        SELECT tpe.*, e.name as exercise_name, e.muscle_group, e.category, e.difficulty_level 
+        SELECT tpe.*, e.name as exercise_name, e.muscle_group, e.category, e.difficulty_level, e.description as default_instructions 
         FROM training_plan_exercises tpe
-        JOIN exercises e ON tpe.exercise_id = e.exercise_id AND e.gym_id = ?
+        JOIN exercises e ON tpe.exercise_id = e.exercise_id AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL)
         WHERE tpe.plan_id = ?
         ORDER BY tpe.day_of_week, tpe.sequence_order
     ');
@@ -453,29 +641,25 @@ function workout_builder_page(): void
 
     <div class="builder-header-wrap">
         <div class="builder-member-meta">
+            <div onclick="openMemberInfoModal()" style="cursor: pointer;" title="Click to view member info">
             <?= render_avatar($member, 'large') ?>
-            <div class="builder-member-title-wrap" style="min-width: 0; flex: 1;">
-                <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-                    <h1 style="margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2;"><?= h($member['first_name'] . ' ' . $member['last_name']) ?></h1>
+        </div>
+        <div class="builder-member-title-wrap" style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                <h1 style="margin: 0; font-size: 1.3rem; font-weight: 800; line-height: 1.2;"><?= h($member['first_name'] . ' ' . $member['last_name']) ?></h1>
+                <?php if (($plan['status'] ?? '') === 'active'): ?>
+                    <span class="builder-badge" style="background: rgba(132, 204, 22, 0.15); color: var(--lime, #84cc16); border: 1px solid var(--lime, #84cc16); font-weight: 700;">Live Active Plan</span>
+                <?php else: ?>
                     <span class="builder-badge builder-badge-draft">Draft</span>
-                    <span class="builder-badge builder-badge-stat"><?= $trainingDaysCount ?> Days/Wk</span>
-                    <span class="builder-badge builder-badge-stat"><?= $totalExercisesCount ?> ex &middot; <?= $totalSetsCount ?> sets</span>
-                </div>
-                <div class="builder-meta-chips">
-                    <span class="builder-meta-chip">Goal: <strong style="color: var(--lime);"><?= h(ucwords(str_replace('_', ' ', (string)($profile['primary_goal'] ?? 'General Health')))) ?></strong></span>
-                    <span class="builder-meta-chip">Weight: <strong><?= h((string)($profile['weight_kg'] ?? 'N/A')) ?> kg</strong></span>
-                    <?php if (!empty($profile['weekly_workout_target'])): ?>
-                        <span class="builder-meta-chip">Target: <strong style="color: var(--lime);"><?= (int)$profile['weekly_workout_target'] ?>d/wk</strong> &bull; <strong>~<?= (int)($profile['preferred_duration_mins'] ?? 45) ?>m</strong></span>
-                    <?php endif; ?>
-                    <?php if (!empty($prefWorkoutDays)): ?>
-                        <span class="builder-meta-chip" style="border-color: rgba(132, 204, 22, 0.4); background: rgba(132, 204, 22, 0.08); color: var(--lime);">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -1px; margin-right: 3px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            Committed Days: <strong><?= h(implode(', ', array_map(fn($d) => substr(workout_day_name($d), 0, 3), $prefWorkoutDays))) ?></strong> (Enforced)
-                        </span>
-                    <?php endif; ?>
-                    <span class="builder-meta-chip">Membership: <strong style="color: <?= $hasMembership ? '#2df0a5' : 'var(--orange)' ?>;"><?= $hasMembership ? 'Active' : 'Trial' ?></strong></span>
-                </div>
+                <?php endif; ?>
+                <span class="builder-badge builder-badge-stat"><?= $trainingDaysCount ?> Days/Wk</span>
+                <span class="builder-badge builder-badge-stat"><?= $totalExercisesCount ?> ex &middot; <?= $totalSetsCount ?> sets</span>
+                <button type="button" onclick="openMemberInfoModal()" class="builder-member-info-pill" title="View Member Profile & Fitness Info">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Member Info</span>
+                </button>
             </div>
+        </div>
         </div>
         <div class="builder-actions-group">
             <button type="button" onclick="openTemplatesModal()" class="builder-btn builder-btn-secondary" title="Choose from pre-built training splits">
@@ -643,6 +827,12 @@ function workout_builder_page(): void
                                         <div class="builder-ex-name"><?= h($ex['exercise_name']) ?></div>
                                         <div class="builder-ex-pills">
                                             <span class="builder-pill builder-pill-muscle"><?= h($ex['muscle_group']) ?></span>
+                                            <?php 
+                                            $cardDiff = (int)($ex['difficulty_level'] ?? 1);
+                                            $cardDiffLabel = $diffMap[$cardDiff] ?? 'Beginner';
+                                            $cardDiffColor = $cardDiff === 3 ? 'var(--danger, #ef4444)' : ($cardDiff === 2 ? 'var(--orange, #eab308)' : 'var(--success, #22c55e)');
+                                            ?>
+                                            <span class="builder-pill" style="color:<?= $cardDiffColor ?>; border-color:color-mix(in srgb, <?= $cardDiffColor ?> 30%, transparent);" title="Difficulty Level"><?= h($cardDiffLabel) ?></span>
                                             <span class="builder-pill builder-pill-lime"><strong><?= (int)$ex['sets'] ?></strong> sets &times; <strong><?= h($ex['reps']) ?></strong></span>
                                             <?php if ($ex['target_weight_kg'] !== null && $ex['target_weight_kg'] > 0): ?>
                                                 <span class="builder-pill builder-pill-orange" title="Target Weight">
@@ -683,14 +873,9 @@ function workout_builder_page(): void
                                         <button type="button" class="builder-icon-btn edit-btn" onclick='openEditExerciseModal(<?= $jsonEx ?>)' title="Edit Prescription">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                         </button>
-                                        <form method="post" style="margin:0; display:inline;" onsubmit="return confirm('Remove <?= addslashes(h($ex['exercise_name'])) ?>?');">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="action" value="remove_exercise">
-                                            <input type="hidden" name="plan_exercise_id" value="<?= $ex['plan_exercise_id'] ?>">
-                                            <button type="submit" class="builder-icon-btn del-btn" title="Delete Exercise">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                                            </button>
-                                        </form>
+                                        <button type="button" class="builder-icon-btn del-btn" onclick="confirmRemoveExercise(<?= (int)$ex['plan_exercise_id'] ?>, <?= htmlspecialchars(json_encode($ex['exercise_name'])) ?>)" title="Remove Exercise">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -720,6 +905,73 @@ function workout_builder_page(): void
     
 
     <!-- Hidden template choices for presets modal -->
+    <!-- Hidden payload for Member Profile Info Modal -->
+    <div id="memberInfoPayload" style="display:none;">
+        <div class="wb-plain-info-wrap">
+            <div class="wb-plain-member-header">
+                <div style="flex-shrink:0;">
+                    <?= render_avatar($member, 'medium') ?>
+                </div>
+                <div style="min-width:0; flex:1;">
+                    <div class="wb-plain-member-name"><?= h($member['first_name'] . ' ' . $member['last_name']) ?></div>
+                    <?php if (!empty($member['email'])): ?>
+                        <div class="wb-plain-member-sub"><?= h($member['email']) ?></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="wb-plain-info-list">
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Goal:</span>
+                    <span class="wb-plain-info-val"><?= h(ucwords(str_replace('_', ' ', (string)($profile['primary_goal'] ?? 'General Health')))) ?></span>
+                </div>
+
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Weight:</span>
+                    <span class="wb-plain-info-val">
+                        <?= h((string)($profile['weight_kg'] ?? 'N/A')) ?> kg
+                        <?php if (!empty($profile['target_weight_kg'])): ?>
+                            <span class="wb-plain-info-sub">&rarr; Target: <?= h((string)$profile['target_weight_kg']) ?> kg</span>
+                        <?php endif; ?>
+                    </span>
+                </div>
+
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Activity:</span>
+                    <span class="wb-plain-info-val"><?= h($activityLabel) ?> (<?= h($memberTierLabel) ?>)</span>
+                </div>
+
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Target:</span>
+                    <span class="wb-plain-info-val"><?= (int)($profile['weekly_workout_target'] ?? 3) ?>d/wk &bull; ~<?= (int)($profile['preferred_duration_mins'] ?? 45) ?>m</span>
+                </div>
+
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Committed Days:</span>
+                    <span class="wb-plain-info-val">
+                        <?php if (!empty($prefWorkoutDays)): ?>
+                            <?= h(implode(', ', array_map(fn($d) => substr(workout_day_name($d), 0, 3), $prefWorkoutDays))) ?> (Enforced)
+                        <?php else: ?>
+                            Flexible
+                        <?php endif; ?>
+                    </span>
+                </div>
+
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Membership:</span>
+                    <span class="wb-plain-info-val"><?= $hasMembership ? 'Active' : 'Trial' ?></span>
+                </div>
+
+                <?php if (!empty($profile['height_cm'])): ?>
+                    <div class="wb-plain-info-row">
+                        <span class="wb-plain-info-label">Height:</span>
+                        <span class="wb-plain-info-val"><?= (float)$profile['height_cm'] ?> cm</span>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
     <div id="templateOptionsPayload" style="display:none;">
         <div style="max-height: 480px; overflow-y: auto; text-align: left; padding-right: 5px;">
             <?php foreach ($templates as $key => $tmpl): 
@@ -756,9 +1008,108 @@ function workout_builder_page(): void
         prefDays: <?= (int)$prefDays ?>,
         memberName: <?= json_encode($member['first_name'] ?? 'Member') ?>,
         hasMembership: <?= json_encode((bool)$hasMembership) ?>,
+        today: <?= json_encode($today) ?>,
+        membershipEndDate: <?= json_encode($membershipEndDate) ?>,
+        membershipPlanName: <?= json_encode($membershipPlanName) ?>,
         defaultStart: <?= json_encode($defaultStart) ?>,
-        defaultEnd: <?= json_encode($defaultEnd) ?>
+        defaultEnd: <?= json_encode($defaultEnd) ?>,
+        memberActivityLevel: <?= json_encode($activityLabel) ?>,
+        memberFitnessTier: <?= (int)$expLevel ?>,
+        memberExpLevel: <?= json_encode($memberExpKey) ?>,
+        memberExpLabel: <?= json_encode($memberTierLabel) ?>,
+        memberTierLabel: <?= json_encode($memberTierLabel) ?>
     };
+    </script>
+    <script>
+    function confirmRemoveExercise(planExId, exerciseName) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Remove Exercise?',
+                html: `<p style="margin:0 0 6px 0; color:var(--ink);">Are you sure you want to remove <strong>${exerciseName}</strong> from this workout day?</p>`,
+                icon: 'warning',
+                iconColor: '#ef4444',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6c757d',
+                background: 'var(--panel, var(--bg))',
+                color: 'var(--ink)',
+                confirmButtonText: 'Yes, Remove',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    if (typeof Swal.showLoading === 'function') Swal.showLoading();
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    const csrf = window.WORKOUT_BUILDER_CONFIG ? window.WORKOUT_BUILDER_CONFIG.csrfToken : '';
+                    form.innerHTML = `
+                        <input type="hidden" name="csrf_token" value="${csrf}">
+                        <input type="hidden" name="action" value="remove_exercise">
+                        <input type="hidden" name="plan_exercise_id" value="${planExId}">
+                    `;
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        } else if (confirm('Remove ' + exerciseName + '?')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            const csrf = window.WORKOUT_BUILDER_CONFIG ? window.WORKOUT_BUILDER_CONFIG.csrfToken : '';
+            form.innerHTML = `
+                <input type="hidden" name="csrf_token" value="${csrf}">
+                <input type="hidden" name="action" value="remove_exercise">
+                <input type="hidden" name="plan_exercise_id" value="${planExId}">
+            `;
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+    window.confirmRemoveExercise = confirmRemoveExercise;
+    function openMemberInfoModal() {
+        const payloadEl = document.getElementById('memberInfoPayload');
+        if (!payloadEl) return;
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: '<span style="font-size:1.15rem; font-weight:700;">Member Info</span>',
+                html: payloadEl.innerHTML,
+                showCloseButton: true,
+                showConfirmButton: true,
+                confirmButtonText: 'Close',
+                confirmButtonColor: 'var(--lime)',
+                background: 'var(--panel, var(--bg))',
+                color: 'var(--ink)',
+                width: 480,
+                padding: '1.25rem'
+            });
+        }
+    }
+    window.openMemberInfoModal = openMemberInfoModal;
+
+    function confirmDiscardDraft() {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Discard Draft Workout?',
+                text: 'Are you sure you want to discard this draft? Any exercises added to this draft will be removed.',
+                icon: 'warning',
+                iconColor: '#ef4444',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#6c757d',
+                background: 'var(--panel, var(--bg))',
+                color: 'var(--ink)',
+                confirmButtonText: 'Yes, Discard Draft',
+                cancelButtonText: 'Keep Editing'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.showLoading();
+                    document.getElementById('discardDraftForm').submit();
+                }
+            });
+        } else if (confirm('Are you sure you want to discard this draft?')) {
+            document.getElementById('discardDraftForm').submit();
+        }
+    }
+    window.confirmDiscardDraft = confirmDiscardDraft;
+
     </script>
     <script src="<?= h(asset_url('js/pages/workout_builder.js')) ?>"></script>
     <?php

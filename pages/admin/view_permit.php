@@ -39,12 +39,14 @@ function view_permit_handler(): void
     if ($user['role'] === 'gym_owner') {
         $pdo = db();
         $stmt = $pdo->prepare('
-            SELECT gym_id FROM gyms 
-            WHERE owner_user_id = ? 
-              AND (business_permit_url = ? OR barangay_clearance_url = ? OR fire_safety_cert_url = ? OR valid_id_url = ? OR secondary_valid_id_url = ?)
+            SELECT d.gym_id 
+            FROM gym_verification_documents d
+            JOIN gyms g ON g.gym_id = d.gym_id
+            WHERE g.owner_user_id = ? 
+              AND (d.file_url = ? OR d.file_url LIKE ?)
             LIMIT 1
         ');
-        $stmt->execute([(int)$user['user_id'], $filename, $filename, $filename, $filename, $filename]);
+        $stmt->execute([(int)$user['user_id'], $filename, '%' . $filename]);
         if (!$stmt->fetch()) {
             http_response_code(403);
             exit('Access Denied: You do not have permission to view this gym document.');

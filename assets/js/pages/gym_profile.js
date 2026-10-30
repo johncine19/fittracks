@@ -161,6 +161,9 @@
             try {
                 localStorage.setItem('fittracks_gym_settings_tab', tabName);
             } catch (e) {}
+
+            // Notify map and dynamic components of tab transition
+            window.dispatchEvent(new CustomEvent('gym_profile_tab_changed', { detail: { tab: tabName } }));
         }
 
         function submitProfileForm() {

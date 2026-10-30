@@ -115,7 +115,9 @@ function landing_page(): void
                     role VARCHAR(100) DEFAULT NULL,
                     message TEXT DEFAULT NULL,
                     status ENUM('new','contacted','demo_scheduled','closed') DEFAULT 'new',
+                    admin_notes TEXT DEFAULT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_status (status),
                     INDEX idx_created (created_at)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -126,8 +128,17 @@ function landing_page(): void
                     if (!in_array('gym_name', $cols)) {
                         db()->exec("ALTER TABLE demo_requests ADD COLUMN gym_name VARCHAR(150) DEFAULT NULL");
                     }
+                    if (!in_array('approx_members', $cols)) {
+                        db()->exec("ALTER TABLE demo_requests ADD COLUMN approx_members VARCHAR(50) DEFAULT NULL");
+                    }
                     if (!in_array('message', $cols)) {
                         db()->exec("ALTER TABLE demo_requests ADD COLUMN message TEXT DEFAULT NULL");
+                    }
+                    if (!in_array('admin_notes', $cols)) {
+                        db()->exec("ALTER TABLE demo_requests ADD COLUMN admin_notes TEXT DEFAULT NULL AFTER status");
+                    }
+                    if (!in_array('updated_at', $cols)) {
+                        db()->exec("ALTER TABLE demo_requests ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at");
                     }
                 } catch (\Throwable $e) {
                 }
@@ -135,6 +146,24 @@ function landing_page(): void
                 // Insert
                 $stmt = db()->prepare("INSERT INTO demo_requests (gym_name, approx_members, full_name, work_email, phone, role, message) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$gym_name, $members, $full_name, $email, $phone, $role, $message]);
+                $demoRequestId = (int) db()->lastInsertId();
+
+                // Send in-app notification to all active Platform Admins
+                try {
+                    $platformAdmins = db()->query("SELECT user_id FROM users WHERE role = 'platform_admin' AND status = 'active'")->fetchAll(PDO::FETCH_ASSOC);
+                    $notifGym = !empty($gym_name) ? " ({$gym_name})" : "";
+                    foreach ($platformAdmins as $pAdmin) {
+                        notify_user(
+                            (int) $pAdmin['user_id'],
+                            'system',
+                            'New Demo Request',
+                            "{$full_name}{$notifGym} requested a live demo walkthrough.",
+                            $demoRequestId
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    error_log("Failed to notify platform admin of demo request: " . $e->getMessage());
+                }
 
                 // Email notification via Queue
                 try {
@@ -2891,6 +2920,27 @@ function landing_page(): void
                 });
 
                 fitAllGyms();
+
+                if (window.ResizeObserver && mapEl) {
+                    let roTimer = null;
+                    const ro = new ResizeObserver(entries => {
+                        for (const entry of entries) {
+                            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                                clearTimeout(roTimer);
+                                roTimer = setTimeout(() => {
+                                    if (partnerMap) partnerMap.invalidateSize({ pan: false });
+                                }, 60);
+                            }
+                        }
+                    });
+                    ro.observe(mapEl);
+                }
+                window.addEventListener('resize', () => {
+                    if (partnerMap) partnerMap.invalidateSize({ pan: false });
+                });
+                [100, 300, 700].forEach(delay => {
+                    setTimeout(() => { if (partnerMap) partnerMap.invalidateSize({ pan: false }); }, delay);
+                });
             }
 
             function fitAllGyms() {

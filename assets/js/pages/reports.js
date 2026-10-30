@@ -71,8 +71,13 @@
         if (btn) btn.classList.add('active');
 
         const hintText = document.getElementById('tf-hint-text-' + type);
-        if (hintText && tfHints[timeframe]) {
-            hintText.textContent = tfHints[timeframe];
+        if (hintText) {
+            if (window.REPORTS_CONFIG?.isCustomDateRange) {
+                const label = document.querySelector('.report-range-trigger-btn span')?.textContent?.trim() || 'Custom Range';
+                hintText.textContent = `Viewing ${label} filtered window`;
+            } else if (tfHints[timeframe]) {
+                hintText.textContent = tfHints[timeframe];
+            }
         }
 
         ['daily', 'monthly', 'yearly'].forEach(tf => {
@@ -110,6 +115,8 @@
                     if (chartEmpty) chartEmpty.style.display = 'none';
                     if (mixWrap) mixWrap.style.display = 'block';
                     if (mixEmpty) mixEmpty.style.display = 'none';
+                    if (revenueChartInstance) revenueChartInstance.resize();
+                    if (revenueMixChartInstance) revenueMixChartInstance.resize();
                 } else {
                     if (chartWrap) chartWrap.style.display = 'none';
                     if (chartEmpty) chartEmpty.style.display = 'flex';
@@ -145,6 +152,7 @@
                 if (tot > 0) {
                     if (attWrap) attWrap.style.display = 'block';
                     if (attEmpty) attEmpty.style.display = 'none';
+                    if (attendanceChartInstance) attendanceChartInstance.resize();
                 } else {
                     if (attWrap) attWrap.style.display = 'none';
                     if (attEmpty) attEmpty.style.display = 'flex';
@@ -163,6 +171,7 @@
                 if (tot > 0) {
                     if (walkWrap) walkWrap.style.display = 'block';
                     if (walkEmpty) walkEmpty.style.display = 'none';
+                    if (walkinChartInstance) walkinChartInstance.resize();
                 } else {
                     if (walkWrap) walkWrap.style.display = 'none';
                     if (walkEmpty) walkEmpty.style.display = 'flex';
@@ -178,6 +187,21 @@
     };
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Restore scroll position seamlessly if navigation or date filter occurred
+        try {
+            const savedScroll = sessionStorage.getItem('fittrack_reports_scroll');
+            if (savedScroll !== null) {
+                sessionStorage.removeItem('fittrack_reports_scroll');
+                const targetY = parseInt(savedScroll, 10);
+                if (!isNaN(targetY)) {
+                    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+                    window.scrollTo(0, targetY);
+                    requestAnimationFrame(() => window.scrollTo(0, targetY));
+                    setTimeout(() => window.scrollTo(0, targetY), 60);
+                }
+            }
+        } catch(e) {}
+
         // Initial tab check: prefer active tab button defined by current scope, fallback to hash if valid
         const activeTabBtn = document.querySelector('.report-tab-btn.active');
         const defaultTab = activeTabBtn ? (activeTabBtn.dataset.tab || 'revenue-tab') : (document.getElementById('platform-saas-tab') ? 'platform-saas-tab' : 'revenue-tab');
@@ -461,26 +485,29 @@
             // 1. Revenue Stacked Bar Chart
             const revCanvas = document.getElementById('revenueChart');
             if (revCanvas) {
+                const initRevTf = window.REPORTS_CONFIG?.defaultTimeframe || 'monthly';
                 revenueChartInstance = new Chart(revCanvas, {
                     type: 'bar',
                     data: {
-                        labels: chartsData.revenue.monthly.labels,
+                        labels: chartsData.revenue[initRevTf]?.labels || [],
                         datasets: [
                             {
                                 label: 'Subscriptions',
-                                data: chartsData.revenue.monthly.subscriptions,
+                                data: chartsData.revenue[initRevTf]?.subscriptions || [],
                                 backgroundColor: initialColors.revenue.subs,
                                 hoverBackgroundColor: initialColors.revenue.subsHover,
                                 borderRadius: 5,
-                                barPercentage: 0.65
+                                barPercentage: 0.65,
+                                maxBarThickness: 48
                             },
                             {
                                 label: 'Walk-In Passes',
-                                data: chartsData.revenue.monthly.walkins,
+                                data: chartsData.revenue[initRevTf]?.walkins || [],
                                 backgroundColor: initialColors.revenue.walk,
                                 hoverBackgroundColor: initialColors.revenue.walkHover,
                                 borderRadius: 5,
-                                barPercentage: 0.65
+                                barPercentage: 0.65,
+                                maxBarThickness: 48
                             }
                         ]
                     },
@@ -549,8 +576,9 @@
             // 2. Revenue Mix Donut Chart
             const mixCanvas = document.getElementById('revenueMixChart');
             if (mixCanvas) {
-                const subT = chartsData.revenue.monthly.subTotal;
-                const walkT = chartsData.revenue.monthly.walkTotal;
+                const initRevTf = window.REPORTS_CONFIG?.defaultTimeframe || 'monthly';
+                const subT = chartsData.revenue[initRevTf]?.subTotal || 0;
+                const walkT = chartsData.revenue[initRevTf]?.walkTotal || 0;
                 revenueMixChartInstance = new Chart(mixCanvas, {
                     type: 'doughnut',
                     data: {
@@ -590,13 +618,14 @@
             // 3. Attendance Trend Chart (High Contrast in Light & Dark Mode)
             const attCanvas = document.getElementById('attendanceChart');
             if (attCanvas) {
+                const initAttTf = window.REPORTS_CONFIG?.defaultTimeframe || 'daily';
                 attendanceChartInstance = new Chart(attCanvas, {
                     type: 'line',
                     data: {
-                        labels: chartsData.attendance.daily.labels,
+                        labels: chartsData.attendance[initAttTf]?.labels || [],
                         datasets: [{
                             label: 'Check-Ins',
-                            data: chartsData.attendance.daily.data,
+                            data: chartsData.attendance[initAttTf]?.data || [],
                             borderColor: initialColors.attendance.line,
                             backgroundColor: initialColors.attendance.fill,
                             fill: true,
@@ -779,13 +808,14 @@
             // 6. Walk-In Trend Chart
             const walkCanvas = document.getElementById('walkinChart');
             if (walkCanvas) {
+                const initWkTf = window.REPORTS_CONFIG?.defaultTimeframe || 'daily';
                 walkinChartInstance = new Chart(walkCanvas, {
                     type: 'line',
                     data: {
-                        labels: chartsData.walkin.daily.labels,
+                        labels: chartsData.walkin[initWkTf]?.labels || [],
                         datasets: [{
                             label: 'Walk-In Visitors',
-                            data: chartsData.walkin.daily.data,
+                            data: chartsData.walkin[initWkTf]?.data || [],
                             borderColor: initialColors.walkin.line,
                             backgroundColor: initialColors.walkin.fill,
                             fill: true,
@@ -1605,20 +1635,34 @@
     };
 
     window.clearReportDateRange = function() {
+        try {
+            sessionStorage.setItem('fittrack_reports_scroll', window.scrollY.toString());
+        } catch(e) {}
         const url = new URL(window.location.href);
         url.searchParams.delete('start_date');
         url.searchParams.delete('end_date');
-        const hash = window.location.hash;
-        if (hash) url.hash = hash;
+        const activeTabEl = document.querySelector('.tab-content:not([style*="display: none"])');
+        const activeTab = activeTabEl?.id 
+            || document.querySelector('.report-tab-btn.active')?.dataset?.tab
+            || (window.location.hash ? window.location.hash.substring(1) : '')
+            || 'revenue-tab';
+        url.hash = '#' + activeTab;
         window.location.href = url.toString();
     };
 
     window.navigateToDateRange = function(startDate, endDate) {
+        try {
+            sessionStorage.setItem('fittrack_reports_scroll', window.scrollY.toString());
+        } catch(e) {}
         const url = new URL(window.location.href);
         url.searchParams.set('start_date', startDate);
         url.searchParams.set('end_date', endDate);
-        const hash = window.location.hash;
-        if (hash) url.hash = hash;
+        const activeTabEl = document.querySelector('.tab-content:not([style*="display: none"])');
+        const activeTab = activeTabEl?.id 
+            || document.querySelector('.report-tab-btn.active')?.dataset?.tab
+            || (window.location.hash ? window.location.hash.substring(1) : '')
+            || 'revenue-tab';
+        url.hash = '#' + activeTab;
         window.location.href = url.toString();
     };
 

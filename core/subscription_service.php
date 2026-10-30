@@ -94,8 +94,21 @@ function get_platform_subscription_plans(): array
         'Staff Financial Visibility Controls',
     ];
 
+    // Pre-fetch normalized features from plan_features
+    $featuresByPlanId = [];
+    try {
+        $featRows = $pdo->query('SELECT plan_id, feature_text FROM plan_features ORDER BY plan_id ASC, display_order ASC, feature_id ASC')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($featRows as $fr) {
+            $featuresByPlanId[(int)$fr['plan_id']][] = trim((string)$fr['feature_text']);
+        }
+    } catch (Throwable) {}
+
     foreach ($rows as $row) {
-        $features = array_values(array_filter(array_map('trim', explode("\n", (string)$row['features']))));
+        $planId = (int)$row['id'];
+        $features = $featuresByPlanId[$planId] ?? [];
+        if (empty($features) && !empty($row['features'])) {
+            $features = array_values(array_filter(array_map('trim', explode("\n", (string)$row['features']))));
+        }
         if (($row['plan_key'] ?? '') === 'business' && array_intersect($legacyBusinessBenefits, $features)) {
             $features = $businessBenefits;
         }
@@ -678,11 +691,12 @@ function gym_get_eod_window_status(int $gymId): array
     $pdo = db();
 
     $stmt = $pdo->prepare('
-        SELECT g.last_eod_email_sent_at, g.last_eod_email_sent_by,
-               g.eod_gate_time, g.pending_eod_gate_time, g.eod_gate_effective_date,
+        SELECT gs.last_eod_email_sent_at, gs.last_eod_email_sent_by,
+               gs.eod_gate_time, gs.pending_eod_gate_time, gs.eod_gate_effective_date,
                u.first_name, u.last_name, u.role, u.staff_role
         FROM gyms g
-        LEFT JOIN users u ON u.user_id = g.last_eod_email_sent_by
+        LEFT JOIN gym_settings gs ON gs.gym_id = g.gym_id
+        LEFT JOIN users u ON u.user_id = gs.last_eod_email_sent_by
         WHERE g.gym_id = ?
     ');
     $stmt->execute([$gymId]);
@@ -690,7 +704,7 @@ function gym_get_eod_window_status(int $gymId): array
 
     // Promote pending gate time if the scheduled effective date has arrived (today or earlier)
     if (!empty($row['pending_eod_gate_time']) && !empty($row['eod_gate_effective_date']) && strtotime((string)$row['eod_gate_effective_date']) <= strtotime('today')) {
-        $pdo->prepare('UPDATE gyms SET eod_gate_time = pending_eod_gate_time, pending_eod_gate_time = NULL, eod_gate_effective_date = NULL WHERE gym_id = ?')
+        $pdo->prepare('UPDATE gym_settings SET eod_gate_time = pending_eod_gate_time, pending_eod_gate_time = NULL, eod_gate_effective_date = NULL WHERE gym_id = ?')
             ->execute([$gymId]);
         $row['eod_gate_time'] = $row['pending_eod_gate_time'];
         $row['pending_eod_gate_time'] = null;
@@ -749,8 +763,14 @@ function gym_get_eod_window_status(int $gymId): array
 function gym_record_eod_email_sent(int $gymId, ?int $senderUserId = null): void
 {
     $pdo = db();
-    $stmt = $pdo->prepare('UPDATE gyms SET last_eod_email_sent_at = NOW(), last_eod_email_sent_by = ? WHERE gym_id = ?');
-    $stmt->execute([$senderUserId, $gymId]);
+    $stmt = $pdo->prepare('
+        INSERT INTO gym_settings (gym_id, last_eod_email_sent_at, last_eod_email_sent_by)
+        VALUES (?, NOW(), ?)
+        ON DUPLICATE KEY UPDATE
+            last_eod_email_sent_at = NOW(),
+            last_eod_email_sent_by = VALUES(last_eod_email_sent_by)
+    ');
+    $stmt->execute([$gymId, $senderUserId]);
 }
 
 /**
@@ -795,7 +815,13 @@ function gym_queue_automated_eod_summaries(?string $date = null): array
     $pdo = db();
     $reportDate = $date ? date('Y-m-d', strtotime($date)) : date('Y-m-d', strtotime('yesterday'));
     $result = ['queued' => 0, 'already_queued' => 0, 'disabled_or_ineligible' => 0, 'failed' => 0];
-    $gyms = $pdo->query("SELECT * FROM gyms WHERE status = 'approved' AND COALESCE(eod_email_summary, 1) = 1 ORDER BY gym_id")->fetchAll(PDO::FETCH_ASSOC);
+    $gyms = $pdo->query("
+        SELECT g.*
+        FROM gyms g
+        LEFT JOIN gym_settings gs ON gs.gym_id = g.gym_id
+        WHERE g.status = 'approved' AND COALESCE(gs.eod_email_summary, 1) = 1
+        ORDER BY g.gym_id
+    ")->fetchAll(PDO::FETCH_ASSOC);
     $claim = $pdo->prepare("INSERT IGNORE INTO gym_eod_email_log (gym_id, report_date, status) VALUES (?, ?, 'queued')");
     $release = $pdo->prepare('DELETE FROM gym_eod_email_log WHERE gym_id = ? AND report_date = ? AND status = \'queued\'');
 

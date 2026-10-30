@@ -75,7 +75,35 @@ function gym_applications_page(): void
         redirect('gym_applications');
     }
 
-    $applications = $pdo->query('SELECT g.*, u.first_name, u.last_name, u.email FROM gyms g JOIN users u ON u.user_id = g.owner_user_id WHERE g.status = "pending" ORDER BY g.created_at DESC')->fetchAll();
+    $currentStatus = strtolower(trim((string) ($_GET['status'] ?? 'pending')));
+    if (!in_array($currentStatus, ['pending', 'approved', 'rejected', 'all'], true)) {
+        $currentStatus = 'pending';
+    }
+
+    $statusCounts = [
+        'pending'  => (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'pending'"),
+        'approved' => (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved'"),
+        'rejected' => (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'rejected'"),
+    ];
+    $statusCounts['all'] = (int) scalar("SELECT COUNT(*) FROM gyms WHERE status IN ('pending', 'approved', 'rejected')");
+
+    $sql = 'SELECT g.*, u.first_name, u.last_name, u.email FROM gyms g JOIN users u ON u.user_id = g.owner_user_id';
+    $params = [];
+    if ($currentStatus !== 'all') {
+        $sql .= ' WHERE g.status = ?';
+        $params[] = $currentStatus;
+    } else {
+        $sql .= " WHERE g.status IN ('pending', 'approved', 'rejected')";
+    }
+    $sql .= ' ORDER BY g.created_at DESC';
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $applications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (function_exists('hydrate_gym_rows')) {
+        $applications = hydrate_gym_rows($applications);
+    }
 
     foreach ($applications as &$app) {
         $docs = [];
@@ -133,8 +161,14 @@ function gym_applications_page(): void
         }
         $app['docs'] = $docs;
         $app['doc_count'] = count($docs);
+        $app['has_permit'] = !empty($app['business_permit_url']) ? 1 : 0;
+        $app['has_id'] = !empty($app['valid_id_url']) ? 1 : 0;
+        $app['has_fire'] = !empty($app['fire_safety_cert_url']) ? 1 : 0;
+        $app['has_brgy'] = !empty($app['barangay_clearance_url']) ? 1 : 0;
+        $app['doc_complete'] = ($app['has_permit'] && $app['has_id']) ? 1 : 0;
+        $app['payout_chan'] = strtolower(trim((string)($app['payout_channel'] ?? 'gcash')));
         $docNames = implode(' ', array_column($docs, 'name'));
-        $app['search_text'] = strtolower($app['name'] . ' ' . $app['first_name'] . ' ' . $app['last_name'] . ' ' . $app['email'] . ' ' . $app['address'] . ' ' . ($app['contact_info'] ?? '') . ' ' . ($app['payout_account_number'] ?? '') . ' ' . ($app['payout_account_name'] ?? '') . ' ' . $docNames);
+        $app['search_text'] = strtolower($app['name'] . ' ' . $app['first_name'] . ' ' . $app['last_name'] . ' ' . $app['email'] . ' ' . $app['address'] . ' ' . ($app['contact_info'] ?? '') . ' ' . ($app['payout_account_number'] ?? '') . ' ' . ($app['payout_account_name'] ?? '') . ' ' . $app['payout_chan'] . ' ' . $app['status'] . ' ' . $docNames);
     }
     unset($app);
 
@@ -199,21 +233,23 @@ function gym_applications_page(): void
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 10px;
+        margin-bottom: 18px;
     }
 
     .app-search-wrap {
         position: relative;
-        flex: 1;
-        min-width: 260px;
-        max-width: 440px;
+        flex: 1 1 auto;
+        min-width: 200px;
+        max-width: 360px;
+        height: 38px;
     }
 
     .app-search-input {
         width: 100%;
+        height: 38px;
         box-sizing: border-box;
-        padding: 9px 36px 9px 36px;
+        padding: 0 36px 0 36px;
         border-radius: 8px;
         border: 1px solid var(--line);
         background: var(--panel-soft, rgba(255, 255, 255, 0.05));
@@ -237,6 +273,7 @@ function gym_applications_page(): void
         pointer-events: none;
         width: 15px;
         height: 15px;
+        z-index: 2;
     }
 
     .app-search-clear {
@@ -253,6 +290,7 @@ function gym_applications_page(): void
         border-radius: 50%;
         font-size: 14px;
         line-height: 1;
+        z-index: 2;
     }
 
     .app-search-clear:hover {
@@ -262,23 +300,166 @@ function gym_applications_page(): void
     .app-toolbar-right {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 8px;
     }
 
+    .app-filter-select,
     .app-per-page-select {
-        padding: 7px 10px;
+        width: auto !important;
+        max-width: 100%;
+        height: 38px;
+        padding: 0 30px 0 11px;
         border-radius: 8px;
         border: 1px solid var(--line);
-        background: var(--panel-soft, rgba(255, 255, 255, 0.05));
+        background-color: var(--panel-soft, rgba(255, 255, 255, 0.05));
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
         color: var(--ink);
-        font-size: 12px;
+        font-size: 12.5px;
         font-weight: 500;
         outline: none;
         cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
     }
 
+    html[data-theme="light"] .app-filter-select,
+    html[data-theme="light"] .app-per-page-select {
+        background-color: #ffffff;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(0,0,0,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+
+    .app-filter-select:focus,
     .app-per-page-select:focus {
         border-color: var(--lime);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--lime) 20%, transparent);
+    }
+
+    .app-reset-filters-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 8px;
+        border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 30%, transparent);
+        background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent);
+        color: #f87171;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+
+    .app-reset-filters-btn:hover {
+        background: color-mix(in srgb, var(--danger, #ef4444) 20%, transparent);
+        color: #fca5a5;
+    }
+
+    /* Status Navigation Tabs */
+    .users-tabs-pills {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        padding-bottom: 2px;
+    }
+
+    .users-nav-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        text-decoration: none;
+        border-radius: 8px;
+        background: var(--panel-soft, rgba(255, 255, 255, 0.04));
+        border: 1px solid var(--line);
+        transition: all 0.18s ease;
+        white-space: nowrap;
+    }
+
+    .users-nav-pill:hover {
+        color: var(--ink);
+        border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+        background: var(--panel);
+    }
+
+    .users-nav-pill.is-active {
+        color: #000000 !important;
+        background: var(--lime) !important;
+        border-color: var(--lime) !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 8px color-mix(in srgb, var(--lime) 30%, transparent);
+    }
+
+    .pill-title {
+        font-size: 12.5px;
+    }
+
+    .pill-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 6px;
+        font-size: 10.5px;
+        font-weight: 700;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--line) 90%, transparent);
+        color: var(--ink);
+        line-height: 1;
+    }
+
+    .users-nav-pill.is-active .pill-chip {
+        background: rgba(0, 0, 0, 0.25);
+        color: #000000;
+    }
+
+    @media (max-width: 960px) {
+        .app-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+        .app-search-wrap {
+            flex: none;
+            max-width: 100%;
+            min-width: 0;
+            width: 100%;
+            height: 38px;
+        }
+        .app-toolbar-right {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .app-filter-select,
+        .app-per-page-select {
+            flex: 1 1 calc(50% - 6px);
+            min-width: 130px;
+            width: auto !important;
+        }
+    }
+
+    @media (max-width: 520px) {
+        .app-filter-select,
+        .app-per-page-select {
+            flex: 1 1 100%;
+            width: 100% !important;
+        }
     }
 
     /* Pagination Bar */
@@ -823,12 +1004,30 @@ function gym_applications_page(): void
     <section class="panel">
         <div class="page-header">
             <div>
-                <h1>Gym Applications <?php if (count($applications) > 0): ?><span class="pending-count-badge"><?= count($applications) ?> Pending</span><?php endif; ?></h1>
-                <p>Review and approve pending gym registrations.</p>
+                <h1>Gym Applications <?php if ($statusCounts['pending'] > 0): ?><span class="pending-count-badge"><?= $statusCounts['pending'] ?> Pending</span><?php else: ?><span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--lime); font-size: 11px; margin-left: 8px;">All Caught Up</span><?php endif; ?></h1>
+                <p>Review, search, and manage registered gym applications and facility accounts.</p>
             </div>
         </div>
 
-        <?php if (!empty($applications)): ?>
+        <div class="users-tabs-pills" role="tablist">
+            <a href="?page=gym_applications&status=pending" class="users-nav-pill <?= $currentStatus === 'pending' ? 'is-active' : '' ?>">
+                <span class="pill-title">Pending</span>
+                <span class="pill-chip"><?= $statusCounts['pending'] ?></span>
+            </a>
+            <a href="?page=gym_applications&status=approved" class="users-nav-pill <?= $currentStatus === 'approved' ? 'is-active' : '' ?>">
+                <span class="pill-title">Approved</span>
+                <span class="pill-chip"><?= $statusCounts['approved'] ?></span>
+            </a>
+            <a href="?page=gym_applications&status=rejected" class="users-nav-pill <?= $currentStatus === 'rejected' ? 'is-active' : '' ?>">
+                <span class="pill-title">Rejected</span>
+                <span class="pill-chip"><?= $statusCounts['rejected'] ?></span>
+            </a>
+            <a href="?page=gym_applications&status=all" class="users-nav-pill <?= $currentStatus === 'all' ? 'is-active' : '' ?>">
+                <span class="pill-title">All Applications</span>
+                <span class="pill-chip"><?= $statusCounts['all'] ?></span>
+            </a>
+        </div>
+
         <div class="app-toolbar">
             <div class="app-search-wrap">
                 <svg class="app-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -838,7 +1037,7 @@ function gym_applications_page(): void
                 <input type="text"
                        id="appSearchInput"
                        class="app-search-input"
-                       placeholder="Search applications by gym, owner, email, address..."
+                       placeholder="Search by gym, owner, email, address, phone..."
                        autocomplete="off">
                 <button type="button"
                         id="appSearchClear"
@@ -847,17 +1046,49 @@ function gym_applications_page(): void
                         title="Clear search">✕</button>
             </div>
             <div class="app-toolbar-right">
-                <label for="appPerPageSelect" style="font-size: 12px; color: var(--muted); margin: 0;">Per page:</label>
-                <select id="appPerPageSelect" class="app-per-page-select" title="Applications per page">
-                    <option value="5">5</option>
-                    <option value="10" selected>10</option>
-                    <option value="25">25</option>
-                    <option value="50">50</option>
+                <select id="appPayoutFilter" class="app-filter-select" title="Filter by payout channel">
+                    <option value="all">All Payouts</option>
+                    <option value="gcash">GCash</option>
+                    <option value="maya">Maya</option>
+                    <option value="bank_transfer">Bank Transfer</option>
                 </select>
+
+                <select id="appDocFilter" class="app-filter-select" title="Filter by document status">
+                    <option value="all">All Documents</option>
+                    <option value="complete">Complete (Permit + ID)</option>
+                    <option value="has_permit">With Business Permit</option>
+                    <option value="has_id">With Valid ID</option>
+                    <option value="has_fire">With Fire Safety Cert</option>
+                    <option value="has_brgy">With Brgy Clearance</option>
+                    <option value="missing">Missing Required Docs</option>
+                </select>
+
+                <select id="appSortSelect" class="app-filter-select" title="Sort order">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="name_asc">Gym Name (A → Z)</option>
+                    <option value="name_desc">Gym Name (Z → A)</option>
+                </select>
+
+                <select id="appPerPageSelect" class="app-per-page-select" title="Applications per page">
+                    <option value="5">5 / page</option>
+                    <option value="10" selected>10 / page</option>
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                </select>
+
+                <button type="button" id="appResetFiltersBtn" class="app-reset-filters-btn" onclick="resetAllAppFilters()" title="Reset all filters" style="display: none;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    <span>Reset</span>
+                </button>
             </div>
         </div>
-        <?php endif; ?>
 
+        <?php 
+        $hasActionable = ($statusCounts['pending'] > 0 || $statusCounts['rejected'] > 0);
+        $showActionsColumn = ($currentStatus === 'pending' || $currentStatus === 'rejected' || ($currentStatus === 'all' && $hasActionable));
+        $tableColspan = $showActionsColumn ? 9 : 8;
+        ?>
         <div class="app-desktop-table table-container">
             <table>
                 <thead>
@@ -869,17 +1100,30 @@ function gym_applications_page(): void
                         <th>Contact Info</th>
                         <th>Payout Account</th>
                         <th>Documents</th>
-                        <th style="width: 170px;">Actions</th>
+                        <th>Status</th>
+                        <?php if ($showActionsColumn): ?>
+                            <th style="width: 170px;">Actions</th>
+                        <?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (!$applications): ?>
-                        <?php table_empty(8, 'No pending applications.'); ?>
+                        <?php table_empty($tableColspan, 'No ' . ($currentStatus === 'all' ? '' : htmlspecialchars($currentStatus) . ' ') . 'applications found.'); ?>
                     <?php else: foreach ($applications as $app): 
                         $docs = $app['docs'];
                         $docCount = $app['doc_count'];
                     ?>
-                        <tr class="app-row" data-search="<?= h($app['search_text']) ?>">
+                        <tr class="app-row" 
+                            data-search="<?= h($app['search_text']) ?>"
+                            data-name="<?= h(strtolower($app['name'])) ?>"
+                            data-created="<?= strtotime($app['created_at'] ?? 'now') ?>"
+                            data-payout="<?= h($app['payout_chan']) ?>"
+                            data-status="<?= h($app['status']) ?>"
+                            data-has-permit="<?= $app['has_permit'] ?>"
+                            data-has-id="<?= $app['has_id'] ?>"
+                            data-has-fire="<?= $app['has_fire'] ?>"
+                            data-has-brgy="<?= $app['has_brgy'] ?>"
+                            data-doc-complete="<?= $app['doc_complete'] ?>">
                             <td>
                                 <strong><?= h($app['name']) ?></strong>
                                 <?php if (!empty($app['created_at'])): ?>
@@ -967,7 +1211,11 @@ function gym_applications_page(): void
                             </td>
                             <td>
                                 <?php if ($docCount === 0): ?>
-                                    <span class="muted" style="font-size:12px;">No docs</span>
+                                    <?php if ($app['status'] === 'approved'): ?>
+                                        <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 11px; padding: 2px 7px; border-radius: 4px;" title="Directly provisioned by Platform Admin. Documents can be uploaded via Gym Profile.">Admin Provisioned</span>
+                                    <?php else: ?>
+                                        <span class="muted" style="font-size:12px;">No docs</span>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <div class="doc-pill-dropdown" id="dropdown-<?= (int)$app['gym_id'] ?>">
                                         <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View <?= $docCount ?> attached documents">
@@ -1004,32 +1252,56 @@ function gym_applications_page(): void
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <div style="display: flex; gap: 8px;">
-                                    <form method="post" action="index.php?page=gym_applications" style="margin:0;">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
-                                        <input type="hidden" name="action" value="approve">
-                                        <button type="submit" class="btn-sm btn-primary" data-confirm="Approve this gym?">Approve</button>
-                                    </form>
-                                    <form method="post" action="index.php?page=gym_applications" style="margin:0;">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
-                                        <input type="hidden" name="action" value="reject">
-                                        <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger)" data-confirm="Reject this gym?">Reject</button>
-                                    </form>
+                                <?php if ($app['status'] === 'approved'): ?>
+                                    <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--lime); font-weight: 700; border: 1px solid rgba(34, 197, 94, 0.3);">Approved</span>
+                                <?php elseif ($app['status'] === 'rejected'): ?>
+                                    <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-weight: 700; border: 1px solid rgba(239, 68, 68, 0.3);">Rejected</span>
+                                <?php elseif ($app['status'] === 'suspended'): ?>
+                                    <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #fbbf24; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">Suspended</span>
+                                <?php else: ?>
+                                    <span class="pending-count-badge" style="margin: 0; font-size: 11px;">Pending</span>
+                                <?php endif; ?>
+                            </td>
+                            <?php if ($showActionsColumn): ?>
+                            <td>
+                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                    <?php if ($app['status'] === 'pending'): ?>
+                                        <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
+                                            <input type="hidden" name="action" value="approve">
+                                            <button type="submit" class="btn-sm btn-primary" data-confirm="Approve this gym?">Approve</button>
+                                        </form>
+                                        <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
+                                            <input type="hidden" name="action" value="reject">
+                                            <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger)" data-confirm="Reject this gym?">Reject</button>
+                                        </form>
+                                    <?php elseif ($app['status'] === 'rejected'): ?>
+                                        <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
+                                            <input type="hidden" name="action" value="approve">
+                                            <button type="submit" class="btn-sm btn-primary" data-confirm="Re-approve this previously rejected gym?">Re-Approve</button>
+                                        </form>
+                                    <?php else: ?>
+                                        <span class="muted" style="font-size: 12px;">—</span>
+                                    <?php endif; ?>
                                 </div>
                             </td>
+                            <?php endif; ?>
                         </tr>
                     <?php endforeach; ?>
                         <tr id="appNoResultsRow" style="display: none;">
-                            <td colspan="8" style="text-align: center; padding: 48px 16px; color: var(--muted);">
+                            <td colspan="<?= $tableColspan ?>" style="text-align: center; padding: 48px 16px; color: var(--muted);">
                                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 10px; display: block; opacity: 0.5;">
                                     <circle cx="11" cy="11" r="8"></circle>
                                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                                 </svg>
                                 <div style="font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">No applications found</div>
-                                <div style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">No pending applications match "<span id="appSearchQueryTerm" style="color: var(--ink); font-weight: 600;"></span>"</div>
-                                <button type="button" class="btn-sm btn-secondary" onclick="clearAppSearch()">Clear Search</button>
+                                <div style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">No applications match your current search and filter criteria.</div>
+                                <button type="button" class="btn-sm btn-secondary" onclick="resetAllAppFilters()">Reset Filters</button>
                             </td>
                         </tr>
                     <?php endif; ?>
@@ -1038,126 +1310,171 @@ function gym_applications_page(): void
         </div>
 
         <!-- Mobile Card View (<= 768px) -->
-        <?php if (!empty($applications)): ?>
         <div class="app-mobile-cards">
-            <?php foreach ($applications as $app): 
-                $docs = $app['docs'];
-                $docCount = $app['doc_count'];
-            ?>
-                <div class="app-card-item" data-search="<?= h($app['search_text']) ?>">
-                    <div class="app-card-header">
-                        <div class="app-card-identity">
-                            <div class="app-card-avatar">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/>
-                                </svg>
-                            </div>
-                            <div class="app-card-names">
-                                <div class="app-card-title"><?= h($app['name']) ?></div>
-                                <?php if (!empty($app['created_at'])): ?>
-                                    <div class="app-card-date"><?= date('M j, Y', strtotime($app['created_at'])) ?></div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <span class="pending-count-badge" style="margin:0; font-size:11px;">Pending</span>
-                    </div>
-
-                    <div class="app-card-body">
-                        <div class="app-card-info-row">
-                            <span class="app-card-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                Owner
-                            </span>
-                            <span class="app-card-value" style="font-weight:600;"><?= h($app['first_name'] . ' ' . $app['last_name']) ?></span>
-                        </div>
-
-                        <div class="app-card-info-row">
-                            <span class="app-card-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                Email
-                            </span>
-                            <span class="app-card-value"><a href="mailto:<?= h($app['email']) ?>" style="color:var(--ink); text-decoration:none;"><?= h($app['email']) ?></a></span>
-                        </div>
-
-                        <div class="app-card-info-row">
-                            <span class="app-card-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                Contact
-                            </span>
-                            <span class="app-card-value"><?= h($app['contact_info'] ?? 'N/A') ?></span>
-                        </div>
-
-                        <div class="app-card-info-row">
-                            <span class="app-card-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                Address
-                            </span>
-                            <span class="app-card-value" style="font-size:12px;"><?= h($app['address']) ?></span>
-                        </div>
-
-                        <div class="app-card-info-row">
-                            <span class="app-card-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                Payout Dest.
-                            </span>
-                            <span class="app-card-value">
-                                <?php if (!empty($app['payout_account_number'])): ?>
-                                    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
-                                        <span class="badge" style="padding: 2px 6px; font-size: 10px; font-weight: 700; background: rgba(132, 204, 22, 0.18); color: var(--accent, #c7ff22); border-radius: 4px;">
-                                            <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
-                                        </span>
-                                        <span style="font-family: monospace; font-size: 12px; font-weight: 600; color: var(--ink, #ffffff);"><?= h($app['payout_account_number']) ?></span>
-                                        <button type="button" class="payout-copy-btn" style="padding: 2px 7px; font-size: 9.5px;" onclick="copyPayoutText('<?= h($app['payout_account_number']) ?>', this, event)" title="Copy account number">Copy</button>
-                                    </div>
-                                    <?php if (!empty($app['payout_account_name'])): ?>
-                                        <div style="font-size: 11px; color: var(--muted); margin-top: 3px; text-align: right;"><?= h($app['payout_account_name']) ?></div>
-                                    <?php endif; ?>
-                                <?php else: ?>
-                                    <span class="muted" style="font-size: 12px;">Not provided</span>
-                                <?php endif; ?>
-                            </span>
-                        </div>
-                    </div>
-
-                    <?php if ($docCount > 0): ?>
-                        <div class="app-card-docs">
-                            <div class="app-card-docs-header">
-                                <span>Attached Documents (<?= $docCount ?>)</span>
-                            </div>
-                            <div class="app-card-docs-list">
-                                <?php foreach ($docs as $doc): ?>
-                                    <?php if ($doc['type'] === 'link'): ?>
-                                        <a href="<?= h($doc['url']) ?>" target="_blank" rel="noopener noreferrer" class="app-card-doc-pill">
-                                            <?= $doc['icon'] ?>
-                                            <span><?= h($doc['name']) ?> ↗</span>
-                                        </a>
-                                    <?php else: ?>
-                                        <button type="button" class="app-card-doc-pill" onclick="viewDocument('<?= h($doc['url']) ?>', '<?= h(addslashes($doc['name'])) ?>')">
-                                            <?= $doc['icon'] ?>
-                                            <span><?= h($doc['name']) ?></span>
-                                        </button>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="app-card-actions">
-                        <form method="post" action="index.php?page=gym_applications">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
-                            <input type="hidden" name="action" value="approve">
-                            <button type="submit" class="btn-sm btn-primary" data-confirm="Approve this gym?">Approve</button>
-                        </form>
-                        <form method="post" action="index.php?page=gym_applications">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
-                            <input type="hidden" name="action" value="reject">
-                            <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger)" data-confirm="Reject this gym?">Reject</button>
-                        </form>
-                    </div>
+            <?php if (empty($applications)): ?>
+                <div style="text-align: center; padding: 40px 16px; background: var(--panel-soft); border-radius: 12px; border: 1px dashed var(--line); color: var(--muted);">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 10px; display: block; opacity: 0.5;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <div style="font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">No <?= $currentStatus === 'all' ? '' : h($currentStatus) . ' ' ?>applications found</div>
+                    <div style="font-size: 13px; color: var(--muted);">There are no <?= $currentStatus === 'all' ? '' : h($currentStatus) . ' ' ?>gym registration requests at this time.</div>
                 </div>
-            <?php endforeach; ?>
+            <?php else: ?>
+                <?php foreach ($applications as $app): 
+                    $docs = $app['docs'];
+                    $docCount = $app['doc_count'];
+                    $appStatus = strtolower($app['status'] ?? 'pending');
+                    $isApproved = $appStatus === 'approved';
+                    $isRejected = $appStatus === 'rejected';
+                    $isPending = !$isApproved && !$isRejected;
+                    $statusColor = $isApproved ? 'var(--accent, #a3e635)' : ($isRejected ? 'var(--danger, #ef4444)' : '#f59e0b');
+                    $statusBg = $isApproved ? 'rgba(163, 230, 53, 0.12)' : ($isRejected ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)');
+                ?>
+                    <div class="app-card-item" 
+                         data-search="<?= h($app['search_text']) ?>"
+                         data-gym-id="<?= (int) $app['gym_id'] ?>"
+                         data-name="<?= h(strtolower($app['name'])) ?>"
+                         data-created="<?= strtotime($app['created_at'] ?? 'now') ?>"
+                         data-status="<?= h($appStatus) ?>"
+                         data-payout="<?= h(strtolower($app['payout_chan'] ?? 'none')) ?>"
+                         data-doc-complete="<?= !empty($app['doc_complete']) ? '1' : '0' ?>"
+                         data-has-permit="<?= !empty($app['has_permit']) ? '1' : '0' ?>"
+                         data-has-id="<?= !empty($app['has_id']) ? '1' : '0' ?>"
+                         data-has-fire="<?= !empty($app['has_fire']) ? '1' : '0' ?>"
+                         data-has-brgy="<?= !empty($app['has_brgy']) ? '1' : '0' ?>">
+                        <div class="app-card-header">
+                            <div class="app-card-identity">
+                                <div class="app-card-avatar">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/>
+                                    </svg>
+                                </div>
+                                <div class="app-card-names">
+                                    <div class="app-card-title"><?= h($app['name']) ?></div>
+                                    <?php if (!empty($app['created_at'])): ?>
+                                        <div class="app-card-date"><?= date('M j, Y', strtotime($app['created_at'])) ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <span class="badge" style="margin:0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; padding:3px 8px; border-radius:999px; background:<?= $statusBg ?>; color:<?= $statusColor ?>; border:1px solid <?= $statusColor ?>40;">
+                                <?= h(ucfirst($appStatus)) ?>
+                            </span>
+                        </div>
+
+                        <div class="app-card-body">
+                            <div class="app-card-info-row">
+                                <span class="app-card-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    Owner
+                                </span>
+                                <span class="app-card-value" style="font-weight:600;"><?= h($app['first_name'] . ' ' . $app['last_name']) ?></span>
+                            </div>
+
+                            <div class="app-card-info-row">
+                                <span class="app-card-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                    Email
+                                </span>
+                                <span class="app-card-value"><a href="mailto:<?= h($app['email']) ?>" style="color:var(--ink); text-decoration:none;"><?= h($app['email']) ?></a></span>
+                            </div>
+
+                            <div class="app-card-info-row">
+                                <span class="app-card-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                    Contact
+                                </span>
+                                <span class="app-card-value"><?= h($app['contact_info'] ?? 'N/A') ?></span>
+                            </div>
+
+                            <div class="app-card-info-row">
+                                <span class="app-card-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                    Address
+                                </span>
+                                <span class="app-card-value" style="font-size:12px;"><?= h($app['address']) ?></span>
+                            </div>
+
+                            <div class="app-card-info-row">
+                                <span class="app-card-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                    Payout Dest.
+                                </span>
+                                <span class="app-card-value">
+                                    <?php if (!empty($app['payout_account_number'])): ?>
+                                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+                                            <span class="badge" style="padding: 2px 6px; font-size: 10px; font-weight: 700; background: rgba(132, 204, 22, 0.18); color: var(--accent, #c7ff22); border-radius: 4px;">
+                                                <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
+                                            </span>
+                                            <span style="font-family: monospace; font-size: 12px; font-weight: 600; color: var(--ink, #ffffff);"><?= h($app['payout_account_number']) ?></span>
+                                            <button type="button" class="payout-copy-btn" style="padding: 2px 7px; font-size: 9.5px;" onclick="copyPayoutText('<?= h($app['payout_account_number']) ?>', this, event)" title="Copy account number">Copy</button>
+                                        </div>
+                                        <?php if (!empty($app['payout_account_name'])): ?>
+                                            <div style="font-size: 11px; color: var(--muted); margin-top: 3px; text-align: right;"><?= h($app['payout_account_name']) ?></div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="muted" style="font-size: 12px;">Not provided</span>
+                                    <?php endif; ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <?php if ($docCount > 0): ?>
+                            <div class="app-card-docs">
+                                <div class="app-card-docs-header">
+                                    <span>Attached Documents (<?= $docCount ?>)</span>
+                                </div>
+                                <div class="app-card-docs-list">
+                                    <?php foreach ($docs as $doc): ?>
+                                        <?php if ($doc['type'] === 'link'): ?>
+                                            <a href="<?= h($doc['url']) ?>" target="_blank" rel="noopener noreferrer" class="app-card-doc-pill">
+                                                <?= $doc['icon'] ?>
+                                                <span><?= h($doc['name']) ?> ↗</span>
+                                            </a>
+                                        <?php else: ?>
+                                            <button type="button" class="app-card-doc-pill" onclick="viewDocument('<?= h($doc['url']) ?>', '<?= h(addslashes($doc['name'])) ?>')">
+                                                <?= $doc['icon'] ?>
+                                                <span><?= h($doc['name']) ?></span>
+                                            </button>
+                                        <?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php elseif ($app['status'] === 'approved'): ?>
+                            <div class="app-card-docs" style="padding-top: 6px;">
+                                <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 11px; padding: 2px 7px; border-radius: 4px;">Admin Provisioned (No docs uploaded)</span>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!$isApproved): ?>
+                        <div class="app-card-actions">
+                            <?php if ($isRejected): ?>
+                                <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="flex: 1;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
+                                    <input type="hidden" name="action" value="approve">
+                                    <button type="submit" class="btn-sm btn-primary" style="width: 100%;" data-confirm="Re-approve this gym application?">Re-Approve</button>
+                                </form>
+                            <?php else: ?>
+                                <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="flex: 1;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
+                                    <input type="hidden" name="action" value="approve">
+                                    <button type="submit" class="btn-sm btn-primary" style="width: 100%;" data-confirm="Approve this gym?">Approve</button>
+                                </form>
+                                <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="flex: 1;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="gym_id" value="<?= (int) $app['gym_id'] ?>">
+                                    <input type="hidden" name="action" value="reject">
+                                    <button type="submit" class="btn-sm btn-secondary" style="width: 100%; color:var(--danger);" data-confirm="Reject this gym?">Reject</button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
 
             <div id="appMobileNoResults" style="display: none; text-align: center; padding: 36px 16px; background: var(--panel-soft); border-radius: 12px; border: 1px dashed var(--line); color: var(--muted);">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 10px; display: block; opacity: 0.5;">
@@ -1165,19 +1482,17 @@ function gym_applications_page(): void
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
                 <div style="font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px;">No applications found</div>
-                <div style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">No pending applications match "<span id="appMobileSearchQueryTerm" style="color: var(--ink); font-weight: 600;"></span>"</div>
-                <button type="button" class="btn-sm btn-secondary" onclick="clearAppSearch()">Clear Search</button>
+                <div style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">No applications match your current search and filter criteria.</div>
+                <button type="button" class="btn-sm btn-secondary" onclick="resetAllAppFilters()">Reset Filters</button>
             </div>
         </div>
-        <?php endif; ?>
 
-        <?php if (!empty($applications)): ?>
-        <div id="appPaginationBar" class="app-pagination-bar">
+        <div id="appPaginationBar" class="app-pagination-bar" style="<?= empty($applications) ? 'display: none;' : '' ?>">
             <div id="appPaginationInfo" class="app-pagination-info">
                 Showing <strong>1</strong> to <strong><?= min(10, count($applications)) ?></strong> of <strong><?= count($applications) ?></strong> applications
             </div>
             <div id="appPaginationControls" class="app-pagination-controls"></div>
-        <?php endif; ?>
+        </div>
     </section>
 
     <script>
@@ -1314,46 +1629,32 @@ function gym_applications_page(): void
         }
     }
 
-    // Live Search & Responsive Pagination for Gym Applications (Desktop Table + Mobile Cards)
+    // Live Search, Multi-Filter, Sorting & Responsive Pagination for Gym Applications
     let appCurrentPage = 1;
     let appPageSize = 10;
     let appAllRows = [];
     let appAllCards = [];
-    let appFilteredIndices = [];
+    let appVisibleRows = [];
+    let appVisibleCards = [];
 
     function initAppPagination() {
         appAllRows = Array.from(document.querySelectorAll('.app-row'));
         appAllCards = Array.from(document.querySelectorAll('.app-card-item'));
-        const totalItems = Math.max(appAllRows.length, appAllCards.length);
-        if (totalItems === 0) return;
-
-        appFilteredIndices = Array.from({ length: totalItems }, (_, i) => i);
-
+        
         const searchInput = document.getElementById('appSearchInput');
         const searchClear = document.getElementById('appSearchClear');
+        const payoutFilter = document.getElementById('appPayoutFilter');
+        const docFilter = document.getElementById('appDocFilter');
+        const sortSelect = document.getElementById('appSortSelect');
         const perPageSelect = document.getElementById('appPerPageSelect');
 
         if (searchInput) {
             searchInput.addEventListener('input', function() {
-                const val = this.value.trim().toLowerCase();
                 if (searchClear) {
-                    searchClear.style.display = val !== '' ? 'block' : 'none';
-                }
-                const terms = val.split(/\s+/).filter(Boolean);
-                appFilteredIndices = [];
-                for (let i = 0; i < totalItems; i++) {
-                    if (terms.length === 0) {
-                        appFilteredIndices.push(i);
-                    } else {
-                        const targetEl = appAllRows[i] || appAllCards[i];
-                        const text = targetEl ? (targetEl.getAttribute('data-search') || '') : '';
-                        if (terms.every(term => text.includes(term))) {
-                            appFilteredIndices.push(i);
-                        }
-                    }
+                    searchClear.style.display = this.value.trim() !== '' ? 'block' : 'none';
                 }
                 appCurrentPage = 1;
-                renderAppPage();
+                applyAppFiltersAndSort();
             });
 
             searchInput.addEventListener('keydown', function(e) {
@@ -1363,20 +1664,166 @@ function gym_applications_page(): void
             });
         }
 
+        if (payoutFilter) {
+            payoutFilter.addEventListener('change', function() {
+                appCurrentPage = 1;
+                applyAppFiltersAndSort();
+            });
+        }
+
+        if (docFilter) {
+            docFilter.addEventListener('change', function() {
+                appCurrentPage = 1;
+                applyAppFiltersAndSort();
+            });
+        }
+
+        if (sortSelect) {
+            sortSelect.addEventListener('change', function() {
+                appCurrentPage = 1;
+                applyAppFiltersAndSort();
+            });
+        }
+
         if (perPageSelect) {
             perPageSelect.addEventListener('change', function() {
-                appPageSize = parseInt(this.value, 10) || 10;
+                const val = this.value;
+                appPageSize = val === 'all' ? 999999 : (parseInt(val, 10) || 10);
                 appCurrentPage = 1;
                 renderAppPage();
             });
+            const initialVal = perPageSelect.value;
+            appPageSize = initialVal === 'all' ? 999999 : (parseInt(initialVal, 10) || 10);
+        }
+
+        applyAppFiltersAndSort();
+    }
+
+    function applyAppFiltersAndSort() {
+        const searchInput = document.getElementById('appSearchInput');
+        const payoutFilter = document.getElementById('appPayoutFilter');
+        const docFilter = document.getElementById('appDocFilter');
+        const sortSelect = document.getElementById('appSortSelect');
+
+        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+        const searchTerms = query.split(/\s+/).filter(Boolean);
+        const payoutVal = payoutFilter ? payoutFilter.value.toLowerCase() : 'all';
+        const docVal = docFilter ? docFilter.value.toLowerCase() : 'all';
+        const sortVal = sortSelect ? sortSelect.value : 'newest';
+
+        const resetBtn = document.getElementById('appResetFiltersBtn');
+        const isFiltered = query !== '' || payoutVal !== 'all' || docVal !== 'all' || sortVal !== 'newest';
+        if (resetBtn) {
+            resetBtn.style.display = isFiltered ? 'inline-flex' : 'none';
+        }
+
+        function matchesFilter(el) {
+            if (!el) return false;
+            // Search text
+            if (searchTerms.length > 0) {
+                const text = el.getAttribute('data-search') || '';
+                if (!searchTerms.every(term => text.includes(term))) {
+                    return false;
+                }
+            }
+            // Payout filter
+            if (payoutVal !== 'all') {
+                const payout = (el.getAttribute('data-payout') || 'none').toLowerCase();
+                if (payoutVal === 'bank_transfer') {
+                    if (payout !== 'bank_transfer' && payout !== 'bank') return false;
+                } else if (payout !== payoutVal) {
+                    return false;
+                }
+            }
+            // Document filter
+            if (docVal === 'complete') {
+                if (el.getAttribute('data-doc-complete') !== '1') return false;
+            } else if (docVal === 'has_permit') {
+                if (el.getAttribute('data-has-permit') !== '1') return false;
+            } else if (docVal === 'has_id') {
+                if (el.getAttribute('data-has-id') !== '1') return false;
+            } else if (docVal === 'has_fire') {
+                if (el.getAttribute('data-has-fire') !== '1') return false;
+            } else if (docVal === 'has_brgy') {
+                if (el.getAttribute('data-has-brgy') !== '1') return false;
+            } else if (docVal === 'missing') {
+                if (el.getAttribute('data-doc-complete') === '1') return false;
+            }
+            return true;
+        }
+
+        // Filter
+        appVisibleRows = appAllRows.filter(matchesFilter);
+        appVisibleCards = appAllCards.filter(matchesFilter);
+
+        // Sort comparator
+        function sortCompare(a, b) {
+            if (sortVal === 'newest') {
+                return (parseInt(b.getAttribute('data-created') || '0', 10)) - (parseInt(a.getAttribute('data-created') || '0', 10));
+            } else if (sortVal === 'oldest') {
+                return (parseInt(a.getAttribute('data-created') || '0', 10)) - (parseInt(b.getAttribute('data-created') || '0', 10));
+            } else if (sortVal === 'name_asc') {
+                return (a.getAttribute('data-name') || '').localeCompare(b.getAttribute('data-name') || '');
+            } else if (sortVal === 'name_desc') {
+                return (b.getAttribute('data-name') || '').localeCompare(a.getAttribute('data-name') || '');
+            }
+            return 0;
+        }
+
+        appVisibleRows.sort(sortCompare);
+        appVisibleCards.sort(sortCompare);
+
+        // Reorder elements in DOM container to respect sort order
+        if (appVisibleRows.length > 0) {
+            const tableBody = appVisibleRows[0].parentElement;
+            if (tableBody) {
+                const noResults = document.getElementById('appNoResultsRow');
+                appVisibleRows.forEach(row => tableBody.insertBefore(row, noResults));
+            }
+        }
+        if (appVisibleCards.length > 0) {
+            const cardsContainer = appVisibleCards[0].parentElement;
+            if (cardsContainer) {
+                const noResultsMobile = document.getElementById('appMobileNoResults');
+                appVisibleCards.forEach(card => cardsContainer.insertBefore(card, noResultsMobile));
+            }
         }
 
         renderAppPage();
     }
 
+    function resetAllAppFilters() {
+        const searchInput = document.getElementById('appSearchInput');
+        const searchClear = document.getElementById('appSearchClear');
+        const payoutFilter = document.getElementById('appPayoutFilter');
+        const docFilter = document.getElementById('appDocFilter');
+        const sortSelect = document.getElementById('appSortSelect');
+
+        if (searchInput) searchInput.value = '';
+        if (searchClear) searchClear.style.display = 'none';
+        if (payoutFilter) payoutFilter.value = 'all';
+        if (docFilter) docFilter.value = 'all';
+        if (sortSelect) sortSelect.value = 'newest';
+
+        appCurrentPage = 1;
+        applyAppFiltersAndSort();
+    }
+
+    function clearAppSearch() {
+        const searchInput = document.getElementById('appSearchInput');
+        const searchClear = document.getElementById('appSearchClear');
+        if (searchInput) {
+            searchInput.value = '';
+            if (searchClear) searchClear.style.display = 'none';
+            appCurrentPage = 1;
+            applyAppFiltersAndSort();
+            searchInput.focus();
+        }
+    }
+
     function renderAppPage() {
         closeAllDocDropdowns();
-        const totalItems = appFilteredIndices.length;
+        const totalItems = Math.max(appVisibleRows.length, appVisibleCards.length);
         const totalPages = Math.max(1, Math.ceil(totalItems / appPageSize));
 
         if (appCurrentPage > totalPages) appCurrentPage = totalPages;
@@ -1384,36 +1831,27 @@ function gym_applications_page(): void
 
         const startIndex = (appCurrentPage - 1) * appPageSize;
         const endIndex = Math.min(startIndex + appPageSize, totalItems);
-        const visibleSet = new Set(appFilteredIndices.slice(startIndex, endIndex));
 
         // Toggle Desktop Table Rows
-        appAllRows.forEach((row, idx) => {
-            row.style.display = visibleSet.has(idx) ? '' : 'none';
+        const visibleRowSet = new Set(appVisibleRows.slice(startIndex, endIndex));
+        appAllRows.forEach(row => {
+            row.style.display = visibleRowSet.has(row) ? '' : 'none';
         });
 
         // Toggle Mobile Cards
-        appAllCards.forEach((card, idx) => {
-            card.style.display = visibleSet.has(idx) ? '' : 'none';
+        const visibleCardSet = new Set(appVisibleCards.slice(startIndex, endIndex));
+        appAllCards.forEach(card => {
+            card.style.display = visibleCardSet.has(card) ? '' : 'none';
         });
 
-        // Handle empty search results state
+        // Empty results state
+        const maxTotal = Math.max(appAllRows.length, appAllCards.length);
         const noResultsRow = document.getElementById('appNoResultsRow');
         const noResultsMobile = document.getElementById('appMobileNoResults');
-        const searchInput = document.getElementById('appSearchInput');
-        const queryTerm = searchInput ? searchInput.value.trim() : '';
 
-        const maxTotal = Math.max(appAllRows.length, appAllCards.length);
         if (totalItems === 0 && maxTotal > 0) {
-            if (noResultsRow) {
-                noResultsRow.style.display = '';
-                const termSpan = document.getElementById('appSearchQueryTerm');
-                if (termSpan) termSpan.textContent = queryTerm;
-            }
-            if (noResultsMobile) {
-                noResultsMobile.style.display = 'block';
-                const termSpan = document.getElementById('appMobileSearchQueryTerm');
-                if (termSpan) termSpan.textContent = queryTerm;
-            }
+            if (noResultsRow) noResultsRow.style.display = '';
+            if (noResultsMobile) noResultsMobile.style.display = 'block';
         } else {
             if (noResultsRow) noResultsRow.style.display = 'none';
             if (noResultsMobile) noResultsMobile.style.display = 'none';
@@ -1500,20 +1938,6 @@ function gym_applications_page(): void
             if (rect.top < 0) {
                 targetView.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
-        }
-    }
-
-    function clearAppSearch() {
-        const searchInput = document.getElementById('appSearchInput');
-        const searchClear = document.getElementById('appSearchClear');
-        if (searchInput) {
-            searchInput.value = '';
-            if (searchClear) searchClear.style.display = 'none';
-            const totalItems = Math.max(appAllRows.length, appAllCards.length);
-            appFilteredIndices = Array.from({ length: totalItems }, (_, i) => i);
-            appCurrentPage = 1;
-            renderAppPage();
-            searchInput.focus();
         }
     }
     

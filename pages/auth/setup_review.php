@@ -53,10 +53,10 @@ function setup_review_page(): void
                 $wRule->execute([$tier, $sex, $basicGoal, $activity]);
                 $workoutStruct = $wRule->fetchColumn() ?: 'General full body workout 3 times a week.';
 
-                $dRule = $pdo->prepare('SELECT macro_split, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
+                $dRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
                 $dRule->execute([$tier, $sex, $basicGoal, $activity]);
                 $dietInfo = $dRule->fetch();
-                $dietStruct = $dietInfo ? ($dietInfo['macro_split'] . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
+                $dietStruct = $dietInfo ? (sprintf('%d%% Protein / %d%% Carbs / %d%% Fat', (int)$dietInfo['protein_pct'], (int)$dietInfo['carbs_pct'], (int)$dietInfo['fat_pct']) . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
 
                 $restLabel = (string) ($profile['dietary_restrictions'] ?? 'none');
                 $restText = ($restLabel !== '' && $restLabel !== 'none') ? " (Tailored for " . ucwords(str_replace('-', ' ', $restLabel)) . " preferences)" : "";
@@ -100,8 +100,16 @@ function setup_review_page(): void
         }
 
         if (isset($_POST['height_cm'])) {
+            $sex = (string)($_POST['biological_sex'] ?? ($profile['biological_sex'] ?? 'male'));
+            if ($sex !== 'female') {
+                unset($_POST['hip_cm']);
+            }
+
             // Sanitize numeric inputs to avoid negative numbers
-            $numericReviewFields = ['height_cm', 'weight_kg', 'age', 'neck_cm', 'waist_cm', 'hip_cm', 'weekly_workout_target', 'preferred_duration_mins'];
+            $numericReviewFields = ['height_cm', 'weight_kg', 'age', 'neck_cm', 'waist_cm', 'weekly_workout_target', 'preferred_duration_mins'];
+            if ($sex === 'female') {
+                $numericReviewFields[] = 'hip_cm';
+            }
             foreach ($numericReviewFields as $rf) {
                 if (isset($_POST[$rf]) && $_POST[$rf] !== '') {
                     $clean = str_replace(['-', '+'], '', (string)$_POST[$rf]);
@@ -112,23 +120,25 @@ function setup_review_page(): void
             }
 
             $validator = new Validator();
-            $valid = $validator->validate($_POST, [
+            $rules = [
                 'height_cm'               => 'numeric|min_num:100|max_num:250',
                 'weight_kg'               => 'numeric|min_num:20|max_num:300',
                 'age'                     => 'numeric|min_num:16|max_num:120',
                 'neck_cm'                 => 'numeric|min_num:20|max_num:100',
                 'waist_cm'                => 'numeric|min_num:45|max_num:200',
-                'hip_cm'                  => 'numeric|min_num:60|max_num:220',
                 'weekly_workout_target'   => 'numeric|min_num:1|max_num:7',
                 'preferred_duration_mins' => 'numeric|min_num:15|max_num:180',
-            ]);
+            ];
+            if ($sex === 'female') {
+                $rules['hip_cm'] = 'numeric|min_num:60|max_num:220';
+            }
+
+            $valid = $validator->validate($_POST, $rules);
 
             if (!$valid) {
                 flash($validator->firstError() ?? 'Invalid values provided. Please check the fields.', 'danger');
                 redirect('setup_review');
             }
-
-            $sex = (string)($_POST['biological_sex'] ?? ($profile['biological_sex'] ?? 'male'));
             $waist = !empty($_POST['waist_cm']) ? (float)$_POST['waist_cm'] : null;
             $hip = !empty($_POST['hip_cm']) ? (float)$_POST['hip_cm'] : null;
             $neck = !empty($_POST['neck_cm']) ? (float)$_POST['neck_cm'] : null;
@@ -192,14 +202,14 @@ function setup_review_page(): void
         $workoutStruct = $wRule->fetchColumn() ?: 'General full body workout 3 times a week.';
     }
 
-    $dRule = $pdo->prepare('SELECT macro_split, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
+    $dRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
     $dRule->execute([$tier, $sex, $basicGoal, $activity]);
     $dietInfo = $dRule->fetch();
     if (!$dietInfo) {
         $dRule->execute([1, 'any', $basicGoal, 'any']);
         $dietInfo = $dRule->fetch();
     }
-    $dietStruct = $dietInfo ? ($dietInfo['macro_split'] . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
+    $dietStruct = $dietInfo ? (sprintf('%d%% Protein / %d%% Carbs / %d%% Fat', (int)$dietInfo['protein_pct'], (int)$dietInfo['carbs_pct'], (int)$dietInfo['fat_pct']) . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
 
     // Biometrics calculation
     $hM = ((float)($profile['height_cm'] ?? 0)) / 100.0;

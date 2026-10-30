@@ -22,40 +22,39 @@ try {
     
     $migrations = [
         "ALTER TABLE gyms ADD COLUMN logo_url VARCHAR(255) DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN cover_image_url VARCHAR(255) DEFAULT NULL AFTER logo_url",
+        "ALTER TABLE gyms ADD COLUMN public_description TEXT DEFAULT NULL AFTER cover_image_url",
+        "ALTER TABLE gyms ADD COLUMN fb_page_url VARCHAR(255) DEFAULT NULL AFTER public_description",
         "ALTER TABLE gyms ADD COLUMN brand_color VARCHAR(10) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_weight_kg DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_body_fat_percent DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_arm_cm DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_chest_cm DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_waist_cm DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_exercise VARCHAR(100) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN current_strength_max_kg DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_strength_max_kg DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN endurance_activity VARCHAR(50) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN current_endurance_distance_km DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN current_endurance_time_mins INT DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_endurance_distance_km DECIMAL(5,2) DEFAULT NULL",
-        "ALTER TABLE member_profiles ADD COLUMN target_endurance_time_mins INT DEFAULT NULL",
+        "ALTER TABLE gyms ADD COLUMN walk_in_fee DECIMAL(10,2) NOT NULL DEFAULT 100.00",
+        "ALTER TABLE member_profiles ADD COLUMN birth_date DATE DEFAULT NULL AFTER user_id",
         "ALTER TABLE member_profiles ADD COLUMN weekly_workout_target TINYINT UNSIGNED DEFAULT NULL",
         "ALTER TABLE member_profiles ADD COLUMN preferred_duration_mins SMALLINT UNSIGNED DEFAULT 45",
+        "ALTER TABLE member_profiles ADD COLUMN trainer_assessment_notes TEXT DEFAULT NULL AFTER preferred_duration_mins",
+        "ALTER TABLE progress_logs ADD COLUMN neck_cm DECIMAL(5,2) DEFAULT NULL AFTER body_fat_percent",
         "ALTER TABLE training_plan_exercises ADD COLUMN target_weight_kg DECIMAL(6,2) DEFAULT NULL",
         "ALTER TABLE training_plan_exercises ADD COLUMN tempo VARCHAR(20) DEFAULT NULL",
         "ALTER TABLE training_plan_exercises ADD COLUMN rpe VARCHAR(20) DEFAULT NULL",
+        "CREATE TABLE IF NOT EXISTS system_settings (setting_key VARCHAR(80) NOT NULL PRIMARY KEY, setting_value TEXT NOT NULL, description VARCHAR(255) DEFAULT NULL, updated_by INT UNSIGNED DEFAULT NULL, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, KEY fk_setting_admin (updated_by)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "ALTER TABLE system_settings MODIFY COLUMN setting_value TEXT NOT NULL",
+        "CREATE TABLE IF NOT EXISTS user_blocks (block_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, blocker_id INT UNSIGNED NOT NULL, blocked_id INT UNSIGNED NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_blocker_blocked (blocker_id, blocked_id), INDEX idx_blocked_user (blocked_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS checkout_ratings (rating_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, attendance_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, rating TINYINT UNSIGNED NOT NULL, comment TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_attendance (attendance_id))",
         "CREATE TABLE IF NOT EXISTS workout_rules (rule_id int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, experience_level int NOT NULL DEFAULT '1', biological_sex enum('male','female','any') NOT NULL DEFAULT 'any', primary_goal enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL, activity_level enum('sedentary','lightly_active','moderately_active','very_active','extra_active','any') NOT NULL DEFAULT 'any', recommended_workout_structure text NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS diet_rules (rule_id int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, experience_level int NOT NULL DEFAULT '1', biological_sex enum('male','female','any') NOT NULL DEFAULT 'any', primary_goal enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL, activity_level enum('sedentary','lightly_active','moderately_active','very_active','extra_active','any') NOT NULL DEFAULT 'any', macro_split varchar(255) NOT NULL, notes text)",
+        "CREATE TABLE IF NOT EXISTS diet_rules (rule_id int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, experience_level int NOT NULL DEFAULT '1', biological_sex enum('male','female','any') NOT NULL DEFAULT 'any', primary_goal enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL, activity_level enum('sedentary','lightly_active','moderately_active','very_active','extra_active','any') NOT NULL DEFAULT 'any', protein_pct tinyint UNSIGNED NOT NULL DEFAULT 35, carbs_pct tinyint UNSIGNED NOT NULL DEFAULT 35, fat_pct tinyint UNSIGNED NOT NULL DEFAULT 30, notes text)",
         "INSERT IGNORE INTO workout_rules (rule_id, experience_level, biological_sex, primary_goal, activity_level, recommended_workout_structure) VALUES (1, 1, 'any', 'fat_loss', 'any', '3 days Full Body Resistance (Machine focused), 2 days Moderate Cardio (30 mins)')",
-        "INSERT IGNORE INTO diet_rules (rule_id, experience_level, biological_sex, primary_goal, activity_level, macro_split, notes) VALUES (1, 1, 'any', 'fat_loss', 'any', '40% Protein, 30% Carbs, 30% Fat', 'Maintain a 300-500 calorie deficit.')",
+        "INSERT IGNORE INTO diet_rules (rule_id, experience_level, biological_sex, primary_goal, activity_level, protein_pct, carbs_pct, fat_pct, notes) VALUES (1, 1, 'any', 'fat_loss', 'any', 40, 30, 30, 'Maintain a 300-500 calorie deficit.')",
         "UPDATE gyms SET subscription_renewal_date = DATE_ADD(CURDATE(), INTERVAL 1 MONTH) WHERE status = 'approved' AND subscription_status = 'active' AND subscription_renewal_date > DATE_ADD(CURDATE(), INTERVAL 2 MONTH)",
         "CREATE TABLE IF NOT EXISTS member_meal_logs (log_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, meal_type VARCHAR(50) NOT NULL, log_date DATE NOT NULL, meal_id INT UNSIGNED NULL, food_items TEXT NULL, calories INT UNSIGNED NOT NULL DEFAULT 0, protein_g DECIMAL(6,1) NOT NULL DEFAULT 0, carbs_g DECIMAL(6,1) NOT NULL DEFAULT 0, fat_g DECIMAL(6,1) NOT NULL DEFAULT 0, logged_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uq_user_meal_date (user_id, meal_type, log_date), INDEX idx_user_date (user_id, log_date)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS gym_equipment (equipment_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, name VARCHAR(150) NOT NULL, unit_number VARCHAR(50) NOT NULL DEFAULT '#1', category ENUM('Cardio', 'Strength', 'Free Weights', 'Machines', 'Functional Training', 'Other') NOT NULL DEFAULT 'Machines', location_area VARCHAR(100) DEFAULT 'Main Gym Floor', description TEXT DEFAULT NULL, equipment_condition ENUM('Excellent', 'Good', 'Fair', 'Poor') NOT NULL DEFAULT 'Good', status ENUM('available', 'in_use', 'maintenance', 'out_of_service') NOT NULL DEFAULT 'available', image_url VARCHAR(255) DEFAULT NULL, date_added DATE NOT NULL, last_maintenance_date DATE DEFAULT NULL, next_maintenance_date DATE DEFAULT NULL, maintenance_reason VARCHAR(255) DEFAULT NULL, expected_return_date DATE DEFAULT NULL, current_session_id INT UNSIGNED DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_gym_equip_unit (gym_id, name, unit_number), INDEX idx_gym_status (gym_id, status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-        "CREATE TABLE IF NOT EXISTS equipment_sessions (session_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, equipment_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, end_time TIMESTAMP NULL DEFAULT NULL, duration_seconds INT UNSIGNED DEFAULT 0, session_status ENUM('active', 'completed', 'cancelled') NOT NULL DEFAULT 'active', INDEX idx_gym_equipment (gym_id, equipment_id), INDEX idx_user_status (user_id, session_status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS equipment_sessions (session_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, equipment_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, trainer_user_id INT UNSIGNED NULL DEFAULT NULL, start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, end_time TIMESTAMP NULL DEFAULT NULL, session_status ENUM('active', 'completed', 'cancelled') NOT NULL DEFAULT 'active', INDEX idx_gym_equipment (gym_id, equipment_id), INDEX idx_user_status (user_id, session_status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS equipment_queues (queue_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, equipment_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, queue_position INT UNSIGNED NOT NULL DEFAULT 1, queue_status ENUM('waiting', 'notified', 'claimed', 'cancelled', 'expired') NOT NULL DEFAULT 'waiting', joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, notified_at TIMESTAMP NULL DEFAULT NULL, claim_deadline TIMESTAMP NULL DEFAULT NULL, resolved_at TIMESTAMP NULL DEFAULT NULL, INDEX idx_user_active_queue (user_id, equipment_id, queue_status), INDEX idx_equip_queue_pos (equipment_id, queue_status, queue_position)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS equipment_maintenance_logs (log_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, equipment_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED NOT NULL, logged_by_user_id INT UNSIGNED NOT NULL, action VARCHAR(50) NOT NULL, reason VARCHAR(255) DEFAULT NULL, expected_return_date DATE DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, INDEX idx_equip_logs (equipment_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE INDEX idx_att_checkout_checkin ON attendance (check_out_time, check_in_time)",
         "CREATE INDEX idx_notif_created_read ON notifications (is_read, created_at)",
         "CREATE INDEX idx_notif_created ON notifications (created_at)",
         "CREATE INDEX idx_notif_cooldown ON notifications (user_id, type, title, created_at)",
+        "ALTER TABLE notifications ADD COLUMN reference_id INT UNSIGNED DEFAULT NULL AFTER message",
+        "CREATE INDEX idx_notif_reference ON notifications (reference_id)",
         "CREATE INDEX idx_equip_queue_gym_status ON equipment_queues (gym_id, queue_status, equipment_id)",
         "CREATE TABLE IF NOT EXISTS gym_ratings (rating_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, gym_id INT UNSIGNED NOT NULL, user_id INT UNSIGNED NOT NULL, rating TINYINT UNSIGNED NOT NULL, review TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_member_gym_rating (user_id, gym_id), INDEX idx_gym_ratings_gym (gym_id), INDEX idx_gym_ratings_user (user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS platform_reviews (review_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NOT NULL, gym_id INT UNSIGNED DEFAULT NULL, rating TINYINT UNSIGNED NOT NULL, review TEXT DEFAULT NULL, system_experience TINYINT UNSIGNED DEFAULT NULL, features_rating TINYINT UNSIGNED DEFAULT NULL, service_rating TINYINT UNSIGNED DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_owner_platform_review (user_id), INDEX idx_platform_rating (rating)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
@@ -100,11 +99,13 @@ try {
         "ALTER TABLE gyms ADD COLUMN eod_gate_time TIME NOT NULL DEFAULT '17:00:00'",
         "ALTER TABLE gyms ADD COLUMN pending_eod_gate_time TIME DEFAULT NULL",
         "ALTER TABLE gyms ADD COLUMN eod_gate_effective_date DATE DEFAULT NULL",
-        "UPDATE platform_subscription_plans SET features = CONCAT(features, '\nFood & Nutrition Library') WHERE plan_key = 'starter' AND features NOT LIKE '%Food & Nutrition Library%'",
         "ALTER TABLE gyms ADD COLUMN secondary_valid_id_url VARCHAR(255) DEFAULT NULL AFTER valid_id_type",
         "ALTER TABLE gyms ADD COLUMN secondary_valid_id_type VARCHAR(100) DEFAULT NULL AFTER secondary_valid_id_url",
+        "ALTER TABLE gyms ADD COLUMN subscription_billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly' AFTER subscription_renewal_date",
         "CREATE TABLE IF NOT EXISTS gym_verification_id_types (id INT AUTO_INCREMENT PRIMARY KEY, id_code VARCHAR(50) NOT NULL UNIQUE, id_name VARCHAR(100) NOT NULL, category ENUM('primary', 'secondary') NOT NULL DEFAULT 'primary', requires_supporting_id TINYINT(1) NOT NULL DEFAULT 0, display_order INT NOT NULL DEFAULT 0, is_active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "INSERT INTO gym_verification_id_types (id_code, id_name, category, requires_supporting_id, display_order, is_active) VALUES ('philsys', 'Philippine National ID (PhilSys ID)', 'primary', 0, 10, 1), ('drivers_license', \"Driver's License\", 'primary', 0, 20, 1), ('passport', 'Passport', 'primary', 0, 30, 1), ('umid', 'UMID (Unified Multi-Purpose ID)', 'primary', 0, 40, 1), ('prc', 'PRC ID', 'primary', 0, 50, 1), ('sss', 'SSS ID', 'primary', 0, 60, 1), ('gsis', 'GSIS ID', 'primary', 0, 70, 1), ('tin', 'TIN ID', 'secondary', 1, 80, 1), ('postal', 'Postal ID', 'secondary', 1, 90, 1), ('other', 'Other Valid Government ID', 'secondary', 1, 100, 1) ON DUPLICATE KEY UPDATE id_name = VALUES(id_name), category = VALUES(category), requires_supporting_id = VALUES(requires_supporting_id), display_order = VALUES(display_order)",
+        "CREATE TABLE IF NOT EXISTS food_items (food_id INT AUTO_INCREMENT PRIMARY KEY, gym_id INT NULL DEFAULT NULL, name VARCHAR(255) NOT NULL, meal_type ENUM('Breakfast', 'Lunch', 'Dinner', 'Snack') NOT NULL, dietary_restriction VARCHAR(100) DEFAULT 'none', serving_size VARCHAR(100) DEFAULT '1 serving', calories INT NOT NULL, protein_g DECIMAL(6,1) NOT NULL, carbs_g DECIMAL(6,1) NOT NULL, fat_g DECIMAL(6,1) NOT NULL, image_url VARCHAR(255) DEFAULT NULL, recipe_desc TEXT DEFAULT NULL, ingredients TEXT DEFAULT NULL, source VARCHAR(50) DEFAULT 'system', is_active TINYINT(1) DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, KEY idx_food_gym_type (gym_id, meal_type), KEY idx_food_restriction (dietary_restriction)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "ALTER TABLE food_items ADD COLUMN ingredients TEXT DEFAULT NULL AFTER recipe_desc",
         "ALTER TABLE food_items ADD COLUMN verification_status ENUM('unverified', 'verified', 'rejected') NOT NULL DEFAULT 'unverified' AFTER source",
         "ALTER TABLE food_items ADD COLUMN rejection_reason TEXT DEFAULT NULL AFTER verification_status",
         "ALTER TABLE food_items ADD COLUMN verified_at DATETIME DEFAULT NULL AFTER rejection_reason",
@@ -122,11 +123,13 @@ try {
         "ALTER TABLE attendance ADD COLUMN exit_grace_expires_at DATETIME DEFAULT NULL AFTER exit_detected_at",
         "CREATE INDEX idx_att_exit_grace ON attendance (check_out_time, exit_grace_expires_at)",
         "ALTER TABLE equipment_sessions ADD COLUMN trainer_user_id INT UNSIGNED NULL DEFAULT NULL AFTER user_id",
-        "ALTER TABLE equipment_sessions ADD COLUMN partner_user_ids TEXT NULL DEFAULT NULL AFTER trainer_user_id",
         "ALTER TABLE membership_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
         "ALTER TABLE platform_subscription_plans ADD COLUMN is_popular TINYINT(1) NOT NULL DEFAULT 0",
         "CREATE UNIQUE INDEX uq_trainer_comm_payment ON trainer_commissions (payment_id)",
         "CREATE UNIQUE INDEX uq_att_user_checkin_exact ON attendance (user_id, check_in_time)",
+        "ALTER TABLE trainer_assignments ADD COLUMN group_id VARCHAR(36) DEFAULT NULL AFTER assignment_id",
+        "ALTER TABLE trainer_assignments ADD COLUMN activity_title VARCHAR(255) DEFAULT 'Personal Training' AFTER status",
+        "CREATE INDEX idx_ta_group ON trainer_assignments (group_id)",
 
         // ── Multi-Gym Plan Management migrations ──
         "ALTER TABLE training_plans ADD COLUMN gym_id INT UNSIGNED DEFAULT NULL AFTER trainer_id",
@@ -145,11 +148,6 @@ try {
         // Add 'upcoming' and 'paused' statuses to training_plans and dietary_plans
         "ALTER TABLE training_plans MODIFY COLUMN status ENUM('active','completed','archived','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
         "ALTER TABLE dietary_plans MODIFY COLUMN status ENUM('active','completed','cancelled','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
-
-        // ── Member Onboarding, Schedule Enforcement & Secondary Focus migrations ──
-        "ALTER TABLE member_profiles ADD COLUMN preferred_workout_days VARCHAR(50) DEFAULT NULL AFTER preferred_duration_mins",
-        "ALTER TABLE member_profiles ADD COLUMN secondary_focus VARCHAR(255) DEFAULT NULL AFTER primary_goal",
-        "ALTER TABLE member_profiles ADD COLUMN trainer_assessment_notes TEXT DEFAULT NULL AFTER preferred_workout_days",
 
         // ── Active facility resolution (get_user_gym / memberships page) ──
         "CREATE INDEX idx_mem_user_status_end ON memberships (user_id, status, end_date)",
@@ -172,7 +170,24 @@ try {
         "CREATE INDEX idx_meal_logs_user_date_time ON member_meal_logs (user_id, log_date, logged_at)",
         "ALTER TABLE daily_macros MODIFY COLUMN protein_g DECIMAL(6,1) DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) DEFAULT 0",
         "ALTER TABLE member_meal_logs MODIFY COLUMN protein_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN carbs_g DECIMAL(6,1) NOT NULL DEFAULT 0, MODIFY COLUMN fat_g DECIMAL(6,1) NOT NULL DEFAULT 0",
-        "UPDATE platform_subscription_plans SET features = 'Up to 100 Active Users\r\nWalk-in Management & Daily Pass\r\nDynamic QR Check-in & Scanner\r\nMembership Plans & GCash / Online Pay\r\nAccent Color Theme & Public Gym Page\r\nBasic Expiration Reminders (7-Day Notice)\r\nBasic Financial Reports & CSV Export\r\nBasic Activity History\r\nFood & Nutrition Library' WHERE plan_key = 'starter'"
+        "ALTER TABLE payments MODIFY COLUMN status ENUM('paid','pending','overdue','refunded','cancelled') NOT NULL DEFAULT 'pending'",
+        // ── Instant Approval for Admin-Created Gym Owners backfill ──
+        "INSERT INTO gyms (owner_user_id, name, address, contact_info, status, subscription_plan, subscription_status, subscription_renewal_date, subscription_billing_cycle) SELECT u.user_id, CONCAT(u.first_name, ' Fitness'), 'Primary Facility', u.phone, 'approved', 'Free Trial', 'trialing', DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'monthly' FROM users u WHERE u.role = 'gym_owner' AND NOT EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id)",
+        "UPDATE gyms SET subscription_plan = 'Free Trial', subscription_status = 'trialing', subscription_renewal_date = DATE_ADD(CURDATE(), INTERVAL 14 DAY) WHERE status = 'approved' AND (subscription_status IS NULL OR subscription_status = '' OR subscription_status = 'inactive')",
+        // ── API Ninjas Exercise Database Schema Support ──
+        "ALTER TABLE `exercises` MODIFY COLUMN `description` TEXT DEFAULT NULL",
+        "ALTER TABLE `exercises` ADD COLUMN `equipment` VARCHAR(80) DEFAULT NULL AFTER `muscle_group`",
+        "ALTER TABLE `exercises` ADD COLUMN `animation_url` VARCHAR(255) DEFAULT NULL AFTER `description`",
+        // ── Clean up orphaned pending payments for cancelled memberships ──
+        "UPDATE payments p JOIN memberships m ON m.membership_id = p.membership_id SET p.status = 'cancelled' WHERE m.status = 'cancelled' AND p.status = 'pending'",
+        // ── Long Coaching Cues / Instructions Support ──
+        "ALTER TABLE `training_plan_exercises` MODIFY COLUMN `notes` TEXT DEFAULT NULL",
+        // ── Landing Page Demo Requests Leads Management ──
+        "CREATE TABLE IF NOT EXISTS demo_requests (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, gym_name VARCHAR(150) DEFAULT NULL, approx_members VARCHAR(50) DEFAULT NULL, full_name VARCHAR(200) NOT NULL, work_email VARCHAR(200) NOT NULL, phone VARCHAR(50) DEFAULT NULL, role VARCHAR(100) DEFAULT NULL, message TEXT DEFAULT NULL, status ENUM('new','contacted','demo_scheduled','closed') DEFAULT 'new', admin_notes TEXT DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_status (status), INDEX idx_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "ALTER TABLE demo_requests ADD COLUMN gym_name VARCHAR(150) DEFAULT NULL AFTER id",
+        "ALTER TABLE demo_requests ADD COLUMN approx_members VARCHAR(50) DEFAULT NULL AFTER gym_name",
+        "ALTER TABLE demo_requests ADD COLUMN admin_notes TEXT DEFAULT NULL AFTER status",
+        "ALTER TABLE demo_requests ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at"
     ];
 
     foreach ($migrations as $sql) {
@@ -189,6 +204,36 @@ try {
             }
         }
     }
+
+    require_once __DIR__ . '/database/migrations/normalize_member_profiles.php';
+    run_normalize_member_profiles_migration($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Normalized member_profiles into 3NF tables (focus_areas, dietary_restrictions, member_workout_days, member_goals, trainer_assessments, progress_logs)</li>";
+
+    require_once __DIR__ . '/database/migrations/normalize_phase2_tables.php';
+    run_normalize_phase2_migration($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Normalized Phase 2 tables (equipment_session_partners, diet_rules macro pct columns, plan_features)</li>";
+
+    require_once __DIR__ . '/database/migrations/normalize_gyms.php';
+    run_normalize_gyms_migration($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Normalized Phase 3 gyms table (gym_verification_documents, gym_payout_accounts, gym_settings, subscription_plan_id)</li>";
+
+    require_once __DIR__ . '/database/migrations/create_food_items.php';
+    if (function_exists('seed_initial_food_items')) {
+        $seededCount = seed_initial_food_items($pdo);
+        echo "<li><span style='color:green;'>Success:</span> Seeded/verified {$seededCount} standard items in food_items catalog</li>";
+    }
+
+    require_once __DIR__ . '/database/migrations/normalize_phase4_food_and_meals.php';
+    run_normalize_phase4_migration($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Normalized Phase 4 meal and food tables (meal_foods, member_meal_log_foods, food_dietary_restrictions, food_ingredients, v_daily_meal_macros view)</li>";
+
+    require_once __DIR__ . '/database/migrations/normalize_phase5_equipment_and_assignments.php';
+    run_normalize_phase5_migration($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Normalized Phase 5 equipment and assignments tables (gym_equipment maintenance decoupling, assignment_groups, assignment_group_members, v_gym_equipment, v_assignment_group_details)</li>";
+
+    require_once __DIR__ . '/database/migrations/normalize_phase6_lookups.php';
+    run_normalize_phase6_migration($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Normalized Phase 6 lookup tables (badges, exercise_categories, muscle_groups, fitness_goals, v_member_badges, v_exercises, v_member_profiles_unified)</li>";
     
     // Automatically align tables to utf8mb4_0900_ai_ci (reverts any tables from utf8mb4_bin / utf8mb4_unicode_ci to match MySQL 8 & TiDB schema)
     try {

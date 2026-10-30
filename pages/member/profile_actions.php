@@ -84,14 +84,18 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             }
             redirect('profile');
         } elseif (isset($_POST['height_cm']) && $is_member) {
+            $sex = (string)($_POST['biological_sex'] ?? ($profile['biological_sex'] ?? 'male'));
+            if ($sex !== 'female') {
+                unset($_POST['hip_cm']);
+            }
+
             $validator = new Validator();
-            $valid = $validator->validate($_POST, [
+            $rules = [
                 'height_cm'                     => 'numeric|min_num:100|max_num:250',
                 'weight_kg'                     => 'numeric|min_num:20|max_num:300',
                 'age'                           => 'numeric|min_num:16|max_num:120',
                 'neck_cm'                       => 'numeric|min_num:20|max_num:100',
                 'waist_cm'                      => 'numeric|min_num:45|max_num:200',
-                'hip_cm'                        => 'numeric|min_num:60|max_num:220',
                 'chest_cm'                      => 'numeric|min_num:30|max_num:200',
                 'arm_cm'                        => 'numeric|min_num:10|max_num:100',
                 'target_weight_kg'              => 'numeric|min_num:20|max_num:300',
@@ -107,9 +111,12 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 'target_endurance_time_mins'    => 'numeric|min_num:1|max_num:1440',
                 'weekly_workout_target'         => 'numeric|min_num:1|max_num:7',
                 'preferred_duration_mins'       => 'numeric|min_num:15|max_num:180',
-            ]);
-            
-            $sex = (string)($_POST['biological_sex'] ?? ($profile['biological_sex'] ?? 'male'));
+            ];
+            if ($sex === 'female') {
+                $rules['hip_cm'] = 'numeric|min_num:60|max_num:220';
+            }
+
+            $valid = $validator->validate($_POST, $rules);
             $waistVal = !empty($_POST['waist_cm']) ? (float)$_POST['waist_cm'] : null;
             $hipVal = !empty($_POST['hip_cm']) ? (float)$_POST['hip_cm'] : null;
             $neckVal = !empty($_POST['neck_cm']) ? (float)$_POST['neck_cm'] : null;
@@ -162,9 +169,10 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                         $goalFormatted = ucwords(str_replace('_', ' ', (string) $newGoal));
                         notify_user(
                             $trainerUserId,
-                            'client_goal',
+                            'system',
                             'Client Fitness Goal Updated',
-                            $clientName . ' updated their primary fitness goal to "' . $goalFormatted . '". Review and update their training routine when convenient.'
+                            $clientName . ' updated their primary fitness goal to "' . $goalFormatted . '". Review and update their training routine when convenient.',
+                            $memberUserId
                         );
                     }
                 }
@@ -254,6 +262,7 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 $pdo->commit();
 
                 $_SESSION['current_gym_id'] = $newGymId;
+                clear_member_gyms_cache((int) $user['user_id']);
                 flash('Active home gym switched to ' . $gym['name'] . '. Your historical data (workouts, diet, progress) is now linked to this profile.', 'success');
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {
@@ -312,7 +321,7 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 if ((int) ($_SESSION['current_gym_id'] ?? 0) === $gymId) {
                     unset($_SESSION['current_gym_id']);
                 }
-                unset($_SESSION['member_gyms_cache_' . $userId]);
+                clear_member_gyms_cache($userId);
                 flash("You have cleanly unlinked from {$gymName}. That facility's staff and trainers can no longer view your roster profile.", 'success');
             } catch (Throwable $e) {
                 if ($pdo->inTransaction()) {
@@ -656,6 +665,11 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                         } catch (Throwable) {}
                     };
                     $deleteIfExists('member_profiles', 'user_id', $userId);
+                    $deleteIfExists('member_goals', 'user_id', $userId);
+                    $deleteIfExists('member_focus_areas', 'user_id', $userId);
+                    $deleteIfExists('member_dietary_restrictions', 'user_id', $userId);
+                    $deleteIfExists('member_workout_days', 'user_id', $userId);
+                    $deleteIfExists('trainer_assessments', 'member_user_id', $userId);
                     $deleteIfExists('progress_logs', 'user_id', $userId);
                     $deleteIfExists('member_meal_logs', 'user_id', $userId);
                     $deleteIfExists('daily_macros', 'user_id', $userId);

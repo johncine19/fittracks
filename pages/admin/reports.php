@@ -115,12 +115,14 @@ function render_report_tf_group(
     $monthlyActive = ($defaultTimeframe === 'monthly') ? 'active' : '';
     $yearlyActive = ($defaultTimeframe === 'yearly') ? 'active' : '';
 
-    $hintText = match($type) {
-        'revenue' => ($defaultTimeframe === 'daily') ? 'Viewing daily revenue stream breakdown' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year macro revenue trends' : 'Viewing last 12 months rolling run-rate'),
-        'attendance' => ($defaultTimeframe === 'daily') ? 'Viewing daily check-in trail' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year check-in history' : 'Viewing monthly check-in volume'),
-        'walkin' => ($defaultTimeframe === 'daily') ? 'Viewing daily walk-in trail' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year walk-in trajectory' : 'Viewing monthly walk-in volume'),
-        default => 'Viewing time series'
-    };
+    $hintText = $isCustomDateRange
+        ? ('Viewing ' . $activeDateRangeLabel . ' filtered window')
+        : match($type) {
+            'revenue' => ($defaultTimeframe === 'daily') ? 'Viewing daily revenue stream breakdown' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year macro revenue trends' : 'Viewing last 12 months rolling run-rate'),
+            'attendance' => ($defaultTimeframe === 'daily') ? 'Viewing daily check-in trail' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year check-in history' : 'Viewing monthly check-in volume'),
+            'walkin' => ($defaultTimeframe === 'daily') ? 'Viewing daily walk-in trail' : (($defaultTimeframe === 'yearly') ? 'Viewing 5-year walk-in trajectory' : 'Viewing monthly walk-in volume'),
+            default => 'Viewing time series'
+        };
     ?>
     <div class="tf-group">
         <div class="report-range-picker-wrap">
@@ -408,7 +410,7 @@ function reports_page(): void
     }
 
     $dateFilterPayment = $isCustomDateRange ? " AND p.payment_date BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
-    $dateFilterWalkin = $isCustomDateRange ? " AND visit_date BETWEEN '{$startDate}' AND '{$endDate}'" : "";
+    $dateFilterWalkin = $isCustomDateRange ? " AND visit_date BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
     $dateFilterAttendance = $isCustomDateRange ? " AND check_in_time BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
     $dateFilterSaaS = $isCustomDateRange ? " AND sp.payment_date BETWEEN '{$startDate} 00:00:00' AND '{$endDate} 23:59:59'" : "";
 
@@ -1087,6 +1089,17 @@ function reports_page(): void
 
     render_header('Reports & Analytics', $user);
     ?>
+    <script>
+    (function() {
+        try {
+            var savedPos = sessionStorage.getItem('fittrack_reports_scroll');
+            if (savedPos !== null) {
+                if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+                window.scrollTo(0, parseInt(savedPos, 10));
+            }
+        } catch(e) {}
+    })();
+    </script>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/reports.css')) ?>">
 
     <!-- Header / Banner -->
@@ -1728,12 +1741,12 @@ function reports_page(): void
                     </div>
 
                     <!-- Canvas Area -->
-                    <div class="chart-canvas" id="revenue-chart-canvas-wrap" style="min-height: 360px; height: 360px; display: <?= $revenueTotals['monthly']['total'] > 0 ? 'block' : 'none' ?>;">
+                    <div class="chart-canvas" id="revenue-chart-canvas-wrap" style="min-height: 360px; height: 360px; display: <?= $revenueTotals[$defaultTimeframe]['total'] > 0 ? 'block' : 'none' ?>;">
                         <canvas id="revenueChart"></canvas>
                     </div>
 
                     <!-- Intentional Empty State for Chart -->
-                    <div id="revenue-chart-empty-state" class="empty-state-box" style="display: <?= $revenueTotals['monthly']['total'] > 0 ? 'none' : 'flex' ?>; min-height: 360px;">
+                    <div id="revenue-chart-empty-state" class="empty-state-box" style="display: <?= $revenueTotals[$defaultTimeframe]['total'] > 0 ? 'none' : 'flex' ?>; min-height: 360px;">
                         <div class="empty-icon-circle">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
                         </div>
@@ -1760,17 +1773,17 @@ function reports_page(): void
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                             <h4 style="margin: 0; font-size: 13.5px; color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em;">Revenue Mix</h4>
                             <span class="pill-badge neutral" id="mix-total-badge">
-                                <?= $revenueTotals['monthly']['total'] > 0 ? '₱' . number_format($revenueTotals['monthly']['total'], 2) . ' Total' : 'No Data' ?>
+                                <?= $revenueTotals[$defaultTimeframe]['total'] > 0 ? '₱' . number_format($revenueTotals[$defaultTimeframe]['total'], 2) . ' Total' : 'No Data' ?>
                             </span>
                         </div>
 
                         <!-- Donut Canvas Wrap -->
-                        <div id="revenue-mix-canvas-wrap" style="height: 180px; position: relative; display: <?= $revenueTotals['monthly']['total'] > 0 ? 'block' : 'none' ?>;">
+                        <div id="revenue-mix-canvas-wrap" style="height: 180px; position: relative; display: <?= $revenueTotals[$defaultTimeframe]['total'] > 0 ? 'block' : 'none' ?>;">
                             <canvas id="revenueMixChart"></canvas>
                         </div>
 
                         <!-- Donut Empty State Placeholder (Visual Ring with Text) -->
-                        <div id="revenue-mix-empty-state" style="height: 180px; display: <?= $revenueTotals['monthly']['total'] > 0 ? 'none' : 'flex' ?>; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px; padding: 16px;">
+                        <div id="revenue-mix-empty-state" style="height: 180px; display: <?= $revenueTotals[$defaultTimeframe]['total'] > 0 ? 'none' : 'flex' ?>; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px; padding: 16px;">
                             <div style="width: 44px; height: 44px; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; margin-bottom: 8px; color: var(--muted);">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 1 10 10"></path></svg>
                             </div>
@@ -1783,13 +1796,13 @@ function reports_page(): void
                                 <span class="mix-legend-label" style="color: var(--lime); font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
                                     <span class="mix-legend-dot" style="width:8px; height:8px; border-radius:50%; background: var(--lime);"></span> Subscriptions
                                 </span>
-                                <strong id="mix-sub-label" style="color: var(--ink);">₱<?= number_format($chartsData['revenue']['monthly']['subTotal'], 2) ?></strong>
+                                <strong id="mix-sub-label" style="color: var(--ink);">₱<?= number_format($chartsData['revenue'][$defaultTimeframe]['subTotal'], 2) ?></strong>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; background: rgba(14,165,233,0.08); border-radius: 6px;">
                                 <span style="color: #38bdf8; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
                                     <span style="width:8px; height:8px; border-radius:50%; background:#38bdf8;"></span> Walk-In Passes
                                 </span>
-                                <strong id="mix-walk-label" style="color: var(--ink);">₱<?= number_format($chartsData['revenue']['monthly']['walkTotal'], 2) ?></strong>
+                                <strong id="mix-walk-label" style="color: var(--ink);">₱<?= number_format($chartsData['revenue'][$defaultTimeframe]['walkTotal'], 2) ?></strong>
                             </div>
                         </div>
                     </div>
@@ -2012,12 +2025,12 @@ function reports_page(): void
 
             <div class="dash-grid report-dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start; margin-bottom: 30px;">
                 <div class="report-card-box">
-                    <div class="chart-canvas" id="attendance-chart-canvas-wrap" style="min-height: 330px; height: 330px; display: <?= $attendanceTotals['daily']['visits'] > 0 ? 'block' : 'none' ?>;">
+                    <div class="chart-canvas" id="attendance-chart-canvas-wrap" style="min-height: 330px; height: 330px; display: <?= $attendanceTotals[$defaultTimeframe]['visits'] > 0 ? 'block' : 'none' ?>;">
                         <canvas id="attendanceChart"></canvas>
                     </div>
 
                     <!-- Attendance Empty State -->
-                    <div id="attendance-chart-empty-state" class="empty-state-box" style="display: <?= $attendanceTotals['daily']['visits'] > 0 ? 'none' : 'flex' ?>; min-height: 330px;">
+                    <div id="attendance-chart-empty-state" class="empty-state-box" style="display: <?= $attendanceTotals[$defaultTimeframe]['visits'] > 0 ? 'none' : 'flex' ?>; min-height: 330px;">
                         <div class="empty-icon-circle">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                         </div>
@@ -2161,12 +2174,12 @@ function reports_page(): void
 
             <div class="dash-grid report-dash-grid" style="grid-template-columns: 2fr 1.1fr; gap: 24px; align-items: start;">
                 <div class="report-card-box">
-                    <div class="chart-canvas" id="walkin-chart-canvas-wrap" style="min-height: 360px; height: 360px; display: <?= $walkinTotals['daily']['visits'] > 0 ? 'block' : 'none' ?>;">
+                    <div class="chart-canvas" id="walkin-chart-canvas-wrap" style="min-height: 360px; height: 360px; display: <?= $walkinTotals[$defaultTimeframe]['visits'] > 0 ? 'block' : 'none' ?>;">
                         <canvas id="walkinChart"></canvas>
                     </div>
 
                     <!-- Walkin Empty State -->
-                    <div id="walkin-chart-empty-state" class="empty-state-box" style="display: <?= $walkinTotals['daily']['visits'] > 0 ? 'none' : 'flex' ?>; min-height: 360px;">
+                    <div id="walkin-chart-empty-state" class="empty-state-box" style="display: <?= $walkinTotals[$defaultTimeframe]['visits'] > 0 ? 'none' : 'flex' ?>; min-height: 360px;">
                         <div class="empty-icon-circle">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
                         </div>

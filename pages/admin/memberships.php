@@ -7,7 +7,7 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 function memberships_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner', 'member']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'staff', 'member']);
 
     // Auto-expire lapsed memberships so statuses are up-to-date
     if (function_exists('auto_expire_lapsed_member_subscriptions')) {
@@ -522,9 +522,10 @@ function memberships_page(): void
         $planId = (int) post('subscribe_plan_id');
         $paymentMethod = post('payment_method') === 'xendit' ? 'xendit' : 'cash';
 
-        $stmt = db()->prepare('SELECT mp.*, g.name AS gym_name, g.owner_user_id, g.xendit_subaccount_id
+        $stmt = db()->prepare('SELECT mp.*, g.name AS gym_name, g.owner_user_id, gpa.xendit_subaccount_id
             FROM membership_plans mp
             JOIN gyms g ON g.gym_id = mp.gym_id
+            LEFT JOIN gym_payout_accounts gpa ON gpa.gym_id = g.gym_id
             WHERE mp.plan_id = ? AND mp.is_active = 1');
         $stmt->execute([$planId]);
         $plan = $stmt->fetch();
@@ -736,7 +737,7 @@ function memberships_page(): void
             $gymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$memberGymId]);
             $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 AND mp.gym_id = ' . $memberGymId . ' ORDER BY mp.price')->fetchAll();
             $memberXenditEnabled = (string)app_env('XENDIT_SECRET_KEY') !== ''
-                && (string)scalar('SELECT xendit_subaccount_id FROM gyms WHERE gym_id = ?', [$memberGymId]) !== '';
+                && (string)scalar('SELECT xendit_subaccount_id FROM gym_payout_accounts WHERE gym_id = ?', [$memberGymId]) !== '';
         } else {
             $plans = [];
             $memberXenditEnabled = false;

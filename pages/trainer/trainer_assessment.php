@@ -46,19 +46,27 @@ function trainer_assessment_page(): void
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Keep these member-managed profile values unchanged, even if a request is altered.
+        // Keep these member-managed profile values unchanged, even if a request is altered.
         $_POST['age'] = $profile['age'] ?? '';
         $_POST['biological_sex'] = $profile['biological_sex'] ?? 'male';
+        $sex = (string)($_POST['biological_sex'] ?? 'male');
+        if ($sex !== 'female') {
+            unset($_POST['hip_cm']);
+        }
 
         $validator = new Validator();
-        $valid = $validator->validate($_POST, [
+        $rules = [
             'height_cm' => 'numeric|min_num:100|max_num:250',
             'weight_kg' => 'numeric|min_num:20|max_num:300',
             'age'       => 'numeric|min_num:16|max_num:120',
             'neck_cm'   => 'numeric|min_num:20|max_num:100',
             'waist_cm'  => 'numeric|min_num:30|max_num:200',
-            'hip_cm'    => 'numeric|min_num:30|max_num:200',
-        ]);
-        
+        ];
+        if ($sex === 'female') {
+            $rules['hip_cm'] = 'numeric|min_num:30|max_num:200';
+        }
+
+        $valid = $validator->validate($_POST, $rules);
         if (!$valid) {
             if ($isAjax) {
                 header('Content-Type: application/json');

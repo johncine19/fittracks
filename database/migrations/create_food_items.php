@@ -3,9 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../core/bootstrap.php';
 
-try {
-    $pdo = db();
-
+function seed_initial_food_items(PDO $pdo): int
+{
     // 1. Create table
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS `food_items` (
@@ -21,6 +20,7 @@ try {
             `fat_g` DECIMAL(6,1) NOT NULL,
             `image_url` VARCHAR(255) DEFAULT NULL,
             `recipe_desc` TEXT DEFAULT NULL,
+            `ingredients` TEXT DEFAULT NULL,
             `source` VARCHAR(50) DEFAULT 'system',
             `is_active` TINYINT(1) DEFAULT 1,
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -29,13 +29,11 @@ try {
             KEY `idx_food_restriction` (`dietary_restriction`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
-    echo "Table food_items created or already exists.\n";
 
     // 2. Check if already seeded
     $count = (int) $pdo->query("SELECT COUNT(*) FROM food_items WHERE source = 'system'")->fetchColumn();
     if ($count > 0) {
-        echo "Food items already seeded ($count items found).\n";
-        exit;
+        return $count;
     }
 
     // 3. Seed initial library of Filipino and fitness staple foods
@@ -111,8 +109,17 @@ try {
         $inserted++;
     }
 
-    echo "Successfully seeded $inserted standard food items into the food_items table!\n";
-} catch (Throwable $e) {
-    echo "Error during migration: " . $e->getMessage() . "\n";
-    exit(1);
+    return $inserted;
 }
+
+if (php_sapi_name() === 'cli' && realpath(__FILE__) === realpath($_SERVER['SCRIPT_FILENAME'] ?? '')) {
+    try {
+        $pdo = db();
+        $cnt = seed_initial_food_items($pdo);
+        echo "Food items catalog ready ($cnt standard items).\n";
+    } catch (Throwable $e) {
+        echo "Error during migration: " . $e->getMessage() . "\n";
+        exit(1);
+    }
+}
+

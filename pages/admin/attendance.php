@@ -165,7 +165,7 @@ function attendance_page(): void
                     $sessStmt = db()->prepare('INSERT INTO equipment_sessions (gym_id, equipment_id, user_id, start_time, session_status) VALUES (?, ?, ?, NOW(), "active")');
                     $sessStmt->execute([$gymId, $equipmentId, $userId]);
                     $sessionId = (int) db()->lastInsertId();
-                    db()->prepare('UPDATE gym_equipment SET current_session_id = ? WHERE equipment_id = ?')->execute([$sessionId, $equipmentId]);
+                    // current_session_id decoupled in Phase 5 normalization
                     $assignedEquipName = scalar('SELECT name FROM gym_equipment WHERE equipment_id = ?', [$equipmentId]);
                 }
             }

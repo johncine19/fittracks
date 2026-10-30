@@ -12,7 +12,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
 
     // Tab Switching Logic with Hash Support
     function switchHubTab(tabName) {
-        const tabs = ['overview', 'workout', 'progress', 'notes'];
+        const tabs = ['overview', 'workout', 'progress', 'nutrition', 'notes'];
         tabs.forEach(t => {
             const btn = document.getElementById('hub-tab-btn-' + t);
             const pane = document.getElementById('hub-pane-' + t);
@@ -36,7 +36,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     // Auto-select tab if URL has hash
     window.addEventListener('DOMContentLoaded', () => {
         const hash = window.location.hash.replace('#', '');
-        if (['overview', 'workout', 'progress', 'notes'].includes(hash)) {
+        if (['overview', 'workout', 'progress', 'nutrition', 'notes'].includes(hash)) {
             switchHubTab(hash);
         }
         initHubChart();

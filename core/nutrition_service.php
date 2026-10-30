@@ -94,7 +94,9 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     }
 
     // 2. Fetch member profile
-    $profile = $pdo->query('SELECT * FROM member_profiles WHERE user_id = ' . (int)$memberUserId)->fetch(PDO::FETCH_ASSOC);
+    $profile = function_exists('member_profile')
+        ? member_profile((int)$memberUserId)
+        : $pdo->query('SELECT * FROM member_profiles WHERE user_id = ' . (int)$memberUserId)->fetch(PDO::FETCH_ASSOC);
     if (!$profile) {
         return null;
     }
@@ -139,18 +141,16 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     $targetCals = max(1200, (int) round($targetCals));
 
     // 6. Macro Split
-    $dRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ? AND experience_level = ? LIMIT 1');
+    $dRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct FROM diet_rules WHERE primary_goal = ? AND experience_level = ? LIMIT 1');
     $dRule->execute([$basicGoal, $expLevel]);
     $rule = $dRule->fetch(PDO::FETCH_ASSOC);
     if (!$rule) {
         $dRule->execute(['general_health', 1]);
         $rule = $dRule->fetch(PDO::FETCH_ASSOC);
     }
-    $splitStr = $rule['macro_split'] ?? '35% Protein / 35% Carbs / 30% Fat';
-    preg_match('/(\d+)%\s+Protein\s*\/\s*(\d+)%\s+Carbs\s*\/\s*(\d+)%\s+Fat/i', $splitStr, $matches);
-    $p_pct = (isset($matches[1]) ? (int)$matches[1] : 35) / 100;
-    $c_pct = (isset($matches[2]) ? (int)$matches[2] : 35) / 100;
-    $f_pct = (isset($matches[3]) ? (int)$matches[3] : 30) / 100;
+    $p_pct = ((int)($rule['protein_pct'] ?? 35)) / 100;
+    $c_pct = ((int)($rule['carbs_pct'] ?? 35)) / 100;
+    $f_pct = ((int)($rule['fat_pct'] ?? 30)) / 100;
 
     $p_g = (int) round(($targetCals * $p_pct) / 4);
     $c_g = (int) round(($targetCals * $c_pct) / 4);
@@ -284,6 +284,21 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
             }
 
             $stmtMeal->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, $mP, $mC, $mF]);
+            $mealId = (int)$pdo->lastInsertId();
+            if ($mealId > 0) {
+                try {
+                    $insMealFood = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, 1.00, ?, ?, ?, ?)');
+                    $insMealFood->execute([
+                        $mealId,
+                        $selectedFood ? (int)$selectedFood['food_id'] : null,
+                        $selectedFood ? (string)$selectedFood['name'] : $mFood,
+                        $mCals,
+                        $mP,
+                        $mC,
+                        $mF
+                    ]);
+                } catch (Throwable $e) {}
+            }
         }
     }
 

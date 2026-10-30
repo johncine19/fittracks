@@ -872,6 +872,29 @@
 
         renderGymMarkers();
         fitAllGyms();
+
+        // Responsive ResizeObserver to ensure tiles fill the container dynamically
+        const mapEl = document.getElementById('gym-map');
+        if (window.ResizeObserver && mapEl) {
+            let roTimer = null;
+            const ro = new ResizeObserver(entries => {
+                for (const entry of entries) {
+                    if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                        clearTimeout(roTimer);
+                        roTimer = setTimeout(() => {
+                            if (map) map.invalidateSize({ pan: false });
+                        }, 60);
+                    }
+                }
+            });
+            ro.observe(mapEl);
+        }
+        window.addEventListener('resize', () => {
+            if (map) map.invalidateSize({ pan: false });
+        });
+        [100, 300, 700].forEach(delay => {
+            setTimeout(() => { if (map) map.invalidateSize({ pan: false }); }, delay);
+        });
     }
 
     // ---------------------------------------------------------------

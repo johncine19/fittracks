@@ -34,7 +34,16 @@ function setup_profile_page(): void
         $errorRedirectBase = $isEditMode ? 'setup_profile&edit=1' : 'setup_profile';
 
         // Sanitize numeric inputs so negative values cannot be submitted
-        $numericFields = ['height_cm', 'weight_kg', 'age', 'neck_cm', 'waist_cm', 'hip_cm', 'target_weight_kg', 'target_body_fat_percent'];
+        $sex = (string)($_POST['biological_sex'] ?? 'male');
+        if ($sex !== 'female') {
+            unset($_POST['hip_cm']);
+        }
+
+        // Sanitize numeric inputs so negative values cannot be submitted
+        $numericFields = ['height_cm', 'weight_kg', 'age', 'neck_cm', 'waist_cm', 'target_weight_kg', 'target_body_fat_percent'];
+        if ($sex === 'female') {
+            $numericFields[] = 'hip_cm';
+        }
         foreach ($numericFields as $field) {
             if (isset($_POST[$field]) && $_POST[$field] !== '') {
                 $cleanVal = str_replace(['-', '+'], '', (string)$_POST[$field]);
@@ -54,13 +63,14 @@ function setup_profile_page(): void
             'age'       => 'required|numeric|min_num:16|max_num:120',
             'neck_cm'   => 'numeric|min_num:20|max_num:100',
             'waist_cm'  => 'numeric|min_num:45|max_num:200',
-            'hip_cm'    => 'numeric|min_num:60|max_num:220',
             'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
             'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
         ];
+        if ($sex === 'female') {
+            $rules['hip_cm'] = 'numeric|min_num:60|max_num:220';
+        }
 
         $valid = $validator->validate($_POST, $rules);
-        
         if (!$valid) {
             flash($validator->firstError() ?? 'Invalid measurements provided. Please check the fields.', 'danger');
             redirect($errorRedirectBase . '&step=2');

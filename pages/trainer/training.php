@@ -41,7 +41,7 @@ function training_page(): void
             }
             
             // Go straight to workout builder
-            header('Location: index.php?page=workout_builder&member_user_id=' . $targetMemberId);
+            header('Location: index.php?page=workout_builder&member_user_id=' . $targetMemberId . '&plan_id=' . $newPlanId);
             exit;
         } elseif ($action === 'edit_plan') {
             $plan_id = (int) post('plan_id');
@@ -246,7 +246,11 @@ function training_page(): void
                 $viewPlan = null;
             }
         } elseif ($viewPlan && $user['role'] === 'trainer') {
-            if ((int)($viewPlan['trainer_id'] ?? 0) !== (int)$coachId) {
+            $isAssignedTrainer = (bool) scalar('SELECT 1 FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"', [$coachId, $viewPlan['member_user_id']]);
+            $planGymId = $viewPlan['gym_id'] ?: scalar('SELECT gym_id FROM trainer_profiles WHERE trainer_id = ?', [$viewPlan['trainer_id']]);
+            $isSameGym = ($gymId && $planGymId && ((int)$planGymId === (int)$gymId));
+
+            if ((int)($viewPlan['trainer_id'] ?? 0) !== (int)$coachId && !$isAssignedTrainer && !$isSameGym) {
                 $viewPlan = null;
             }
         }
@@ -280,8 +284,10 @@ function training_page(): void
             LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id
             LEFT JOIN users t ON tp.user_id = t.user_id
             WHERE p.trainer_id = ?
+               OR p.member_user_id IN (SELECT member_user_id FROM trainer_assignments WHERE trainer_id = ? AND status = "active")
+               ' . ($resolvedGymId ? ' OR p.gym_id = ' . $resolvedGymId : '') . '
             ORDER BY p.created_at DESC
-        ', [$coachId]);
+        ', [$coachId, $coachId]);
     } else {
         $allPlans = query_all('
             SELECT p.*, 
@@ -390,6 +396,7 @@ function training_page(): void
                     $buildBtn = '<form method="get" action="index.php" style="display:inline;">' .
                                 '<input type="hidden" name="page" value="workout_builder">' .
                                 '<input type="hidden" name="member_user_id" value="' . $p['member_user_id'] . '">' .
+                                '<input type="hidden" name="plan_id" value="' . (int)$p['plan_id'] . '">' .
                                 '<button type="submit" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;cursor:pointer;">Build Workout</button></form>';
                 } else {
                     // Calculate Progress & Adherence
@@ -560,6 +567,7 @@ function training_page(): void
                                 <form method="get" action="index.php" style="flex:1 1 120px;">
                                     <input type="hidden" name="page" value="workout_builder">
                                     <input type="hidden" name="member_user_id" value="<?= (int)$p['member_user_id'] ?>">
+                                    <input type="hidden" name="plan_id" value="<?= (int)$p['plan_id'] ?>">
                                     <button type="submit" class="btn btn-primary btn-mcard" style="width:100%;">Build Workout</button>
                                 </form>
                             <?php elseif ($daysLeft !== null && $daysLeft <= 3): ?>
@@ -618,7 +626,7 @@ function training_page(): void
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$viewPlan['member_user_id'] ?>" class="btn btn-primary" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; min-height: 38px;">
+                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$viewPlan['member_user_id'] ?>&plan_id=<?= (int)$viewPlanId ?>" class="btn btn-primary" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; min-height: 38px;">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                         <span>Open in Workout Builder</span>
                     </a>
@@ -728,7 +736,7 @@ function training_page(): void
                                                 <span>View Plan</span>
                                             </a>
                                             <?php if ($statusKey === 'draft'): ?>
-                                                <a href="index.php?page=workout_builder&member_user_id=<?= $row['member_user_id'] ?>" class="btn btn-primary" style="padding:5px 10px; font-size:12px;">
+                                                <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>&plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-primary" style="padding:5px 10px; font-size:12px;">
                                                     Build
                                                 </a>
                                             <?php endif; ?>
@@ -814,7 +822,7 @@ function training_page(): void
                                     <span>View Plan</span>
                                 </a>
                                 <?php if ($statusKey === 'draft'): ?>
-                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>" class="btn btn-primary btn-mcard" style="flex:1 1 80px; justify-content:center; text-align:center;">
+                                    <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>&plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-primary btn-mcard" style="flex:1 1 80px; justify-content:center; text-align:center;">
                                         Build
                                     </a>
                                 <?php endif; ?>

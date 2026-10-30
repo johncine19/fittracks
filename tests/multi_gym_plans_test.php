@@ -57,7 +57,8 @@ function run_multi_gym_plans_tests(): void
 
         // Affiliate member with Gym A & Gym B
         $pdo->prepare('INSERT INTO gym_members (user_id, gym_id) VALUES (?, ?), (?, ?)')->execute([$memberUserId, $gymAId, $memberUserId, $gymBId]);
-        $pdo->prepare('INSERT INTO member_profiles (user_id, height_cm, weight_kg, primary_goal, fitness_tier) VALUES (?, 175, 75, "muscle_gain", 2)')->execute([$memberUserId]);
+        $pdo->prepare('INSERT INTO member_profiles (user_id, birth_date, biological_sex, height_cm, activity_level, primary_goal, fitness_tier) VALUES (?, "2001-01-01", "male", 175, "moderately_active", "muscle_gain", 2)')->execute([$memberUserId]);
+        $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg) VALUES (?, CURDATE(), 75)')->execute([$memberUserId]);
 
         // TEST 1: Gym A assigns a workout plan and diet plan to member
         $pdo->prepare('INSERT INTO training_plans (member_user_id, trainer_id, gym_id, title, goal, start_date, end_date, status) VALUES (?, ?, ?, "Alpha Hypertrophy", "muscle_gain", CURDATE(), DATE_ADD(CURDATE(), INTERVAL 4 WEEK), "active")')

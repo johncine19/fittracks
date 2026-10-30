@@ -285,18 +285,78 @@ function member_dashboard(PDO $pdo, array $user): void
         $graceStatus = get_attendance_exit_grace_status((int)$user['user_id']);
     }
 
+    // For checked-in grace period tracking, always track the actual facility checked into
+    if ($userIsCheckedIn) {
+        $checkedInGymId = (int) scalar('SELECT gym_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY attendance_id DESC LIMIT 1', [(int)$user['user_id']]);
+        if ($checkedInGymId > 0) {
+            $cgRow = query_one('SELECT * FROM gyms WHERE gym_id = ?', [$checkedInGymId]);
+            if ($cgRow) {
+                $userGym = $cgRow;
+            }
+        }
+    }
+
+    // Retrieve ALL gyms the member belongs to or has active memberships at that have GPS coordinates
+    $memberCandidateGyms = [];
+    $userRole = $user['role'] ?? '';
+    if (!$userIsCheckedIn && $userRole === 'member') {
+        $memberCandidateGyms = query_all('
+            SELECT DISTINCT g.gym_id, g.name, g.latitude, g.longitude, g.geofence_radius_meters
+            FROM gyms g
+            WHERE g.gym_id IN (
+                SELECT gym_id FROM gym_members WHERE user_id = ?
+                UNION
+                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
+            )
+            AND g.status = "approved"
+            AND g.latitude IS NOT NULL AND g.longitude IS NOT NULL
+        ', [(int)$user['user_id'], (int)$user['user_id']]);
+    }
+
     $geofenceConfig = null;
-    if ($userGym && !empty($userGym['latitude']) && !empty($userGym['longitude'])) {
+    $primaryGymCandidate = $userGym ?: (!empty($memberCandidateGyms[0]) ? $memberCandidateGyms[0] : null);
+    if ($primaryGymCandidate && !empty($primaryGymCandidate['latitude']) && !empty($primaryGymCandidate['longitude'])) {
         $geofenceConfig = [
-            'gym_id'          => (int)$userGym['gym_id'],
-            'name'            => (string)$userGym['name'],
-            'latitude'        => (float)$userGym['latitude'],
-            'longitude'       => (float)$userGym['longitude'],
-            'radius'          => max(50, (int)($userGym['geofence_radius_meters'] ?? 100)),
+            'gym_id'          => (int)$primaryGymCandidate['gym_id'],
+            'name'            => (string)$primaryGymCandidate['name'],
+            'latitude'        => (float)$primaryGymCandidate['latitude'],
+            'longitude'       => (float)$primaryGymCandidate['longitude'],
+            'radius'          => max(50, (int)($primaryGymCandidate['geofence_radius_meters'] ?? 100)),
             'is_checked_in'   => $userIsCheckedIn,
             'is_in_grace'     => !empty($graceStatus['is_in_grace']),
             'grace_remaining' => (int)($graceStatus['remaining_seconds'] ?? 0),
             'grace_expires_at'=> (string)($graceStatus['expires_at'] ?? ''),
+            'candidate_gyms'  => array_map(function($g) {
+                return [
+                    'gym_id'    => (int)$g['gym_id'],
+                    'name'      => (string)$g['name'],
+                    'latitude'  => (float)$g['latitude'],
+                    'longitude' => (float)$g['longitude'],
+                    'radius'    => max(50, (int)($g['geofence_radius_meters'] ?? 100))
+                ];
+            }, $memberCandidateGyms)
+        ];
+    } elseif (!empty($memberCandidateGyms)) {
+        $firstValid = $memberCandidateGyms[0];
+        $geofenceConfig = [
+            'gym_id'          => (int)$firstValid['gym_id'],
+            'name'            => (string)$firstValid['name'],
+            'latitude'        => (float)$firstValid['latitude'],
+            'longitude'       => (float)$firstValid['longitude'],
+            'radius'          => max(50, (int)($firstValid['geofence_radius_meters'] ?? 100)),
+            'is_checked_in'   => $userIsCheckedIn,
+            'is_in_grace'     => false,
+            'grace_remaining' => 0,
+            'grace_expires_at'=> '',
+            'candidate_gyms'  => array_map(function($g) {
+                return [
+                    'gym_id'    => (int)$g['gym_id'],
+                    'name'      => (string)$g['name'],
+                    'latitude'  => (float)$g['latitude'],
+                    'longitude' => (float)$g['longitude'],
+                    'radius'    => max(50, (int)($g['geofence_radius_meters'] ?? 100))
+                ];
+            }, $memberCandidateGyms)
         ];
     }
 
@@ -306,6 +366,114 @@ function member_dashboard(PDO $pdo, array $user): void
     ?>
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/member_dashboard.css')) ?>">
+    <style>
+    .arrival-chip {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 99px;
+        color: var(--ink, #fff);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 9px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        line-height: 1.2;
+    }
+    .arrival-chip:hover {
+        background: rgba(255, 255, 255, 0.16);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+    .arrival-chip.active {
+        background: var(--lime, #c7ff22) !important;
+        border-color: var(--lime, #c7ff22) !important;
+        color: #000000 !important;
+        font-weight: 800 !important;
+    }
+
+    @media (max-width: 640px) {
+        .gym-arrival-banner {
+            top: 10px;
+            width: calc(100% - 20px);
+            max-width: 440px;
+        }
+        .arrival-banner-card {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            position: relative;
+            padding: 14px 14px 12px;
+            gap: 10px;
+        }
+        .arrival-banner-pulse {
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .arrival-banner-content {
+            flex: 1 1 calc(100% - 90px);
+            min-width: 0;
+            padding-right: 28px;
+        }
+        .arrival-banner-title {
+            font-size: 15px;
+            line-height: 1.25;
+            margin: 2px 0 4px;
+        }
+        .arrival-banner-sub {
+            font-size: 11.5px;
+            line-height: 1.35;
+        }
+        #arrival-nearby-chips {
+            width: 100%;
+            margin-top: 6px !important;
+            gap: 6px !important;
+            display: flex;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+        }
+        #arrival-nearby-chips::-webkit-scrollbar {
+            display: none;
+        }
+        .arrival-chip {
+            flex-shrink: 0;
+            font-size: 11px;
+            padding: 4px 11px;
+            border-radius: 99px;
+            white-space: nowrap;
+        }
+        .arrival-banner-actions {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .arrival-btn-qr,
+        .arrival-btn-checkout {
+            flex: 1 1 auto;
+            width: 100%;
+            height: 42px;
+            justify-content: center;
+            font-size: 13.5px;
+            font-weight: 700;
+            border-radius: 10px;
+        }
+        .arrival-btn-dismiss {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            font-size: 18px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+    }
+    </style>
 
     <?php if ($geofenceConfig): ?>
         <?php if ($userIsCheckedIn): ?>
@@ -355,11 +523,12 @@ function member_dashboard(PDO $pdo, array $user): void
                             <span class="arrival-badge-sep">&bull;</span>
                             <span id="arrival-dist-badge">At the gym</span>
                         </div>
-                        <h4 class="arrival-banner-title">Welcome to <?= h($geofenceConfig['name']) ?>!</h4>
+                        <h4 class="arrival-banner-title" id="arrival-banner-title">Welcome to <?= h($geofenceConfig['name']) ?>!</h4>
                         <p class="arrival-banner-sub">You are within check-in range. Tap to open your turnstile QR pass.</p>
+                        <div id="arrival-nearby-chips" style="display: none; gap: 6px; margin-top: 8px; flex-wrap: wrap;"></div>
                     </div>
                     <div class="arrival-banner-actions">
-                        <a href="index.php?page=qr_attendance" class="arrival-btn-qr">
+                        <a href="index.php?page=qr_attendance" class="arrival-btn-qr" id="arrival-btn-qr">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M14 21h.01M21 14h.01M21 18h.01M21 21h.01"/></svg>
                             <span>Check In</span>
                         </a>
@@ -617,7 +786,7 @@ function member_dashboard(PDO $pdo, array $user): void
         <!-- Current Scheduled Workout Section -->
         <div class="skeleton-content animate-fade-in delay-2" style="margin-bottom: 24px;">
             <?php
-            $profile = db()->query('SELECT height_cm, weight_kg, primary_goal FROM member_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
+            $profile = member_profile((int)$user['user_id']);
             if ($profile && ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0)) {
                 echo '<div style="background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">';
                 echo '<h3 style="color: orange; margin: 0 0 12px 0;">We need a little more info!</h3>';
@@ -1182,7 +1351,7 @@ function member_dashboard(PDO $pdo, array $user): void
     <!-- ========================================== -->
     <div id="panel-explore" class="member-tab-panel">
         <?php
-        $profile = db()->query('SELECT height_cm, weight_kg, primary_goal FROM member_profiles WHERE user_id = ' . (int)$user['user_id'])->fetch();
+        $profile = member_profile((int)$user['user_id']);
         $recommendations = !empty($profile['primary_goal']) ? get_recommendations_by_goal(db(), $profile['primary_goal']) : ['classes' => [], 'gyms' => []];
         $hasExploreContent = !empty($recommendations['classes']) || !empty($recommendations['gyms']);
         ?>
@@ -1460,20 +1629,54 @@ function member_dashboard(PDO $pdo, array $user): void
 
         /* ----------------------------------------------------
            SCENARIO B: MEMBER NOT CHECKED IN -> ARRIVAL PROXIMITY
+           Checks proximity against ALL affiliated gyms for multi-gym members
            ---------------------------------------------------- */
-        const storageDismissKey = 'ft_arrival_dismissed_' + config.gym_id;
-        if (sessionStorage.getItem(storageDismissKey)) {
-            return;
+        let lastCoords = null;
+        let nearbyGymsList = [];
+        let activeArrivalGymId = config.gym_id;
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
         }
 
-        function triggerArrival(distanceMeters) {
+        function renderArrivalUI(gym, distanceMeters, allNearby) {
+            activeArrivalGymId = gym.gym_id;
             const banner = document.getElementById('gym-arrival-banner');
             if (!banner) return;
+
+            const titleEl = document.getElementById('arrival-banner-title');
+            if (titleEl) {
+                titleEl.textContent = 'Welcome to ' + gym.name + '!';
+            }
 
             const badge = document.getElementById('arrival-dist-badge');
             if (badge) {
                 const distRound = Math.round(distanceMeters);
                 badge.textContent = distRound <= 30 ? 'At the gym' : (distRound + 'm away');
+            }
+
+            const checkInBtn = document.getElementById('arrival-btn-qr');
+            if (checkInBtn) {
+                checkInBtn.href = 'index.php?switch_active_gym=' + encodeURIComponent(gym.gym_id) + '&page=qr_attendance';
+            }
+
+            // Render multi-gym selector chips if more than 1 affiliated facility is in range
+            const chipsContainer = document.getElementById('arrival-nearby-chips');
+            if (chipsContainer) {
+                if (Array.isArray(allNearby) && allNearby.length > 1) {
+                    chipsContainer.innerHTML = allNearby.map(item => {
+                        const isCurrent = item.gym.gym_id === gym.gym_id;
+                        const distM = Math.round(item.dist);
+                        const distLabel = distM <= 30 ? 'On-site' : distM + 'm';
+                        return `<button type="button" class="arrival-chip ${isCurrent ? 'active' : ''}" onclick="selectNearbyGym(${item.gym.gym_id})">${escapeHtml(item.gym.name)} (${distLabel})</button>`;
+                    }).join('');
+                    chipsContainer.style.display = 'flex';
+                } else {
+                    chipsContainer.style.display = 'none';
+                    chipsContainer.innerHTML = '';
+                }
             }
 
             banner.style.display = 'block';
@@ -1482,41 +1685,93 @@ function member_dashboard(PDO $pdo, array $user): void
             });
 
             // Trigger background push notification if permitted
-            const pushKey = 'ft_arrival_notified_' + config.gym_id;
+            const pushKey = 'ft_arrival_notified_' + gym.gym_id;
             if (!sessionStorage.getItem(pushKey) && 'Notification' in window && Notification.permission === 'granted') {
                 sessionStorage.setItem(pushKey, '1');
                 try {
-                    const notif = new Notification('Welcome to ' + config.name + '!', {
+                    const notif = new Notification('Welcome to ' + gym.name + '!', {
                         body: "You're within check-in range. Tap here to open your QR check-in pass.",
                         icon: '/favicon.ico',
-                        tag: 'gym-arrival-' + config.gym_id
+                        tag: 'gym-arrival-' + gym.gym_id
                     });
                     notif.onclick = function() {
                         window.focus();
-                        window.location.href = 'index.php?page=qr_attendance';
+                        window.location.href = 'index.php?switch_active_gym=' + encodeURIComponent(gym.gym_id) + '&page=qr_attendance';
                     };
                 } catch (e) {}
             }
         }
 
-        window.dismissArrivalBanner = function() {
+        window.selectNearbyGym = function(gymId) {
+            const found = nearbyGymsList.find(item => item.gym.gym_id === gymId);
+            if (found) {
+                renderArrivalUI(found.gym, found.dist, nearbyGymsList);
+            }
+        };
+
+        function hideArrivalBanner() {
             const banner = document.getElementById('gym-arrival-banner');
             if (banner) {
                 banner.classList.remove('banner-visible');
                 setTimeout(() => { banner.style.display = 'none'; }, 350);
             }
-            sessionStorage.setItem(storageDismissKey, '1');
+        }
+
+        window.dismissArrivalBanner = function() {
+            if (activeArrivalGymId) {
+                sessionStorage.setItem('ft_arrival_dismissed_' + activeArrivalGymId, '1');
+            }
+            // If another affiliated gym is also within range, immediately switch to it!
+            if (lastCoords) {
+                checkProximityToAllGyms(lastCoords);
+            } else {
+                hideArrivalBanner();
+            }
         };
+
+        const candidateGyms = (Array.isArray(config.candidate_gyms) && config.candidate_gyms.length > 0)
+            ? config.candidate_gyms
+            : [config];
+
+        function checkProximityToAllGyms(coords) {
+            lastCoords = coords;
+            nearbyGymsList = [];
+
+            for (const g of candidateGyms) {
+                if (!g.latitude || !g.longitude) continue;
+                const dist = haversineMeters(coords.latitude, coords.longitude, g.latitude, g.longitude);
+                if (dist <= g.radius) {
+                    const dismissKey = 'ft_arrival_dismissed_' + g.gym_id;
+                    if (!sessionStorage.getItem(dismissKey)) {
+                        nearbyGymsList.push({ gym: g, dist: dist });
+                    }
+                }
+            }
+
+            nearbyGymsList.sort((a, b) => a.dist - b.dist);
+
+            if (nearbyGymsList.length > 0) {
+                renderArrivalUI(nearbyGymsList[0].gym, nearbyGymsList[0].dist, nearbyGymsList);
+            } else {
+                hideArrivalBanner();
+            }
+        }
 
         navigator.geolocation.getCurrentPosition(
             function(pos) {
-                const dist = haversineMeters(pos.coords.latitude, pos.coords.longitude, config.latitude, config.longitude);
-                if (dist <= config.radius) {
-                    triggerArrival(dist);
-                }
+                checkProximityToAllGyms(pos.coords);
             },
             function(err) {},
             { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+
+        // Also monitor continuous position so arrival at another gym triggers smoothly
+        navigator.geolocation.watchPosition(
+            function(pos) {
+                checkProximityToAllGyms(pos.coords);
+            },
+            function(err) {},
+            { enableHighAccuracy: true, maximumAge: 15000 }
         );
     })();
     </script>

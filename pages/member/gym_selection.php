@@ -27,6 +27,7 @@ function gym_selection_page(): void
             // Set active gym affiliation (preserves multi-gym affiliations)
             db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')
                 ->execute([$user['user_id'], $gymId]);
+            clear_member_gyms_cache((int)$user['user_id']);
             $_SESSION['current_gym_id'] = $gymId;
             flash('Successfully switched active gym to ' . $targetGym['name'] . '.', 'success');
             redirect('index.php?page=dashboard');

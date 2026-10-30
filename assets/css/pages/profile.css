@@ -2562,3 +2562,31 @@ input:checked+.toggle-slider:before {
         padding: 14px 16px !important;
     }
 }
+
+
+/* ── Gym Affiliation & Settings Desktop Responsive Constraints ── */
+.settings-panel[data-panel="gym"] .settings-section {
+    max-width: 640px;
+}
+
+.settings-gym-card {
+    max-width: 640px;
+}
+
+.settings-homegym-form-wrapper {
+    max-width: 640px;
+}
+
+.settings-panel[data-panel="preferences"] .settings-section,
+.settings-pref-list {
+    max-width: 640px;
+}
+
+@media (min-width: 580px) {
+    .settings-homegym-form-wrapper .settings-action-btn {
+        width: auto !important;
+        min-width: 180px;
+        padding: 11px 26px !important;
+        display: inline-flex !important;
+    }
+}

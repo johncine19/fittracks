@@ -176,7 +176,7 @@ function users_page(): void
                     $amount = 0.0;
 
                     $platPlans = get_platform_subscription_plans();
-                    if ($platPlanKey === 'free_trial' || $subPaymentStatus === 'trialing') {
+                    if ($platPlanKey === 'free_trial' || $subPaymentStatus === 'trialing' || empty($platPlanKey) || $platPlanKey === 'none') {
                         $subPlanName = 'Free Trial';
                         $subStatus = 'trialing';
                         $renewalDate = date('Y-m-d', strtotime('+14 days'));
@@ -189,9 +189,14 @@ function users_page(): void
                             $subStatus = 'active';
                             $renewalDate = date('Y-m-d', strtotime($billingCycle === 'yearly' ? '+1 year' : '+1 month'));
                         } else {
-                            $subStatus = 'inactive';
-                            $renewalDate = null;
+                            $subStatus = 'trialing';
+                            $renewalDate = date('Y-m-d', strtotime('+14 days'));
                         }
+                    } else {
+                        $subPlanName = 'Free Trial';
+                        $subStatus = 'trialing';
+                        $renewalDate = date('Y-m-d', strtotime('+14 days'));
+                        $amount = 0.0;
                     }
 
                     $gStmt = db()->prepare('INSERT INTO gyms (owner_user_id, name, address, contact_info, status, subscription_plan, subscription_status, subscription_renewal_date, subscription_billing_cycle) VALUES (?, ?, ?, ?, "approved", ?, ?, ?, ?)');
@@ -206,6 +211,12 @@ function users_page(): void
                         $billingCycle
                     ]);
                     $newGymId = (int) db()->lastInsertId();
+
+                    if (function_exists('save_gym_settings')) {
+                        save_gym_settings($newGymId, []);
+                    }
+                    require_once __DIR__ . '/../../core/seeds.php';
+                    seed_reference_exercises();
 
                     // If active and paid, record in gym_subscription_payments
                     if ($subStatus === 'active' && $amount > 0 && in_array($subPaymentStatus, ['active_cash', 'active_online'], true)) {
@@ -336,9 +347,13 @@ function users_page(): void
                 $plainPassword
             );
 
-            $successMsg = $planAssigned
-                ? 'Member account created and ' . $planAssigned['plan_name'] . ' membership activated successfully. Login credentials emailed to ' . $email . '.'
-                : 'User created successfully. Login credentials have been emailed to ' . $email . '.';
+            if ($roleToCreate === 'gym_owner' && $isAdmin) {
+                $successMsg = "Gym Owner account for {$firstName} {$lastName} created and instantly approved with facility '{$createdGymName}'. Login credentials have been emailed to {$email}.";
+            } elseif ($planAssigned) {
+                $successMsg = 'Member account created and ' . $planAssigned['plan_name'] . ' membership activated successfully. Login credentials emailed to ' . $email . '.';
+            } else {
+                $successMsg = 'User created successfully. Login credentials have been emailed to ' . $email . '.';
+            }
 
             $sendCreateResponse(true, $successMsg, 'success');
             return;
@@ -498,18 +513,32 @@ function users_page(): void
 
         $stmt = db()->prepare('
             SELECT u.user_id, u.first_name, u.last_name, u.email, u.phone, u.profile_picture, u.created_at, u.engagement_score,
-                   mp.height_cm, mp.weight_kg AS baseline_weight, mp.target_weight_kg, mp.target_body_fat_percent,
-                   mp.neck_cm, mp.waist_cm, mp.hip_cm, mp.chest_cm, mp.arm_cm, mp.age, mp.biological_sex,
-                   mp.primary_goal, mp.weekly_workout_target, mp.fitness_tier,
                    (SELECT mp2.plan_name FROM memberships m2 JOIN membership_plans mp2 ON m2.plan_id = mp2.plan_id WHERE m2.user_id = u.user_id ORDER BY (m2.status = "active" AND m2.end_date >= CURDATE()) DESC, m2.end_date DESC LIMIT 1) AS plan_name,
                    (SELECT m3.status FROM memberships m3 WHERE m3.user_id = u.user_id ORDER BY (m3.status = "active" AND m3.end_date >= CURDATE()) DESC, m3.end_date DESC LIMIT 1) AS membership_status,
                    (SELECT CONCAT(tu.first_name, " ", tu.last_name) FROM trainer_assignments ta JOIN trainer_profiles tp ON ta.trainer_id = tp.trainer_id JOIN users tu ON tp.user_id = tu.user_id WHERE ta.member_user_id = u.user_id AND ta.status = "active" LIMIT 1) AS coach_name
             FROM users u
-            LEFT JOIN member_profiles mp ON u.user_id = mp.user_id
             WHERE u.user_id = ? AND u.role = "member"
         ');
         $stmt->execute([$targetMemberId]);
-        $memberData = $stmt->fetch();
+        $memberData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($memberData) {
+            $normProf = member_profile((int)$targetMemberId) ?: [];
+            $memberData['height_cm'] = $normProf['height_cm'] ?? null;
+            $memberData['baseline_weight'] = $normProf['weight_kg'] ?? null;
+            $memberData['target_weight_kg'] = $normProf['target_weight_kg'] ?? null;
+            $memberData['target_body_fat_percent'] = $normProf['target_body_fat_percent'] ?? null;
+            $memberData['neck_cm'] = $normProf['neck_cm'] ?? null;
+            $memberData['waist_cm'] = $normProf['waist_cm'] ?? null;
+            $memberData['hip_cm'] = $normProf['hip_cm'] ?? null;
+            $memberData['chest_cm'] = $normProf['chest_cm'] ?? null;
+            $memberData['arm_cm'] = $normProf['arm_cm'] ?? null;
+            $memberData['age'] = $normProf['age'] ?? null;
+            $memberData['biological_sex'] = $normProf['biological_sex'] ?? null;
+            $memberData['primary_goal'] = $normProf['primary_goal'] ?? null;
+            $memberData['weekly_workout_target'] = $normProf['weekly_workout_target'] ?? null;
+            $memberData['fitness_tier'] = $normProf['fitness_tier'] ?? 1;
+        }
 
         if (!$memberData) {
             echo json_encode(['success' => false, 'message' => 'Member profile not found.']);
@@ -801,7 +830,7 @@ function users_page(): void
                 'is_trainer'       => $row['role'] === 'trainer',
                 'is_gym_owner'     => $row['role'] === 'gym_owner',
                 'is_staff'         => $row['role'] === 'staff',
-                'can_view_progress'=> in_array($user['role'], ['gym_owner', 'platform_admin'], true) && $row['role'] === 'member',
+                'can_view_progress'=> $user['role'] === 'gym_owner' && $row['role'] === 'member',
                 'raw_user'         => $row
             ];
         }
@@ -1618,7 +1647,7 @@ function users_page(): void
                                     <span>Edit</span>
                                 </button>
 
-                                <?php if ($isStaff === false && in_array($user['role'], ['gym_owner', 'platform_admin'], true) && $row['role'] === 'member'): ?>
+                                <?php if ($isStaff === false && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
                                     <button type="button" class="btn-user-action btn-user-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                                         <span>Progress</span>
@@ -1749,7 +1778,7 @@ function users_page(): void
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                 <span>Edit</span>
                             </button>
-                            <?php if (!$isStaff && in_array($user['role'], ['gym_owner', 'platform_admin'], true) && $row['role'] === 'member'): ?>
+                            <?php if (!$isStaff && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
                                 <button type="button" class="btn-card-action btn-card-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                                     <span>Progress</span>

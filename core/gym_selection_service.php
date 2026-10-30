@@ -41,6 +41,10 @@ if (!function_exists('get_gym_pause_notice')) {
 
 function load_gym_selection_data(array $gyms): array
 {
+    if (function_exists('hydrate_gym_rows')) {
+        $gyms = hydrate_gym_rows($gyms);
+    }
+
     $pausedMap = [];
     try {
         $pausedRows = query_all("SELECT setting_key FROM system_settings WHERE setting_key LIKE 'gym_paused_%' AND setting_value = '1'");

@@ -36,10 +36,21 @@ function platform_subscription_plans_page(): void
 
         $stmt = $pdo->prepare('
             UPDATE platform_subscription_plans 
-            SET name = ?, price = ?, annual_price = ?, description = ?, features = ?, is_popular = ? 
+            SET name = ?, price = ?, annual_price = ?, description = ?, is_popular = ? 
             WHERE plan_key = ?
         ');
-        $stmt->execute([$name, $price, $annualPrice, $desc, $features, $isPopular, $planKey]);
+        $stmt->execute([$name, $price, $annualPrice, $desc, $isPopular, $planKey]);
+
+        // Sync normalized plan_features rows
+        $planId = (int) scalar('SELECT id FROM platform_subscription_plans WHERE plan_key = ? LIMIT 1', [$planKey]);
+        if ($planId > 0) {
+            $pdo->prepare('DELETE FROM plan_features WHERE plan_id = ?')->execute([$planId]);
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $features))));
+            $insFeat = $pdo->prepare('INSERT INTO plan_features (plan_id, feature_text, display_order) VALUES (?, ?, ?)');
+            foreach ($lines as $idx => $lineText) {
+                $insFeat->execute([$planId, $lineText, ($idx + 1) * 10]);
+            }
+        }
 
         audit_log($user['user_id'], 'update_plan_pricing', 'platform_subscription_plans', $planKey, json_encode([
             'name' => $name,
@@ -54,6 +65,13 @@ function platform_subscription_plans_page(): void
     }
 
     $plans = $pdo->query('SELECT * FROM platform_subscription_plans ORDER BY price ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $featStmt = $pdo->prepare('SELECT feature_text FROM plan_features WHERE plan_id = ? ORDER BY display_order ASC, feature_id ASC');
+    foreach ($plans as &$plRow) {
+        $featStmt->execute([(int)$plRow['id']]);
+        $featList = $featStmt->fetchAll(PDO::FETCH_COLUMN);
+        $plRow['features'] = implode("\n", $featList);
+    }
+    unset($plRow);
 
     render_header('Subscription Plans', $user);
 ?>

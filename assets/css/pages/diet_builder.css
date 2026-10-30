@@ -97,6 +97,21 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
+/* Food Diary Button */
+.diet-btn-food-diary {
+    background: rgba(199, 255, 34, 0.08);
+    color: var(--lime);
+    border-color: rgba(199, 255, 34, 0.3);
+}
+.diet-btn-food-diary:hover {
+    background: rgba(199, 255, 34, 0.18);
+    border-color: var(--lime);
+    color: var(--lime);
+    text-decoration: none;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(199, 255, 34, 0.2);
+}
+
 /* Publish Plan Button (Solid Primary Green Accent) */
 .diet-btn-publish {
     background: var(--diet-accent);

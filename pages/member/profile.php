@@ -699,6 +699,7 @@ function profile_page(): void
                         !empty($profile['target_weight_kg']) ||
                         !empty($profile['target_body_fat_percent']) ||
                         !empty($profile['weekly_workout_target']) ||
+                        !empty($profile['preferred_workout_days']) ||
                         !empty($profile['target_endurance_distance_km']) ||
                         !empty($profile['target_endurance_time_mins']) ||
                         !empty($profile['target_arm_cm']) ||
@@ -790,6 +791,31 @@ function profile_page(): void
                                     </div>
                                 </div>
                             <?php endif; ?>
+
+                            <?php
+                            $prefDaysDisplay = [];
+                            if (!empty($profile['preferred_workout_days'])) {
+                                $prefDayNums = array_filter(array_map('intval', explode(',', (string)$profile['preferred_workout_days'])), fn($d) => $d >= 1 && $d <= 7);
+                                sort($prefDayNums);
+                                $daysShortMap = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+                                foreach ($prefDayNums as $pdn) {
+                                    if (isset($daysShortMap[$pdn])) $prefDaysDisplay[] = $daysShortMap[$pdn];
+                                }
+                            }
+                            ?>
+                            <div class="settings-stat-card">
+                                <div class="settings-stat-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                    </svg>
+                                </div>
+                                <div class="settings-stat-body">
+                                    <span class="settings-stat-label">Committed Days</span>
+                                    <span class="settings-stat-value" style="font-size: 1.05rem;">
+                                        <?= !empty($prefDaysDisplay) ? h(implode(', ', $prefDaysDisplay)) : 'Flexible' ?>
+                                    </span>
+                                </div>
+                            </div>
 
                             <?php if (!empty($profile['preferred_duration_mins'])): ?>
                                 <div class="settings-stat-card">

@@ -49,9 +49,10 @@ function member_equipment_page(): void
     $lastLogStmt->execute([$userId]);
     $lastLog = $lastLogStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
-    $recentWeight = $lastLog['weight_kg'] ?? scalar('SELECT weight_kg FROM member_profiles WHERE user_id = ?', [$userId]);
-    $recentBf = $lastLog['body_fat_percent'] ?? null;
-    $recentWaist = $lastLog['waist_cm'] ?? scalar('SELECT waist_cm FROM member_profiles WHERE user_id = ?', [$userId]);
+    $profData = member_profile($userId) ?: [];
+    $recentWeight = $lastLog['weight_kg'] ?? ($profData['weight_kg'] ?? null);
+    $recentBf = $lastLog['body_fat_percent'] ?? ($profData['body_fat_percent'] ?? null);
+    $recentWaist = $lastLog['waist_cm'] ?? ($profData['waist_cm'] ?? null);
     $recentChest = $lastLog['chest_cm'] ?? null;
     $recentArm = $lastLog['arm_cm'] ?? null;
 

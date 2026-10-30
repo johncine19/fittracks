@@ -743,11 +743,23 @@ function process_automated_at_risk_notifications(array $payload = []): void
     // Load gym-level overrides
     $gymOverrides = [];
     try {
-        $gymRows = $pdo->query('SELECT gym_id, inactivity_threshold_days, inactivity_cooldown_days, auto_inactivity_alerts FROM gyms')->fetchAll(PDO::FETCH_ASSOC);
+        $gymRows = $pdo->query('
+            SELECT g.gym_id, gs.inactivity_threshold_days, gs.inactivity_cooldown_days,
+                   COALESCE(gs.auto_inactivity_alerts, 1) AS auto_inactivity_alerts
+            FROM gyms g
+            LEFT JOIN gym_settings gs ON gs.gym_id = g.gym_id
+        ')->fetchAll(PDO::FETCH_ASSOC);
         foreach ($gymRows as $g) {
             $gymOverrides[(int)$g['gym_id']] = $g;
         }
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        try {
+            $gymRows = $pdo->query('SELECT gym_id, inactivity_threshold_days, inactivity_cooldown_days, auto_inactivity_alerts FROM gyms')->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($gymRows as $g) {
+                $gymOverrides[(int)$g['gym_id']] = $g;
+            }
+        } catch (Throwable) {}
+    }
 
     // Page distinct members before resolving gym affiliation and attendance.
     // Joining raw membership/check-in rows before LIMIT can duplicate users,

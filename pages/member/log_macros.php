@@ -178,6 +178,25 @@ function log_macros_page(): void
                     $addedCarbs,
                     $addedFat
                 ]);
+                $newLogId = (int)$pdo->lastInsertId();
+                if ($newLogId > 0) {
+                    try {
+                        $matchedFoodId = null;
+                        if ($mealId) {
+                            $matchedFoodId = scalar('SELECT food_id FROM meal_foods WHERE meal_id = ? LIMIT 1', [$mealId]);
+                        }
+                        $insLogFood = $pdo->prepare('INSERT INTO member_meal_log_foods (log_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, 1.00, ?, ?, ?, ?)');
+                        $insLogFood->execute([
+                            $newLogId,
+                            $matchedFoodId ? (int)$matchedFoodId : null,
+                            $foodItems ?: $normalizedType,
+                            $addedCals,
+                            $addedPro,
+                            $addedCarbs,
+                            $addedFat
+                        ]);
+                    } catch (Throwable $e) {}
+                }
                 $loggedAt = date('Y-m-d H:i:s');
                 $loggedTime = date('g:i A');
             }

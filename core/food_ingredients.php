@@ -14,6 +14,18 @@ declare(strict_types=1);
  */
 function get_food_ingredients(array $food): array
 {
+    // 0. Check relational food_ingredients table first
+    if (!empty($food['food_id'])) {
+        try {
+            $stmt = db()->prepare('SELECT name, amount, unit, type, (type = "optional") AS is_optional FROM food_ingredients WHERE food_id = ? ORDER BY display_order ASC, ingredient_id ASC');
+            $stmt->execute([(int)$food['food_id']]);
+            $dbRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($dbRows)) {
+                return format_ingredients_structure($dbRows);
+            }
+        } catch (Throwable) {}
+    }
+
     // 1. Check if custom ingredients are already saved in the database
     if (!empty($food['ingredients'])) {
         $raw = trim((string) $food['ingredients']);
@@ -804,4 +816,31 @@ function get_staple_recipes_ingredients(): array
             ['name' => 'Fresh mint leaf sprig', 'amount' => '1', 'unit' => 'pc', 'type' => 'optional'],
         ]
     ];
+}
+
+/**
+ * Persists an array of ingredients for a food item into food_ingredients.
+ */
+function save_food_ingredients(int $foodId, array $items): void
+{
+    if ($foodId <= 0) {
+        return;
+    }
+    $pdo = db();
+    try {
+        $pdo->prepare('DELETE FROM food_ingredients WHERE food_id = ?')->execute([$foodId]);
+        $ins = $pdo->prepare('INSERT INTO food_ingredients (food_id, name, amount, unit, type, display_order) VALUES (?, ?, ?, ?, ?, ?)');
+        $order = 1;
+        foreach ($items as $item) {
+            if (!empty($item['name'])) {
+                $name = trim((string)$item['name']);
+                $amount = !empty($item['amount']) ? trim((string)$item['amount']) : null;
+                $unit = !empty($item['unit']) ? trim((string)$item['unit']) : null;
+                $type = (!empty($item['type']) && strtolower((string)$item['type']) === 'optional') ? 'optional' : 'main';
+                $ins->execute([$foodId, $name, $amount, $unit, $type, $order++]);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('save_food_ingredients error: ' . $e->getMessage());
+    }
 }

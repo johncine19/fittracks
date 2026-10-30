@@ -56,10 +56,13 @@ function trainer_members_page(): void
         redirect('trainer_members');
     }
     $members = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
-        mp.weight_kg, mp.height_cm, mp.primary_goal, mp.target_weight_kg,
+        (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
+        mp.height_cm, mp.primary_goal,
+        (SELECT mg.target_value FROM member_goals mg WHERE mg.user_id = ca.member_user_id AND mg.goal_type = "weight" LIMIT 1) AS target_weight_kg,
         (SELECT title FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_title,
         (SELECT plan_id FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_id,
-        (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count
+        (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count,
+        (SELECT COUNT(DISTINCT log_date) FROM member_meal_logs WHERE user_id = ca.member_user_id) AS food_logs_count
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 
     LEFT JOIN member_profiles mp ON mp.user_id = u.user_id 
@@ -67,7 +70,8 @@ function trainer_members_page(): void
     ORDER BY ca.assignment_id DESC', [$coachId]);
 
     $pending_requests = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
-        mp.weight_kg, mp.height_cm, mp.primary_goal 
+        (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
+        mp.height_cm, mp.primary_goal 
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 
     LEFT JOIN member_profiles mp ON mp.user_id = u.user_id 
@@ -280,6 +284,7 @@ function trainer_members_page(): void
                 $activePlanTitle = $member['active_plan_title'] ?? null;
                 $hasPlan = !empty($activePlanTitle);
                 $logsCount = (int) ($member['logs_count'] ?? 0);
+                $foodLogsCount = (int) ($member['food_logs_count'] ?? 0);
 
                 // BMI Calculation
                 $bmiText = '-';
@@ -400,6 +405,10 @@ function trainer_members_page(): void
                         <a href="index.php?page=progress&member_user_id=<?= $memberId ?>" class="tm-btn-tool" title="View weight and fitness logs">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
                             Progress <?= $logsCount > 0 ? "({$logsCount})" : "" ?>
+                        </a>
+                        <a href="index.php?page=progress&member_user_id=<?= $memberId ?>&tab=nutrition" class="tm-btn-tool" title="View client's logged meals and nutrition history">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>
+                            Food Diary <?= $foodLogsCount > 0 ? "({$foodLogsCount}d)" : "" ?>
                         </a>
                     </div>
 

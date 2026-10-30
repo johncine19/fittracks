@@ -45,6 +45,7 @@ function render_header(string $title, ?array $user = null): void
         if ($role === 'platform_admin') {
             $nav += [
                 'notifications' => 'Notifications',
+                'demo_requests' => 'Demo Requests',
                 'gym_applications' => 'Gym Applications',
                 'gyms' => 'All Gyms',
                 'users' => 'Users Accounts',
@@ -328,7 +329,7 @@ function render_header(string $title, ?array $user = null): void
         /* Sleek Modern Toast & Card Styling */
         .swal2-popup.swal2-toast {
             border-radius: 12px !important;
-            padding: 12px 16px !important;
+            padding: 12px 18px !important;
             box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             background: rgba(18, 23, 33, 0.95) !important;
@@ -336,7 +337,14 @@ function render_header(string $title, ?array $user = null): void
             -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
             font-size: 13.5px !important;
             display: flex !important;
+            flex-direction: row !important;
             align-items: center !important;
+            width: max-content !important;
+            min-width: min(260px, calc(100vw - 32px)) !important;
+            max-width: min(440px, calc(100vw - 32px)) !important;
+            box-sizing: border-box !important;
+            position: relative !important;
+            overflow: hidden !important;
             cursor: pointer !important;
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease !important;
         }
@@ -474,28 +482,35 @@ function render_header(string $title, ?array $user = null): void
         }
 
         /* Toast Content Typography */
-        .swal2-toast .swal2-title {
-            font-size: 13.5px !important;
-            font-weight: 600 !important;
+        .swal2-toast .swal2-title,
+        .swal2-toast .swal2-html-container {
+            flex: 1 1 auto !important;
+            min-width: max-content !important;
+            width: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             line-height: 1.4 !important;
+            text-align: left !important;
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        .swal2-toast .swal2-title {
+            font-size: 13.5px !important;
+            font-weight: 600 !important;
             color: #f8fafc !important;
         }
         [data-theme="light"] .swal2-toast .swal2-title {
             color: #0f172a !important;
         }
         .swal2-toast .swal2-html-container {
-            font-size: 12.5px !important;
-            font-weight: 400 !important;
-            margin: 2px 0 0 0 !important;
-            padding: 0 !important;
-            line-height: 1.4 !important;
-            text-align: left !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
             color: #cbd5e1 !important;
         }
         [data-theme="light"] .swal2-toast .swal2-html-container {
-            color: #475569 !important;
+            color: #334155 !important;
         }
         .swal2-toast .swal2-actions {
             margin: 8px 0 0 0 !important;
@@ -525,6 +540,10 @@ function render_header(string $title, ?array $user = null): void
         
         /* Dynamic Timer Progress Bar */
         .swal2-toast .swal2-timer-progress-bar {
+            position: absolute !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
             height: 3px !important;
             border-radius: 0 0 12px 12px !important;
             opacity: 0.9 !important;
@@ -543,18 +562,20 @@ function render_header(string $title, ?array $user = null): void
                 z-index: 10000 !important;
             }
             .swal2-popup.swal2-toast {
-                width: auto !important;
+                width: max-content !important;
+                min-width: min(240px, calc(100vw - 28px)) !important;
                 max-width: calc(100vw - 28px) !important;
                 margin: 0 auto !important;
                 padding: 10px 14px !important;
                 font-size: 12.5px !important;
                 border-radius: 12px !important;
             }
-            .swal2-toast .swal2-title {
-                font-size: 13px !important;
-            }
+            .swal2-toast .swal2-title,
             .swal2-toast .swal2-html-container {
-                font-size: 12px !important;
+                font-size: 12.5px !important;
+                white-space: nowrap !important;
+                min-width: max-content !important;
+                word-break: keep-all !important;
             }
             .swal2-toast .swal2-icon {
                 width: 24px !important;
@@ -1759,7 +1780,7 @@ function render_header(string $title, ?array $user = null): void
                 Toast.fire({
                     icon: flashType,
                     iconHtml: flashType === 'success' ? checkmarkSvg : (flashType === 'error' ? crossSvg : undefined),
-                    html: <?= json_encode($flash['message']) ?>
+                    title: <?= json_encode($flash['message']) ?>
                 });
             });
         </script>
@@ -1975,6 +1996,17 @@ function render_header(string $title, ?array $user = null): void
                                     ];
                                 }
                             } elseif ($role === 'platform_admin') {
+                                try {
+                                    $newDemos = (int) scalar("SELECT COUNT(*) FROM demo_requests WHERE status = 'new'");
+                                    if ($newDemos > 0) {
+                                        $sidebarBadges['demo_requests'] = [
+                                            'text' => (string) $newDemos,
+                                            'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                            'title' => $newDemos . ' new demo request' . ($newDemos === 1 ? '' : 's')
+                                        ];
+                                    }
+                                } catch (Throwable) {}
+
                                 $pendingGyms = (int) scalar('SELECT COUNT(*) FROM gyms WHERE status = "pending"');
                                 if ($pendingGyms > 0) {
                                     $sidebarBadges['gym_applications'] = [

@@ -913,6 +913,82 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         [data-theme="dark"] .pm-trainer-safety-banner .banner-desc {
             color: #cbd5e1;
         }
+        .pm-pref-days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            width: 100%;
+        }
+        @media (max-width: 540px) {
+            .pm-pref-days-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        @media (max-width: 380px) {
+            .pm-pref-days-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        .pm-pref-day-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 3px;
+            border-radius: 9px;
+            background: color-mix(in srgb, var(--panel-soft, #1e293b) 60%, transparent);
+            border: 1.5px solid var(--line, rgba(255, 255, 255, 0.1));
+            color: var(--muted, #94a3b8);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            min-height: 52px;
+        }
+        .pm-pref-day-btn:hover {
+            border-color: var(--lime, #84cc16);
+            color: var(--ink, #fff);
+            transform: translateY(-1px);
+        }
+        .pm-pref-day-btn.is-selected {
+            background: rgba(132, 204, 22, 0.14);
+            border-color: var(--lime, #84cc16);
+            color: var(--ink, #fff);
+            box-shadow: 0 0 0 1px rgba(132, 204, 22, 0.35);
+        }
+        [data-theme="light"] .pm-pref-day-btn {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+        [data-theme="light"] .pm-pref-day-btn.is-selected {
+            background: #ecfccb;
+            border-color: #65a30d;
+            color: #1e3a0f;
+        }
+        .pm-pref-day-name {
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .pm-pref-day-status {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-top: 4px;
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--muted, #94a3b8);
+        }
+        [data-theme="light"] .pm-pref-day-status {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+        .pm-pref-day-btn.is-selected .pm-pref-day-status {
+            background: var(--lime, #84cc16);
+            color: #0f172a;
+        }
     </style>
 
     <form method="post" class="pm-form" id="physicalProfileForm_<?= h($context) ?>" onsubmit="return handleProfileFormSubmit_<?= h($context) ?>(this, event);">
@@ -993,7 +1069,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 <div class="pm-field">
                     <label for="sexTrigger_<?= h($context) ?>">Biological sex</label>
                     <div class="custom-select-wrapper" id="sexDropdown_<?= h($context) ?>">
-                        <select <?= $isTrainerAssessment ? 'disabled' : 'name="biological_sex"' ?> id="sexSelect_<?= h($context) ?>" class="custom-select-native" onchange="document.getElementById('hipContainer_<?= h($context) ?>').style.display = this.value === 'female' ? 'flex' : 'none';" <?= $context !== 'profile' ? 'required' : '' ?>>
+                        <select <?= $isTrainerAssessment ? 'disabled' : 'name="biological_sex"' ?> id="sexSelect_<?= h($context) ?>" class="custom-select-native" onchange="toggleSexHipField_<?= h($context) ?>(this.value);" <?= $context !== 'profile' ? 'required' : '' ?>>
                             <option value="male" <?= selected('male', $currentSex) ?>>Male</option>
                             <option value="female" <?= selected('female', $currentSex) ?>>Female</option>
                         </select>
@@ -1053,9 +1129,11 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     <input name="arm_cm" type="number" step="0.01" min="1" placeholder="optional"
                            value="<?= h($profile['arm_cm'] ?? '') ?>">
                 </label>
-                <label class="pm-field full-span" id="hipContainer_<?= h($context) ?>" style="display: <?= ($profile['biological_sex'] ?? 'male') === 'female' ? 'flex' : 'none' ?>;">Hip (cm)
-                    <input name="hip_cm" type="number" step="0.01" min="1"
-                           value="<?= h($profile['hip_cm'] ?? '') ?>">
+                <?php $isFemale = ($profile['biological_sex'] ?? 'male') === 'female'; ?>
+                <label class="pm-field full-span" id="hipContainer_<?= h($context) ?>" style="display: <?= $isFemale ? 'flex' : 'none' ?>;">Hip (cm)
+                    <input name="hip_cm" id="hipInput_<?= h($context) ?>" type="number" step="0.01" min="1"
+                           <?= !$isFemale ? 'disabled' : '' ?>
+                           value="<?= $isFemale ? h($profile['hip_cm'] ?? '') : '' ?>">
                 </label>
             </div>
         </div>
@@ -1120,6 +1198,20 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
         $selectedWeeklyWorkouts = (int)($profile['weekly_workout_target'] ?? 4);
         if ($selectedWeeklyWorkouts < 1 || $selectedWeeklyWorkouts > 7) $selectedWeeklyWorkouts = 4;
         $selectedWeeklyLabel = $weeklyWorkoutOptions[$selectedWeeklyWorkouts]['label'] ?? ($selectedWeeklyWorkouts . ' workouts per week');
+
+        $curPrefDays = (string)($profile['preferred_workout_days'] ?? '');
+        if ($curPrefDays === '') {
+            $defaultDaysMap = [
+                2 => '2,4',
+                3 => '1,3,5',
+                4 => '1,2,4,5',
+                5 => '1,2,3,4,5',
+                6 => '1,2,3,4,5,6',
+                7 => '1,2,3,4,5,6,7'
+            ];
+            $curPrefDays = $defaultDaysMap[$selectedWeeklyWorkouts] ?? '1,3,5';
+        }
+        $selectedDaysArray = array_values(array_filter(array_map('intval', explode(',', $curPrefDays)), fn($d) => $d >= 1 && $d <= 7));
 
         $goalGroups = [
             'Primary Fitness Goals' => [
@@ -1902,7 +1994,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                 <div class="pm-field full-span">
                     <label for="weeklyWorkoutTrigger_lifestyle_<?= h($context) ?>">Workout Frequency</label>
                     <div class="custom-select-wrapper" id="weeklyWorkoutDropdown_lifestyle_<?= h($context) ?>">
-                        <select name="weekly_workout_target" id="weeklyWorkoutTarget_lifestyle_<?= h($context) ?>" class="custom-select-native" onchange="const el = document.getElementById('weeklyWorkoutTarget_<?= h($context) ?>'); if (el) el.value = this.value;">
+                        <select name="weekly_workout_target" id="weeklyWorkoutTarget_lifestyle_<?= h($context) ?>" class="custom-select-native" onchange="const el = document.getElementById('weeklyWorkoutTarget_<?= h($context) ?>'); if (el) el.value = this.value; const tn = document.getElementById('prefDaysTargetNum_<?= h($context) ?>'); if (tn) tn.textContent = this.value;">
                             <?php foreach ($weeklyWorkoutOptions as $val => $opt): ?>
                                 <option value="<?= $val ?>" <?= $selectedWeeklyWorkouts === $val ? 'selected' : '' ?>><?= h($opt['label']) ?> — <?= h($opt['desc']) ?></option>
                             <?php endforeach; ?>
@@ -1943,6 +2035,41 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     </div>
                 </div>
 
+                <!-- Specific Training Days Selector -->
+                <div class="pm-field full-span" style="margin-top: 6px;">
+                    <label style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <span>Specific Training Days</span>
+                        <span id="prefDaysCountBadge_<?= h($context) ?>" style="font-size: 11px; font-weight: 700; color: var(--lime, #84cc16); background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.3); padding: 2px 8px; border-radius: 999px;">
+                            Selected: <span id="prefDaysSelectedNum_<?= h($context) ?>"><?= count($selectedDaysArray) ?></span> of <span id="prefDaysTargetNum_<?= h($context) ?>"><?= $selectedWeeklyWorkouts ?></span>
+                        </span>
+                    </label>
+
+                    <input type="hidden" name="preferred_workout_days" id="input_preferred_workout_days_<?= h($context) ?>" value="<?= h(implode(',', $selectedDaysArray)) ?>">
+
+                    <div class="pm-pref-days-grid" id="prefDaysGrid_<?= h($context) ?>">
+                        <?php
+                        $daysMap = [
+                            1 => 'Mon', 2 => 'Tue', 3 => 'Wed',
+                            4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'
+                        ];
+                        foreach ($daysMap as $dNum => $dAbbr):
+                            $isSelected = in_array($dNum, $selectedDaysArray, true);
+                        ?>
+                            <button type="button" 
+                                    class="pm-pref-day-btn <?= $isSelected ? 'is-selected' : '' ?>" 
+                                    data-day="<?= $dNum ?>" 
+                                    onclick="togglePmPrefDay('<?= h($context) ?>', <?= $dNum ?>)">
+                                <span class="pm-pref-day-name"><?= $dAbbr ?></span>
+                                <span class="pm-pref-day-status"><?= $isSelected ? 'Workout' : 'Rest' ?></span>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                    <small class="muted" style="font-size: 11px; display: block; margin-top: 6px; line-height: 1.35; color: var(--muted, #94a3b8);">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -1px; margin-right: 3px; color: var(--lime, #84cc16);"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Gym trainers cannot schedule workouts on rest days. Committed days are strictly enforced.
+                    </small>
+                </div>
+
                 <?php if ($isTrainerAssessment): ?>
                     <div class="pm-field full-span" style="margin-top: 6px;">
                         <label for="trainer_assessment_notes_<?= h($context) ?>" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
@@ -1981,6 +2108,17 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
     </form>
 
     <script>
+    function toggleSexHipField_<?= h($context) ?>(sex) {
+        const isFemale = sex === 'female';
+        const cont = document.getElementById('hipContainer_<?= h($context) ?>');
+        const input = document.getElementById('hipInput_<?= h($context) ?>');
+        if (cont) cont.style.display = isFemale ? 'flex' : 'none';
+        if (input) {
+            input.disabled = !isFemale;
+            if (!isFemale) input.value = '';
+        }
+    }
+
     var PM_TABS_<?= h($context) ?> = ['body', 'goal', 'targets', 'lifestyle'];
     var currentPmTabIndex_<?= h($context) ?> = 0;
 
@@ -2521,6 +2659,62 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
             searchInput.focus();
         }
     }
+
+
+    window.togglePmPrefDay = function(context, dayNum) {
+        const input = document.getElementById('input_preferred_workout_days_' + context);
+        const grid = document.getElementById('prefDaysGrid_' + context);
+        if (!input || !grid) return;
+
+        let days = input.value.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 1 && n <= 7);
+        const idx = days.indexOf(dayNum);
+        if (idx > -1) {
+            if (days.length <= 1) {
+                return;
+            }
+            days.splice(idx, 1);
+        } else {
+            days.push(dayNum);
+        }
+        days.sort((a, b) => a - b);
+        input.value = days.join(',');
+
+        const btns = grid.querySelectorAll('.pm-pref-day-btn');
+        btns.forEach(btn => {
+            const d = parseInt(btn.getAttribute('data-day'), 10);
+            const isSel = days.includes(d);
+            btn.classList.toggle('is-selected', isSel);
+            const statusSpan = btn.querySelector('.pm-pref-day-status');
+            if (statusSpan) statusSpan.textContent = isSel ? 'Workout' : 'Rest';
+        });
+
+        const selCountEl = document.getElementById('prefDaysSelectedNum_' + context);
+        if (selCountEl) selCountEl.textContent = days.length;
+
+        const targetSelect = document.getElementById('weeklyWorkoutTarget_lifestyle_' + context);
+        if (targetSelect && days.length >= 1 && days.length <= 7) {
+            const opt = Array.from(targetSelect.options).find(o => parseInt(o.value, 10) === days.length);
+            if (opt) {
+                targetSelect.value = days.length;
+                const targetNumEl = document.getElementById('prefDaysTargetNum_' + context);
+                if (targetNumEl) targetNumEl.textContent = days.length;
+                const trigText = document.getElementById('weeklyWorkoutTriggerText_lifestyle_' + context);
+                if (trigText) trigText.textContent = days.length + ' Workouts / Week';
+                const syncEl = document.getElementById('weeklyWorkoutTarget_' + context);
+                if (syncEl) syncEl.value = days.length;
+
+                // Sync custom select item highlights
+                const dd = document.getElementById('weeklyWorkoutDropdown_lifestyle_' + context);
+                if (dd) {
+                    dd.querySelectorAll('.custom-select-item').forEach(item => {
+                        const isMatch = item.dataset.value == days.length;
+                        item.classList.toggle('selected', isMatch);
+                        item.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+                    });
+                }
+            }
+        }
+    };
 
     // Close on click outside
     document.addEventListener('click', function(e) {
@@ -4514,7 +4708,9 @@ function render_notification_bell(array $user, string $currentPage, ?int $cached
             <?php else: ?>
                 <ul class="notif-menu">
                     <?php foreach ($items as $item):
-                        $hasLink = in_array($item['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true);
+                        $isClientUpdate = $item['type'] === 'system' && in_array($item['title'], ['Client Progress Logged', 'Client Fitness Goal Updated'], true);
+                        $isDemoRequest = $item['type'] === 'system' && in_array($item['title'], ['New Demo Request', 'Live Demo Requested'], true);
+                        $hasLink = in_array($item['type'], ['coach_message', 'class_reminder', 'renewal_reminder', 'milestone'], true) || $isClientUpdate || $isDemoRequest;
                         $clickUrl = $hasLink ? 'index.php?page=notification_click&nid=' . (int) $item['notification_id'] : null;
                     ?>
                         <li class="<?= $item['is_read'] ? '' : 'unread' ?>">

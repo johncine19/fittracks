@@ -33,7 +33,11 @@ function run_at_risk_batch_multi_gym_tests(): void
 
         CREATE TABLE gyms (
             gym_id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
+            name TEXT NOT NULL
+        );
+
+        CREATE TABLE gym_settings (
+            gym_id INTEGER PRIMARY KEY,
             inactivity_threshold_days INTEGER DEFAULT 3,
             inactivity_cooldown_days INTEGER DEFAULT 14,
             auto_inactivity_alerts INTEGER DEFAULT 1
@@ -80,10 +84,15 @@ function run_at_risk_batch_multi_gym_tests(): void
     // Gym 2: Threshold 10 days, cooldown 30 days, alerts enabled
     // Gym 3: Alerts disabled (auto_inactivity_alerts = 0)
     $pdo->exec("
-        INSERT INTO gyms (gym_id, name, inactivity_threshold_days, inactivity_cooldown_days, auto_inactivity_alerts) VALUES
-        (1, 'Gym Alpha', 3, 14, 1),
-        (2, 'Gym Beta', 10, 30, 1),
-        (3, 'Gym Gamma', 3, 14, 0);
+        INSERT INTO gyms (gym_id, name) VALUES
+        (1, 'Gym Alpha'),
+        (2, 'Gym Beta'),
+        (3, 'Gym Gamma');
+
+        INSERT INTO gym_settings (gym_id, inactivity_threshold_days, inactivity_cooldown_days, auto_inactivity_alerts) VALUES
+        (1, 3, 14, 1),
+        (2, 10, 30, 1),
+        (3, 3, 14, 0);
     ");
 
     // Seed Users & Multi-Gym Affiliations:

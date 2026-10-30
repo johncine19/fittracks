@@ -63,7 +63,7 @@ Handles registration, plan selection (e.g., monthly, quarterly, annual), renewal
 Staff and Admin create class schedules (yoga, strength training, spin, etc.); members browse and book slots, subject to capacity limits.
 
 ### C. Attendance Tracking
-Check-in via QR code, RFID card, or manual front-desk entry. Attendance feeds into both billing (for usage-based plans) and trainer progress reviews.
+Check-in via QR code, or manual front-desk entry. Attendance feeds into both billing (for usage-based plans) and trainer progress reviews.
 
 ### D. Billing & Payments
 Tracks invoices, payment methods, due dates, and overdue notices. Generates receipts and supports partial/installment plans if needed.
@@ -75,10 +75,13 @@ Admin or Staff assign coaches to members (or members select from available coach
 The system's core differentiator, detailed fully in Section V.
 
 ### G. Progress Tracking
-Members and coaches log recurring data points (weight, body measurements, photos, performance benchmarks). The system visualizes trends over time and feeds this data back into the nutrition module for recalibration.
+Members and coaches log recurring data points (weight, body measurements, performance benchmarks). The system visualizes trends over time and feeds this data back into the nutrition module for recalibration.
 
 ### H. Notifications
 Automated reminders for membership renewal, upcoming classes, trainer messages, and milestones reached (e.g., "You've hit your 3-month weigh-in goal").
+
+### I. Exercise Database & API Ninjas Integration
+Gym Owners and Platform Admins can browse, search, and import verified exercises with instructions, target muscles, equipment requirements, and difficulty levels via the API Ninjas integration. Imported exercises are facility-scoped (`gym_id`) and immediately available to coaches in the Workout Builder. Governed by a tiered rate limiter (20 searches/min, 30 imports/min). Detailed in `docs/API_NINJAS_EXERCISES_INTEGRATION.md`.
 
 ## V. Dietary Suggestion Feature (Detailed)
 

@@ -140,24 +140,42 @@ function gym_onboarding_page(): void
                     }
                 }
 
-                $fields = [
-                    'owner_user_id', 'name', 'address', 'contact_info',
-                    'business_permit_url', 'valid_id_url', 'valid_id_type',
-                    'barangay_clearance_url', 'fire_safety_cert_url', 'fb_page_url', 'status'
-                ];
-                $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '"pending"'];
+                $fields = ['owner_user_id', 'name', 'address', 'contact_info', 'fb_page_url', 'status'];
+                $placeholders = ['?', '?', '?', '?', '?', '"pending"'];
                 $params = [
                     $user['user_id'],
                     $gymName,
                     $gymAddress,
                     $gymContact !== '' ? $gymContact : null,
-                    $permitFilename,
-                    $validIdFilename,
-                    $validIdType,
-                    $brgyFilename,
-                    $fireSafetyFilename,
                     $fbPageUrl
                 ];
+
+                // Legacy column compatibility if present in table
+                if (in_array('business_permit_url', $gymColumns, true)) {
+                    $fields[] = 'business_permit_url';
+                    $placeholders[] = '?';
+                    $params[] = $permitFilename;
+                }
+                if (in_array('valid_id_url', $gymColumns, true)) {
+                    $fields[] = 'valid_id_url';
+                    $placeholders[] = '?';
+                    $params[] = $validIdFilename;
+                }
+                if (in_array('valid_id_type', $gymColumns, true)) {
+                    $fields[] = 'valid_id_type';
+                    $placeholders[] = '?';
+                    $params[] = $validIdType;
+                }
+                if (in_array('barangay_clearance_url', $gymColumns, true)) {
+                    $fields[] = 'barangay_clearance_url';
+                    $placeholders[] = '?';
+                    $params[] = $brgyFilename;
+                }
+                if (in_array('fire_safety_cert_url', $gymColumns, true)) {
+                    $fields[] = 'fire_safety_cert_url';
+                    $placeholders[] = '?';
+                    $params[] = $fireSafetyFilename;
+                }
 
                 if (in_array('secondary_valid_id_url', $gymColumns, true)) {
                     $fields[] = 'secondary_valid_id_url';
@@ -200,6 +218,29 @@ function gym_onboarding_page(): void
                 $insertSql = 'INSERT INTO gyms (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
                 $stmt = $pdo->prepare($insertSql);
                 $stmt->execute($params);
+                $newGymId = (int) $pdo->lastInsertId();
+
+                if (function_exists('save_gym_verification_documents')) {
+                    save_gym_verification_documents($newGymId, [
+                        'business_permit_url'    => $permitFilename,
+                        'valid_id_url'           => $validIdFilename,
+                        'valid_id_type'          => $validIdType,
+                        'secondary_valid_id_url' => $secondaryValidIdFilename,
+                        'secondary_valid_id_type' => $isSecondary ? $secondaryValidIdType : null,
+                        'barangay_clearance_url' => $brgyFilename,
+                        'fire_safety_cert_url'   => $fireSafetyFilename,
+                    ]);
+                }
+                if (function_exists('save_gym_payout_account')) {
+                    save_gym_payout_account($newGymId, [
+                        'payout_channel'        => $payoutChannel,
+                        'payout_account_number' => $payoutAccountNumber ?: null,
+                        'payout_account_name'   => $payoutAccountName ?: null,
+                    ]);
+                }
+                if (function_exists('save_gym_settings')) {
+                    save_gym_settings($newGymId, []);
+                }
 
                 audit_log($user['user_id'], 'submit_application', 'gym_owner', (string)$user['user_id']);
                 

@@ -235,7 +235,7 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
     $staleSessions = $staleUserSessions->fetchAll(PDO::FETCH_ASSOC);
     foreach ($staleSessions as $ss) {
         $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW() WHERE session_id = ?")->execute([(int)$ss['session_id']]);
-        $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([(int)$ss['equipment_id']]);
+        // current_session_id decoupled in Phase 5
         process_next_in_queue($pdo, (int)$ss['gym_id'], (int)$ss['equipment_id']);
     }
 
@@ -286,25 +286,17 @@ function reconcile_equipment_states(PDO $pdo, int $gymId): void
         $eqGymId = (int)$stale['gym_id'];
 
         // Clear current_session_id
-        $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([$eqId]);
+        // current_session_id decoupled in Phase 5
 
         // Process queue: if someone is waiting, notify them; otherwise set status to available
         process_next_in_queue($pdo, $eqGymId, $eqId);
     }
 
-    // 2. Clear any current_session_id that points to an inactive session
-    $pdo->prepare("
-        UPDATE gym_equipment e
-        LEFT JOIN equipment_sessions s ON s.session_id = e.current_session_id AND s.session_status = 'active'
-        SET e.current_session_id = NULL
-        WHERE (e.gym_id = ? OR ? = 0) AND e.current_session_id IS NOT NULL AND s.session_id IS NULL
-    ")->execute([$gymId, $gymId]);
-
-    // 3. Ensure any equipment with an active session is marked 'in_use'
+    // Ensure any equipment with an active session is marked 'in_use'
     $pdo->prepare("
         UPDATE gym_equipment e
         JOIN equipment_sessions s ON s.equipment_id = e.equipment_id AND s.session_status = 'active'
-        SET e.status = 'in_use', e.current_session_id = s.session_id
+        SET e.status = 'in_use'
         WHERE (e.gym_id = ? OR ? = 0) AND e.status = 'available'
     ")->execute([$gymId, $gymId]);
 }
@@ -395,10 +387,15 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
     // 3. Equipment inventory list for this gym (optimized with indexed LEFT JOINs instead of correlated subqueries)
     $equipStmt = $pdo->prepare("
         SELECT e.*,
+               s.session_id as current_session_id,
+               eml.maintenance_reason,
+               eml.expected_return_date,
+               eml.next_maintenance_date,
+               eml.last_maintenance_date,
                COALESCE(qc.waiting_queue_count, 0) as waiting_queue_count,
                CASE 
                    WHEN s.session_id IS NULL THEN NULL
-                   WHEN s.partner_user_ids IS NOT NULL AND s.partner_user_ids != '' THEN 
+                   WHEN EXISTS (SELECT 1 FROM equipment_session_partners esp WHERE esp.session_id = s.session_id) THEN 
                        CONCAT(su.first_name, ' + group (Coach ', COALESCE(tu.first_name, 'Trainer'), ')')
                    WHEN s.trainer_user_id IS NOT NULL AND s.trainer_user_id != s.user_id THEN 
                        CONCAT(su.first_name, ' ', SUBSTRING(su.last_name, 1, 1), '. (Coach ', COALESCE(tu.first_name, 'Trainer'), ')')
@@ -408,7 +405,7 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
                TIMESTAMPDIFF(MINUTE, s.start_time, NOW()) as session_elapsed_mins,
                s.user_id as current_session_user_id,
                s.trainer_user_id as current_session_trainer_id,
-               s.partner_user_ids as current_session_partner_ids,
+               (SELECT GROUP_CONCAT(esp.partner_user_id) FROM equipment_session_partners esp WHERE esp.session_id = s.session_id) as current_session_partner_ids,
                CASE WHEN nq.queue_id IS NOT NULL THEN CONCAT(qu.first_name, ' ', SUBSTRING(qu.last_name, 1, 1), '.') ELSE NULL END as notified_user_display,
                nq.user_id as notified_user_id,
                TIMESTAMPDIFF(SECOND, NOW(), nq.claim_deadline) as claim_remaining_seconds
@@ -423,6 +420,19 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
             ON nq.equipment_id = e.equipment_id AND nq.queue_status = 'notified' AND nq.claim_deadline >= NOW()
         LEFT JOIN users qu 
             ON qu.user_id = nq.user_id
+        LEFT JOIN (
+            SELECT eml1.equipment_id,
+                   eml1.reason AS maintenance_reason,
+                   eml1.expected_return_date,
+                   eml1.next_maintenance_date,
+                   eml1.created_at AS last_maintenance_date
+            FROM equipment_maintenance_logs eml1
+            JOIN (
+                SELECT equipment_id, MAX(log_id) AS max_log_id
+                FROM equipment_maintenance_logs
+                GROUP BY equipment_id
+            ) eml_max ON eml1.log_id = eml_max.max_log_id
+        ) eml ON eml.equipment_id = e.equipment_id
         LEFT JOIN (
             SELECT equipment_id, COUNT(*) as waiting_queue_count
             FROM equipment_queues
@@ -461,7 +471,7 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
                 AND a.check_out_time IS NULL 
                 AND a.check_in_time >= CURDATE() 
                 AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
-            LEFT JOIN equipment_sessions es ON (es.user_id = u.user_id OR FIND_IN_SET(u.user_id, COALESCE(es.partner_user_ids, ''))) AND es.session_status = 'active'
+            LEFT JOIN equipment_sessions es ON (es.user_id = u.user_id OR EXISTS (SELECT 1 FROM equipment_session_partners esp WHERE esp.session_id = es.session_id AND esp.partner_user_id = u.user_id)) AND es.session_status = 'active'
             LEFT JOIN gym_equipment eq ON eq.equipment_id = es.equipment_id
             WHERE u.role = 'member'
               AND (
@@ -476,7 +486,8 @@ function handle_poll(PDO $pdo, int $gymId, array $user): void
 
         // All active circuit stations initiated by this trainer
         $trSessionsStmt = $pdo->prepare("
-            SELECT s.session_id, s.equipment_id, s.user_id, s.trainer_user_id, s.partner_user_ids,
+            SELECT s.session_id, s.equipment_id, s.user_id, s.trainer_user_id,
+                   (SELECT GROUP_CONCAT(esp.partner_user_id) FROM equipment_session_partners esp WHERE esp.session_id = s.session_id) AS partner_user_ids,
                    s.start_time, UNIX_TIMESTAMP(s.start_time) as start_ts,
                    TIMESTAMPDIFF(SECOND, s.start_time, NOW()) as elapsed_seconds,
                    e.name, e.unit_number, e.category, e.location_area, e.image_url,
@@ -628,8 +639,8 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
                 $prevSessionsStmt = $pdo->prepare("SELECT session_id, equipment_id FROM equipment_sessions WHERE user_id = ? AND session_status = 'active'");
                 $prevSessionsStmt->execute([$vcId]);
                 foreach ($prevSessionsStmt->fetchAll(PDO::FETCH_ASSOC) as $prev) {
-                    $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW(), duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE session_id = ?")->execute([(int)$prev['session_id']]);
-                    $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([(int)$prev['equipment_id']]);
+                    $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW() WHERE session_id = ?")->execute([(int)$prev['session_id']]);
+                    // current_session_id decoupled in Phase 5
                     process_next_in_queue($pdo, $eqGymId, (int)$prev['equipment_id']);
                 }
             }
@@ -683,12 +694,21 @@ function handle_start_session(PDO $pdo, int $gymId, array $user): void
     }
 
     // Insert active session
-    $insertSession = $pdo->prepare("INSERT INTO equipment_sessions (gym_id, equipment_id, user_id, trainer_user_id, partner_user_ids, start_time, session_status) VALUES (?, ?, ?, ?, ?, NOW(), 'active')");
-    $insertSession->execute([$eqGymId, $equipmentId, $targetUserId, $trainerUserId, $partnerIdsStr]);
+    $insertSession = $pdo->prepare("INSERT INTO equipment_sessions (gym_id, equipment_id, user_id, trainer_user_id, start_time, session_status) VALUES (?, ?, ?, ?, NOW(), 'active')");
+    $insertSession->execute([$eqGymId, $equipmentId, $targetUserId, $trainerUserId]);
     $sessionId = (int)$pdo->lastInsertId();
 
+    // Insert normalized partner rows into equipment_session_partners
+    if (!empty($partnerIdsStr)) {
+        $partnerIds = array_filter(array_map('intval', explode(',', (string)$partnerIdsStr)), fn($id) => $id > 0);
+        $insPartner = $pdo->prepare("INSERT IGNORE INTO equipment_session_partners (session_id, partner_user_id) VALUES (?, ?)");
+        foreach (array_unique($partnerIds) as $pId) {
+            $insPartner->execute([$sessionId, $pId]);
+        }
+    }
+
     // Link session to equipment
-    $pdo->prepare("UPDATE gym_equipment SET current_session_id = ? WHERE equipment_id = ?")->execute([$sessionId, $equipmentId]);
+    // current_session_id decoupled in Phase 5
 
     // If target user or trainer was in queue for this equipment, mark claimed
     $pdo->prepare("UPDATE equipment_queues SET queue_status = 'claimed', resolved_at = NOW() WHERE user_id IN (?, ?) AND equipment_id = ? AND queue_status IN ('waiting', 'notified')")->execute([$targetUserId, $userId, $equipmentId]);
@@ -742,10 +762,10 @@ function handle_finish_session(PDO $pdo, int $gymId, array $user): void
     $durationSeconds = max(1, time() - strtotime($session['start_time']));
 
     // Complete session
-    $pdo->prepare("UPDATE equipment_sessions SET end_time = NOW(), duration_seconds = ?, session_status = 'completed' WHERE session_id = ?")
-        ->execute([$durationSeconds, $sessionId]);
+    $pdo->prepare("UPDATE equipment_sessions SET end_time = NOW(), session_status = 'completed' WHERE session_id = ?")
+        ->execute([$sessionId]);
 
-    $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([$equipmentId]);
+    // current_session_id decoupled in Phase 5
 
     // Process next waiting person in line or set Available
     process_next_in_queue($pdo, $sessionGymId, $equipmentId);
@@ -807,15 +827,9 @@ function handle_log_progress(PDO $pdo, int $gymId, array $user): void
         $stmt->execute([$userId, $logDate, $weightKg, $bodyFat, $waistCm, $chestCm, $armCm, $notes, $userId]);
     }
 
-    $profileUpdate = 'UPDATE member_profiles SET weight_kg = ?';
-    $profileParams = [$weightKg];
-    if ($waistCm !== null) {
-        $profileUpdate .= ', waist_cm = ?';
-        $profileParams[] = $waistCm;
+    if (function_exists('member_profile')) {
+        member_profile($userId, true);
     }
-    $profileUpdate .= ' WHERE user_id = ?';
-    $profileParams[] = $userId;
-    $pdo->prepare($profileUpdate)->execute($profileParams);
 
     $workoutHelper = __DIR__ . '/workouts.php';
     if (file_exists($workoutHelper)) {
@@ -1059,10 +1073,17 @@ function handle_admin_save(PDO $pdo, int $gymId, array $user): void
         $updateStmt = $pdo->prepare("
             UPDATE gym_equipment
             SET name = ?, unit_number = ?, category = ?, location_area = ?, description = ?,
-                equipment_condition = ?, image_url = ?, next_maintenance_date = ?
+                equipment_condition = ?, image_url = ?
             WHERE equipment_id = ?
         ");
-        $updateStmt->execute([$name, $unitNumber, $category, $location, $description, $condition, $imageUrl ?: null, $nextMaintenance, $equipmentId]);
+        $updateStmt->execute([$name, $unitNumber, $category, $location, $description, $condition, $imageUrl ?: null, $equipmentId]);
+
+        if ($nextMaintenance) {
+            $pdo->prepare("
+                INSERT INTO equipment_maintenance_logs (equipment_id, gym_id, logged_by_user_id, action, reason, next_maintenance_date)
+                VALUES (?, ?, ?, 'scheduled_maintenance', 'Scheduled maintenance target updated', ?)
+            ")->execute([$equipmentId, $gymId, $user['user_id'], $nextMaintenance]);
+        }
 
         echo json_encode(['success' => true, 'message' => 'Equipment details updated successfully.', 'image_url' => $imageUrl]);
         return;
@@ -1072,21 +1093,35 @@ function handle_admin_save(PDO $pdo, int $gymId, array $user): void
     if ($quantity === 1) {
         // Single unit
         $insertStmt = $pdo->prepare("
-            INSERT INTO gym_equipment (gym_id, name, unit_number, category, location_area, description, equipment_condition, status, image_url, date_added, next_maintenance_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, CURDATE(), ?)
+            INSERT INTO gym_equipment (gym_id, name, unit_number, category, location_area, description, equipment_condition, status, image_url, date_added)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, CURDATE())
             ON DUPLICATE KEY UPDATE description = VALUES(description), location_area = VALUES(location_area), image_url = VALUES(image_url)
         ");
-        $insertStmt->execute([$gymId, $name, $unitNumber, $category, $location, $description, $condition, $imageUrl ?: null, $nextMaintenance]);
+        $insertStmt->execute([$gymId, $name, $unitNumber, $category, $location, $description, $condition, $imageUrl ?: null]);
+        $newEqId = (int)$pdo->lastInsertId();
+        if ($newEqId > 0 && $nextMaintenance) {
+            $pdo->prepare("
+                INSERT INTO equipment_maintenance_logs (equipment_id, gym_id, logged_by_user_id, action, reason, next_maintenance_date)
+                VALUES (?, ?, ?, 'scheduled_maintenance', 'Initial scheduled maintenance', ?)
+            ")->execute([$newEqId, $gymId, $user['user_id'], $nextMaintenance]);
+        }
     } else {
         // Bulk unit creation (e.g. Treadmill #1, Treadmill #2, ...)
         $insertStmt = $pdo->prepare("
-            INSERT IGNORE INTO gym_equipment (gym_id, name, unit_number, category, location_area, description, equipment_condition, status, image_url, date_added, next_maintenance_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, CURDATE(), ?)
+            INSERT IGNORE INTO gym_equipment (gym_id, name, unit_number, category, location_area, description, equipment_condition, status, image_url, date_added)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'available', ?, CURDATE())
         ");
 
         for ($i = 1; $i <= $quantity; $i++) {
             $unitLabel = '#' . $i;
-            $insertStmt->execute([$gymId, $name, $unitLabel, $category, $location, $description, $condition, $imageUrl ?: null, $nextMaintenance]);
+            $insertStmt->execute([$gymId, $name, $unitLabel, $category, $location, $description, $condition, $imageUrl ?: null]);
+            $bulkEqId = (int)$pdo->lastInsertId();
+            if ($bulkEqId > 0 && $nextMaintenance) {
+                $pdo->prepare("
+                    INSERT INTO equipment_maintenance_logs (equipment_id, gym_id, logged_by_user_id, action, reason, next_maintenance_date)
+                    VALUES (?, ?, ?, 'scheduled_maintenance', 'Initial scheduled maintenance', ?)
+                ")->execute([$bulkEqId, $gymId, $user['user_id'], $nextMaintenance]);
+            }
         }
     }
 
@@ -1125,9 +1160,9 @@ function handle_admin_set_maintenance(PDO $pdo, int $gymId, array $user): void
     // 1. Update equipment status
     $pdo->prepare("
         UPDATE gym_equipment
-        SET status = ?, maintenance_reason = ?, expected_return_date = ?, last_maintenance_date = CURDATE(), current_session_id = NULL
+        SET status = ?
         WHERE equipment_id = ?
-    ")->execute([$status, $reason, $expectedReturn, $equipmentId]);
+    ")->execute([$status, $equipmentId]);
 
     // 2. Log maintenance action
     $pdo->prepare("
@@ -1138,7 +1173,7 @@ function handle_admin_set_maintenance(PDO $pdo, int $gymId, array $user): void
     // 3. Complete any active session
     $pdo->prepare("
         UPDATE equipment_sessions
-        SET end_time = NOW(), session_status = 'cancelled', duration_seconds = TIMESTAMPDIFF(SECOND, start_time, NOW())
+        SET end_time = NOW(), session_status = 'cancelled'
         WHERE equipment_id = ? AND session_status = 'active'
     ")->execute([$equipmentId]);
 
@@ -1183,7 +1218,7 @@ function handle_admin_restore_available(PDO $pdo, int $gymId, array $user): void
 
     $pdo->prepare("
         UPDATE gym_equipment
-        SET status = 'available', maintenance_reason = NULL, expected_return_date = NULL
+        SET status = 'available'
         WHERE equipment_id = ?
     ")->execute([$equipmentId]);
 
@@ -1233,7 +1268,7 @@ function handle_admin_queue_details(PDO $pdo, int $gymId): void
     $equipmentId = (int)($_GET['equipment_id'] ?? 0);
 
     // Fetch equipment details
-    $eqStmt = $pdo->prepare("SELECT equipment_id, gym_id, name, unit_number, status, maintenance_reason FROM gym_equipment WHERE equipment_id = ?");
+    $eqStmt = $pdo->prepare("SELECT equipment_id, gym_id, name, unit_number, status, maintenance_reason FROM v_gym_equipment WHERE equipment_id = ?");
     $eqStmt->execute([$equipmentId]);
     $eq = $eqStmt->fetch(PDO::FETCH_ASSOC);
 

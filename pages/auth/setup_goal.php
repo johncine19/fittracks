@@ -55,43 +55,22 @@ function setup_goal_page(): void
         $targetEnduranceDist = (post('target_endurance_distance_km') !== null && post('target_endurance_distance_km') !== '') ? abs((float) post('target_endurance_distance_km')) : null;
         $targetEnduranceTime = (post('target_endurance_time_mins') !== null && post('target_endurance_time_mins') !== '') ? abs((int) post('target_endurance_time_mins')) : null;
 
-        // Save primary goal, secondary focus, schedule preferences, and optional targets
-        $pdo = db();
-        $pdo->prepare('UPDATE member_profiles SET 
-            primary_goal = ?, 
-            secondary_focus = ?,
-            weekly_workout_target = ?, 
-            preferred_duration_mins = ?,
-            target_weight_kg = ?,
-            target_body_fat_percent = ?,
-            target_waist_cm = ?,
-            target_exercise = ?,
-            target_strength_max_kg = ?,
-            endurance_activity = ?,
-            target_endurance_distance_km = ?,
-            target_endurance_time_mins = ?
-            WHERE user_id = ?')
-            ->execute([
-                $goal, $secondaryFocus, $weeklyTarget, $durationMins,
-                $targetWeight, $targetBf, $targetWaist,
-                $targetExercise, $targetStrengthMax,
-                $enduranceActivity, $targetEnduranceDist, $targetEnduranceTime,
-                $user['user_id']
-            ]);
+        // Save primary goal, secondary focus, schedule preferences, and optional targets into normalized tables
+        $_POST['primary_goal'] = $goal;
+        $_POST['secondary_focus'] = $secondaryFocus ?? '';
+        $_POST['weekly_workout_target'] = $weeklyTarget;
+        $_POST['preferred_duration_mins'] = $durationMins;
+        $_POST['target_weight_kg'] = $targetWeight ?? '';
+        $_POST['target_body_fat_percent'] = $targetBf ?? '';
+        $_POST['target_waist_cm'] = $targetWaist ?? '';
+        $_POST['target_exercise'] = $targetExercise ?? '';
+        $_POST['target_strength_max_kg'] = $targetStrengthMax ?? '';
+        $_POST['endurance_activity'] = $enduranceActivity ?? '';
+        $_POST['target_endurance_distance_km'] = $targetEnduranceDist ?? '';
+        $_POST['target_endurance_time_mins'] = $targetEnduranceTime ?? '';
 
-        // Re-fetch profile with goal, schedule & targets
-        $profile['primary_goal'] = $goal;
-        $profile['secondary_focus'] = $secondaryFocus;
-        $profile['weekly_workout_target'] = $weeklyTarget;
-        $profile['preferred_duration_mins'] = $durationMins;
-        $profile['target_weight_kg'] = $targetWeight;
-        $profile['target_body_fat_percent'] = $targetBf;
-        $profile['target_waist_cm'] = $targetWaist;
-        $profile['target_exercise'] = $targetExercise;
-        $profile['target_strength_max_kg'] = $targetStrengthMax;
-        $profile['endurance_activity'] = $enduranceActivity;
-        $profile['target_endurance_distance_km'] = $targetEnduranceDist;
-        $profile['target_endurance_time_mins'] = $targetEnduranceTime;
+        save_member_profile((int) $user['user_id']);
+        $profile = member_profile((int) $user['user_id'], true);
         // Save goal preferences and continue to Step 3: Setup Review
         // Plans will be generated only upon final review confirmation to prevent duplicate plans/notifications.
         flash('Goal saved! Please review your fitness profile before final confirmation.', 'success');

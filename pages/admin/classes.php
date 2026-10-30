@@ -23,6 +23,7 @@ function classes_page(): void
                 ->execute([post('class_name'), post('description'), $instructor_id, post('capacity'), $gymId, $user['user_id']]);
             audit_log($user['user_id'], 'create', 'class', (string) db()->lastInsertId(), json_encode(['class_name' => post('class_name')]));
             flash('Class created.');
+            redirect('classes&tab=types');
         } elseif ($action === 'schedule') {
             $class_id = post('class_id');
             $startDatetime = post('start_datetime');
@@ -30,35 +31,35 @@ function classes_page(): void
 
             if (!$class_id || !$startDatetime || !$endDatetime) {
                 flash('Please select a class and provide both start and end times.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             $startTimestamp = strtotime($startDatetime);
             $endTimestamp = strtotime($endDatetime);
             if ($startTimestamp === false || $endTimestamp === false) {
                 flash('Invalid date or time format provided.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             // Disallow scheduling on past days or past times (60s tolerance for latency)
             if ($startTimestamp < (time() - 60)) {
                 flash('Cannot schedule a session on past days or times. Please select an upcoming date and time.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             if ($endTimestamp <= $startTimestamp) {
                 flash('End Date/Time must be after Start Date/Time.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             if (!$isAdmin) {
                 $c = db()->prepare('SELECT instructor_id, gym_id FROM classes WHERE class_id=?');
                 $c->execute([$class_id]);
                 $cls = $c->fetch();
-                if (!$cls) redirect('classes');
+                if (!$cls) redirect('classes&tab=schedules');
                 
-                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes');
-                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
+                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
+                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
             db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')
                 ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime]);
@@ -71,6 +72,7 @@ function classes_page(): void
             audit_log($user['user_id'], 'create', 'class_schedule', (string) db()->lastInsertId(), json_encode(['class_id' => $class_id, 'start' => post('start_datetime')]));
             
             flash('Schedule created.');
+            redirect('classes&tab=schedules');
         } elseif ($action === 'edit_class') {
             if ($isAdmin) {
                 db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=?')
@@ -84,6 +86,7 @@ function classes_page(): void
             }
             flash('Class updated.');
             audit_log($user['user_id'], 'edit', 'class', (string) post('class_id'), json_encode(['class_name' => post('class_name')]));
+            redirect('classes&tab=types');
         } elseif ($action === 'delete_class') {
             if ($isAdmin) {
                 db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([post('class_id')]);
@@ -94,6 +97,7 @@ function classes_page(): void
             }
             flash('Class deleted.');
             audit_log($user['user_id'], 'delete', 'class', (string) post('class_id'));
+            redirect('classes&tab=types');
         } elseif ($action === 'edit_schedule') {
             $schedule_id = post('schedule_id');
             $class_id = post('class_id');
@@ -102,56 +106,59 @@ function classes_page(): void
 
             if (!$schedule_id || !$class_id || !$startDatetime || !$endDatetime) {
                 flash('Please complete all required fields.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             $startTimestamp = strtotime($startDatetime);
             $endTimestamp = strtotime($endDatetime);
             if ($startTimestamp === false || $endTimestamp === false) {
                 flash('Invalid date or time format provided.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             // Disallow scheduling on past days or past times
             if ($startTimestamp < (time() - 60)) {
                 flash('Cannot schedule a session on past days or times. Please select an upcoming date and time.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             if ($endTimestamp <= $startTimestamp) {
                 flash('End Date/Time must be after Start Date/Time.', 'danger');
-                redirect('classes');
+                redirect('classes&tab=schedules');
             }
 
             if (!$isAdmin) {
                 $c = db()->prepare('SELECT c.instructor_id, c.gym_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
                 $c->execute([$schedule_id]);
                 $cls = $c->fetch();
-                if (!$cls) redirect('classes');
+                if (!$cls) redirect('classes&tab=schedules');
                 
-                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes');
-                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
+                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
+                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
             db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')
                 ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime, $schedule_id]);
             audit_log($user['user_id'], 'edit', 'class_schedule', (string) $schedule_id, json_encode(['class_id' => $class_id]));
             flash('Schedule updated.');
+            redirect('classes&tab=schedules');
         } elseif ($action === 'delete_schedule') {
             $schedule_id = post('schedule_id');
             if (!$isAdmin) {
                 $c = db()->prepare('SELECT c.instructor_id, c.gym_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
                 $c->execute([$schedule_id]);
                 $cls = $c->fetch();
-                if (!$cls) redirect('classes');
+                if (!$cls) redirect('classes&tab=schedules');
                 
-                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes');
-                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes');
+                if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
+                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
             db()->prepare('DELETE FROM class_schedules WHERE schedule_id=?')->execute([$schedule_id]);
             audit_log($user['user_id'], 'delete', 'class_schedule', (string) $schedule_id);
             flash('Schedule deleted.');
+            redirect('classes&tab=schedules');
         }
-        redirect('classes');
+        $tabFallback = in_array($action, ['schedule', 'edit_schedule', 'delete_schedule'], true) ? 'schedules' : 'types';
+        redirect('classes&tab=' . $tabFallback);
     }
 
     if ($isAdmin) {
@@ -170,6 +177,7 @@ function classes_page(): void
         $schedules = $stmt2->fetchAll();
     }
     
+    $activeTab = ($_GET['tab'] ?? '') === 'schedules' ? 'schedules' : 'types';
     $csrfStr = csrf_field();
     $instructorOptions = '<option value="">— None assigned —</option>';
     foreach ($coaches as $trainer) {
@@ -650,11 +658,11 @@ function classes_page(): void
         </div>
 
         <div class="class-tabs">
-            <button class="class-tab-btn active" onclick="switchClassTab('types')">Class Types</button>
-            <button class="class-tab-btn" onclick="switchClassTab('schedules')">Schedules</button>
+            <button class="class-tab-btn <?= $activeTab === 'types' ? 'active' : '' ?>" data-tab="types" onclick="switchClassTab('types')">Class Types</button>
+            <button class="class-tab-btn <?= $activeTab === 'schedules' ? 'active' : '' ?>" data-tab="schedules" onclick="switchClassTab('schedules')">Schedules</button>
         </div>
 
-        <div id="tab-types" class="tab-content active animate-fade-in">
+        <div id="tab-types" class="tab-content <?= $activeTab === 'types' ? 'active' : '' ?> animate-fade-in">
             <?php if (!$classes): ?>
                 <div class="empty-state">
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -668,10 +676,7 @@ function classes_page(): void
                                 <h3 style="margin:0; font-size:18px; color:var(--ink)"><?= h($c['class_name']) ?></h3>
                                 <div style="display:flex; gap:6px;">
                                     <button onclick="editClass(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                                    <form method="post" onsubmit="return confirm('Delete this class? All associated schedules will also be deleted.');" style="margin:0;">
-                                        <?= $csrfStr ?><input type="hidden" name="action" value="delete_class"><input type="hidden" name="class_id" value="<?= $c['class_id'] ?>">
-                                        <button type="submit" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-                                    </form>
+                                    <button type="button" onclick="confirmDeleteClass(<?= (int)$c['class_id'] ?>, <?= htmlspecialchars(json_encode($c['class_name'])) ?>)" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
                                 </div>
                             </div>
                             <p style="margin:0; font-size:14px; color:var(--muted); flex-grow:1;"><?= h($c['description'] ?: 'No description provided.') ?></p>
@@ -688,7 +693,7 @@ function classes_page(): void
             <?php endif; ?>
         </div>
 
-        <div id="tab-schedules" class="tab-content animate-fade-in">
+        <div id="tab-schedules" class="tab-content <?= $activeTab === 'schedules' ? 'active' : '' ?> animate-fade-in">
             <?php if (!$schedules): ?>
                 <div class="empty-state">
                     <p>No schedules yet. Create one using the button above.</p>
@@ -701,21 +706,36 @@ function classes_page(): void
                                 <tr><th>Class Session</th><th>Location</th><th>Date & Time</th><th>Booked</th><th>Actions</th></tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($schedules as $s): ?>
+                            <?php foreach ($schedules as $s): 
+                                $startTs = strtotime($s['start_datetime']);
+                                $endTs = strtotime($s['end_datetime']);
+                                $startDate = date('M j, Y', $startTs);
+                                $endDate = date('M j, Y', $endTs);
+                                $startTime = date('g:i A', $startTs);
+                                $endTime = date('g:i A', $endTs);
+                                $scheduleTimeStr = $startDate . ' ' . $startTime . ' – ' . ($startDate !== $endDate ? $endDate . ' ' : '') . $endTime;
+                            ?>
                                 <tr>
                                     <td><strong><?= h($s['class_name']) ?></strong></td>
                                     <td><span style="display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><?= h($s['room_location'] ?: '—') ?></span></td>
                                     <td>
-                                        <div style="font-size:14px; color:var(--ink);"><?= h(date('M j, Y', strtotime($s['start_datetime']))) ?></div>
-                                        <div style="font-size:12px; color:var(--muted);"><?= h(date('g:i A', strtotime($s['start_datetime']))) ?> - <?= h(date('g:i A', strtotime($s['end_datetime']))) ?></div>
+                                        <div style="display:flex; flex-direction:column; gap:4px; font-size:13px;">
+                                            <div style="display:flex; align-items:center; gap:6px;">
+                                                <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:1px 6px; border-radius:4px; background:rgba(34,197,94,0.15); color:var(--success, #22c55e);">Start</span>
+                                                <span style="font-weight:600; color:var(--ink);"><?= h($startDate) ?></span>
+                                                <span style="color:var(--muted); font-size:12px;"><?= h($startTime) ?></span>
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:6px;">
+                                                <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:1px 6px; border-radius:4px; background:rgba(234,88,12,0.15); color:var(--orange, #ea580c);">End</span>
+                                                <span style="font-weight:600; color:var(--ink);"><?= h($endDate) ?></span>
+                                                <span style="color:var(--muted); font-size:12px;"><?= h($endTime) ?></span>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td><span style="background:rgba(234,88,12,0.12); color:var(--orange, #ea580c); padding:4px 10px; border-radius:12px; font-weight:700; font-size:13px;"><?= (int) $s['booked'] ?></span></td>
                                     <td>
-                                        <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05);">Edit</button>
-                                        <form method="post" style="display:inline;" onsubmit="return confirm('Delete this schedule?');">
-                                            <?= $csrfStr ?><input type="hidden" name="action" value="delete_schedule"><input type="hidden" name="schedule_id" value="<?= $s['schedule_id'] ?>">
-                                            <button type="submit" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger);">Delete</button>
-                                        </form>
+                                        <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                        <button type="button" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger); cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -724,19 +744,35 @@ function classes_page(): void
                     </div>
                 </div>
                 <div class="schedule-mobile-list">
-                    <?php foreach ($schedules as $s): ?>
+                    <?php foreach ($schedules as $s): 
+                        $startTs = strtotime($s['start_datetime']);
+                        $endTs = strtotime($s['end_datetime']);
+                        $startDate = date('M j, Y', $startTs);
+                        $endDate = date('M j, Y', $endTs);
+                        $startTime = date('g:i A', $startTs);
+                        $endTime = date('g:i A', $endTs);
+                        $scheduleTimeStr = $startDate . ' ' . $startTime . ' – ' . ($startDate !== $endDate ? $endDate . ' ' : '') . $endTime;
+                    ?>
                         <article class="schedule-mobile-card">
                             <h3 class="schedule-mobile-card-title"><?= h($s['class_name']) ?></h3>
                             <div class="schedule-mobile-details">
                                 <div>
                                     <span class="schedule-mobile-detail-label">Location</span>
-                                    <div class="schedule-mobile-detail-value"><?= h($s['room_location'] ?: 'â€”') ?></div>
+                                    <div class="schedule-mobile-detail-value"><?= h($s['room_location'] ?: '—') ?></div>
                                 </div>
                                 <div>
                                     <span class="schedule-mobile-detail-label">Date &amp; time</span>
-                                    <div class="schedule-mobile-detail-value">
-                                        <div><?= h(date('M j, Y', strtotime($s['start_datetime']))) ?></div>
-                                        <div style="color:var(--muted); font-size:12px;"><?= h(date('g:i A', strtotime($s['start_datetime']))) ?> - <?= h(date('g:i A', strtotime($s['end_datetime']))) ?></div>
+                                    <div class="schedule-mobile-detail-value" style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
+                                        <div style="display:flex; align-items:center; gap:6px;">
+                                            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:1px 5px; border-radius:4px; background:rgba(34,197,94,0.15); color:var(--success, #22c55e);">Start</span>
+                                            <span style="font-weight:600; color:var(--ink); font-size:13px;"><?= h($startDate) ?></span>
+                                            <span style="color:var(--muted); font-size:12px;"><?= h($startTime) ?></span>
+                                        </div>
+                                        <div style="display:flex; align-items:center; gap:6px;">
+                                            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:1px 5px; border-radius:4px; background:rgba(234,88,12,0.15); color:var(--orange, #ea580c);">End</span>
+                                            <span style="font-weight:600; color:var(--ink); font-size:13px;"><?= h($endDate) ?></span>
+                                            <span style="color:var(--muted); font-size:12px;"><?= h($endTime) ?></span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div>
@@ -745,11 +781,8 @@ function classes_page(): void
                                 </div>
                             </div>
                             <div class="schedule-mobile-actions">
-                                <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px;">Edit</button>
-                                <form method="post" style="display:contents;" onsubmit="return confirm('Delete this schedule?');">
-                                    <?= $csrfStr ?><input type="hidden" name="action" value="delete_schedule"><input type="hidden" name="schedule_id" value="<?= $s['schedule_id'] ?>">
-                                    <button type="submit" class="btn btn-danger" style="padding:8px 10px; font-size:12px;">Delete</button>
-                                </form>
+                                <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                <button type="button" class="btn btn-danger" style="padding:8px 10px; font-size:12px; cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -924,11 +957,142 @@ function classes_page(): void
 
     document.querySelectorAll('#scheduleModal select.schedule-class-select').forEach(enhanceScheduleSelect);
 
-    function switchClassTab(tab) {
+    function switchClassTab(tab, updateHistory = true) {
         document.querySelectorAll('.class-tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.querySelector(`.class-tab-btn[onclick="switchClassTab('${tab}')"]`).classList.add('active');
-        document.getElementById(`tab-${tab}`).classList.add('active');
+        const activeBtn = document.querySelector(`.class-tab-btn[data-tab="${tab}"]`) || document.querySelector(`.class-tab-btn[onclick*="'${tab}'"]`);
+        if (activeBtn) activeBtn.classList.add('active');
+        const activeTabContent = document.getElementById(`tab-${tab}`);
+        if (activeTabContent) activeTabContent.classList.add('active');
+
+        if (updateHistory) {
+            try {
+                const url = new URL(window.location.href);
+                url.searchParams.set('tab', tab);
+                window.history.replaceState(null, '', url.toString());
+            } catch (e) {}
+        }
+    }
+
+    window.addEventListener('popstate', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab') || 'types';
+        switchClassTab(tab, false);
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab');
+        if (tab === 'schedules' || tab === 'types') {
+            switchClassTab(tab, false);
+        }
+    });
+
+    function confirmDeleteSchedule(scheduleId, className, dateTimeStr) {
+        Swal.fire({
+            title: 'Delete Class Schedule?',
+            html: `
+                <div style="text-align:center; padding:6px 0;">
+                    <p style="margin:0 0 10px 0; color:var(--ink); font-size:15px;">
+                        Are you sure you want to delete the schedule for <strong>${className}</strong>?
+                    </p>
+                    <div style="background:rgba(255,255,255,0.05); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:13px; color:var(--muted); margin-bottom:12px;">
+                        ${dateTimeStr}
+                    </div>
+                    <p style="margin:0; font-size:12px; color:var(--danger);">
+                        This will cancel this session and remove associated member bookings.
+                    </p>
+                </div>
+            `,
+            icon: 'warning',
+            iconColor: '#ef4444',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete Schedule',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: 'var(--line, #64748b)',
+            background: 'var(--panel, #1e293b)',
+            color: 'var(--ink)'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'index.php?page=classes&tab=schedules';
+
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = '<?= csrf_token() ?>';
+                form.appendChild(csrfInput);
+
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'delete_schedule';
+                form.appendChild(actionInput);
+
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'schedule_id';
+                idInput.value = scheduleId;
+                form.appendChild(idInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+
+    function confirmDeleteClass(classId, className) {
+        Swal.fire({
+            title: 'Delete Class Type?',
+            html: `
+                <div style="text-align:center; padding:6px 0;">
+                    <p style="margin:0 0 10px 0; color:var(--ink); font-size:15px;">
+                        Are you sure you want to delete <strong>${className}</strong>?
+                    </p>
+                    <p style="margin:0; font-size:12px; color:var(--danger);">
+                        All associated schedules and member bookings will also be deleted.
+                    </p>
+                </div>
+            `,
+            icon: 'warning',
+            iconColor: '#ef4444',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete Class',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: 'var(--line, #64748b)',
+            background: 'var(--panel, #1e293b)',
+            color: 'var(--ink)'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'index.php?page=classes&tab=types';
+
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = '<?= csrf_token() ?>';
+                form.appendChild(csrfInput);
+
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'delete_class';
+                form.appendChild(actionInput);
+
+                const idInput = document.createElement('input');
+                idInput.type = 'hidden';
+                idInput.name = 'class_id';
+                idInput.value = classId;
+                form.appendChild(idInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
     }
 
     function editClass(c) {

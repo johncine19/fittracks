@@ -186,6 +186,7 @@ function nav_icon(string $key): string
         'audit_logs' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
         'settings' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
         'gym_payouts' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+        'demo_requests' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10 8 15 10 10 12 10 8"/></svg>',
         'gym_applications' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>',
         'gyms' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 12 12 17 22 12"/><polyline points="2 17 12 22 22 17"/></svg>',
         'announcements' => '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>',
@@ -651,8 +652,414 @@ function get_user_gym(array $user, bool $forceRefresh = false): ?array
         }
     }
 
+    if ($resolvedGym) {
+        $resolvedGym = hydrate_gym_row($resolvedGym);
+    }
+
     $gymCache[$cacheKey] = $resolvedGym;
     return $resolvedGym;
+}
+
+/**
+ * Batch-hydrates an array of gym rows with normalized data from:
+ * - gym_verification_documents (+ gym_verification_id_types)
+ * - gym_payout_accounts
+ * - gym_settings
+ *
+ * Preserves full backward-compatible array keys on each gym record.
+ */
+function hydrate_gym_rows(array $gyms): array
+{
+    if (empty($gyms)) {
+        return [];
+    }
+
+    $gymIds = [];
+    foreach ($gyms as $idx => $g) {
+        $gid = (int)($g['gym_id'] ?? 0);
+        if ($gid > 0) {
+            $gymIds[$gid][] = $idx;
+        }
+        $gyms[$idx]['business_permit_url'] = $g['business_permit_url'] ?? $g['permit_url'] ?? null;
+        $gyms[$idx]['permit_url'] = $g['permit_url'] ?? $g['business_permit_url'] ?? null;
+        $gyms[$idx]['valid_id_url'] = $g['valid_id_url'] ?? $g['id_url'] ?? null;
+        $gyms[$idx]['id_url'] = $g['id_url'] ?? $g['valid_id_url'] ?? null;
+        $gyms[$idx]['valid_id_type'] = $g['valid_id_type'] ?? null;
+        $gyms[$idx]['secondary_valid_id_url'] = $g['secondary_valid_id_url'] ?? null;
+        $gyms[$idx]['secondary_valid_id_type'] = $g['secondary_valid_id_type'] ?? null;
+        $gyms[$idx]['barangay_clearance_url'] = $g['barangay_clearance_url'] ?? null;
+        $gyms[$idx]['fire_safety_cert_url'] = $g['fire_safety_cert_url'] ?? null;
+
+        $gyms[$idx]['xendit_subaccount_id'] = $g['xendit_subaccount_id'] ?? null;
+        $gyms[$idx]['payout_channel'] = $g['payout_channel'] ?? 'gcash';
+        $gyms[$idx]['payout_account_number'] = $g['payout_account_number'] ?? null;
+        $gyms[$idx]['payout_account_name'] = $g['payout_account_name'] ?? null;
+
+        $gyms[$idx]['inactivity_threshold_days'] = $g['inactivity_threshold_days'] ?? null;
+        $gyms[$idx]['inactivity_cooldown_days'] = $g['inactivity_cooldown_days'] ?? null;
+        $gyms[$idx]['auto_inactivity_alerts'] = $g['auto_inactivity_alerts'] ?? 1;
+        $gyms[$idx]['staff_hide_financials'] = $g['staff_hide_financials'] ?? 0;
+        $gyms[$idx]['eod_email_summary'] = $g['eod_email_summary'] ?? 1;
+        $gyms[$idx]['last_eod_email_sent_at'] = $g['last_eod_email_sent_at'] ?? null;
+        $gyms[$idx]['last_eod_email_sent_by'] = $g['last_eod_email_sent_by'] ?? null;
+        $gyms[$idx]['eod_gate_time'] = $g['eod_gate_time'] ?? '17:00:00';
+        $gyms[$idx]['pending_eod_gate_time'] = $g['pending_eod_gate_time'] ?? null;
+        $gyms[$idx]['eod_gate_effective_date'] = $g['eod_gate_effective_date'] ?? null;
+    }
+
+    if (empty($gymIds)) {
+        return $gyms;
+    }
+
+    $idList = array_keys($gymIds);
+    $placeholders = implode(',', array_fill(0, count($idList), '?'));
+    $pdo = db();
+
+    // 1. Verification documents
+    try {
+        $docStmt = $pdo->prepare("
+            SELECT d.gym_id, d.document_type, d.file_url, d.id_type_id, d.custom_id_type_label, it.id_name
+            FROM gym_verification_documents d
+            LEFT JOIN gym_verification_id_types it ON it.id = d.id_type_id
+            WHERE d.gym_id IN ($placeholders)
+        ");
+        $docStmt->execute($idList);
+        foreach ($docStmt->fetchAll(PDO::FETCH_ASSOC) as $doc) {
+            $gid = (int)$doc['gym_id'];
+            $type = (string)$doc['document_type'];
+            $url = $doc['file_url'];
+            $idLabel = !empty($doc['custom_id_type_label'])
+                ? (string)$doc['custom_id_type_label']
+                : (!empty($doc['id_name']) ? (string)$doc['id_name'] : null);
+
+            foreach ($gymIds[$gid] ?? [] as $idx) {
+                if ($type === 'business_permit') {
+                    $gyms[$idx]['business_permit_url'] = $url;
+                    $gyms[$idx]['permit_url'] = $url;
+                } elseif ($type === 'valid_id') {
+                    $gyms[$idx]['valid_id_url'] = $url;
+                    $gyms[$idx]['id_url'] = $url;
+                    if ($idLabel !== null) {
+                        $gyms[$idx]['valid_id_type'] = $idLabel;
+                    }
+                } elseif ($type === 'secondary_valid_id') {
+                    $gyms[$idx]['secondary_valid_id_url'] = $url;
+                    if ($idLabel !== null) {
+                        $gyms[$idx]['secondary_valid_id_type'] = $idLabel;
+                    }
+                } elseif ($type === 'barangay_clearance') {
+                    $gyms[$idx]['barangay_clearance_url'] = $url;
+                } elseif ($type === 'fire_safety_cert') {
+                    $gyms[$idx]['fire_safety_cert_url'] = $url;
+                }
+            }
+        }
+    } catch (Throwable) {}
+
+    // 2. Payout accounts
+    try {
+        $payStmt = $pdo->prepare("SELECT * FROM gym_payout_accounts WHERE gym_id IN ($placeholders)");
+        $payStmt->execute($idList);
+        foreach ($payStmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $gid = (int)$p['gym_id'];
+            foreach ($gymIds[$gid] ?? [] as $idx) {
+                $gyms[$idx]['xendit_subaccount_id'] = $p['xendit_subaccount_id'] ?? null;
+                $gyms[$idx]['payout_channel'] = $p['payout_channel'] ?? 'gcash';
+                $gyms[$idx]['payout_account_number'] = $p['payout_account_number'] ?? null;
+                $gyms[$idx]['payout_account_name'] = $p['payout_account_name'] ?? null;
+            }
+        }
+    } catch (Throwable) {}
+
+    // 3. Gym settings
+    try {
+        $setStmt = $pdo->prepare("SELECT * FROM gym_settings WHERE gym_id IN ($placeholders)");
+        $setStmt->execute($idList);
+        foreach ($setStmt->fetchAll(PDO::FETCH_ASSOC) as $s) {
+            $gid = (int)$s['gym_id'];
+            foreach ($gymIds[$gid] ?? [] as $idx) {
+                $gyms[$idx]['inactivity_threshold_days'] = $s['inactivity_threshold_days'] ?? null;
+                $gyms[$idx]['inactivity_cooldown_days'] = $s['inactivity_cooldown_days'] ?? null;
+                $gyms[$idx]['auto_inactivity_alerts'] = $s['auto_inactivity_alerts'] ?? 1;
+                $gyms[$idx]['staff_hide_financials'] = $s['staff_hide_financials'] ?? 0;
+                $gyms[$idx]['eod_email_summary'] = $s['eod_email_summary'] ?? 1;
+                $gyms[$idx]['last_eod_email_sent_at'] = $s['last_eod_email_sent_at'] ?? null;
+                $gyms[$idx]['last_eod_email_sent_by'] = $s['last_eod_email_sent_by'] ?? null;
+                $gyms[$idx]['eod_gate_time'] = $s['eod_gate_time'] ?? '17:00:00';
+                $gyms[$idx]['pending_eod_gate_time'] = $s['pending_eod_gate_time'] ?? null;
+                $gyms[$idx]['eod_gate_effective_date'] = $s['eod_gate_effective_date'] ?? null;
+            }
+        }
+    } catch (Throwable) {}
+
+    return $gyms;
+}
+
+/**
+ * Hydrates a single gym row with normalized verification documents, payout account, and settings.
+ */
+function hydrate_gym_row(?array $gym): ?array
+{
+    if (!$gym) {
+        return null;
+    }
+    $hydrated = hydrate_gym_rows([$gym]);
+    return $hydrated[0] ?? $gym;
+}
+
+/**
+ * Batch-hydrates equipment rows with active session and maintenance metadata from normalized tables.
+ */
+function hydrate_equipment_rows(array $equipments): array
+{
+    if (empty($equipments)) {
+        return [];
+    }
+    $eqIds = [];
+    foreach ($equipments as $idx => $e) {
+        $eid = (int)($e['equipment_id'] ?? 0);
+        if ($eid > 0) {
+            $eqIds[$eid][] = $idx;
+        }
+        $equipments[$idx]['current_session_id'] = $e['current_session_id'] ?? null;
+        $equipments[$idx]['maintenance_reason'] = $e['maintenance_reason'] ?? null;
+        $equipments[$idx]['expected_return_date'] = $e['expected_return_date'] ?? null;
+        $equipments[$idx]['next_maintenance_date'] = $e['next_maintenance_date'] ?? null;
+        $equipments[$idx]['last_maintenance_date'] = $e['last_maintenance_date'] ?? null;
+    }
+    if (empty($eqIds)) {
+        return $equipments;
+    }
+    try {
+        $pdo = db();
+        $inClause = implode(',', array_map('intval', array_keys($eqIds)));
+        // Active sessions
+        $sessions = $pdo->query("SELECT equipment_id, session_id FROM equipment_sessions WHERE equipment_id IN ({$inClause}) AND session_status = 'active'")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($sessions as $s) {
+            $eid = (int)$s['equipment_id'];
+            if (isset($eqIds[$eid])) {
+                foreach ($eqIds[$eid] as $idx) {
+                    $equipments[$idx]['current_session_id'] = (int)$s['session_id'];
+                }
+            }
+        }
+        // Latest maintenance logs
+        $maintLogs = $pdo->query("
+            SELECT eml1.equipment_id, eml1.reason, eml1.expected_return_date, eml1.next_maintenance_date, eml1.created_at
+            FROM equipment_maintenance_logs eml1
+            JOIN (
+                SELECT equipment_id, MAX(log_id) as max_log_id
+                FROM equipment_maintenance_logs
+                WHERE equipment_id IN ({$inClause})
+                GROUP BY equipment_id
+            ) eml_max ON eml1.log_id = eml_max.max_log_id
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($maintLogs as $m) {
+            $eid = (int)$m['equipment_id'];
+            if (isset($eqIds[$eid])) {
+                foreach ($eqIds[$eid] as $idx) {
+                    $equipments[$idx]['maintenance_reason'] = $m['reason'];
+                    $equipments[$idx]['expected_return_date'] = $m['expected_return_date'];
+                    $equipments[$idx]['next_maintenance_date'] = $m['next_maintenance_date'];
+                    $equipments[$idx]['last_maintenance_date'] = $m['created_at'];
+                }
+            }
+        }
+    } catch (Throwable $e) {}
+    return $equipments;
+}
+
+/**
+ * Hydrates a single equipment row with normalized session and maintenance details.
+ */
+function hydrate_equipment_row(?array $eq): ?array
+{
+    if (!$eq) return null;
+    $hydrated = hydrate_equipment_rows([$eq]);
+    return $hydrated[0] ?? $eq;
+}
+
+/**
+ * Resolves a human-readable government ID label or code into [id_type_id, custom_id_type_label].
+ */
+function resolve_verification_id_type_fk(?string $rawLabel): array
+{
+    $label = trim((string)$rawLabel);
+    if ($label === '') {
+        return [null, null];
+    }
+    if (function_exists('get_id_type_by_name')) {
+        $match = get_id_type_by_name($label);
+        if ($match && isset($match['id'])) {
+            $id = (int)$match['id'];
+            $isCustom = strcasecmp((string)$match['id_name'], $label) !== 0 && strcasecmp((string)$match['id_code'], $label) !== 0;
+            return [$id, $isCustom ? $label : null];
+        }
+    }
+    return [null, $label];
+}
+
+/**
+ * Upserts verification documents for a gym into gym_verification_documents.
+ */
+function save_gym_verification_documents(int $gymId, array $docs): void
+{
+    if ($gymId <= 0) {
+        return;
+    }
+    $pdo = db();
+    $stmt = $pdo->prepare('
+        INSERT INTO gym_verification_documents (gym_id, document_type, file_url, id_type_id, custom_id_type_label)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            file_url = VALUES(file_url),
+            id_type_id = COALESCE(VALUES(id_type_id), id_type_id),
+            custom_id_type_label = COALESCE(VALUES(custom_id_type_label), custom_id_type_label)
+    ');
+
+    if (!empty($docs['business_permit_url'])) {
+        $stmt->execute([$gymId, 'business_permit', (string)$docs['business_permit_url'], null, null]);
+    }
+    if (!empty($docs['valid_id_url'])) {
+        [$idTypeId, $customLabel] = resolve_verification_id_type_fk($docs['valid_id_type'] ?? null);
+        $stmt->execute([$gymId, 'valid_id', (string)$docs['valid_id_url'], $idTypeId, $customLabel]);
+    }
+    if (!empty($docs['secondary_valid_id_url'])) {
+        [$secIdTypeId, $secCustomLabel] = resolve_verification_id_type_fk($docs['secondary_valid_id_type'] ?? null);
+        $stmt->execute([$gymId, 'secondary_valid_id', (string)$docs['secondary_valid_id_url'], $secIdTypeId, $secCustomLabel]);
+    }
+    if (!empty($docs['barangay_clearance_url'])) {
+        $stmt->execute([$gymId, 'barangay_clearance', (string)$docs['barangay_clearance_url'], null, null]);
+    }
+    if (!empty($docs['fire_safety_cert_url'])) {
+        $stmt->execute([$gymId, 'fire_safety_cert', (string)$docs['fire_safety_cert_url'], null, null]);
+    }
+}
+
+/**
+ * Upserts payout account settings for a gym into gym_payout_accounts.
+ */
+function save_gym_payout_account(int $gymId, array $payout): void
+{
+    if ($gymId <= 0) {
+        return;
+    }
+    $pdo = db();
+    $existing = $pdo->prepare('SELECT * FROM gym_payout_accounts WHERE gym_id = ?');
+    $existing->execute([$gymId]);
+    $cur = $existing->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    $xenditSub = array_key_exists('xendit_subaccount_id', $payout)
+        ? ($payout['xendit_subaccount_id'] !== '' && $payout['xendit_subaccount_id'] !== null ? (string)$payout['xendit_subaccount_id'] : null)
+        : ($cur['xendit_subaccount_id'] ?? null);
+    $channel = !empty($payout['payout_channel'])
+        ? (string)$payout['payout_channel']
+        : ($cur['payout_channel'] ?? 'gcash');
+    $acctNum = array_key_exists('payout_account_number', $payout)
+        ? ($payout['payout_account_number'] !== '' && $payout['payout_account_number'] !== null ? (string)$payout['payout_account_number'] : null)
+        : ($cur['payout_account_number'] ?? null);
+    $acctName = array_key_exists('payout_account_name', $payout)
+        ? ($payout['payout_account_name'] !== '' && $payout['payout_account_name'] !== null ? (string)$payout['payout_account_name'] : null)
+        : ($cur['payout_account_name'] ?? null);
+
+    $stmt = $pdo->prepare('
+        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            xendit_subaccount_id = VALUES(xendit_subaccount_id),
+            payout_channel = VALUES(payout_channel),
+            payout_account_number = VALUES(payout_account_number),
+            payout_account_name = VALUES(payout_account_name)
+    ');
+    $stmt->execute([$gymId, $xenditSub, $channel, $acctNum, $acctName]);
+}
+
+/**
+ * Upserts operational settings for a gym into gym_settings.
+ */
+function save_gym_settings(int $gymId, array $settings): void
+{
+    if ($gymId <= 0) {
+        return;
+    }
+    $pdo = db();
+    $existing = $pdo->prepare('SELECT * FROM gym_settings WHERE gym_id = ?');
+    $existing->execute([$gymId]);
+    $cur = $existing->fetch(PDO::FETCH_ASSOC) ?: [];
+
+    $inactThresh = array_key_exists('inactivity_threshold_days', $settings)
+        ? ($settings['inactivity_threshold_days'] !== null && $settings['inactivity_threshold_days'] !== '' ? (int)$settings['inactivity_threshold_days'] : null)
+        : ($cur['inactivity_threshold_days'] ?? null);
+    $inactCool = array_key_exists('inactivity_cooldown_days', $settings)
+        ? ($settings['inactivity_cooldown_days'] !== null && $settings['inactivity_cooldown_days'] !== '' ? (int)$settings['inactivity_cooldown_days'] : null)
+        : ($cur['inactivity_cooldown_days'] ?? null);
+    $autoAlerts = array_key_exists('auto_inactivity_alerts', $settings)
+        ? (int)$settings['auto_inactivity_alerts']
+        : (int)($cur['auto_inactivity_alerts'] ?? 1);
+    $hideFin = array_key_exists('staff_hide_financials', $settings)
+        ? (int)$settings['staff_hide_financials']
+        : (int)($cur['staff_hide_financials'] ?? 0);
+    $eodSummary = array_key_exists('eod_email_summary', $settings)
+        ? (int)$settings['eod_email_summary']
+        : (int)($cur['eod_email_summary'] ?? 1);
+    $lastSentAt = array_key_exists('last_eod_email_sent_at', $settings)
+        ? $settings['last_eod_email_sent_at']
+        : ($cur['last_eod_email_sent_at'] ?? null);
+    $lastSentBy = array_key_exists('last_eod_email_sent_by', $settings)
+        ? $settings['last_eod_email_sent_by']
+        : ($cur['last_eod_email_sent_by'] ?? null);
+    $gateTime = !empty($settings['eod_gate_time'])
+        ? (string)$settings['eod_gate_time']
+        : ($cur['eod_gate_time'] ?? '17:00:00');
+    $pendGate = array_key_exists('pending_eod_gate_time', $settings)
+        ? $settings['pending_eod_gate_time']
+        : ($cur['pending_eod_gate_time'] ?? null);
+    $pendDate = array_key_exists('eod_gate_effective_date', $settings)
+        ? $settings['eod_gate_effective_date']
+        : ($cur['eod_gate_effective_date'] ?? null);
+
+    $stmt = $pdo->prepare('
+        INSERT INTO gym_settings (
+            gym_id, inactivity_threshold_days, inactivity_cooldown_days, auto_inactivity_alerts,
+            staff_hide_financials, eod_email_summary, last_eod_email_sent_at, last_eod_email_sent_by,
+            eod_gate_time, pending_eod_gate_time, eod_gate_effective_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            inactivity_threshold_days = VALUES(inactivity_threshold_days),
+            inactivity_cooldown_days = VALUES(inactivity_cooldown_days),
+            auto_inactivity_alerts = VALUES(auto_inactivity_alerts),
+            staff_hide_financials = VALUES(staff_hide_financials),
+            eod_email_summary = VALUES(eod_email_summary),
+            last_eod_email_sent_at = VALUES(last_eod_email_sent_at),
+            last_eod_email_sent_by = VALUES(last_eod_email_sent_by),
+            eod_gate_time = VALUES(eod_gate_time),
+            pending_eod_gate_time = VALUES(pending_eod_gate_time),
+            eod_gate_effective_date = VALUES(eod_gate_effective_date)
+    ');
+    $stmt->execute([
+        $gymId, $inactThresh, $inactCool, $autoAlerts,
+        $hideFin, $eodSummary, $lastSentAt, $lastSentBy,
+        $gateTime, $pendGate, $pendDate
+    ]);
+}
+
+/**
+ * Resolves a platform subscription plan name/key to platform_subscription_plans.id.
+ */
+function resolve_platform_subscription_plan_id(?string $planNameOrKey): ?int
+{
+    $val = trim((string)$planNameOrKey);
+    if ($val === '' || strcasecmp($val, 'Free Trial') === 0) {
+        return null;
+    }
+    try {
+        $stmt = db()->prepare('SELECT id FROM platform_subscription_plans WHERE LOWER(name) = LOWER(?) OR LOWER(plan_key) = LOWER(?) LIMIT 1');
+        $stmt->execute([$val, $val]);
+        $id = $stmt->fetchColumn();
+        return $id ? (int)$id : null;
+    } catch (Throwable) {
+        return null;
+    }
 }
 
 /**
@@ -871,6 +1278,18 @@ function get_user_gym_id(array $user): ?int
     }
 
     return null;
+}
+
+/**
+ * Invalidate session cache for a member's affiliated gyms list.
+ */
+function clear_member_gyms_cache(?int $userId = null): void
+{
+    $uid = $userId ?: (int)($_SESSION['user_id'] ?? 0);
+    if ($uid > 0) {
+        unset($_SESSION['member_gyms_' . $uid]);
+        unset($_SESSION['member_gyms_cache_' . $uid]);
+    }
 }
 
 if (!function_exists('is_gym_paused')) {
@@ -1145,7 +1564,7 @@ function release_user_equipment_on_checkout(int $userId, ?int $gymId = null): vo
             $eqId = (int)$sess['equipment_id'];
 
             $pdo->prepare("UPDATE equipment_sessions SET session_status = 'completed', end_time = NOW() WHERE session_id = ?")->execute([$sId]);
-            $pdo->prepare("UPDATE gym_equipment SET current_session_id = NULL WHERE equipment_id = ?")->execute([$eqId]);
+            // current_session_id decoupled in Phase 5 normalization
 
             // Promote next in line if waiting
             $next = $pdo->prepare("SELECT queue_id FROM equipment_queues WHERE equipment_id = ? AND queue_status = 'waiting' ORDER BY queue_position ASC, joined_at ASC LIMIT 1");
@@ -1255,3 +1674,27 @@ function sync_trainer_assignments_with_memberships(?int $memberUserId = null): a
 }
 
 // Rating & Review Service moved to core/review_service.php
+
+/**
+ * Synchronizes a food item's dietary restriction to the food_dietary_restrictions junction table.
+ */
+function sync_food_dietary_restrictions(int $foodId, string $restriction): void
+{
+    if ($foodId <= 0) {
+        return;
+    }
+    $pdo = db();
+    try {
+        $norm = strtolower(str_replace(['-', ' '], '_', trim($restriction)));
+        $rId = (int) scalar('SELECT restriction_id FROM dietary_restrictions WHERE name = ? LIMIT 1', [$norm]);
+        if (!$rId) {
+            $rId = (int) scalar('SELECT restriction_id FROM dietary_restrictions WHERE name = "none" LIMIT 1');
+        }
+        if ($rId > 0) {
+            $pdo->prepare('DELETE FROM food_dietary_restrictions WHERE food_id = ?')->execute([$foodId]);
+            $pdo->prepare('INSERT INTO food_dietary_restrictions (food_id, restriction_id) VALUES (?, ?)')->execute([$foodId, $rId]);
+        }
+    } catch (Throwable $e) {
+        error_log('sync_food_dietary_restrictions error: ' . $e->getMessage());
+    }
+}

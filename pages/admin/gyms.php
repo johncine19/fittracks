@@ -52,8 +52,9 @@ function gyms_page(): void
 
             $pdo->beginTransaction();
 
-            $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_status = ?, subscription_renewal_date = ?, subscription_billing_cycle = ? WHERE gym_id = ?')
-                ->execute([$plan, $subStatus, $renewalDate, $billingCycle, $gymId]);
+            $resolvedPlanId = resolve_platform_subscription_plan_id($plan);
+            $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_plan_id = ?, subscription_status = ?, subscription_renewal_date = ?, subscription_billing_cycle = ? WHERE gym_id = ?')
+                ->execute([$plan, $resolvedPlanId, $subStatus, $renewalDate, $billingCycle, $gymId]);
 
             $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
             $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
@@ -65,11 +66,12 @@ function gyms_page(): void
 
                 $pdo->prepare('
                     INSERT INTO gym_subscription_payments 
-                    (gym_id, owner_user_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, payment_date, start_date, end_date)
-                    VALUES (?, ?, ?, ?, ?, ?, "paid", ?, NOW(), ?, ?)
+                    (gym_id, owner_user_id, plan_id, plan_name, amount, billing_cycle, payment_method, status, receipt_number, payment_date, start_date, end_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, "paid", ?, NOW(), ?, ?)
                 ')->execute([
                     $gymId,
                     $ownerId,
+                    $resolvedPlanId,
                     $plan,
                     $amount,
                     $billingCycle,
@@ -106,8 +108,12 @@ function gyms_page(): void
             $payoutNumber = trim((string) post('payout_account_number')) ?: null;
             $payoutName = trim((string) post('payout_account_name')) ?: null;
 
-            $pdo->prepare('UPDATE gyms SET xendit_subaccount_id = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ? WHERE gym_id = ?')
-                ->execute([$xenditSubaccountId, $payoutChannel, $payoutNumber, $payoutName, $gymId]);
+            save_gym_payout_account($gymId, [
+                'xendit_subaccount_id' => $xenditSubaccountId,
+                'payout_channel' => $payoutChannel,
+                'payout_account_number' => $payoutNumber,
+                'payout_account_name' => $payoutName,
+            ]);
 
             $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
             $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
@@ -141,6 +147,66 @@ function gyms_page(): void
         WHERE g.status IN ("approved", "suspended") 
         ORDER BY g.created_at DESC
     ')->fetchAll();
+    if (function_exists('hydrate_gym_rows')) {
+        $gyms = hydrate_gym_rows($gyms);
+    }
+
+    foreach ($gyms as &$gItem) {
+        $gDocs = [];
+        if (!empty($gItem['business_permit_url'])) {
+            $gDocs[] = [
+                'name' => 'Business Permit',
+                'url' => upload_url($gItem['business_permit_url'], 'permits'),
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>',
+                'type' => 'doc'
+            ];
+        }
+        if (!empty($gItem['barangay_clearance_url'])) {
+            $gDocs[] = [
+                'name' => 'Barangay Clearance',
+                'url' => upload_url($gItem['barangay_clearance_url'], 'permits'),
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
+                'type' => 'doc'
+            ];
+        }
+        if (!empty($gItem['valid_id_url'])) {
+            $idLabel = !empty($gItem['valid_id_type']) ? $gItem['valid_id_type'] : 'Valid ID';
+            $gDocs[] = [
+                'name' => "Valid ID ({$idLabel})",
+                'url' => upload_url($gItem['valid_id_url'], 'permits'),
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>',
+                'type' => 'doc'
+            ];
+        }
+        if (!empty($gItem['secondary_valid_id_url'])) {
+            $secIdLabel = !empty($gItem['secondary_valid_id_type']) ? $gItem['secondary_valid_id_type'] : 'Supporting ID';
+            $gDocs[] = [
+                'name' => "Supporting ID ({$secIdLabel})",
+                'url' => upload_url($gItem['secondary_valid_id_url'], 'permits'),
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>',
+                'type' => 'doc'
+            ];
+        }
+        if (!empty($gItem['fire_safety_cert_url'])) {
+            $gDocs[] = [
+                'name' => 'Fire Safety Cert. (FSIC)',
+                'url' => upload_url($gItem['fire_safety_cert_url'], 'permits'),
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+                'type' => 'doc'
+            ];
+        }
+        if (!empty($gItem['fb_page_url'])) {
+            $gDocs[] = [
+                'name' => 'Facebook Page',
+                'url' => $gItem['fb_page_url'],
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>',
+                'type' => 'link'
+            ];
+        }
+        $gItem['docs'] = $gDocs;
+        $gItem['doc_count'] = count($gDocs);
+    }
+    unset($gItem);
 
     render_header('All Gyms', $user);
 ?>
@@ -339,6 +405,206 @@ function gyms_page(): void
         white-space: nowrap;
         box-sizing: border-box;
     }
+        .gym-card-actions form button {
+        margin: 0;
+        width: auto;
+    }
+
+    /* Table container spacing for dropdown popups */
+    .gyms-desktop-table.table-container {
+        min-height: 420px;
+        padding-bottom: 70px;
+    }
+    .gyms-desktop-table.table-container table td {
+        vertical-align: middle !important;
+    }
+
+    /* Compact Document Dropdown Pill in All Gyms */
+    .doc-pill-dropdown {
+        position: relative !important;
+        display: inline-block !important;
+    }
+    .doc-pill-dropdown.is-open {
+        z-index: 1050 !important;
+    }
+
+    button.doc-pill-trigger,
+    .doc-pill-trigger {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        min-height: unset !important;
+        height: auto !important;
+        padding: 5px 11px !important;
+        background: var(--panel-soft, rgba(255, 255, 255, 0.05)) !important;
+        border: 1px solid var(--line, rgba(255, 255, 255, 0.12)) !important;
+        border-radius: 99px !important;
+        color: var(--ink, #f8fafc) !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        transition: all 0.15s ease !important;
+        white-space: nowrap !important;
+        line-height: 1.2 !important;
+        box-shadow: none !important;
+        width: auto !important;
+    }
+
+    button.doc-pill-trigger:hover,
+    .doc-pill-dropdown.is-open button.doc-pill-trigger,
+    .doc-pill-dropdown.is-open .doc-pill-trigger {
+        background: color-mix(in srgb, var(--accent, #c7ff22) 15%, transparent) !important;
+        border-color: color-mix(in srgb, var(--accent, #c7ff22) 50%, transparent) !important;
+        color: var(--accent, #c7ff22) !important;
+        box-shadow: 0 0 12px color-mix(in srgb, var(--accent, #c7ff22) 20%, transparent) !important;
+    }
+
+    .doc-pill-chevron {
+        transition: transform 0.2s ease;
+        color: var(--muted, #8792ad) !important;
+    }
+    .doc-pill-dropdown.is-open .doc-pill-chevron {
+        transform: rotate(180deg);
+        color: var(--accent, #c7ff22) !important;
+    }
+
+    .doc-pill-menu {
+        display: none !important;
+        position: absolute !important;
+        top: calc(100% + 6px) !important;
+        left: 0 !important;
+        z-index: 1000 !important;
+        min-width: 240px !important;
+        max-width: 320px !important;
+        max-height: 220px !important;
+        overflow-y: auto !important;
+        overscroll-behavior: contain !important;
+        background: var(--surface, #10131b) !important;
+        background-color: #10131b !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid var(--line, rgba(255, 255, 255, 0.14)) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6) !important;
+        padding: 6px !important;
+        box-sizing: border-box !important;
+        scrollbar-width: thin;
+        scrollbar-color: var(--line, rgba(255, 255, 255, 0.2)) transparent;
+    }
+
+    .doc-pill-dropdown.drop-up .doc-pill-menu {
+        top: auto !important;
+        bottom: calc(100% + 6px) !important;
+    }
+
+    .doc-pill-menu::-webkit-scrollbar {
+        width: 5px;
+    }
+    .doc-pill-menu::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .doc-pill-menu::-webkit-scrollbar-thumb {
+        background: var(--line, rgba(255, 255, 255, 0.2));
+        border-radius: 99px;
+    }
+
+    .doc-pill-dropdown.is-open .doc-pill-menu {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 3px !important;
+    }
+
+    .doc-menu-header {
+        position: sticky !important;
+        top: -6px !important;
+        z-index: 2 !important;
+        background: #10131b !important;
+        padding: 6px 9px 4px !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.6px !important;
+        color: var(--muted, #8792ad) !important;
+        border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.08)) !important;
+        margin-bottom: 3px !important;
+        text-align: left !important;
+    }
+
+    button.doc-menu-item,
+    a.doc-menu-item,
+    .doc-menu-item {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 8px !important;
+        width: 100% !important;
+        min-height: unset !important;
+        height: auto !important;
+        padding: 7px 9px !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        border: none !important;
+        color: var(--ink, #f8fafc) !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        text-align: left !important;
+        text-decoration: none !important;
+        cursor: pointer !important;
+        transition: all 0.12s ease !important;
+        box-sizing: border-box !important;
+        box-shadow: none !important;
+    }
+
+    button.doc-menu-item:hover,
+    a.doc-menu-item:hover,
+    .doc-menu-item:hover {
+        background: color-mix(in srgb, var(--accent, #c7ff22) 14%, transparent) !important;
+        color: #ffffff !important;
+    }
+
+    .doc-item-icon {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        border-radius: 6px !important;
+        background: color-mix(in srgb, var(--accent, #c7ff22) 18%, transparent) !important;
+        color: var(--accent, #c7ff22) !important;
+        flex-shrink: 0 !important;
+    }
+
+    .doc-item-icon.link {
+        background: rgba(59, 130, 246, 0.18) !important;
+        color: #3b82f6 !important;
+    }
+
+    .doc-item-title {
+        flex: 1 !important;
+        min-width: 0 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        text-align: left !important;
+        color: #f8fafc !important;
+        font-weight: 500 !important;
+    }
+
+    .doc-item-badge {
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        color: var(--muted, #8792ad) !important;
+        padding: 2px 7px !important;
+        border-radius: 4px !important;
+        background: var(--panel-soft, rgba(255, 255, 255, 0.06)) !important;
+        flex-shrink: 0 !important;
+    }
+
+    .doc-item-badge.link {
+        color: #3b82f6 !important;
+        background: rgba(59, 130, 246, 0.12) !important;
+    }
     </style>
 
     <section class="panel">
@@ -365,6 +631,7 @@ function gyms_page(): void
                         <th>Owner</th>
                         <th>Email</th>
                         <th>Facility Status</th>
+                        <th>Documents</th>
                         <th>Subscription Plan</th>
                         <th>Sub Status</th>
                         <th>Renewal Date</th>
@@ -408,6 +675,44 @@ function gyms_page(): void
                                     <span class="badge badge-active">Approved</span>
                                 <?php elseif ($gym['status'] === 'suspended'): ?>
                                     <span class="badge badge-inactive" style="color:var(--danger)">Suspended</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($gym['doc_count'] === 0): ?>
+                                    <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 11px; padding: 2px 7px; border-radius: 4px;" title="Directly provisioned by Platform Admin. Documents can be uploaded via Gym Profile.">Admin Provisioned</span>
+                                <?php else: ?>
+                                    <div class="doc-pill-dropdown" id="dropdown-<?= (int)$gym['gym_id'] ?>">
+                                        <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown(<?= (int)$gym['gym_id'] ?>, event)" title="View <?= $gym['doc_count'] ?> attached documents">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                            </svg>
+                                            <span><?= $gym['doc_count'] ?> <?= $gym['doc_count'] === 1 ? 'Doc' : 'Docs' ?></span>
+                                            <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
+                                        <div class="doc-pill-menu" id="menu-<?= (int)$gym['gym_id'] ?>">
+                                            <div class="doc-menu-header">
+                                                <span>Attached Documents (<?= $gym['doc_count'] ?>)</span>
+                                            </div>
+                                            <?php foreach ($gym['docs'] as $dItem): ?>
+                                                <?php if ($dItem['type'] === 'link'): ?>
+                                                    <a href="<?= h($dItem['url']) ?>" target="_blank" rel="noopener noreferrer" class="doc-menu-item" onclick="closeAllDocDropdowns()">
+                                                        <span class="doc-item-icon link"><?= $dItem['icon'] ?></span>
+                                                        <span class="doc-item-title"><?= h($dItem['name']) ?></span>
+                                                        <span class="doc-item-badge link">Visit ↗</span>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <button type="button" class="doc-menu-item" onclick="viewDocument('<?= h($dItem['url']) ?>', '<?= h(addslashes($dItem['name'])) ?>'); closeAllDocDropdowns();">
+                                                        <span class="doc-item-icon"><?= $dItem['icon'] ?></span>
+                                                        <span class="doc-item-title"><?= h($dItem['name']) ?></span>
+                                                        <span class="doc-item-badge">Preview</span>
+                                                    </button>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
                             </td>
                             <td>
@@ -579,6 +884,51 @@ function gyms_page(): void
                                 Renewal
                             </span>
                             <span class="gym-card-detail-value"><?= h($renewal) ?></span>
+                        </div>
+
+                        <div class="gym-card-detail-item">
+                            <span class="gym-card-detail-label">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                Documents
+                            </span>
+                            <span class="gym-card-detail-value">
+                                <?php if ($gym['doc_count'] === 0): ?>
+                                    <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 10px; padding: 2px 6px; border-radius: 4px;">Admin Provisioned</span>
+                                <?php else: ?>
+                                    <div class="doc-pill-dropdown" id="dropdown-m<?= (int)$gym['gym_id'] ?>">
+                                        <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown('m<?= (int)$gym['gym_id'] ?>', event)" title="View <?= $gym['doc_count'] ?> attached documents">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                            </svg>
+                                            <span><?= $gym['doc_count'] ?> Docs</span>
+                                            <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
+                                        <div class="doc-pill-menu" id="menu-m<?= (int)$gym['gym_id'] ?>">
+                                            <div class="doc-menu-header">
+                                                <span>Attached Documents (<?= $gym['doc_count'] ?>)</span>
+                                            </div>
+                                            <?php foreach ($gym['docs'] as $dItem): ?>
+                                                <?php if ($dItem['type'] === 'link'): ?>
+                                                    <a href="<?= h($dItem['url']) ?>" target="_blank" rel="noopener noreferrer" class="doc-menu-item" onclick="closeAllDocDropdowns()">
+                                                        <span class="doc-item-icon link"><?= $dItem['icon'] ?></span>
+                                                        <span class="doc-item-title"><?= h($dItem['name']) ?></span>
+                                                        <span class="doc-item-badge link">Visit ↗</span>
+                                                    </a>
+                                                <?php else: ?>
+                                                    <button type="button" class="doc-menu-item" onclick="viewDocument('<?= h($dItem['url']) ?>', '<?= h(addslashes($dItem['name'])) ?>'); closeAllDocDropdowns();">
+                                                        <span class="doc-item-icon"><?= $dItem['icon'] ?></span>
+                                                        <span class="doc-item-title"><?= h($dItem['name']) ?></span>
+                                                        <span class="doc-item-badge">Preview</span>
+                                                    </button>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                            </span>
                         </div>
                     </div>
 
@@ -1010,6 +1360,88 @@ function gyms_page(): void
         const container = document.getElementById('swal-payment-fields');
         if (container) {
             container.style.display = show ? 'flex' : 'none';
+        }
+    }
+
+    // Document Dropdown & SweetAlert Viewer
+    function toggleDocDropdown(gymId, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        const dropdown = document.getElementById('dropdown-' + gymId);
+        if (!dropdown) return;
+
+        const isOpen = dropdown.classList.contains('is-open');
+        closeAllDocDropdowns();
+
+        if (!isOpen) {
+            dropdown.classList.remove('drop-up');
+            dropdown.classList.add('is-open');
+
+            const trigger = dropdown.querySelector('.doc-pill-trigger');
+            if (trigger) {
+                const triggerRect = trigger.getBoundingClientRect();
+                const container = dropdown.closest('.table-container') || document.body;
+                const containerRect = container.getBoundingClientRect();
+
+                const spaceBelow = Math.min(window.innerHeight - triggerRect.bottom, containerRect.bottom - triggerRect.bottom);
+                const spaceAbove = triggerRect.top - Math.max(0, containerRect.top);
+
+                if (spaceBelow < 230 && spaceAbove > spaceBelow) {
+                    dropdown.classList.add('drop-up');
+                }
+
+                const menu = dropdown.querySelector('.doc-pill-menu');
+                if (menu) {
+                    if (triggerRect.left + 280 > containerRect.right) {
+                        menu.style.left = 'auto';
+                        menu.style.right = '0';
+                    } else {
+                        menu.style.left = '0';
+                        menu.style.right = 'auto';
+                    }
+                }
+            }
+        }
+    }
+
+    function closeAllDocDropdowns() {
+        document.querySelectorAll('.doc-pill-dropdown.is-open').forEach(el => el.classList.remove('is-open'));
+    }
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.doc-pill-dropdown')) {
+            closeAllDocDropdowns();
+        }
+    });
+
+    function viewDocument(url, docTitle = 'Document') {
+        let clean = url.split('#')[0];
+        if (clean.includes('file=')) {
+            clean = decodeURIComponent(clean.split('file=').pop().split('&')[0]);
+        }
+        const ext = clean.split('.').pop().toLowerCase().split('?')[0].split('&')[0];
+        
+        if (ext === 'pdf') {
+            Swal.fire({
+                title: docTitle,
+                html: `<iframe src="${url}" style="width:100%; height:70vh; border:none;"></iframe>`,
+                width: '80%',
+                showCloseButton: true,
+                showConfirmButton: false,
+                background: 'var(--surface-color, #18251eff)',
+                color: 'var(--text-color, #ffffff)'
+            });
+        } else {
+            Swal.fire({
+                title: docTitle,
+                html: `<div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 70vh;"><img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px;" alt="${docTitle}"></div>`,
+                width: '80%',
+                showCloseButton: true,
+                showConfirmButton: false,
+                background: 'var(--surface, #18251eff)',
+                color: 'var(--text-color, #ffffff)'
+            });
         }
     }
     </script>

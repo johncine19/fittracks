@@ -20,15 +20,20 @@ function progress_page(): void
         }
     }
 
-    // Fetch member details
+    // Fetch member details and merge normalized profile
     $stmt = db()->prepare('
-        SELECT u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at AS user_created_at, u.profile_picture, mp.* 
+        SELECT u.user_id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at AS user_created_at, u.profile_picture
         FROM users u 
-        LEFT JOIN member_profiles mp ON u.user_id = mp.user_id 
         WHERE u.user_id = ?'
     );
     $stmt->execute([$memberId]);
-    $member = $stmt->fetch();
+    $member = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($member) {
+        $profData = member_profile($memberId);
+        if ($profData) {
+            $member = array_merge($profData, $member);
+        }
+    }
     $isFemale = strtolower((string)($member['biological_sex'] ?? '')) === 'female';
 
     // Check if member has an active assigned trainer/coach
@@ -115,37 +120,7 @@ function progress_page(): void
             if (!$valid) {
                 flash($validator->firstError() ?? 'Invalid target values.', 'danger');
             } else {
-                $tWeight = post('target_weight_kg') !== '' ? (float)post('target_weight_kg') : null;
-                $tBf     = post('target_body_fat_percent') !== '' ? (float)post('target_body_fat_percent') : null;
-                $tWaist  = post('target_waist_cm') !== '' ? (float)post('target_waist_cm') : null;
-                $tArm    = post('target_arm_cm') !== '' ? (float)post('target_arm_cm') : null;
-                $tChest  = post('target_chest_cm') !== '' ? (float)post('target_chest_cm') : null;
-                $tWeekly = post('weekly_workout_target') !== '' ? (int)post('weekly_workout_target') : 3;
-
-                $newGoal = trim((string)post('primary_goal', ''));
-
-                if ($newGoal !== '') {
-                    db()->prepare('UPDATE member_profiles SET 
-                        target_weight_kg = ?,
-                        target_body_fat_percent = ?,
-                        target_waist_cm = ?,
-                        target_arm_cm = ?,
-                        target_chest_cm = ?,
-                        weekly_workout_target = ?,
-                        primary_goal = ?
-                        WHERE user_id = ?
-                    ')->execute([$tWeight, $tBf, $tWaist, $tArm, $tChest, $tWeekly, $newGoal, $memberId]);
-                } else {
-                    db()->prepare('UPDATE member_profiles SET 
-                        target_weight_kg = ?,
-                        target_body_fat_percent = ?,
-                        target_waist_cm = ?,
-                        target_arm_cm = ?,
-                        target_chest_cm = ?,
-                        weekly_workout_target = ?
-                        WHERE user_id = ?
-                    ')->execute([$tWeight, $tBf, $tWaist, $tArm, $tChest, $tWeekly, $memberId]);
-                }
+                save_member_profile($memberId);
 
                 if ($user['role'] === 'trainer' && (int)$user['user_id'] !== $memberId) {
                     notify_user($memberId, 'system', 'Fitness Targets Updated', 'Your coach adjusted your fitness milestone targets.');
@@ -179,10 +154,11 @@ function progress_page(): void
 
         if ($logId > 0) {
             db()->prepare(
-                'UPDATE progress_logs SET weight_kg = ?, body_fat_percent = ?, chest_cm = ?, waist_cm = ?, hips_cm = ?, arm_cm = ?, notes = ?, recorded_by = ? WHERE log_id = ? AND user_id = ?'
+                'UPDATE progress_logs SET weight_kg = ?, body_fat_percent = ?, neck_cm = COALESCE(?, neck_cm), chest_cm = ?, waist_cm = ?, hips_cm = ?, arm_cm = ?, notes = ?, recorded_by = ? WHERE log_id = ? AND user_id = ?'
             )->execute([
                 post('weight_kg'),
                 post('body_fat_percent') ?: null,
+                post('neck_cm')          ?: null,
                 post('chest_cm')         ?: null,
                 post('waist_cm')         ?: null,
                 post('hips_cm')          ?: null,
@@ -195,13 +171,14 @@ function progress_page(): void
         } else {
             db()->prepare(
                 'INSERT INTO progress_logs
-                 (user_id, log_date, weight_kg, body_fat_percent, chest_cm, waist_cm, hips_cm, arm_cm, notes, recorded_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 (user_id, log_date, weight_kg, body_fat_percent, neck_cm, chest_cm, waist_cm, hips_cm, arm_cm, notes, recorded_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $memberId,
                 $logDate,
                 post('weight_kg'),
                 post('body_fat_percent') ?: null,
+                post('neck_cm')          ?: null,
                 post('chest_cm')         ?: null,
                 post('waist_cm')         ?: null,
                 post('hips_cm')          ?: null,
@@ -211,32 +188,8 @@ function progress_page(): void
             ]);
         }
 
-        // Update member_profiles table with latest values
-        $updateProfileCols = ['weight_kg = ?'];
-        $updateProfileVals = [post('weight_kg')];
-        if (post('neck_cm')) {
-            $updateProfileCols[] = 'neck_cm = ?';
-            $updateProfileVals[] = post('neck_cm');
-        }
-        if (post('waist_cm')) {
-            $updateProfileCols[] = 'waist_cm = ?';
-            $updateProfileVals[] = post('waist_cm');
-        }
-        if (post('hips_cm')) {
-            $updateProfileCols[] = 'hip_cm = ?';
-            $updateProfileVals[] = post('hips_cm');
-        }
-        if (post('chest_cm')) {
-            $updateProfileCols[] = 'chest_cm = ?';
-            $updateProfileVals[] = post('chest_cm');
-        }
-        if (post('arm_cm')) {
-            $updateProfileCols[] = 'arm_cm = ?';
-            $updateProfileVals[] = post('arm_cm');
-        }
-        $updateProfileVals[] = $memberId;
-        db()->prepare('UPDATE member_profiles SET ' . implode(', ', $updateProfileCols) . ' WHERE user_id = ?')
-           ->execute($updateProfileVals);
+        // Refresh static profile cache so callers see updated measurements from progress_logs
+        member_profile($memberId, true);
 
         if (can_recalculate_workout($memberId)) {
             generate_workout_plan($memberId);
@@ -249,9 +202,10 @@ function progress_page(): void
                 $clientName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Your client';
                 notify_user(
                     $trainerUserId,
-                    'client_progress',
+                    'system',
                     'Client Progress Logged',
-                    $clientName . ' logged new body measurements. Review their training program if adjustments are needed.'
+                    $clientName . ' logged new body measurements. Review their training program if adjustments are needed.',
+                    $memberId
                 );
             }
             $flashMsg = 'Progress logged successfully.';
@@ -481,6 +435,103 @@ function progress_page(): void
         ]
     );
 
+    // --- NUTRITION & FOOD DIARY LOGS ---
+    $targetDietPlanStmt = db()->prepare('
+        SELECT dp.plan_id, dp.title, dp.goal 
+        FROM dietary_plans dp 
+        WHERE dp.member_user_id = ? AND dp.status = "active" 
+        ORDER BY dp.is_preferred DESC, dp.plan_id DESC LIMIT 1'
+    );
+    $targetDietPlanStmt->execute([$memberId]);
+    $activeDietPlan = $targetDietPlanStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    $activeDietPlanId = $activeDietPlan ? (int)$activeDietPlan['plan_id'] : 0;
+
+    $targetNutritionMacros = ['cals' => 0, 'protein' => 0, 'carbs' => 0, 'fat' => 0];
+    if ($activeDietPlanId > 0) {
+        $planAvgStmt = db()->prepare('
+            SELECT ROUND(AVG(day_cals)) as cals, ROUND(AVG(day_pro)) as protein, ROUND(AVG(day_carbs)) as carbs, ROUND(AVG(day_fat)) as fat 
+            FROM (
+                SELECT day_of_week, SUM(calories) as day_cals, SUM(protein_g) as day_pro, SUM(carbs_g) as day_carbs, SUM(fat_g) as day_fat
+                FROM dietary_plan_meals
+                WHERE plan_id = ?
+                GROUP BY day_of_week
+            ) as d'
+        );
+        $planAvgStmt->execute([$activeDietPlanId]);
+        $avgRow = $planAvgStmt->fetch(PDO::FETCH_ASSOC);
+        if ($avgRow && (int)$avgRow['cals'] > 0) {
+            $targetNutritionMacros = [
+                'cals' => (int)$avgRow['cals'],
+                'protein' => (int)$avgRow['protein'],
+                'carbs' => (int)$avgRow['carbs'],
+                'fat' => (int)$avgRow['fat'],
+            ];
+        }
+    }
+
+    $stmtMealLogs = db()->prepare(
+        "SELECT mml.*, dpm.image_url, dpm.meal_type as plan_meal_type
+         FROM member_meal_logs mml
+         LEFT JOIN dietary_plan_meals dpm ON dpm.meal_id = mml.meal_id
+         WHERE mml.user_id = ?
+         ORDER BY mml.log_date DESC, mml.logged_at DESC"
+    );
+    $stmtMealLogs->execute([$memberId]);
+    $rawMealLogs = $stmtMealLogs->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtDailyMacros = db()->prepare(
+        "SELECT * FROM daily_macros WHERE user_id = ? ORDER BY log_date DESC"
+    );
+    $stmtDailyMacros->execute([$memberId]);
+    $rawDailyMacros = $stmtDailyMacros->fetchAll(PDO::FETCH_ASSOC);
+
+    $nutritionLogsByDate = [];
+    foreach ($rawMealLogs as $mLog) {
+        $d = $mLog['log_date'];
+        if (!isset($nutritionLogsByDate[$d])) {
+            $nutritionLogsByDate[$d] = [
+                'date' => $d,
+                'cals' => 0,
+                'pro' => 0.0,
+                'carbs' => 0.0,
+                'fat' => 0.0,
+                'meals' => []
+            ];
+        }
+        $nutritionLogsByDate[$d]['meals'][] = $mLog;
+        $nutritionLogsByDate[$d]['cals'] += (int) $mLog['calories'];
+        $nutritionLogsByDate[$d]['pro'] += (float) $mLog['protein_g'];
+        $nutritionLogsByDate[$d]['carbs'] += (float) $mLog['carbs_g'];
+        $nutritionLogsByDate[$d]['fat'] += (float) $mLog['fat_g'];
+    }
+
+    foreach ($rawDailyMacros as $dm) {
+        $d = $dm['log_date'];
+        if (!isset($nutritionLogsByDate[$d])) {
+            $nutritionLogsByDate[$d] = [
+                'date' => $d,
+                'cals' => (int) $dm['calories'],
+                'pro' => (float) $dm['protein_g'],
+                'carbs' => (float) $dm['carbs_g'],
+                'fat' => (float) $dm['fat_g'],
+                'meals' => []
+            ];
+        } else {
+            if ((int)$dm['calories'] > $nutritionLogsByDate[$d]['cals']) {
+                $nutritionLogsByDate[$d]['cals'] = (int)$dm['calories'];
+                $nutritionLogsByDate[$d]['pro'] = max($nutritionLogsByDate[$d]['pro'], (float)$dm['protein_g']);
+                $nutritionLogsByDate[$d]['carbs'] = max($nutritionLogsByDate[$d]['carbs'], (float)$dm['carbs_g']);
+                $nutritionLogsByDate[$d]['fat'] = max($nutritionLogsByDate[$d]['fat'], (float)$dm['fat_g']);
+            }
+        }
+    }
+    krsort($nutritionLogsByDate);
+    $totalFoodLoggedDays = count($nutritionLogsByDate);
+    $avgFoodCals = $totalFoodLoggedDays > 0 ? (int) round(array_sum(array_column($nutritionLogsByDate, 'cals')) / $totalFoodLoggedDays) : 0;
+    $avgFoodPro = $totalFoodLoggedDays > 0 ? round(array_sum(array_column($nutritionLogsByDate, 'pro')) / $totalFoodLoggedDays, 1) : 0;
+    $avgFoodCarbs = $totalFoodLoggedDays > 0 ? round(array_sum(array_column($nutritionLogsByDate, 'carbs')) / $totalFoodLoggedDays, 1) : 0;
+    $avgFoodFat = $totalFoodLoggedDays > 0 ? round(array_sum(array_column($nutritionLogsByDate, 'fat')) / $totalFoodLoggedDays, 1) : 0;
+
     // --- RECENT ACTIVITY TIMELINE ---
     $recentActivities = [];
     // Progress logs
@@ -621,10 +672,16 @@ function progress_page(): void
         }
     }
 
+    $initialTab = trim((string)($_GET['tab'] ?? 'overview'));
+    if (!in_array($initialTab, ['overview', 'workout', 'progress', 'nutrition', 'notes'], true)) {
+        $initialTab = 'overview';
+    }
+
     render_header('Member Hub & Progress', $user);
     ?>
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/progress.css')) ?>">
+    <link rel="stylesheet" href="<?= h(asset_url('css/pages/diet.css')) ?>">
 
     <!-- 1. HEADER PROFILE CARD -->
     <section class="member-hub-profile-card live-animated-banner">
@@ -765,22 +822,29 @@ function progress_page(): void
 
     <!-- 2. NAVIGATION TABS -->
     <nav class="member-hub-tabs-nav" aria-label="Member Hub Tabs">
-        <button type="button" class="hub-tab-btn active" id="hub-tab-btn-overview" onclick="switchHubTab('overview')">
+        <button type="button" class="hub-tab-btn <?= $initialTab === 'overview' ? 'active' : '' ?>" id="hub-tab-btn-overview" onclick="switchHubTab('overview')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
             <span>Overview</span>
         </button>
-        <button type="button" class="hub-tab-btn" id="hub-tab-btn-workout" onclick="switchHubTab('workout')">
+        <button type="button" class="hub-tab-btn <?= $initialTab === 'workout' ? 'active' : '' ?>" id="hub-tab-btn-workout" onclick="switchHubTab('workout')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
             <span>Workout Plan</span>
         </button>
-        <button type="button" class="hub-tab-btn" id="hub-tab-btn-progress" onclick="switchHubTab('progress')">
+        <button type="button" class="hub-tab-btn <?= $initialTab === 'progress' ? 'active' : '' ?>" id="hub-tab-btn-progress" onclick="switchHubTab('progress')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             <span>Progress Logs</span>
             <?php if (!empty($rows)): ?>
                 <span style="font-size: 11px; background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 10px;"><?= count($rows) ?></span>
             <?php endif; ?>
         </button>
-        <button type="button" class="hub-tab-btn" id="hub-tab-btn-notes" onclick="switchHubTab('notes')">
+        <button type="button" class="hub-tab-btn <?= $initialTab === 'nutrition' ? 'active' : '' ?>" id="hub-tab-btn-nutrition" onclick="switchHubTab('nutrition')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>
+            <span>Food Diary</span>
+            <?php if ($totalFoodLoggedDays > 0): ?>
+                <span style="font-size: 11px; background: rgba(199,255,34,0.15); color: var(--lime); padding: 1px 6px; border-radius: 10px; font-weight: 700;"><?= $totalFoodLoggedDays ?>d</span>
+            <?php endif; ?>
+        </button>
+        <button type="button" class="hub-tab-btn <?= $initialTab === 'notes' ? 'active' : '' ?>" id="hub-tab-btn-notes" onclick="switchHubTab('notes')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <span>Notes</span>
             <?php if (!empty($notesFeed)): ?>
@@ -790,7 +854,7 @@ function progress_page(): void
     </nav>
 
     <!-- 3. TAB PANE 1: OVERVIEW -->
-    <div id="hub-pane-overview" class="hub-tab-pane active">
+    <div id="hub-pane-overview" class="hub-tab-pane <?= $initialTab === 'overview' ? 'active' : '' ?>">
         <!-- GOAL PROGRESS HERO CARD (Physiological KPIs tailored to Member's 13 Fitness Goals) -->
         <?php render_goal_hero_card($goalProgress, true, $user['role'] === 'trainer'); ?>
 
@@ -1260,7 +1324,7 @@ function progress_page(): void
     </div>
 
     <!-- 3. TAB PANE 2: WORKOUT PLAN -->
-    <div id="hub-pane-workout" class="hub-tab-pane">
+    <div id="hub-pane-workout" class="hub-tab-pane <?= $initialTab === 'workout' ? 'active' : '' ?>">
         <div class="hub-card">
             <div class="hub-card-header">
                 <div class="hub-card-title-group">
@@ -1373,7 +1437,7 @@ function progress_page(): void
     </div>
 
     <!-- 6. TAB PANE 4: PROGRESS LOGS -->
-    <div id="hub-pane-progress" class="hub-tab-pane">
+    <div id="hub-pane-progress" class="hub-tab-pane <?= $initialTab === 'progress' ? 'active' : '' ?>">
         <div class="hub-card">
             <div class="hub-card-header">
                 <div class="hub-card-title-group">
@@ -1514,8 +1578,215 @@ function progress_page(): void
         </div>
     </div>
 
+    <!-- 6. TAB PANE 4: FOOD DIARY & NUTRITION ADHERENCE -->
+    <div id="hub-pane-nutrition" class="hub-tab-pane <?= $initialTab === 'nutrition' ? 'active' : '' ?>">
+        <div class="hub-card">
+            <div class="hub-card-header">
+                <div class="hub-card-title-group">
+                    <h3>Food Diary & Nutrition Adherence</h3>
+                    <p>Tracked meals, caloric balance, and macronutrient targets</p>
+                </div>
+                <div class="hub-header-actions" style="display: flex; gap: 8px; align-items: center;">
+                    <?php if ($isManager): ?>
+                        <a href="index.php?page=diet_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-sm btn-ghost">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Diet Builder
+                        </a>
+                    <?php endif; ?>
+                    <?php if ($memberId === (int)$user['user_id']): ?>
+                        <a href="index.php?page=diet" class="btn btn-sm btn-lime">
+                            + Log Meal
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- NUTRITION METRICS SUMMARY CARDS -->
+            <div class="diet-history-kpis" style="margin-bottom: 24px;">
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Days Logged</span>
+                    <div class="history-kpi-val text-lime"><?= $totalFoodLoggedDays ?> <small>days</small></div>
+                    <span class="history-kpi-meta"><?= count($rawMealLogs) ?> total logged meals</span>
+                </div>
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Avg Daily Calories</span>
+                    <div class="history-kpi-val"><?= number_format($avgFoodCals) ?> <small>kcal</small></div>
+                    <span class="history-kpi-meta">
+                        <?php if (!empty($targetNutritionMacros['cals'])): ?>
+                            Target: <?= number_format($targetNutritionMacros['cals']) ?> kcal
+                        <?php else: ?>
+                            No target set
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Avg Daily Protein</span>
+                    <div class="history-kpi-val"><?= number_format($avgFoodPro, 1) ?> <small>g</small></div>
+                    <span class="history-kpi-meta">
+                        <?php if (!empty($targetNutritionMacros['protein'])): ?>
+                            Target: <?= number_format($targetNutritionMacros['protein']) ?>g
+                        <?php else: ?>
+                            Target: ~<?= round(((float)($member['weight_kg'] ?? 70)) * 1.8) ?>g
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="history-kpi-card">
+                    <span class="history-kpi-label">Avg Carbs & Fat</span>
+                    <div class="history-kpi-val" style="font-size: 1.25rem;">
+                        <?= number_format($avgFoodCarbs, 1) ?>g <small style="font-size:0.75rem;">/ <?= number_format($avgFoodFat, 1) ?>g</small>
+                    </div>
+                    <span class="history-kpi-meta">Carbohydrates / Fat</span>
+                </div>
+            </div>
+
+            <!-- ACTIVE DIET PLAN BANNER -->
+            <?php if ($activeDietPlan): ?>
+                <div class="diet-plan-active-banner">
+                    <div class="diet-plan-banner-left">
+                        <div class="diet-plan-banner-title-row">
+                            <span class="badge badge-lime">Active Plan</span>
+                            <strong class="diet-plan-banner-title"><?= h($activeDietPlan['title'] ?? 'Custom Plan') ?></strong>
+                        </div>
+                        <?php if (!empty($activeDietPlan['goal'])): ?>
+                            <span class="diet-plan-banner-goal">
+                                <span class="diet-plan-goal-dot">•</span>
+                                <span>Goal: <?= h(ucfirst(str_replace('_', ' ', $activeDietPlan['goal']))) ?></span>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                    <?php if (!empty($targetNutritionMacros['cals'])): ?>
+                        <div class="diet-plan-banner-targets">
+                            <span class="diet-plan-target-cals">Target: <strong><?= number_format($targetNutritionMacros['cals']) ?> kcal</strong></span>
+                            <span class="diet-plan-target-sep">•</span>
+                            <div class="diet-plan-target-macros">
+                                <span><?= number_format($targetNutritionMacros['protein']) ?>g P</span>
+                                <span><?= number_format($targetNutritionMacros['carbs']) ?>g C</span>
+                                <span><?= number_format($targetNutritionMacros['fat']) ?>g F</span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- TIMELINE OF LOGGED DAYS -->
+            <?php if (!empty($nutritionLogsByDate)): ?>
+                <div class="diet-history-timeline">
+                    <?php foreach ($nutritionLogsByDate as $dateKey => $dayData): 
+                        $dayTime = strtotime($dateKey);
+                        $isToday = date('Y-m-d') === $dateKey;
+                        $formattedDate = date('D, M j, Y', $dayTime);
+                        $calsTarget = (int)($targetNutritionMacros['cals'] ?? 0);
+                        $calsDiff = $calsTarget > 0 ? $dayData['cals'] - $calsTarget : null;
+                    ?>
+                        <div class="history-day-card">
+                            <div class="history-day-header">
+                                <div class="history-day-left">
+                                    <div class="history-day-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    </div>
+                                    <div>
+                                        <div class="history-day-title-row">
+                                            <h4 class="history-day-date"><?= h($formattedDate) ?></h4>
+                                            <?php if ($isToday): ?>
+                                                <span class="history-day-tag tag-today">Today</span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="history-day-meta">
+                                            <span><?= count($dayData['meals']) ?> meal<?= count($dayData['meals']) === 1 ? '' : 's' ?> logged</span>
+                                            <?php if ($calsDiff !== null): ?>
+                                                <span class="meta-dot">•</span>
+                                                <span class="history-adherence <?= abs($calsDiff) <= 150 ? 'adherence-good' : '' ?>">
+                                                    <?= $calsDiff > 0 ? '+' . number_format($calsDiff) : number_format($calsDiff) ?> kcal vs target
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="history-day-macros">
+                                    <span class="history-macro-pill pill-cals">
+                                        <strong><?= number_format($dayData['cals']) ?></strong>
+                                        <span class="unit">kcal</span>
+                                    </span>
+                                    <span class="history-macro-pill">
+                                        <strong><?= number_format($dayData['pro'], 1) ?>g</strong>
+                                        <span class="unit">Protein</span>
+                                    </span>
+                                    <span class="history-macro-pill">
+                                        <strong><?= number_format($dayData['carbs'], 1) ?>g</strong>
+                                        <span class="unit">Carbs</span>
+                                    </span>
+                                    <span class="history-macro-pill">
+                                        <strong><?= number_format($dayData['fat'], 1) ?>g</strong>
+                                        <span class="unit">Fat</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <?php if (!empty($dayData['meals'])): ?>
+                                <div class="history-day-meals">
+                                    <div class="history-meals-grid">
+                                        <?php foreach ($dayData['meals'] as $meal): 
+                                            $customPhoto = !empty($meal['image_url']) ? $meal['image_url'] : null;
+                                            $photoUrl = get_meal_photo_url($customPhoto, $meal['food_items'] ?? '', $meal['meal_type'] ?? 'meal');
+                                            $mealTypeName = ucfirst($meal['meal_type'] ?? 'Meal');
+                                        ?>
+                                            <div class="history-meal-card">
+                                                <div class="history-meal-main">
+                                                    <div class="history-meal-thumb-wrap">
+                                                        <img src="<?= h($photoUrl) ?>" alt="<?= h($mealTypeName) ?>" class="history-meal-thumb" loading="lazy" onerror="this.onerror=null; this.src='assets/images/defaults/meal.png';">
+                                                    </div>
+                                                    <div style="flex: 1; min-width: 0;">
+                                                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px;">
+                                                            <strong style="color: var(--lime); font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;"><?= h($mealTypeName) ?></strong>
+                                                            <span style="font-size: 11px; color: var(--muted);"><?= date('g:i A', strtotime($meal['logged_at'])) ?></span>
+                                                        </div>
+                                                        <p style="margin: 0 0 8px 0; color: var(--ink); font-size: 13.5px; font-weight: 500; line-height: 1.4; word-break: break-word;">
+                                                            <?= h($meal['food_items']) ?>
+                                                        </p>
+                                                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                                            <span style="font-size: 11px; font-weight: 700; color: var(--lime); background: rgba(199,255,34,0.1); padding: 2px 7px; border-radius: 6px;">
+                                                                <?= (int)$meal['calories'] ?> kcal
+                                                            </span>
+                                                            <span style="font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); padding: 2px 7px; border-radius: 6px;">
+                                                                <?= number_format((float)$meal['protein_g'], 1) ?>g P
+                                                            </span>
+                                                            <span style="font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); padding: 2px 7px; border-radius: 6px;">
+                                                                <?= number_format((float)$meal['carbs_g'], 1) ?>g C
+                                                            </span>
+                                                            <span style="font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--line); padding: 2px 7px; border-radius: 6px;">
+                                                                <?= number_format((float)$meal['fat_g'], 1) ?>g F
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div style="padding: 16px 20px; font-size: 13px; color: var(--muted);">
+                                    Daily macro balance recorded directly (<?= number_format($dayData['cals']) ?> kcal, <?= number_format($dayData['pro'], 1) ?>g P, <?= number_format($dayData['carbs'], 1) ?>g C, <?= number_format($dayData['fat'], 1) ?>g F).
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div style="text-align: center; padding: 48px 20px; background: var(--bg); border: 1px dashed var(--line); border-radius: 14px; margin-top: 10px;">
+                    <div style="width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px auto; color: var(--muted);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>
+                    </div>
+                    <h4 style="margin: 0 0 6px 0; color: var(--ink); font-size: 15px;">No Food Logs Recorded Yet</h4>
+                    <p style="margin: 0; color: var(--muted); font-size: 13px; max-width: 440px; margin: 0 auto; line-height: 1.5;">
+                        When <?= h($member['first_name'] ?? 'the member') ?> logs meals or daily macros, they will appear here with nutritional adherence metrics and meal photographs.
+                    </p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
     <!-- 7. TAB PANE 5: NOTES -->
-    <div id="hub-pane-notes" class="hub-tab-pane">
+    <div id="hub-pane-notes" class="hub-tab-pane <?= $initialTab === 'notes' ? 'active' : '' ?>">
         <div class="hub-card">
             <div class="hub-card-header">
                 <div class="hub-card-title-group">

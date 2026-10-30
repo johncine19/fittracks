@@ -69,6 +69,7 @@ try {
                     $isAffiliated = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active" LIMIT 1', [$user['user_id'], $targetGymId]);
                     if ($isAffiliated) {
                         db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $targetGymId]);
+                        clear_member_gyms_cache((int) $user['user_id']);
                     }
                 }
                 if ($isAffiliated) {
@@ -247,6 +248,7 @@ try {
         'attendance_geofence_api' => ['file' => 'pages/shared/attendance_geofence_api.php', 'handler' => 'attendance_geofence_api_handler'],
         'audit_logs' => ['file' => 'pages/admin/audit_logs.php', 'handler' => 'audit_logs_page'],
         'admin_workouts' => ['file' => 'pages/admin/workout_plans.php', 'handler' => 'admin_workouts_page'],
+        'demo_requests' => ['file' => 'pages/platform_admin/demo_requests.php', 'handler' => 'platform_demo_requests_page'],
         'gym_applications' => ['file' => 'pages/admin/gym_applications.php', 'handler' => 'gym_applications_page'],
         'gyms' => ['file' => 'pages/admin/gyms.php', 'handler' => 'gyms_page'],
         'platform_plans' => ['file' => 'pages/platform_admin/subscription_plans.php', 'handler' => 'platform_subscription_plans_page'],
@@ -281,6 +283,8 @@ try {
     if (ob_get_level() > 0) {
         ob_end_clean(); // discard any partial page that was buffered
     }
+
+    error_log('App Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString());
 
     $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
         || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))

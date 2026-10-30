@@ -202,7 +202,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     } else {
         if ($goal === 'muscle_gain') {
             usort($exercises, fn($a, $b) => ($a['category'] === 'strength' ? 0 : 1) <=> ($b['category'] === 'strength' ? 0 : 1));
-        } elseif ($goal === 'fat_loss') {
+        } elseif ($goal === 'fat_loss' || $goal === 'weight_loss') {
             usort($exercises, fn($a, $b) => ($a['category'] === 'cardio' ? 0 : 1) <=> ($b['category'] === 'cardio' ? 0 : 1));
         } else {
             shuffle($exercises);
@@ -242,54 +242,52 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
 function _assign_exercise_details(string $goal, int $expLevel, array $ex): array
 {
     $cat = $ex['category'] ?? 'strength';
+    $customDesc = !empty($ex['description']) ? trim((string)$ex['description']) : null;
     
     if ($cat === 'cardio') {
-        return [
-            3,
-            '15 mins',
-            45,
-            'Steady Pace',
-            'RPE 7',
-            'Keep cadence steady in target aerobic zone.'
-        ];
-    }
-
-    if ($goal === 'strength' || $goal === 'strength_power') {
+        $sets = 3;
+        $reps = '15 mins';
+        $rest = 45;
+        $tempo = 'Steady Pace';
+        $rpe = 'RPE 7';
+        $cue = 'Keep cadence steady in target aerobic zone.';
+    } elseif ($goal === 'strength' || $goal === 'strength_power') {
         if ($expLevel === 1) {
-            return [3, '6-8', 120, '2-1-1-0', 'RPE 7-8', 'Focus on bar path, brace core tightly.'];
+            $sets = 3; $reps = '6-8'; $rest = 120; $tempo = '2-1-1-0'; $rpe = 'RPE 7-8'; $cue = 'Focus on bar path, brace core tightly.';
         } elseif ($expLevel === 2) {
-            return [4, '5-6', 150, '2-1-1-0', 'RPE 8', 'Control the eccentric, explode upward with full intent.'];
+            $sets = 4; $reps = '5-6'; $rest = 150; $tempo = '2-1-1-0'; $rpe = 'RPE 8'; $cue = 'Control the eccentric, explode upward with full intent.';
         } else {
-            return [5, '3-5', 180, '2-1-1-0', 'RPE 8-9', 'Competition form. Rest fully between work sets.'];
+            $sets = 5; $reps = '3-5'; $rest = 180; $tempo = '2-1-1-0'; $rpe = 'RPE 8-9'; $cue = 'Competition form. Rest fully between work sets.';
         }
-    }
-
-    if ($goal === 'muscle_gain' || $goal === 'hypertrophy') {
+    } elseif ($goal === 'muscle_gain' || $goal === 'hypertrophy') {
         if ($expLevel === 1) {
-            return [3, '10-12', 60, '3-0-1-0', 'RPE 7', 'Control the negative (3s down), feel target muscle stretch.'];
+            $sets = 3; $reps = '10-12'; $rest = 60; $tempo = '3-0-1-0'; $rpe = 'RPE 7'; $cue = 'Control the negative (3s down), feel target muscle stretch.';
         } elseif ($expLevel === 2) {
-            return [4, '8-10', 90, '3-0-1-0', 'RPE 8', 'Squeeze peak contraction for 1 second on each rep.'];
+            $sets = 4; $reps = '8-10'; $rest = 90; $tempo = '3-0-1-0'; $rpe = 'RPE 8'; $cue = 'Squeeze peak contraction for 1 second on each rep.';
         } else {
-            return [4, '6-10', 90, '3-0-1-1', 'RPE 8-9', 'Train close to failure with strict form.'];
+            $sets = 4; $reps = '6-10'; $rest = 90; $tempo = '3-0-1-1'; $rpe = 'RPE 8-9'; $cue = 'Train close to failure with strict form.';
         }
-    } elseif ($goal === 'fat_loss') {
+    } elseif ($goal === 'fat_loss' || $goal === 'weight_loss') {
         if ($expLevel === 1) {
-            return [3, '12-15', 45, '2-0-2-0', 'RPE 6-7', 'Smooth continuous cadence, minimize rest.'];
+            $sets = 3; $reps = '12-15'; $rest = 45; $tempo = '2-0-2-0'; $rpe = 'RPE 6-7'; $cue = 'Smooth continuous cadence, minimize rest.';
         } elseif ($expLevel === 2) {
-            return [4, '12-15', 60, '2-0-2-0', 'RPE 7-8', 'Maintain high output density and rhythmic breathing.'];
+            $sets = 4; $reps = '12-15'; $rest = 60; $tempo = '2-0-2-0'; $rpe = 'RPE 7-8'; $cue = 'Maintain high output density and rhythmic breathing.';
         } else {
-            return [4, '10-12', 60, '2-0-1-0', 'RPE 8', 'High metabolic demand, short rest between sets.'];
+            $sets = 4; $reps = '10-12'; $rest = 60; $tempo = '2-0-1-0'; $rpe = 'RPE 8'; $cue = 'High metabolic demand, short rest between sets.';
         }
     } else {
         // General health / Maintenance
         if ($expLevel === 1) {
-            return [3, '10-12', 60, '2-0-2-0', 'RPE 6', 'Focus on posture alignment and smooth technique.'];
+            $sets = 3; $reps = '10-12'; $rest = 60; $tempo = '2-0-2-0'; $rpe = 'RPE 6'; $cue = 'Focus on posture alignment and smooth technique.';
         } elseif ($expLevel === 2) {
-            return [3, '8-12', 60, '2-0-1-0', 'RPE 7', 'Solid mechanical tension and full range of motion.'];
+            $sets = 3; $reps = '8-12'; $rest = 60; $tempo = '2-0-1-0'; $rpe = 'RPE 7'; $cue = 'Solid mechanical tension and full range of motion.';
         } else {
-            return [4, '8-10', 90, '2-0-1-0', 'RPE 7-8', 'Maintain balanced strength across all planes.'];
+            $sets = 4; $reps = '8-10'; $rest = 90; $tempo = '2-0-1-0'; $rpe = 'RPE 7-8'; $cue = 'Maintain balanced strength across all planes.';
         }
     }
+
+    $notes = ($customDesc !== null && $customDesc !== '') ? $customDesc : $cue;
+    return [$sets, $reps, $rest, $tempo, $rpe, $notes];
 }
 
 function _assign_sets_reps(string $goal, int $expLevel, array $ex): array
@@ -407,9 +405,7 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gy
     }
     
     // Get member profile
-    $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
-    $stmt->execute([$memberUserId]);
-    $profile = $stmt->fetch();
+    $profile = member_profile($memberUserId);
     if (!$profile) {
         throw new RuntimeException('Cannot generate workout plan: member profile missing.');
     }
@@ -481,9 +477,7 @@ function auto_populate_plan(int $planId, int $memberUserId): void
 {
     $pdo = db();
     
-    $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
-    $stmt->execute([$memberUserId]);
-    $profile = $stmt->fetch();
+    $profile = member_profile($memberUserId);
     if (!$profile) return;
 
     $goal = $profile['primary_goal'];
@@ -522,9 +516,7 @@ function auto_populate_day(int $planId, int $memberUserId, int $dayOfWeek): void
 {
     $pdo = db();
     
-    $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
-    $stmt->execute([$memberUserId]);
-    $profile = $stmt->fetch();
+    $profile = member_profile($memberUserId);
     if (!$profile) return;
 
     $goal = $profile['primary_goal'];
@@ -851,24 +843,45 @@ function get_available_workout_templates(): array
  */
 function _find_exercise_id(PDO $pdo, int $gymId, string $targetName, ?string $fallbackMuscle = null): ?int
 {
-    if ($gymId <= 0) return null;
-
     // 1. Exact match in gym
-    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) = LOWER(?) LIMIT 1');
-    $stmt->execute([$gymId, $targetName]);
+    if ($gymId > 0) {
+        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) = LOWER(?) LIMIT 1');
+        $stmt->execute([$gymId, $targetName]);
+        $id = $stmt->fetchColumn();
+        if ($id) return (int) $id;
+    }
+
+    // 2. Exact match in global library
+    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = 0 OR gym_id IS NULL) AND LOWER(name) = LOWER(?) LIMIT 1');
+    $stmt->execute([$targetName]);
     $id = $stmt->fetchColumn();
     if ($id) return (int) $id;
 
-    // 2. Substring / LIKE match in gym
-    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) LIKE LOWER(?) LIMIT 1');
-    $stmt->execute([$gymId, '%' . $targetName . '%']);
+    // 3. Substring / LIKE match in gym
+    if ($gymId > 0) {
+        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) LIKE LOWER(?) LIMIT 1');
+        $stmt->execute([$gymId, '%' . $targetName . '%']);
+        $id = $stmt->fetchColumn();
+        if ($id) return (int) $id;
+    }
+
+    // 4. Substring / LIKE match in global library
+    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = 0 OR gym_id IS NULL) AND LOWER(name) LIKE LOWER(?) LIMIT 1');
+    $stmt->execute(['%' . $targetName . '%']);
     $id = $stmt->fetchColumn();
     if ($id) return (int) $id;
 
-    // 3. Fallback by muscle group if provided in gym
+    // 5. Fallback by muscle group if provided in gym
     if ($fallbackMuscle) {
-        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(muscle_group) = LOWER(?) LIMIT 1');
-        $stmt->execute([$gymId, $fallbackMuscle]);
+        if ($gymId > 0) {
+            $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(muscle_group) = LOWER(?) LIMIT 1');
+            $stmt->execute([$gymId, $fallbackMuscle]);
+            $id = $stmt->fetchColumn();
+            if ($id) return (int) $id;
+        }
+
+        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = 0 OR gym_id IS NULL) AND LOWER(muscle_group) = LOWER(?) LIMIT 1');
+        $stmt->execute([$fallbackMuscle]);
         $id = $stmt->fetchColumn();
         if ($id) return (int) $id;
     }
@@ -935,6 +948,21 @@ function apply_workout_template(int $planId, string $templateKey, int $gymId): b
     return true;
 }
 
+function normalize_muscle_group_key(string $mg): string
+{
+    $mg = strtolower(trim($mg));
+    return match($mg) {
+        'chest' => 'chest',
+        'back', 'middle back', 'lower back', 'lats' => 'back',
+        'shoulders', 'shoulder' => 'shoulders',
+        'arms', 'biceps', 'triceps', 'forearms' => 'arms',
+        'legs', 'quadriceps', 'quads', 'hamstrings', 'calves', 'glutes' => 'legs',
+        'abdominals', 'abs', 'obliques', 'core' => 'abdominals',
+        'posterior chain', 'posterior_chain' => 'posterior chain',
+        default => $mg ?: 'general'
+    };
+}
+
 /**
  * Configurable, intelligent auto-generation routine
  */
@@ -942,13 +970,20 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
 {
     $pdo = db();
     
-    $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
-    $stmt->execute([$memberUserId]);
-    $profile = $stmt->fetch() ?: [];
+    $profile = member_profile($memberUserId) ?: [];
 
     // Extract options with fallbacks to member profile
     $goal = $options['goal'] ?? map_detailed_goal_to_basic($profile['primary_goal'] ?? 'general_health');
-    $expLevel = (int) ($options['experience_level'] ?? 2);
+    $rawExp = $options['experience_level'] ?? 2;
+    if (is_numeric($rawExp)) {
+        $expLevel = max(1, min(3, (int)$rawExp));
+    } else {
+        $expLevel = match(strtolower((string)$rawExp)) {
+            'beginner' => 1,
+            'advanced', 'expert' => 3,
+            default => 2, // intermediate
+        };
+    }
     $daysCount = (int) ($options['days_count'] ?? 3);
     $splitType = $options['split_type'] ?? 'auto';
 
@@ -988,12 +1023,36 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
         }
     }
 
-    // Fetch exercises available for this gym
-    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE gym_id = ? ORDER BY muscle_group, name');
-    $stmt->execute([$memberGymId]);
+    // Fetch exercises available for this gym (including global library exercises)
+    if ($memberGymId > 0) {
+        $stmt = $pdo->prepare('
+            SELECT * FROM exercises 
+            WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) 
+            ORDER BY (gym_id = ?) DESC, muscle_group, name
+        ');
+        $stmt->execute([$memberGymId, $memberGymId]);
+    } else {
+        $stmt = $pdo->query('
+            SELECT * FROM exercises 
+            WHERE (gym_id = 0 OR gym_id IS NULL) 
+            ORDER BY muscle_group, name
+        ');
+    }
     $allExercises = $stmt->fetchAll();
 
     if (!$allExercises) return false;
+
+    // Deduplicate by name so gym-specific overrides win
+    $dedupedExercises = [];
+    $seenNames = [];
+    foreach ($allExercises as $ex) {
+        $nameKey = strtolower(trim((string)$ex['name']));
+        if (!isset($seenNames[$nameKey])) {
+            $seenNames[$nameKey] = true;
+            $dedupedExercises[] = $ex;
+        }
+    }
+    $allExercises = $dedupedExercises;
 
     // Only replace the draft after confirming the selected library has exercises.
     $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
@@ -1004,10 +1063,15 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ');
 
-    // Group exercises by muscle/type
+    // Group exercises by normalized muscle/type
     $exercisesByGroup = [];
     foreach ($allExercises as $e) {
-        $exercisesByGroup[$e['muscle_group']][] = $e;
+        $rawMg = (string)($e['muscle_group'] ?? '');
+        $normKey = normalize_muscle_group_key($rawMg);
+        $exercisesByGroup[$normKey][] = $e;
+        if ($rawMg !== '' && strtolower($rawMg) !== $normKey) {
+            $exercisesByGroup[strtolower($rawMg)][] = $e;
+        }
     }
 
     // Day focus mapping based on split
@@ -1033,12 +1097,45 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
         // Pick 1 exercise per target muscle group
         $dayExercises = [];
         foreach ($focusMuscles as $mg) {
-            if (!empty($exercisesByGroup[$mg])) {
-                $candidates = $exercisesByGroup[$mg];
-                $filtered = array_filter($candidates, fn($c) => (int)($c['difficulty_level'] ?? 1) <= $expLevel);
-                if (empty($filtered)) $filtered = $candidates;
-                $picked = $filtered[array_rand($filtered)];
-                if (!in_array($picked['exercise_id'], array_column($dayExercises, 'exercise_id'))) {
+            $normMg = normalize_muscle_group_key($mg);
+            if (!empty($exercisesByGroup[$normMg])) {
+                $candidates = $exercisesByGroup[$normMg];
+                // Exclude exercises already scheduled in today's session
+                $existingIds = array_column($dayExercises, 'exercise_id');
+                $candidates = array_values(array_filter($candidates, fn($c) => !in_array($c['exercise_id'], $existingIds, true)));
+                if (empty($candidates)) {
+                    $candidates = $exercisesByGroup[$normMg];
+                }
+
+                $filtered = array_values(array_filter($candidates, fn($c) => (int)($c['difficulty_level'] ?? 1) <= $expLevel));
+                if (empty($filtered)) {
+                    $filtered = $candidates;
+                }
+
+                // If member is intermediate (2) or advanced (3), produce a balanced mix of target tier and foundational exercises
+                if ($expLevel >= 2) {
+                    $targetTier = array_values(array_filter($filtered, fn($c) => (int)($c['difficulty_level'] ?? 1) === $expLevel));
+                    $lowerTier = array_values(array_filter($filtered, fn($c) => (int)($c['difficulty_level'] ?? 1) < $expLevel));
+
+                    if (!empty($targetTier) && !empty($lowerTier)) {
+                        $targetCount = count(array_filter($dayExercises, fn($d) => (int)($d['difficulty_level'] ?? 1) === $expLevel));
+                        $lowerCount = count(array_filter($dayExercises, fn($d) => (int)($d['difficulty_level'] ?? 1) < $expLevel));
+
+                        if ($targetCount <= $lowerCount) {
+                            $picked = $targetTier[array_rand($targetTier)];
+                        } else {
+                            $picked = $lowerTier[array_rand($lowerTier)];
+                        }
+                    } elseif (!empty($targetTier)) {
+                        $picked = $targetTier[array_rand($targetTier)];
+                    } else {
+                        $picked = $filtered[array_rand($filtered)];
+                    }
+                } else {
+                    $picked = $filtered[array_rand($filtered)];
+                }
+
+                if (!in_array($picked['exercise_id'], array_column($dayExercises, 'exercise_id'), true)) {
                     $dayExercises[] = $picked;
                 }
             }
@@ -1087,9 +1184,7 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
 {
     $pdo = db();
     
-    $stmt = $pdo->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
-    $stmt->execute([$memberUserId]);
-    $profile = $stmt->fetch() ?: [];
+    $profile = member_profile($memberUserId) ?: [];
     $goal = map_detailed_goal_to_basic($profile['primary_goal'] ?? 'general_health');
     $tier = (int) ($profile['fitness_tier'] ?? 1);
     $expLevel = ($tier >= 5) ? 3 : (($tier >= 3) ? 2 : 1);
@@ -1113,28 +1208,87 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
         default => ['legs', 'chest', 'back', 'abdominals'] // full body
     };
 
-    $placeholders = implode(',', array_fill(0, count($targetMuscles), '?'));
-    $params = array_merge([$memberGymId], $targetMuscles);
-    $stmt = $pdo->prepare("SELECT * FROM exercises WHERE gym_id = ? AND muscle_group IN ($placeholders) ORDER BY muscle_group, name");
-    $stmt->execute($params);
-    $exercises = $stmt->fetchAll();
+    if ($memberGymId > 0) {
+        $stmt = $pdo->prepare('
+            SELECT * FROM exercises 
+            WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) 
+            ORDER BY (gym_id = ?) DESC, muscle_group, name
+        ');
+        $stmt->execute([$memberGymId, $memberGymId]);
+    } else {
+        $stmt = $pdo->query('
+            SELECT * FROM exercises 
+            WHERE (gym_id = 0 OR gym_id IS NULL) 
+            ORDER BY muscle_group, name
+        ');
+    }
+    $rawDayExercises = $stmt->fetchAll();
 
-    if (!$exercises) return false;
+    if (!$rawDayExercises) return false;
+
+    $dedupedDayExercises = [];
+    $seenDayNames = [];
+    foreach ($rawDayExercises as $ex) {
+        $nameKey = strtolower(trim((string)$ex['name']));
+        if (!isset($seenDayNames[$nameKey])) {
+            $seenDayNames[$nameKey] = true;
+            $dedupedDayExercises[] = $ex;
+        }
+    }
+    $exercises = $dedupedDayExercises;
 
     // Keep the existing day intact when the selected library has no matches.
     $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ?')->execute([$planId, $dayOfWeek]);
 
     $byGroup = [];
     foreach ($exercises as $e) {
-        $byGroup[$e['muscle_group']][] = $e;
+        $rawMg = (string)($e['muscle_group'] ?? '');
+        $normKey = normalize_muscle_group_key($rawMg);
+        $byGroup[$normKey][] = $e;
+        if ($rawMg !== '' && strtolower($rawMg) !== $normKey) {
+            $byGroup[strtolower($rawMg)][] = $e;
+        }
     }
 
     $selected = [];
     foreach ($targetMuscles as $m) {
-        if (!empty($byGroup[$m])) {
-            $pool = $byGroup[$m];
-            $cand = $pool[array_rand($pool)];
-            if (!in_array($cand['exercise_id'], array_column($selected, 'exercise_id'))) {
+        $normM = normalize_muscle_group_key($m);
+        if (!empty($byGroup[$normM])) {
+            $pool = $byGroup[$normM];
+            $existingIds = array_column($selected, 'exercise_id');
+            $pool = array_values(array_filter($pool, fn($c) => !in_array($c['exercise_id'], $existingIds, true)));
+            if (empty($pool)) {
+                $pool = $byGroup[$normM];
+            }
+
+            $filtered = array_values(array_filter($pool, fn($c) => (int)($c['difficulty_level'] ?? 1) <= $expLevel));
+            if (empty($filtered)) {
+                $filtered = $pool;
+            }
+
+            if ($expLevel >= 2) {
+                $targetTier = array_values(array_filter($filtered, fn($c) => (int)($c['difficulty_level'] ?? 1) === $expLevel));
+                $lowerTier = array_values(array_filter($filtered, fn($c) => (int)($c['difficulty_level'] ?? 1) < $expLevel));
+
+                if (!empty($targetTier) && !empty($lowerTier)) {
+                    $targetCount = count(array_filter($selected, fn($d) => (int)($d['difficulty_level'] ?? 1) === $expLevel));
+                    $lowerCount = count(array_filter($selected, fn($d) => (int)($d['difficulty_level'] ?? 1) < $expLevel));
+
+                    if ($targetCount <= $lowerCount) {
+                        $cand = $targetTier[array_rand($targetTier)];
+                    } else {
+                        $cand = $lowerTier[array_rand($lowerTier)];
+                    }
+                } elseif (!empty($targetTier)) {
+                    $cand = $targetTier[array_rand($targetTier)];
+                } else {
+                    $cand = $filtered[array_rand($filtered)];
+                }
+            } else {
+                $cand = $filtered[array_rand($filtered)];
+            }
+
+            if (!in_array($cand['exercise_id'], array_column($selected, 'exercise_id'), true)) {
                 $selected[] = $cand;
             }
         }

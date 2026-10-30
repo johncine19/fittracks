@@ -315,12 +315,13 @@ function handle_xendit_subscription_webhook(): void
         $lookup->execute([$sessionId]);
         $payment = $lookup->fetch(PDO::FETCH_ASSOC);
         if (!$payment) {
-            $memberLookup = $pdo->prepare('SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, g.xendit_subaccount_id
+            $memberLookup = $pdo->prepare('SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, gpa.xendit_subaccount_id
                 FROM payments p
                 JOIN memberships m ON m.membership_id = p.membership_id
                 JOIN membership_plans mp ON mp.plan_id = m.plan_id
                 JOIN users u ON u.user_id = m.user_id
                 JOIN gyms g ON g.gym_id = mp.gym_id
+                LEFT JOIN gym_payout_accounts gpa ON gpa.gym_id = g.gym_id
                 JOIN users owner ON owner.user_id = g.owner_user_id
                 WHERE p.xendit_session_id = ? LIMIT 1');
             $memberLookup->execute([$sessionId]);
@@ -410,10 +411,13 @@ function handle_xendit_subscription_webhook(): void
         $endDate = $end->format('Y-m-d');
         $receiptNumber = 'SUB-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
 
-        $pdo->prepare('UPDATE gym_subscription_payments SET status = "paid", payment_method = "online", payment_date = NOW(), receipt_number = ?, xendit_payment_id = ?, start_date = ?, end_date = ? WHERE id = ? AND status = "pending"')
-            ->execute([$receiptNumber, $paymentId, $startDate, $endDate, (int) $lockedPayment['id']]);
-        $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_status = "active", subscription_renewal_date = ? WHERE gym_id = ?')
-            ->execute([$lockedPayment['plan_name'], $endDate, (int) $lockedPayment['gym_id']]);
+        $resolvedPlanId = function_exists('resolve_platform_subscription_plan_id')
+            ? resolve_platform_subscription_plan_id((string)$lockedPayment['plan_name'])
+            : null;
+        $pdo->prepare('UPDATE gym_subscription_payments SET status = "paid", payment_method = "online", payment_date = NOW(), receipt_number = ?, xendit_payment_id = ?, start_date = ?, end_date = ?, plan_id = COALESCE(plan_id, ?) WHERE id = ? AND status = "pending"')
+            ->execute([$receiptNumber, $paymentId, $startDate, $endDate, $resolvedPlanId, (int) $lockedPayment['id']]);
+        $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_plan_id = ?, subscription_status = "active", subscription_renewal_date = ? WHERE gym_id = ?')
+            ->execute([$lockedPayment['plan_name'], $resolvedPlanId, $endDate, (int) $lockedPayment['gym_id']]);
         $pdo->commit();
 
         audit_log(

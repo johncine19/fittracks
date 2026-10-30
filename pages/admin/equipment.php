@@ -42,14 +42,14 @@ function gym_equipment_page(): void
 
     // Descriptive Analytics (strictly descriptive queries)
     $totalSessions = (int)scalar("SELECT COUNT(*) FROM equipment_sessions WHERE gym_id = $gymId AND session_status = 'completed'");
-    $totalDurationSecs = (int)scalar("SELECT COALESCE(SUM(duration_seconds), 0) FROM equipment_sessions WHERE gym_id = $gymId AND session_status = 'completed'");
+    $totalDurationSecs = (int)scalar("SELECT COALESCE(SUM(GREATEST(0, TIMESTAMPDIFF(SECOND, start_time, COALESCE(end_time, NOW())))), 0) FROM equipment_sessions WHERE gym_id = $gymId AND session_status = 'completed'");
     $avgDurationMins = $totalSessions > 0 ? (int)round(($totalDurationSecs / $totalSessions) / 60) : 0;
     $totalUsageHours = round($totalDurationSecs / 3600, 1);
 
     // Most used equipment
     $topUsed = $pdo->query("
         SELECT e.name, e.unit_number, e.category, COUNT(s.session_id) as session_count,
-               COALESCE(SUM(s.duration_seconds), 0) as total_seconds
+               COALESCE(SUM(GREATEST(0, TIMESTAMPDIFF(SECOND, s.start_time, COALESCE(s.end_time, NOW())))), 0) as total_seconds
         FROM gym_equipment e
         LEFT JOIN equipment_sessions s ON s.equipment_id = e.equipment_id AND s.session_status = 'completed'
         WHERE e.gym_id = $gymId

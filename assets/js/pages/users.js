@@ -576,7 +576,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         <span>Edit</span>
                     </button>
-                    ${(!IS_ADMIN && u.is_member) || (u.can_view_progress) ? `
+                    ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
                         <button type="button" class="btn-user-action btn-user-progress btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" title="View Member Progress">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                             <span>Progress</span>
@@ -696,7 +696,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                         <span>Edit</span>
                     </button>
-                    ${(!IS_ADMIN && u.is_member) || (u.can_view_progress) ? `
+                    ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
                         <button type="button" class="btn-card-action btn-card-progress btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" title="View Member Progress">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                             <span>Progress</span>

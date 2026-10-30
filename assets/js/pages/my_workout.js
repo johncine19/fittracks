@@ -208,7 +208,44 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                                                 ${ex.tempo ? ` &bull; <span style="color:var(--lime); font-weight:600;">⚡ ${escapeHtml(ex.tempo)}</span>` : ''}
                                                 ${ex.rpe ? ` &bull; <span style="color:var(--orange, #f59e0b); font-weight:600;">🔥 ${escapeHtml(ex.rpe)}</span>` : ''}
                                             </div>
-                                            ${ex.notes ? `<div style="font-size:12px; color:var(--muted); margin-top:4px; font-style:italic;">"${escapeHtml(ex.notes)}"</div>` : ''}
+                                            ${(() => {
+
+                                                const displayNote = (ex.instructions && ex.instructions.trim()) ? ex.instructions.trim() : (ex.notes || '').trim();
+
+                                                if (!displayNote) return '';
+                                                const raw = displayNote;
+
+                                                const isLong = raw.length > 90 || raw.includes('\n');
+
+                                                if (isLong) {
+
+                                                    const snippet = raw.slice(0, 85).replace(/\s+/g, ' ').trim();
+
+                                                    return `
+
+                                                        <div class="exercise-notes-snippet-wrap">
+
+                                                            <span class="exercise-notes-snippet" onclick="showExerciseNotesModal('${day.date}', ${idx})" title="Click to view full instructions & safety notes">"${escapeHtml(snippet)}..."</span>
+
+                                                            <button type="button" class="btn-notes-see-more" onclick="showExerciseNotesModal('${day.date}', ${idx})">See more</button>
+
+                                                        </div>
+
+                                                    `;
+
+                                                }
+
+                                                return `
+
+                                                    <div class="exercise-notes-snippet-wrap">
+
+                                                        <span class="exercise-notes-snippet">"${escapeHtml(raw)}"</span>
+
+                                                    </div>
+
+                                                `;
+
+                                            })()}
                                         </div>
                                     </div>
                                     <div>
@@ -254,6 +291,138 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         </div>
                     `;
                 }
+
+                function showExerciseNotesModal(dateStr, idx) {
+
+                    const day = CALENDAR_DATA[dateStr];
+
+                    if (!day || !day.exercises || !day.exercises[idx]) return;
+
+                    openNotesModalForExercise(day.exercises[idx]);
+
+                }
+
+                window.showExerciseNotesModal = showExerciseNotesModal;
+
+
+
+                function showLivePlayerNotesModal() {
+
+                    if (!liveExercises || !liveExercises[currentExIndex]) return;
+
+                    openNotesModalForExercise(liveExercises[currentExIndex]);
+
+                }
+
+                window.showLivePlayerNotesModal = showLivePlayerNotesModal;
+
+
+
+                function openNotesModalForExercise(ex) {
+
+                    if (!ex) return;
+
+                    
+
+                    let chipsHtml = `
+
+                        <span class="ex-modal-chip lime"><strong>${ex.sets}</strong> Sets &times; <strong>${escapeHtml(ex.reps)}</strong></span>
+
+                        ${ex.target_weight_kg ? `<span class="ex-modal-chip orange"><strong>${ex.target_weight_kg} kg</strong></span>` : ''}
+
+                        <span class="ex-modal-chip">Rest ${ex.rest_seconds}s</span>
+
+                        ${ex.muscle_group ? `<span class="ex-modal-chip">${escapeHtml(ex.muscle_group)}</span>` : ''}
+
+                        ${ex.category ? `<span class="ex-modal-chip">${escapeHtml(ex.category)}</span>` : ''}
+
+                        ${ex.tempo ? `<span class="ex-modal-chip">⚡ ${escapeHtml(ex.tempo)}</span>` : ''}
+
+                        ${ex.rpe ? `<span class="ex-modal-chip">🔥 ${escapeHtml(ex.rpe)}</span>` : ''}
+
+                    `;
+
+
+
+                    Swal.fire({
+
+                        title: `<div style="display:flex; align-items:center; gap:8px; justify-content:center; font-size:1.15rem; font-weight:700;">
+
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><path d="M6 4v16M10 4v16M6 12h4M14 4v16M18 4v16M14 12h4"/></svg>
+
+                            <span>${escapeHtml(ex.name)}</span>
+
+                        </div>`,
+
+                        html: `
+
+                            <div style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
+
+                                <div class="ex-modal-chips-row">
+
+                                    ${chipsHtml}
+
+                                </div>
+
+                                ${(() => {
+                                    const hasDifferentCue = ex.notes && ex.notes.trim() && ex.instructions && ex.instructions.trim() && ex.notes.trim() !== ex.instructions.trim();
+                                    return hasDifferentCue ? `
+                                        <div style="padding: 10px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--lime); border-radius: 6px; margin-bottom: 4px;">
+                                            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--lime); margin-bottom: 4px;">Coach's Form Cue</div>
+                                            <div style="font-size: 13px; color: var(--ink); line-height: 1.4;">"${escapeHtml(ex.notes.trim())}"</div>
+                                        </div>
+                                    ` : '';
+                                })()}
+
+                                <div>
+
+                                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px; display:flex; align-items:center; gap:6px;">
+
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+
+                                        Instructions &amp; Safety Notes
+
+                                    </div>
+
+                                    <div class="ex-modal-notes-box">
+
+                                        ${escapeHtml((ex.instructions && ex.instructions.trim()) ? ex.instructions.trim() : (ex.notes || 'No instructions provided for this exercise in the library.'))}
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        `,
+
+                        confirmButtonText: 'Close',
+
+                        confirmButtonColor: 'var(--lime)',
+
+                        customClass: {
+
+                            confirmButton: 'ex-modal-close-btn'
+
+                        },
+
+                        background: 'var(--panel, var(--bg, #121824))',
+
+                        color: 'var(--ink, #fff)',
+
+                        width: 'min(94vw, 520px)',
+
+                        padding: '1.25rem',
+
+                        showCloseButton: true
+
+                    });
+
+                }
+
+                window.openNotesModalForExercise = openNotesModalForExercise;
+
+
 
                 function escapeHtml(str) {
                     if (!str) return '';
@@ -730,9 +899,16 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                     // Notes Callout
                     const notesBox = document.getElementById('player-exercise-notes');
-                    if (ex.notes && ex.notes.trim()) {
+                    const playerNote = (ex.instructions && ex.instructions.trim()) ? ex.instructions.trim() : (ex.notes || '').trim();
+                    if (playerNote) {
                         notesBox.style.display = 'block';
-                        notesBox.innerHTML = `💬 "${escapeHtml(ex.notes.trim())}"`;
+                        const raw = playerNote;
+                        if (raw.length > 90 || raw.includes('\n')) {
+                            const snip = raw.slice(0, 85).replace(/\s+/g, ' ').trim();
+                            notesBox.innerHTML = `💬 "${escapeHtml(snip)}..." <button type="button" class="btn-notes-see-more" onclick="showLivePlayerNotesModal()">See more</button>`;
+                        } else {
+                            notesBox.innerHTML = `💬 "${escapeHtml(raw)}"`;
+                        }
                     } else {
                         notesBox.style.display = 'none';
                     }

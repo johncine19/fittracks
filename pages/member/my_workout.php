@@ -123,7 +123,7 @@ function my_workout_page(): void
         $stmtEx = $pdo->prepare(
             'SELECT tpe.plan_exercise_id, tpe.exercise_id, tpe.day_of_week, tpe.sequence_order, 
                     tpe.sets, tpe.reps, tpe.target_weight_kg, tpe.rest_seconds, tpe.notes, tpe.tempo, tpe.rpe,
-                    e.name, e.category, e.muscle_group, e.animation_url, e.difficulty_level 
+                    e.name, e.category, e.muscle_group, e.animation_url, e.difficulty_level, e.description AS exercise_description 
              FROM training_plan_exercises tpe 
              JOIN exercises e ON e.exercise_id = tpe.exercise_id 
              WHERE tpe.plan_id = ? 
@@ -211,6 +211,7 @@ function my_workout_page(): void
                 'target_weight_kg' => $ex['target_weight_kg'] !== null ? (float)$ex['target_weight_kg'] : null,
                 'rest_seconds' => (int)($ex['rest_seconds'] ?? 60),
                 'notes' => $ex['notes'] ?? '',
+                'instructions' => !empty($ex['exercise_description']) ? trim((string)$ex['exercise_description']) : '',
                 'tempo' => $ex['tempo'] ?? '',
                 'rpe' => $ex['rpe'] ?? '',
                 'animation_url' => $ex['animation_url'] ?? '',

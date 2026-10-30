@@ -22,6 +22,9 @@ function gym_profile_page(): void
     $pdo = db();
 
     $gym = $pdo->query('SELECT * FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'] . ' LIMIT 1')->fetch();
+    if (function_exists('hydrate_gym_row')) {
+        $gym = hydrate_gym_row($gym);
+    }
     
     if (!$gym) {
         flash('No gym found for your account. Please complete registration if you haven\'t.', 'danger');
@@ -206,8 +209,30 @@ function gym_profile_page(): void
 
         if ($name && $address) {
             $contactInfoVal = $contact !== '' ? $contact : null;
-            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, inactivity_threshold_days = ?, inactivity_cooldown_days = ?, auto_inactivity_alerts = ?, business_permit_url = ?, barangay_clearance_url = ?, fire_safety_cert_url = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, staff_hide_financials = ?, eod_email_summary = ?, pending_eod_gate_time = ?, eod_gate_effective_date = ?, payout_channel = ?, payout_account_number = ?, payout_account_name = ?, latitude = ?, longitude = ?, geofence_radius_meters = ? WHERE gym_id = ?')
-                ->execute([$name, $address, $contactInfoVal, $fbPageUrl, $walkInFee, $inactivityThreshold, $inactivityCooldown, $autoInactivityAlerts, $permitUrl, $brgyUrl, $fireSafetyUrl, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $staffHideFinancials, $eodEmailSummary, $pendingGateTime, $pendingGateEffectiveDate, $payoutChannel, $payoutAccountNumber, $payoutAccountName, $latitude, $longitude, $geofenceRadius, $gym['gym_id']]);
+            $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, latitude = ?, longitude = ?, geofence_radius_meters = ? WHERE gym_id = ?')
+                ->execute([$name, $address, $contactInfoVal, $fbPageUrl, $walkInFee, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $latitude, $longitude, $geofenceRadius, $gym['gym_id']]);
+
+            save_gym_verification_documents((int)$gym['gym_id'], [
+                'business_permit_url'    => $permitUrl,
+                'barangay_clearance_url' => $brgyUrl,
+                'fire_safety_cert_url'   => $fireSafetyUrl,
+            ]);
+
+            save_gym_payout_account((int)$gym['gym_id'], [
+                'payout_channel'        => $payoutChannel,
+                'payout_account_number' => $payoutAccountNumber,
+                'payout_account_name'   => $payoutAccountName,
+            ]);
+
+            save_gym_settings((int)$gym['gym_id'], [
+                'inactivity_threshold_days' => $inactivityThreshold,
+                'inactivity_cooldown_days'  => $inactivityCooldown,
+                'auto_inactivity_alerts'    => $autoInactivityAlerts,
+                'staff_hide_financials'     => $staffHideFinancials,
+                'eod_email_summary'         => $eodEmailSummary,
+                'pending_eod_gate_time'     => $pendingGateTime,
+                'eod_gate_effective_date'   => $pendingGateEffectiveDate,
+            ]);
             flash('Gym settings updated successfully.', 'success');
             redirect('gym_profile');
         } else {
@@ -265,6 +290,17 @@ function gym_profile_page(): void
     [data-theme="light"] #owner-pin-map .leaflet-bar a:hover {
         background: #f8fafc !important;
         color: var(--lime) !important;
+    }
+
+    /* Prevent tile clipping or squished rendering */
+    #owner-pin-map {
+        width: 100% !important;
+        min-height: 250px;
+    }
+    #owner-pin-map .leaflet-pane,
+    #owner-pin-map .leaflet-tile,
+    #owner-pin-map .leaflet-marker-icon {
+        max-width: none !important;
     }
     </style>
 
@@ -1601,10 +1637,58 @@ function gym_profile_page(): void
             });
         }
 
-        // Invalidate map size after DOM settles
-        setTimeout(function () {
-            map.invalidateSize();
-        }, 300);
+        // Comprehensive Map Resizing: solves Leaflet blank tile clipping on load & tab changes
+        function refreshMapSize() {
+            if (!map || !mapContainer) return;
+            if (mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
+                map.invalidateSize({ pan: false });
+                if (marker) {
+                    map.panTo(marker.getLatLng(), { animate: false });
+                }
+            }
+        }
+
+        // 1. ResizeObserver: detects when parent tab switches from hidden (0px) to visible (100%) or layout shifts
+        if (window.ResizeObserver && mapContainer) {
+            let resizeTimer = null;
+            const ro = new ResizeObserver(entries => {
+                for (const entry of entries) {
+                    const { width, height } = entry.contentRect;
+                    if (width > 0 && height > 0) {
+                        clearTimeout(resizeTimer);
+                        resizeTimer = setTimeout(refreshMapSize, 60);
+                    }
+                }
+            });
+            ro.observe(mapContainer);
+        }
+
+        // 2. IntersectionObserver: fires when the map scrolls into active viewport
+        if (window.IntersectionObserver && mapContainer) {
+            const io = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        refreshMapSize();
+                    }
+                });
+            }, { threshold: 0.1 });
+            io.observe(mapContainer);
+        }
+
+        // 3. Tab switch event: triggered whenever gym_profile.js switches tabs
+        window.addEventListener('gym_profile_tab_changed', function (e) {
+            if (!e.detail || e.detail.tab === 'general' || e.detail.tab === 'all') {
+                setTimeout(refreshMapSize, 60);
+                setTimeout(refreshMapSize, 250);
+            }
+        });
+
+        // 4. Standard window and progressive lifecycle timeouts
+        window.addEventListener('resize', refreshMapSize);
+        window.addEventListener('load', refreshMapSize);
+        [80, 250, 600, 1200].forEach(delay => {
+            setTimeout(refreshMapSize, delay);
+        });
     });
     </script>
 <?php

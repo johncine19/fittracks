@@ -32,7 +32,7 @@ function diet_builder_page(): void
         header('Location: ' . $backUrl);
         exit;
     }
-    $profile = $pdo->query('SELECT * FROM member_profiles WHERE user_id = ' . $memberId)->fetch() ?: [];
+    $profile = member_profile((int)$memberId) ?: [];
     $memberRestriction = trim((string)($profile['dietary_restrictions'] ?? 'none'));
     if ($memberRestriction === '') {
         $memberRestriction = 'none';
@@ -218,19 +218,17 @@ function diet_builder_page(): void
             $targetCals = max(1200, round($targetCals));
             
             // 4. Macro Split (use prepared statements to prevent SQL injection)
-            $stmtRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ? AND experience_level = ?');
+            $stmtRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct FROM diet_rules WHERE primary_goal = ? AND experience_level = ?');
             $stmtRule->execute([$goal, $expLevel]);
             $rule = $stmtRule->fetch();
             if (!$rule) {
-                $stmtRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ?');
+                $stmtRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct FROM diet_rules WHERE primary_goal = ?');
                 $stmtRule->execute(['general_health']);
                 $rule = $stmtRule->fetch();
             }
-            $splitStr = $rule['macro_split'] ?? '35% Protein / 35% Carbs / 30% Fat';
-            preg_match('/(\d+)%\s+Protein\s*\/\s*(\d+)%\s+Carbs\s*\/\s*(\d+)%\s+Fat/i', $splitStr, $matches);
-            $p_pct = (isset($matches[1]) ? (int)$matches[1] : 35) / 100;
-            $c_pct = (isset($matches[2]) ? (int)$matches[2] : 35) / 100;
-            $f_pct = (isset($matches[3]) ? (int)$matches[3] : 30) / 100;
+            $p_pct = ((int)($rule['protein_pct'] ?? 35)) / 100;
+            $c_pct = ((int)($rule['carbs_pct'] ?? 35)) / 100;
+            $f_pct = ((int)($rule['fat_pct'] ?? 30)) / 100;
             
             $p_g = round(($targetCals * $p_pct) / 4);
             $c_g = round(($targetCals * $c_pct) / 4);
@@ -241,7 +239,7 @@ function diet_builder_page(): void
             
             // Check if dietary_restrictions column exists and get the value (fallback to none)
             try {
-                $checkProfile = $pdo->query("SELECT dietary_restrictions FROM member_profiles WHERE user_id = {$memberId}")->fetch();
+                $checkProfile = member_profile((int)$memberId);
                 $restriction = $checkProfile['dietary_restrictions'] ?? 'none';
             } catch (Exception $e) {
                 $restriction = 'none';
@@ -345,6 +343,21 @@ function diet_builder_page(): void
                     }
                     
                     $stmt->execute([$planId, $d, $mType, $mFood, $mImg, (int) round((float) $mCals), (int) round((float) $mP), (int) round((float) $mC), (int) round((float) $mF)]);
+                    $newMealId = (int)$pdo->lastInsertId();
+                    if ($newMealId > 0) {
+                        try {
+                            $insMf = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, 1.00, ?, ?, ?, ?)');
+                            $insMf->execute([
+                                $newMealId,
+                                $selectedFood ? (int)$selectedFood['food_id'] : null,
+                                $selectedFood ? (string)$selectedFood['name'] : $mFood,
+                                (int) round((float) $mCals),
+                                (float) $mP,
+                                (float) $mC,
+                                (float) $mF
+                            ]);
+                        } catch (Throwable $e) {}
+                    }
                 }
             }
             
@@ -390,6 +403,22 @@ function diet_builder_page(): void
                 if ($dInt >= 1 && $dInt <= 7) {
                     if ($addedDaysCount === 0) $firstDay = $dInt;
                     $stmt->execute([$planId, $dInt, $mealType, $foodItems, $imageUrl, (int) round((float) $calories), (int) round((float) $protein), (int) round((float) $carbs), (int) round((float) $fat)]);
+                    $newMealId = (int)$pdo->lastInsertId();
+                    if ($newMealId > 0) {
+                        try {
+                            $fId = (int) scalar('SELECT food_id FROM food_items WHERE name = ? LIMIT 1', [trim((string)$foodItems)]);
+                            $insMf = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, 1.00, ?, ?, ?, ?)');
+                            $insMf->execute([
+                                $newMealId,
+                                $fId ?: null,
+                                $foodItems,
+                                (int) round((float) $calories),
+                                (float) $protein,
+                                (float) $carbs,
+                                (float) $fat
+                            ]);
+                        } catch (Throwable $e) {}
+                    }
                     $addedDaysCount++;
                 }
             }
@@ -543,6 +572,7 @@ function diet_builder_page(): void
             <p style="color: var(--diet-muted, var(--muted)); font-size: 13px; margin: 6px 0 0;">Manage daily meals, nutrition, and macro targets tailored to this member.</p>
         </div>
         <div class="diet-actions-wrap">
+            <a href="index.php?page=progress&member_user_id=<?= (int)$memberId ?>&tab=nutrition" class="diet-action-btn diet-btn-food-diary" title="View member's logged meals and macro history"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg><span>Food Diary</span></a>
             <a href="<?= h($backUrl) ?>" class="diet-action-btn diet-btn-back" title="Go back">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                 <span>Back</span>

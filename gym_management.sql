@@ -128,6 +128,29 @@ INSERT INTO `checkout_ratings` (`rating_id`, `attendance_id`, `user_id`, `rating
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `demo_requests`
+--
+
+CREATE TABLE IF NOT EXISTS `demo_requests` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `gym_name` varchar(150) DEFAULT NULL,
+  `approx_members` varchar(50) DEFAULT NULL,
+  `full_name` varchar(200) NOT NULL,
+  `work_email` varchar(200) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `role` varchar(100) DEFAULT NULL,
+  `message` text DEFAULT NULL,
+  `status` enum('new','contacted','demo_scheduled','closed') DEFAULT 'new',
+  `admin_notes` text DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY `idx_status` (`status`),
+  KEY `idx_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `classes`
 --
 
@@ -238,7 +261,9 @@ CREATE TABLE `diet_rules` (
   `biological_sex` enum('male','female','any') NOT NULL DEFAULT 'any',
   `primary_goal` enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL,
   `activity_level` enum('sedentary','lightly_active','moderately_active','very_active','extra_active','any') NOT NULL DEFAULT 'any',
-  `macro_split` varchar(255) NOT NULL,
+  `protein_pct` tinyint UNSIGNED NOT NULL DEFAULT 35,
+  `carbs_pct` tinyint UNSIGNED NOT NULL DEFAULT 35,
+  `fat_pct` tinyint UNSIGNED NOT NULL DEFAULT 30,
   `notes` text
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -246,14 +271,14 @@ CREATE TABLE `diet_rules` (
 -- Dumping data for table `diet_rules`
 --
 
-INSERT INTO `diet_rules` (`rule_id`, `experience_level`, `biological_sex`, `primary_goal`, `activity_level`, `macro_split`, `notes`) VALUES
-(1, 1, 'any', 'fat_loss', 'any', '35% Protein / 35% Carbs / 30% Fat', 'Maintain a 300-500 calorie deficit.'),
-(2, 1, 'any', 'muscle_gain', 'any', '30% Protein / 45% Carbs / 25% Fat', 'Maintain a 200-300 calorie surplus.'),
-(3, 1, 'any', 'general_health', 'any', '25% Protein / 45% Carbs / 30% Fat', 'Eat at maintenance calories.'),
-(4, 2, 'any', 'fat_loss', 'any', '40% Protein / 30% Carbs / 30% Fat', 'Higher protein to preserve muscle mass in a deficit.'),
-(5, 2, 'any', 'muscle_gain', 'any', '30% Protein / 50% Carbs / 20% Fat', 'Higher carbs to fuel intense training sessions.'),
-(6, 3, 'any', 'fat_loss', 'any', '40% Protein / 30% Carbs / 30% Fat', 'Aggressive deficit with refeed days.'),
-(7, 3, 'any', 'muscle_gain', 'any', '30% Protein / 50% Carbs / 20% Fat', 'Carefully tracked surplus to minimize fat gain.');
+INSERT INTO `diet_rules` (`rule_id`, `experience_level`, `biological_sex`, `primary_goal`, `activity_level`, `protein_pct`, `carbs_pct`, `fat_pct`, `notes`) VALUES
+(1, 1, 'any', 'fat_loss', 'any', 35, 35, 30, 'Maintain a 300-500 calorie deficit.'),
+(2, 1, 'any', 'muscle_gain', 'any', 30, 45, 25, 'Maintain a 200-300 calorie surplus.'),
+(3, 1, 'any', 'general_health', 'any', 25, 45, 30, 'Eat at maintenance calories.'),
+(4, 2, 'any', 'fat_loss', 'any', 40, 30, 30, 'Higher protein to preserve muscle mass in a deficit.'),
+(5, 2, 'any', 'muscle_gain', 'any', 30, 50, 20, 'Higher carbs to fuel intense training sessions.'),
+(6, 3, 'any', 'fat_loss', 'any', 40, 30, 30, 'Aggressive deficit with refeed days.'),
+(7, 3, 'any', 'muscle_gain', 'any', 30, 50, 20, 'Carefully tracked surplus to minimize fat gain.');
 
 -- --------------------------------------------------------
 
@@ -335,26 +360,59 @@ CREATE TABLE `gyms` (
   `name` varchar(100) NOT NULL,
   `address` varchar(255) NOT NULL,
   `contact_info` varchar(100) DEFAULT NULL,
-  `business_permit_url` varchar(255) DEFAULT NULL,
-  `valid_id_url` varchar(255) DEFAULT NULL,
-  `valid_id_type` varchar(100) DEFAULT NULL,
-  `barangay_clearance_url` varchar(255) DEFAULT NULL,
-  `fire_safety_cert_url` varchar(255) DEFAULT NULL,
-  `fb_page_url` varchar(255) DEFAULT NULL,
   `logo_url` varchar(255) DEFAULT NULL,
   `cover_image_url` varchar(255) DEFAULT NULL,
   `public_description` text DEFAULT NULL,
   `brand_color` varchar(20) DEFAULT '#c7ff22',
+  `fb_page_url` varchar(255) DEFAULT NULL,
+  `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `subscription_plan` varchar(50) DEFAULT NULL,
+  `subscription_plan_id` int DEFAULT NULL,
+  `subscription_status` varchar(20) DEFAULT 'inactive',
+  `subscription_renewal_date` date DEFAULT NULL,
+  `subscription_billing_cycle` enum('monthly','yearly') DEFAULT 'monthly',
   `walk_in_fee` decimal(10,2) NOT NULL DEFAULT 100.00,
+  `latitude` decimal(10,8) DEFAULT NULL,
+  `longitude` decimal(11,8) DEFAULT NULL,
+  `geofence_radius_meters` smallint unsigned DEFAULT 100
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `gym_verification_documents` (
+  `document_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `gym_id` int UNSIGNED NOT NULL,
+  `document_type` enum('business_permit','valid_id','secondary_valid_id','barangay_clearance','fire_safety_cert') NOT NULL,
+  `file_url` varchar(255) NOT NULL,
+  `id_type_id` int DEFAULT NULL,
+  `custom_id_type_label` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_gym_doc_type` (`gym_id`, `document_type`),
+  KEY `idx_gvd_id_type` (`id_type_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `gym_payout_accounts` (
+  `gym_id` int UNSIGNED NOT NULL PRIMARY KEY,
+  `xendit_subaccount_id` varchar(64) DEFAULT NULL,
+  `payout_channel` varchar(30) NOT NULL DEFAULT 'gcash',
+  `payout_account_number` varchar(50) DEFAULT NULL,
+  `payout_account_name` varchar(100) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `gym_settings` (
+  `gym_id` int UNSIGNED NOT NULL PRIMARY KEY,
   `inactivity_threshold_days` int unsigned DEFAULT NULL,
   `inactivity_cooldown_days` int unsigned DEFAULT NULL,
   `auto_inactivity_alerts` tinyint(1) NOT NULL DEFAULT 1,
-  `subscription_plan` varchar(50) DEFAULT NULL,
-  `subscription_status` varchar(20) DEFAULT 'inactive',
-  `subscription_renewal_date` date DEFAULT NULL,
-  `xendit_subaccount_id` varchar(64) DEFAULT NULL,
-  `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `staff_hide_financials` tinyint(1) NOT NULL DEFAULT 0,
+  `eod_email_summary` tinyint(1) NOT NULL DEFAULT 1,
+  `last_eod_email_sent_at` timestamp NULL DEFAULT NULL,
+  `last_eod_email_sent_by` int unsigned DEFAULT NULL,
+  `eod_gate_time` time NOT NULL DEFAULT '17:00:00',
+  `pending_eod_gate_time` time DEFAULT NULL,
+  `eod_gate_effective_date` date DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -372,8 +430,12 @@ CREATE TABLE `gym_eod_email_log` (
 -- Dumping data for table `gyms`
 --
 
-INSERT INTO `gyms` (`gym_id`, `owner_user_id`, `name`, `address`, `contact_info`, `business_permit_url`, `subscription_plan`, `subscription_status`, `subscription_renewal_date`, `status`, `created_at`, `updated_at`) VALUES
-(2, 25, 'Elite Fitness Center', '123 Fit Street', '09703736380', 'permit_6a55c0d2a45f9.png', 'Professional', 'active', '2027-12-31', 'approved', '2026-07-14 04:19:41', '2026-07-14 04:53:38');
+INSERT INTO `gyms` (`gym_id`, `owner_user_id`, `name`, `address`, `contact_info`, `subscription_plan`, `subscription_status`, `subscription_renewal_date`, `status`, `created_at`, `updated_at`) VALUES
+(2, 25, 'Elite Fitness Center', '123 Fit Street', '09703736380', 'Professional', 'active', '2027-12-31', 'approved', '2026-07-14 04:19:41', '2026-07-14 04:53:38');
+
+INSERT INTO `gym_verification_documents` (`gym_id`, `document_type`, `file_url`) VALUES (2, 'business_permit', 'permit_6a55c0d2a45f9.png');
+INSERT INTO `gym_payout_accounts` (`gym_id`, `payout_channel`) VALUES (2, 'gcash');
+INSERT INTO `gym_settings` (`gym_id`) VALUES (2);
 
 -- --------------------------------------------------------
 
@@ -385,6 +447,7 @@ CREATE TABLE `gym_subscription_payments` (
   `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `gym_id` int UNSIGNED NOT NULL,
   `owner_user_id` int UNSIGNED NOT NULL,
+  `plan_id` int DEFAULT NULL,
   `plan_name` varchar(50) NOT NULL,
   `amount` decimal(10,2) NOT NULL,
   `billing_cycle` enum('monthly','yearly') NOT NULL DEFAULT 'monthly',
@@ -413,16 +476,23 @@ CREATE TABLE `platform_subscription_plans` (
   `price` decimal(10,2) NOT NULL,
   `annual_price` decimal(10,2) DEFAULT NULL,
   `description` varchar(255) NOT NULL,
-  `features` text NOT NULL,
   `is_popular` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-INSERT INTO `platform_subscription_plans` (`id`, `plan_key`, `name`, `price`, `annual_price`, `description`, `features`, `is_popular`, `is_active`) VALUES
-(1, 'starter', 'Starter', 599.00, 5990.00, 'Best for small, solo, or boutique gyms.', 'Up to 100 Active Members\nSolo Gym Owner Model (0 Trainers)\nWalk-in Management & Daily Pass\nDynamic QR Check-in & Scanner\nMembership Plans & GCash / Online Pay\nAccent Color Theme & Public Gym Page\nBasic Expiration Reminders (7-Day Notice)\nBasic Financial Reports & CSV Export\nBasic Activity History\nFood & Nutrition Library', 0, 1),
-(2, 'professional', 'Professional', 999.00, 9990.00, 'Best for growing commercial gyms with staff.', 'Up to 500 Active Members\nPersonal Trainers & Client Assignments\nTrainer Commission Tracking & Payouts\nWorkout Plans & Exercise Library\nClass Scheduling & Online Booking with Waitlists\nAutomated Multi-Stage Renewal Reminders (30d/14d/7d/1d)\nMember Engagement Scoring & Inactivity Alerts\nAdvanced Analytics & Financial Growth Trends\nStaff Activity Logs', 1, 1),
-(3, 'business', 'Business', 1999.00, 19990.00, 'For high-volume gyms that need room to grow.', 'Unlimited Active Members\nUnlimited Trainers\nAll Professional features, including classes, trainer tools, and advanced reports\nCustom Gym Brand Color\nEnd-of-Day Summary Emails\nStaff Financial Visibility Controls', 0, 1);
+INSERT INTO `platform_subscription_plans` (`id`, `plan_key`, `name`, `price`, `annual_price`, `description`, `is_popular`, `is_active`) VALUES
+(1, 'starter', 'Starter', 599.00, 5990.00, 'Best for small, solo, or boutique gyms.', 0, 1),
+(2, 'professional', 'Professional', 999.00, 9990.00, 'Best for growing commercial gyms with staff.', 1, 1),
+(3, 'business', 'Business', 1999.00, 19990.00, 'For high-volume gyms that need room to grow.', 0, 1);
+
+CREATE TABLE `plan_features` (
+  `feature_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `plan_id` int UNSIGNED NOT NULL,
+  `feature_text` varchar(255) NOT NULL,
+  `display_order` int UNSIGNED NOT NULL DEFAULT 0,
+  KEY `idx_pf_plan` (`plan_id`, `display_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -480,38 +550,77 @@ INSERT INTO `membership_plans` (`plan_id`, `plan_name`, `plan_type`, `duration_d
 CREATE TABLE `member_profiles` (
   `profile_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `user_id` int UNSIGNED NOT NULL,
+  `birth_date` date DEFAULT NULL,
   `height_cm` decimal(5,2) NOT NULL,
-  `weight_kg` decimal(5,2) NOT NULL,
-  `neck_cm` decimal(5,2) DEFAULT NULL,
-  `waist_cm` decimal(5,2) DEFAULT NULL,
-  `hip_cm` decimal(5,2) DEFAULT NULL,
-  `age` int UNSIGNED NOT NULL DEFAULT '30',
   `biological_sex` enum('male','female') NOT NULL,
   `activity_level` enum('sedentary','lightly_active','moderately_active','very_active','extra_active') NOT NULL,
   `primary_goal` varchar(255) NOT NULL,
-  `secondary_focus` varchar(255) DEFAULT NULL,
-  `dietary_restrictions` varchar(255) DEFAULT 'none',
-  `target_weight_kg` decimal(5,2) DEFAULT NULL,
-  `target_body_fat_percent` decimal(5,2) DEFAULT NULL,
-  `target_arm_cm` decimal(5,2) DEFAULT NULL,
-  `target_chest_cm` decimal(5,2) DEFAULT NULL,
-  `target_waist_cm` decimal(5,2) DEFAULT NULL,
-  `target_exercise` varchar(100) DEFAULT NULL,
-  `current_strength_max_kg` decimal(5,2) DEFAULT NULL,
-  `target_strength_max_kg` decimal(5,2) DEFAULT NULL,
-  `endurance_activity` varchar(50) DEFAULT NULL,
-  `current_endurance_distance_km` decimal(5,2) DEFAULT NULL,
-  `current_endurance_time_mins` int DEFAULT NULL,
-  `target_endurance_distance_km` decimal(5,2) DEFAULT NULL,
-  `target_endurance_time_mins` int DEFAULT NULL,
   `weekly_workout_target` tinyint UNSIGNED DEFAULT NULL,
   `preferred_duration_mins` smallint UNSIGNED DEFAULT 45,
-  `preferred_workout_days` varchar(50) DEFAULT NULL,
-  `trainer_assessment_notes` text DEFAULT NULL,
+  `fitness_tier` int DEFAULT '1',
+  `completed_weeks` int DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Normalized 3NF Tables for Member Profiles
+--
+
+CREATE TABLE `focus_areas` (
+  `focus_area_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `name` varchar(100) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `member_focus_areas` (
+  `user_id` int UNSIGNED NOT NULL,
+  `focus_area_id` int UNSIGNED NOT NULL,
+  PRIMARY KEY (`user_id`, `focus_area_id`),
+  KEY `idx_mfa_area` (`focus_area_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `dietary_restrictions` (
+  `restriction_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `name` varchar(100) NOT NULL UNIQUE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `member_dietary_restrictions` (
+  `user_id` int UNSIGNED NOT NULL,
+  `restriction_id` int UNSIGNED NOT NULL,
+  PRIMARY KEY (`user_id`, `restriction_id`),
+  KEY `idx_mdr_restriction` (`restriction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `member_workout_days` (
+  `user_id` int UNSIGNED NOT NULL,
+  `day_of_week` tinyint UNSIGNED NOT NULL,
+  PRIMARY KEY (`user_id`, `day_of_week`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `member_goals` (
+  `goal_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int UNSIGNED NOT NULL,
+  `goal_type` varchar(50) NOT NULL,
+  `exercise_or_activity` varchar(100) DEFAULT NULL,
+  `current_value` decimal(8,2) DEFAULT NULL,
+  `target_value` decimal(8,2) DEFAULT NULL,
+  `unit` varchar(20) NOT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_user_goal_type` (`user_id`, `goal_type`),
+  KEY `idx_mg_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `trainer_assessments` (
+  `assessment_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `member_user_id` int UNSIGNED NOT NULL,
+  `trainer_id` int UNSIGNED DEFAULT NULL,
+  `notes` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `fitness_tier` int DEFAULT '1',
-  `completed_weeks` int DEFAULT '0'
+  KEY `idx_ta_member` (`member_user_id`),
+  KEY `idx_ta_trainer` (`trainer_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -578,7 +687,7 @@ CREATE TABLE `payments` (
   `amount` decimal(10,2) NOT NULL,
   `payment_date` date NOT NULL,
   `payment_method` enum('cash','card','bank_transfer','online','other','gcash') NOT NULL,
-  `status` enum('paid','pending','overdue','refunded') NOT NULL DEFAULT 'pending',
+  `status` enum('paid','pending','overdue','refunded','cancelled') NOT NULL DEFAULT 'pending',
   `receipt_number` varchar(30) DEFAULT NULL,
   `processed_by` int UNSIGNED DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -599,6 +708,7 @@ CREATE TABLE `progress_logs` (
   `log_date` date NOT NULL,
   `weight_kg` decimal(5,2) NOT NULL,
   `body_fat_percent` decimal(4,2) DEFAULT NULL,
+  `neck_cm` decimal(5,2) DEFAULT NULL,
   `chest_cm` decimal(5,2) DEFAULT NULL,
   `waist_cm` decimal(5,2) DEFAULT NULL,
   `hips_cm` decimal(5,2) DEFAULT NULL,
@@ -735,7 +845,7 @@ CREATE TABLE `training_plan_exercises` (
   `reps` varchar(20) DEFAULT NULL,
   `target_weight_kg` decimal(6,2) DEFAULT NULL,
   `rest_seconds` int UNSIGNED DEFAULT NULL,
-  `notes` varchar(255) DEFAULT NULL
+  `notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -1300,3 +1410,196 @@ CREATE TABLE IF NOT EXISTS `cache` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE IF NOT EXISTS `meal_foods` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `meal_id` int UNSIGNED NOT NULL,
+  `food_id` int DEFAULT NULL,
+  `food_name` varchar(255) NOT NULL,
+  `servings` decimal(5,2) NOT NULL DEFAULT '1.00',
+  `calories` int UNSIGNED NOT NULL DEFAULT '0',
+  `protein_g` decimal(6,1) NOT NULL DEFAULT '0.0',
+  `carbs_g` decimal(6,1) NOT NULL DEFAULT '0.0',
+  `fat_g` decimal(6,1) NOT NULL DEFAULT '0.0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_mf_meal` (`meal_id`),
+  KEY `idx_mf_food` (`food_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `member_meal_log_foods` (
+  `id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `log_id` int UNSIGNED NOT NULL,
+  `food_id` int DEFAULT NULL,
+  `food_name` varchar(255) NOT NULL,
+  `servings` decimal(5,2) NOT NULL DEFAULT '1.00',
+  `calories` int UNSIGNED NOT NULL DEFAULT '0',
+  `protein_g` decimal(6,1) NOT NULL DEFAULT '0.0',
+  `carbs_g` decimal(6,1) NOT NULL DEFAULT '0.0',
+  `fat_g` decimal(6,1) NOT NULL DEFAULT '0.0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_mmlf_log` (`log_id`),
+  KEY `idx_mmlf_food` (`food_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `food_dietary_restrictions` (
+  `food_id` int NOT NULL,
+  `restriction_id` int UNSIGNED NOT NULL,
+  PRIMARY KEY (`food_id`, `restriction_id`),
+  KEY `idx_fdr_restriction` (`restriction_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `food_ingredients` (
+  `ingredient_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `food_id` int NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `amount` varchar(50) DEFAULT NULL,
+  `unit` varchar(50) DEFAULT NULL,
+  `type` enum('main','optional') NOT NULL DEFAULT 'main',
+  `display_order` smallint UNSIGNED NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY `idx_fi_food` (`food_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+-- ==========================================================
+-- PHASE 5: NORMALIZED EQUIPMENT & ASSIGNMENT TABLES
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS `gym_equipment` (
+    `equipment_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `gym_id` INT UNSIGNED NOT NULL,
+    `name` VARCHAR(150) NOT NULL,
+    `unit_number` VARCHAR(50) NOT NULL DEFAULT '#1',
+    `category` ENUM('Cardio', 'Strength', 'Free Weights', 'Machines', 'Functional Training', 'Other') NOT NULL DEFAULT 'Machines',
+    `location_area` VARCHAR(100) DEFAULT 'Main Gym Floor',
+    `description` TEXT DEFAULT NULL,
+    `equipment_condition` ENUM('Excellent', 'Good', 'Fair', 'Poor') NOT NULL DEFAULT 'Good',
+    `status` ENUM('available', 'in_use', 'maintenance', 'out_of_service') NOT NULL DEFAULT 'available',
+    `image_url` VARCHAR(255) DEFAULT NULL,
+    `date_added` DATE NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_gym_equip_unit` (`gym_id`, `name`, `unit_number`),
+    INDEX `idx_gym_status` (`gym_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `equipment_sessions` (
+    `session_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `gym_id` INT UNSIGNED NOT NULL,
+    `equipment_id` INT UNSIGNED NOT NULL,
+    `user_id` INT UNSIGNED NOT NULL,
+    `trainer_user_id` INT UNSIGNED DEFAULT NULL,
+    `start_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `end_time` TIMESTAMP NULL DEFAULT NULL,
+    `session_status` ENUM('active', 'completed', 'cancelled') NOT NULL DEFAULT 'active',
+    INDEX `idx_gym_equipment` (`gym_id`, `equipment_id`),
+    INDEX `idx_user_status` (`user_id`, `session_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `equipment_session_partners` (
+    `session_id` INT UNSIGNED NOT NULL,
+    `partner_user_id` INT UNSIGNED NOT NULL,
+    PRIMARY KEY (`session_id`, `partner_user_id`),
+    KEY `idx_esp_partner` (`partner_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `equipment_queues` (
+    `queue_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `gym_id` INT UNSIGNED NOT NULL,
+    `equipment_id` INT UNSIGNED NOT NULL,
+    `user_id` INT UNSIGNED NOT NULL,
+    `queue_position` INT UNSIGNED NOT NULL DEFAULT 1,
+    `queue_status` ENUM('waiting', 'notified', 'claimed', 'cancelled', 'expired') NOT NULL DEFAULT 'waiting',
+    `joined_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `notified_at` TIMESTAMP NULL DEFAULT NULL,
+    `claim_deadline` TIMESTAMP NULL DEFAULT NULL,
+    `resolved_at` TIMESTAMP NULL DEFAULT NULL,
+    INDEX `idx_user_active_queue` (`user_id`, `equipment_id`, `queue_status`),
+    INDEX `idx_equip_queue_pos` (`equipment_id`, `queue_status`, `queue_position`),
+    INDEX `idx_equip_queue_gym_status` (`gym_id`, `queue_status`, `equipment_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `equipment_maintenance_logs` (
+    `log_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `equipment_id` INT UNSIGNED NOT NULL,
+    `gym_id` INT UNSIGNED NOT NULL,
+    `logged_by_user_id` INT UNSIGNED NOT NULL,
+    `action` VARCHAR(50) NOT NULL,
+    `reason` VARCHAR(255) DEFAULT NULL,
+    `expected_return_date` DATE DEFAULT NULL,
+    `next_maintenance_date` DATE DEFAULT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_equip_logs` (`equipment_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `assignment_groups` (
+  `group_id` varchar(36) NOT NULL,
+  `gym_id` int UNSIGNED DEFAULT NULL,
+  `trainer_id` int UNSIGNED NOT NULL,
+  `activity_title` varchar(255) NOT NULL DEFAULT 'Personal Training',
+  `assigned_by` int UNSIGNED DEFAULT NULL,
+  `assigned_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` enum('pending_admin','pending_trainer','active','rejected','ended') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`group_id`),
+  KEY `idx_ag_trainer` (`trainer_id`),
+  KEY `idx_ag_gym` (`gym_id`),
+  KEY `idx_ag_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `assignment_group_members` (
+  `assignment_id` int UNSIGNED NOT NULL AUTO_INCREMENT,
+  `group_id` varchar(36) NOT NULL,
+  `member_user_id` int UNSIGNED NOT NULL,
+  `status` enum('pending_admin','pending_trainer','active','rejected','ended') NOT NULL DEFAULT 'pending_admin',
+  `assigned_date` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `ended_date` datetime DEFAULT NULL,
+  `rejection_reason` text,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`assignment_id`),
+  UNIQUE KEY `uq_group_member` (`group_id`, `member_user_id`),
+  KEY `idx_agm_member` (`member_user_id`),
+  KEY `idx_agm_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ==========================================================
+-- PHASE 6: DOMAIN LOOKUPS (BADGES, EXERCISES, FITNESS GOALS)
+-- ==========================================================
+CREATE TABLE IF NOT EXISTS `badges` (
+    `badge_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `badge_key` VARCHAR(50) NOT NULL,
+    `name` VARCHAR(100) NOT NULL,
+    `description` VARCHAR(255) NOT NULL,
+    `category` ENUM('milestone', 'engagement', 'achievement', 'habit') NOT NULL DEFAULT 'milestone',
+    `icon_svg` TEXT DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_badge_key` (`badge_key`),
+    KEY `idx_badge_category` (`category`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `exercise_categories` (
+    `category_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `category_code` VARCHAR(50) NOT NULL,
+    `category_name` VARCHAR(100) NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_exercise_category_code` (`category_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `muscle_groups` (
+    `muscle_group_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `muscle_group_code` VARCHAR(50) NOT NULL,
+    `muscle_group_name` VARCHAR(100) NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_muscle_group_code` (`muscle_group_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `fitness_goals` (
+    `goal_id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `goal_code` VARCHAR(50) NOT NULL,
+    `display_name` VARCHAR(100) NOT NULL,
+    `category` VARCHAR(50) NOT NULL DEFAULT 'fitness',
+    `description` VARCHAR(255) NOT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_goal_code` (`goal_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

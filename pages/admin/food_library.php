@@ -153,6 +153,18 @@ function food_library_page(): void
                     $initialStatus,
                     (int)$user['user_id']
                 ]);
+                $newFoodId = (int)$pdo->lastInsertId();
+                if ($newFoodId > 0) {
+                    if (function_exists('sync_food_dietary_restrictions')) {
+                        sync_food_dietary_restrictions($newFoodId, $restriction);
+                    }
+                    if (!empty($ingredientsRaw) && function_exists('parse_ingredients_data') && function_exists('save_food_ingredients')) {
+                        $parsed = parse_ingredients_data($ingredientsRaw);
+                        if (!empty($parsed['all'])) {
+                            save_food_ingredients($newFoodId, $parsed['all']);
+                        }
+                    }
+                }
 
                 if ($initialStatus === 'unverified') {
                     $creatorName = $user['name'] ?? 'Gym Staff';
@@ -241,6 +253,17 @@ function food_library_page(): void
                 $resetRejectionReason ? 1 : 0,
                 $foodId
             ]);
+            if ($foodId > 0) {
+                if (function_exists('sync_food_dietary_restrictions')) {
+                    sync_food_dietary_restrictions($foodId, $restriction);
+                }
+                if (!empty($ingredientsRaw) && function_exists('parse_ingredients_data') && function_exists('save_food_ingredients')) {
+                    $parsed = parse_ingredients_data($ingredientsRaw);
+                    if (!empty($parsed['all'])) {
+                        save_food_ingredients($foodId, $parsed['all']);
+                    }
+                }
+            }
 
             if ($newVerificationStatus === 'unverified' && ($existing['verification_status'] ?? '') === 'rejected') {
                 notify_admins('system', 'Rejected Food Resubmitted', "The custom food '{$name}' was edited and resubmitted for verification.");

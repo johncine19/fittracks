@@ -35,102 +35,48 @@ function save_member_profile(int $userId): void
     $ageVal = (int) ($resolveField('age', 0) ?: 0);
     $activityVal = (string) $resolveField('activity_level', 'sedentary');
     $goalVal = (string) $resolveField('primary_goal', '');
-    $dietVal = (string) $resolveField('dietary_restrictions', 'none');
 
-    $stmt = $pdo->prepare('INSERT INTO member_profiles (
-        user_id, height_cm, weight_kg, neck_cm, waist_cm, hip_cm, chest_cm, arm_cm, age, biological_sex, activity_level, primary_goal, dietary_restrictions,
-        target_weight_kg, target_body_fat_percent, target_arm_cm, target_chest_cm, target_waist_cm,
-        target_exercise, current_strength_max_kg, target_strength_max_kg,
-        endurance_activity, current_endurance_distance_km, current_endurance_time_mins,
-        target_endurance_distance_km, target_endurance_time_mins, weekly_workout_target, preferred_duration_mins,
-        preferred_workout_days, secondary_focus, trainer_assessment_notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE 
-        height_cm = VALUES(height_cm), weight_kg = VALUES(weight_kg), neck_cm = VALUES(neck_cm), waist_cm = VALUES(waist_cm), hip_cm = VALUES(hip_cm),
-        chest_cm = VALUES(chest_cm), arm_cm = VALUES(arm_cm),
-        age = VALUES(age), biological_sex = VALUES(biological_sex), activity_level = VALUES(activity_level), primary_goal = VALUES(primary_goal), dietary_restrictions = VALUES(dietary_restrictions),
-        target_weight_kg = VALUES(target_weight_kg), target_body_fat_percent = VALUES(target_body_fat_percent), target_arm_cm = VALUES(target_arm_cm), target_chest_cm = VALUES(target_chest_cm), target_waist_cm = VALUES(target_waist_cm),
-        target_exercise = VALUES(target_exercise), current_strength_max_kg = VALUES(current_strength_max_kg), target_strength_max_kg = VALUES(target_strength_max_kg),
-        endurance_activity = VALUES(endurance_activity), current_endurance_distance_km = VALUES(current_endurance_distance_km), current_endurance_time_mins = VALUES(current_endurance_time_mins),
-        target_endurance_distance_km = VALUES(target_endurance_distance_km), target_endurance_time_mins = VALUES(target_endurance_time_mins),
-        weekly_workout_target = VALUES(weekly_workout_target), preferred_duration_mins = VALUES(preferred_duration_mins),
-        preferred_workout_days = COALESCE(VALUES(preferred_workout_days), preferred_workout_days),
-        secondary_focus = IF(VALUES(secondary_focus) = \'none\' OR VALUES(secondary_focus) = \'\', NULL, COALESCE(VALUES(secondary_focus), secondary_focus)),
-        trainer_assessment_notes = COALESCE(VALUES(trainer_assessment_notes), trainer_assessment_notes)');
+    // Resolve birth_date from either birth_date input or age input
+    $birthDateVal = $existing['birth_date'] ?? null;
+    if (!empty($_POST['birth_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim((string)$_POST['birth_date']))) {
+        $birthDateVal = trim((string)$_POST['birth_date']);
+    } elseif ($ageVal > 0) {
+        $existingAge = isset($existing['age']) ? (int)$existing['age'] : 0;
+        if (empty($birthDateVal) || $existingAge !== $ageVal) {
+            $birthYear = (int)date('Y') - max(10, min(120, $ageVal));
+            $birthDateVal = sprintf('%04d-01-01', $birthYear);
+        }
+    }
 
     $weeklyTargetRaw = $resolveField('weekly_workout_target', null);
     $durationRaw = $resolveField('preferred_duration_mins', 45);
 
-    $profileParams = [
+    // 1. Upsert core normalized member_profiles row
+    $stmt = $pdo->prepare('
+        INSERT INTO member_profiles (
+            user_id, birth_date, biological_sex, height_cm, activity_level, primary_goal, weekly_workout_target, preferred_duration_mins
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            birth_date = VALUES(birth_date),
+            biological_sex = VALUES(biological_sex),
+            height_cm = VALUES(height_cm),
+            activity_level = VALUES(activity_level),
+            primary_goal = VALUES(primary_goal),
+            weekly_workout_target = VALUES(weekly_workout_target),
+            preferred_duration_mins = VALUES(preferred_duration_mins)
+    ');
+    $stmt->execute([
         $userId,
-        $heightVal,
-        $weightVal,
-        $neckVal !== null ? (float) $neckVal : null,
-        $waistVal !== null ? (float) $waistVal : null,
-        $hipVal !== null ? (float) $hipVal : null,
-        $chestVal !== null ? (float) $chestVal : null,
-        $armVal !== null ? (float) $armVal : null,
-        $ageVal,
+        $birthDateVal,
         $sexVal,
+        $heightVal,
         $activityVal,
         $goalVal,
-        $dietVal,
-        $resolveField('target_weight_kg', null),
-        $resolveField('target_body_fat_percent', null),
-        $resolveField('target_arm_cm', null),
-        $resolveField('target_chest_cm', null),
-        $resolveField('target_waist_cm', null),
-        $resolveField('target_exercise', null),
-        $resolveField('current_strength_max_kg', null),
-        $resolveField('target_strength_max_kg', null),
-        $resolveField('endurance_activity', null),
-        $resolveField('current_endurance_distance_km', null),
-        $resolveField('current_endurance_time_mins', null),
-        $resolveField('target_endurance_distance_km', null),
-        $resolveField('target_endurance_time_mins', null),
-        $weeklyTargetRaw !== null ? (int) $weeklyTargetRaw : null,
-        $durationRaw !== null ? (int) $durationRaw : 45,
-        post('preferred_workout_days') !== null ? (trim((string)post('preferred_workout_days')) ?: null) : ($existing['preferred_workout_days'] ?? null),
-        post('secondary_focus') !== null ? (is_array(post('secondary_focus')) ? implode(', ', post('secondary_focus')) : (trim((string)post('secondary_focus')) === '' || strtolower(trim((string)post('secondary_focus'))) === 'none' ? 'none' : trim((string)post('secondary_focus')))) : ($existing['secondary_focus'] ?? null),
-        post('trainer_assessment_notes') !== null ? (trim((string)post('trainer_assessment_notes')) ?: null) : ($existing['trainer_assessment_notes'] ?? null),
-    ];
+        $weeklyTargetRaw !== null ? (int)$weeklyTargetRaw : null,
+        $durationRaw !== null ? (int)$durationRaw : 45,
+    ]);
 
-    try {
-        $stmt->execute($profileParams);
-    } catch (Throwable $e) {
-        if (str_contains(strtolower($e->getMessage()), 'unknown column')) {
-            $neededCols = [
-                'chest_cm'                       => 'DECIMAL(5,2) DEFAULT NULL',
-                'arm_cm'                         => 'DECIMAL(5,2) DEFAULT NULL',
-                'target_arm_cm'                  => 'DECIMAL(5,2) DEFAULT NULL',
-                'target_chest_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
-                'target_waist_cm'                => 'DECIMAL(5,2) DEFAULT NULL',
-                'target_exercise'                => 'VARCHAR(100) DEFAULT NULL',
-                'current_strength_max_kg'        => 'DECIMAL(5,2) DEFAULT NULL',
-                'target_strength_max_kg'         => 'DECIMAL(5,2) DEFAULT NULL',
-                'endurance_activity'             => 'VARCHAR(50) DEFAULT NULL',
-                'current_endurance_distance_km'  => 'DECIMAL(5,2) DEFAULT NULL',
-                'current_endurance_time_mins'    => 'INT DEFAULT NULL',
-                'target_endurance_distance_km'   => 'DECIMAL(5,2) DEFAULT NULL',
-                'target_endurance_time_mins'     => 'INT DEFAULT NULL',
-                'weekly_workout_target'          => 'TINYINT UNSIGNED DEFAULT NULL',
-                'preferred_duration_mins'        => 'SMALLINT UNSIGNED DEFAULT 45',
-                'preferred_workout_days'         => 'VARCHAR(50) DEFAULT NULL',
-                'secondary_focus'                => 'VARCHAR(255) DEFAULT NULL',
-                'trainer_assessment_notes'       => 'TEXT DEFAULT NULL',
-            ];
-            foreach ($neededCols as $col => $def) {
-                try {
-                    $pdo->exec("ALTER TABLE member_profiles ADD COLUMN {$col} {$def}");
-                } catch (Throwable) {}
-            }
-            $stmt->execute($profileParams);
-        } else {
-            throw $e;
-        }
-    }
-
-    // Keep progress_logs synchronized with physical profile so progress page and profile page match
+    // 2. Record body measurements in progress_logs (single source of truth for historical measurements)
     $today = date('Y-m-d');
     $w = $weightVal;
     $waist = $waistVal !== null ? (float) $waistVal : null;
@@ -155,14 +101,176 @@ function save_member_profile(int $userId): void
         }
     }
 
-    if ($w > 0) {
-        $existingLogId = scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ?', [$userId, $today]);
+    if ($w > 0 || $neck !== null || $waist !== null || $hips !== null || $chest !== null || $arm !== null) {
+        $existingLogId = scalar('SELECT log_id FROM progress_logs WHERE user_id = ? AND log_date = ? ORDER BY log_id DESC LIMIT 1', [$userId, $today]);
         if ($existingLogId) {
-            $pdo->prepare('UPDATE progress_logs SET weight_kg = ?, body_fat_percent = COALESCE(?, body_fat_percent), waist_cm = COALESCE(?, waist_cm), hips_cm = COALESCE(?, hips_cm), chest_cm = COALESCE(?, chest_cm), arm_cm = COALESCE(?, arm_cm) WHERE log_id = ?')
-                ->execute([$w, $bodyFatPercent, $waist, $hips, $chest, $arm, $existingLogId]);
+            $pdo->prepare('
+                UPDATE progress_logs SET
+                    weight_kg = IF(? > 0, ?, weight_kg),
+                    body_fat_percent = COALESCE(?, body_fat_percent),
+                    neck_cm = COALESCE(?, neck_cm),
+                    waist_cm = COALESCE(?, waist_cm),
+                    hips_cm = COALESCE(?, hips_cm),
+                    chest_cm = COALESCE(?, chest_cm),
+                    arm_cm = COALESCE(?, arm_cm)
+                WHERE log_id = ?
+            ')->execute([$w, $w, $bodyFatPercent, $neck, $waist, $hips, $chest, $arm, $existingLogId]);
         } else {
-            $pdo->prepare('INSERT INTO progress_logs (user_id, log_date, weight_kg, body_fat_percent, waist_cm, hips_cm, chest_cm, arm_cm, recorded_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                ->execute([$userId, $today, $w, $bodyFatPercent, $waist, $hips, $chest, $arm, $userId, 'Updated via physical profile']);
+            $pdo->prepare('
+                INSERT INTO progress_logs (user_id, log_date, weight_kg, body_fat_percent, neck_cm, waist_cm, hips_cm, chest_cm, arm_cm, recorded_by, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ')->execute([$userId, $today, $w > 0 ? $w : 70.0, $bodyFatPercent, $neck, $waist, $hips, $chest, $arm, $userId, 'Updated via physical profile']);
+        }
+    }
+
+    // 3. Sync preferred_workout_days -> member_workout_days (1NF)
+    if (array_key_exists('preferred_workout_days', $_POST)) {
+        $pdo->prepare('DELETE FROM member_workout_days WHERE user_id = ?')->execute([$userId]);
+        $rawDays = is_array($_POST['preferred_workout_days'])
+            ? implode(',', $_POST['preferred_workout_days'])
+            : trim((string)$_POST['preferred_workout_days']);
+        if ($rawDays !== '') {
+            $days = array_filter(array_map('intval', explode(',', $rawDays)), fn($d) => $d >= 1 && $d <= 7);
+            $insDay = $pdo->prepare('INSERT IGNORE INTO member_workout_days (user_id, day_of_week) VALUES (?, ?)');
+            foreach (array_unique($days) as $d) {
+                $insDay->execute([$userId, $d]);
+            }
+        }
+    }
+
+    // 4. Sync secondary_focus -> focus_areas + member_focus_areas (1NF)
+    if (array_key_exists('secondary_focus', $_POST)) {
+        $pdo->prepare('DELETE FROM member_focus_areas WHERE user_id = ?')->execute([$userId]);
+        $rawSec = $_POST['secondary_focus'];
+        $secItems = [];
+        if (is_array($rawSec)) {
+            $secItems = array_filter(array_map('trim', $rawSec));
+        } elseif (is_string($rawSec) && trim($rawSec) !== '' && strtolower(trim($rawSec)) !== 'none') {
+            $safeStr = str_replace('Biceps, Triceps & Arms', 'Biceps__COMMA__ Triceps & Arms', trim($rawSec));
+            $parts = array_filter(array_map('trim', explode(',', $safeStr)));
+            foreach ($parts as $p) {
+                $secItems[] = str_replace('Biceps__COMMA__ Triceps & Arms', 'Biceps, Triceps & Arms', $p);
+            }
+        }
+        foreach ($secItems as $areaName) {
+            if ($areaName === '' || strtolower($areaName) === 'none') {
+                continue;
+            }
+            $pdo->prepare('INSERT IGNORE INTO focus_areas (name) VALUES (?)')->execute([$areaName]);
+            $areaId = (int) scalar('SELECT focus_area_id FROM focus_areas WHERE name = ? LIMIT 1', [$areaName]);
+            if ($areaId > 0) {
+                $pdo->prepare('INSERT IGNORE INTO member_focus_areas (user_id, focus_area_id) VALUES (?, ?)')->execute([$userId, $areaId]);
+            }
+        }
+    }
+
+    // 5. Sync dietary_restrictions -> dietary_restrictions + member_dietary_restrictions (1NF)
+    if (array_key_exists('dietary_restrictions', $_POST) || empty($existing)) {
+        $pdo->prepare('DELETE FROM member_dietary_restrictions WHERE user_id = ?')->execute([$userId]);
+        $rawDiet = $_POST['dietary_restrictions'] ?? ($existing['dietary_restrictions'] ?? 'none');
+        $dietItems = is_array($rawDiet)
+            ? array_filter(array_map('trim', $rawDiet))
+            : array_filter(array_map('trim', explode(',', (string)$rawDiet)));
+        if (empty($dietItems)) {
+            $dietItems = ['none'];
+        }
+        foreach ($dietItems as $rName) {
+            $pdo->prepare('INSERT IGNORE INTO dietary_restrictions (name) VALUES (?)')->execute([$rName]);
+            $rId = (int) scalar('SELECT restriction_id FROM dietary_restrictions WHERE name = ? LIMIT 1', [$rName]);
+            if ($rId > 0) {
+                $pdo->prepare('INSERT IGNORE INTO member_dietary_restrictions (user_id, restriction_id) VALUES (?, ?)')->execute([$userId, $rId]);
+            }
+        }
+    }
+
+    // 6. Sync target/current metrics -> member_goals
+    $upsertGoal = $pdo->prepare('
+        INSERT INTO member_goals (user_id, goal_type, exercise_or_activity, current_value, target_value, unit)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            exercise_or_activity = COALESCE(VALUES(exercise_or_activity), exercise_or_activity),
+            current_value = COALESCE(VALUES(current_value), current_value),
+            target_value = VALUES(target_value),
+            unit = VALUES(unit)
+    ');
+
+    $goalMappings = [
+        'weight'   => ['target_key' => 'target_weight_kg',        'curr' => $w > 0 ? $w : null, 'unit' => 'kg'],
+        'body_fat' => ['target_key' => 'target_body_fat_percent', 'curr' => $bodyFatPercent,    'unit' => '%'],
+        'waist'    => ['target_key' => 'target_waist_cm',         'curr' => $waist,             'unit' => 'cm'],
+        'arm'      => ['target_key' => 'target_arm_cm',           'curr' => $arm,               'unit' => 'cm'],
+        'chest'    => ['target_key' => 'target_chest_cm',         'curr' => $chest,             'unit' => 'cm'],
+    ];
+
+    foreach ($goalMappings as $gType => $cfg) {
+        if (array_key_exists($cfg['target_key'], $_POST)) {
+            $tVal = $_POST[$cfg['target_key']] !== '' && $_POST[$cfg['target_key']] !== null ? abs((float)$_POST[$cfg['target_key']]) : null;
+            if ($tVal !== null) {
+                $upsertGoal->execute([$userId, $gType, null, $cfg['curr'], $tVal, $cfg['unit']]);
+            } else {
+                $pdo->prepare('DELETE FROM member_goals WHERE user_id = ? AND goal_type = ?')->execute([$userId, $gType]);
+            }
+        }
+    }
+
+    $targetEx = $resolveField('target_exercise', null);
+    $currStr = $resolveField('current_strength_max_kg', null);
+    $targStr = $resolveField('target_strength_max_kg', null);
+    if ($targetEx !== null || $currStr !== null || $targStr !== null) {
+        $upsertGoal->execute([
+            $userId,
+            'strength',
+            $targetEx !== null ? (string)$targetEx : null,
+            $currStr !== null ? (float)$currStr : null,
+            $targStr !== null ? (float)$targStr : null,
+            'kg',
+        ]);
+    }
+
+    $endAct = $resolveField('endurance_activity', null);
+    $currDist = $resolveField('current_endurance_distance_km', null);
+    $targDist = $resolveField('target_endurance_distance_km', null);
+    if ($endAct !== null || $currDist !== null || $targDist !== null) {
+        $upsertGoal->execute([
+            $userId,
+            'endurance_distance',
+            $endAct !== null ? (string)$endAct : null,
+            $currDist !== null ? (float)$currDist : null,
+            $targDist !== null ? (float)$targDist : null,
+            'km',
+        ]);
+    }
+
+    $currTime = $resolveField('current_endurance_time_mins', null);
+    $targTime = $resolveField('target_endurance_time_mins', null);
+    if ($currTime !== null || $targTime !== null) {
+        $upsertGoal->execute([
+            $userId,
+            'endurance_time',
+            $endAct !== null ? (string)$endAct : null,
+            $currTime !== null ? (float)$currTime : null,
+            $targTime !== null ? (float)$targTime : null,
+            'mins',
+        ]);
+    }
+
+    // 7. Sync trainer_assessment_notes -> trainer_assessments
+    if (array_key_exists('trainer_assessment_notes', $_POST)) {
+        $notesText = trim((string)$_POST['trainer_assessment_notes']);
+        if ($notesText !== '') {
+            $currUser = function_exists('current_user') ? current_user() : null;
+            $trainerId = null;
+            if ($currUser && ($currUser['role'] ?? '') === 'trainer') {
+                $trainerId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ? LIMIT 1', [(int)$currUser['user_id']]) ?: null;
+            }
+            $existingAssessId = (int) scalar('SELECT assessment_id FROM trainer_assessments WHERE member_user_id = ? ORDER BY updated_at DESC, assessment_id DESC LIMIT 1', [$userId]);
+            if ($existingAssessId > 0) {
+                $pdo->prepare('UPDATE trainer_assessments SET notes = ?, trainer_id = COALESCE(?, trainer_id) WHERE assessment_id = ?')
+                    ->execute([$notesText, $trainerId, $existingAssessId]);
+            } else {
+                $pdo->prepare('INSERT INTO trainer_assessments (member_user_id, trainer_id, notes) VALUES (?, ?, ?)')
+                    ->execute([$userId, $trainerId, $notesText]);
+            }
         }
     }
 
@@ -196,27 +304,186 @@ function member_profile(int $userId, bool $forceRefresh = false): ?array
         return $profileCache[$userId];
     }
 
-    $stmt = db()->prepare('SELECT * FROM member_profiles WHERE user_id = ?');
+    $pdo = db();
+    $stmt = $pdo->prepare('
+        SELECT mp.*,
+               CASE
+                   WHEN mp.birth_date IS NOT NULL THEN TIMESTAMPDIFF(YEAR, mp.birth_date, CURDATE())
+                   ELSE 25
+               END AS age
+        FROM member_profiles mp
+        WHERE mp.user_id = ?
+    ');
     $stmt->execute([$userId]);
-    $profile = $stmt->fetch();
+    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$profile) {
         $profileCache[$userId] = null;
         return null;
     }
-    // Fallback to latest progress_logs measurement if profile column is empty
-    if (empty($profile['chest_cm']) || empty($profile['arm_cm'])) {
-        try {
-            $latestLog = db()->query("SELECT chest_cm, arm_cm FROM progress_logs WHERE user_id = $userId ORDER BY log_date DESC LIMIT 1")->fetch();
-            if ($latestLog) {
-                if (empty($profile['chest_cm']) && !empty($latestLog['chest_cm'])) {
-                    $profile['chest_cm'] = $latestLog['chest_cm'];
-                }
-                if (empty($profile['arm_cm']) && !empty($latestLog['arm_cm'])) {
-                    $profile['arm_cm'] = $latestLog['arm_cm'];
-                }
+
+    // 1. Hydrate latest measurements from progress_logs (using latest non-null values across history)
+    $profile['weight_kg'] = 0.0;
+    $profile['neck_cm'] = null;
+    $profile['waist_cm'] = null;
+    $profile['hip_cm'] = null;
+    $profile['chest_cm'] = null;
+    $profile['arm_cm'] = null;
+    $profile['body_fat_percent'] = null;
+
+    try {
+        $logsStmt = $pdo->prepare('
+            SELECT weight_kg, body_fat_percent, neck_cm, waist_cm, hips_cm, chest_cm, arm_cm
+            FROM progress_logs
+            WHERE user_id = ?
+            ORDER BY log_date DESC, log_id DESC
+            LIMIT 10
+        ');
+        $logsStmt->execute([$userId]);
+        $logs = $logsStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($logs as $log) {
+            if (empty($profile['weight_kg']) && !empty($log['weight_kg']) && (float)$log['weight_kg'] > 0) {
+                $profile['weight_kg'] = $log['weight_kg'];
             }
-        } catch (Throwable) {}
-    }
+            if ($profile['neck_cm'] === null && !empty($log['neck_cm'])) {
+                $profile['neck_cm'] = $log['neck_cm'];
+            }
+            if ($profile['waist_cm'] === null && !empty($log['waist_cm'])) {
+                $profile['waist_cm'] = $log['waist_cm'];
+            }
+            if (($profile['biological_sex'] ?? 'male') === 'female' && $profile['hip_cm'] === null && !empty($log['hips_cm'])) {
+                $profile['hip_cm'] = $log['hips_cm'];
+            }
+            if ($profile['chest_cm'] === null && !empty($log['chest_cm'])) {
+                $profile['chest_cm'] = $log['chest_cm'];
+            }
+            if ($profile['arm_cm'] === null && !empty($log['arm_cm'])) {
+                $profile['arm_cm'] = $log['arm_cm'];
+            }
+            if ($profile['body_fat_percent'] === null && !empty($log['body_fat_percent'])) {
+                $profile['body_fat_percent'] = $log['body_fat_percent'];
+            }
+        }
+    } catch (Throwable) {}
+
+    // 2. Hydrate preferred_workout_days from member_workout_days
+    $profile['preferred_workout_days'] = null;
+    $profile['workout_days_list'] = [];
+    try {
+        $daysStmt = $pdo->prepare('SELECT day_of_week FROM member_workout_days WHERE user_id = ? ORDER BY day_of_week ASC');
+        $daysStmt->execute([$userId]);
+        $days = array_map('intval', $daysStmt->fetchAll(PDO::FETCH_COLUMN));
+        if (!empty($days)) {
+            $profile['workout_days_list'] = $days;
+            $profile['preferred_workout_days'] = implode(',', $days);
+        }
+    } catch (Throwable) {}
+
+    // 3. Hydrate secondary_focus from member_focus_areas + focus_areas
+    $profile['secondary_focus'] = null;
+    $profile['focus_areas_list'] = [];
+    try {
+        $focusStmt = $pdo->prepare('
+            SELECT fa.name
+            FROM member_focus_areas mfa
+            JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id
+            WHERE mfa.user_id = ?
+        ');
+        $focusStmt->execute([$userId]);
+        $areas = $focusStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($areas)) {
+            $profile['focus_areas_list'] = $areas;
+            $profile['secondary_focus'] = implode(', ', $areas);
+        }
+    } catch (Throwable) {}
+
+    // 4. Hydrate dietary_restrictions from member_dietary_restrictions + dietary_restrictions
+    $profile['dietary_restrictions'] = 'none';
+    $profile['dietary_restrictions_list'] = [];
+    try {
+        $dietStmt = $pdo->prepare('
+            SELECT dr.name
+            FROM member_dietary_restrictions mdr
+            JOIN dietary_restrictions dr ON dr.restriction_id = mdr.restriction_id
+            WHERE mdr.user_id = ?
+        ');
+        $dietStmt->execute([$userId]);
+        $restrictions = $dietStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (!empty($restrictions)) {
+            $profile['dietary_restrictions_list'] = $restrictions;
+            $profile['dietary_restrictions'] = implode(', ', $restrictions);
+        }
+    } catch (Throwable) {}
+
+    // 5. Hydrate goals from member_goals
+    $profile['target_weight_kg'] = null;
+    $profile['target_body_fat_percent'] = null;
+    $profile['target_arm_cm'] = null;
+    $profile['target_chest_cm'] = null;
+    $profile['target_waist_cm'] = null;
+    $profile['target_exercise'] = null;
+    $profile['current_strength_max_kg'] = null;
+    $profile['target_strength_max_kg'] = null;
+    $profile['endurance_activity'] = null;
+    $profile['current_endurance_distance_km'] = null;
+    $profile['current_endurance_time_mins'] = null;
+    $profile['target_endurance_distance_km'] = null;
+    $profile['target_endurance_time_mins'] = null;
+    $profile['goals'] = [];
+
+    try {
+        $goalsStmt = $pdo->prepare('SELECT * FROM member_goals WHERE user_id = ?');
+        $goalsStmt->execute([$userId]);
+        $goals = $goalsStmt->fetchAll(PDO::FETCH_ASSOC);
+        $profile['goals'] = $goals;
+        foreach ($goals as $g) {
+            switch ($g['goal_type']) {
+                case 'weight':
+                    $profile['target_weight_kg'] = $g['target_value'];
+                    break;
+                case 'body_fat':
+                    $profile['target_body_fat_percent'] = $g['target_value'];
+                    break;
+                case 'waist':
+                    $profile['target_waist_cm'] = $g['target_value'];
+                    break;
+                case 'arm':
+                    $profile['target_arm_cm'] = $g['target_value'];
+                    break;
+                case 'chest':
+                    $profile['target_chest_cm'] = $g['target_value'];
+                    break;
+                case 'strength':
+                    $profile['target_exercise'] = $g['exercise_or_activity'];
+                    $profile['current_strength_max_kg'] = $g['current_value'];
+                    $profile['target_strength_max_kg'] = $g['target_value'];
+                    break;
+                case 'endurance_distance':
+                    $profile['endurance_activity'] = $g['exercise_or_activity'];
+                    $profile['current_endurance_distance_km'] = $g['current_value'];
+                    $profile['target_endurance_distance_km'] = $g['target_value'];
+                    break;
+                case 'endurance_time':
+                    if (empty($profile['endurance_activity']) && !empty($g['exercise_or_activity'])) {
+                        $profile['endurance_activity'] = $g['exercise_or_activity'];
+                    }
+                    $profile['current_endurance_time_mins'] = $g['current_value'] !== null ? (int)$g['current_value'] : null;
+                    $profile['target_endurance_time_mins'] = $g['target_value'] !== null ? (int)$g['target_value'] : null;
+                    break;
+            }
+        }
+    } catch (Throwable) {}
+
+    // 6. Hydrate trainer_assessment_notes from trainer_assessments
+    $profile['trainer_assessment_notes'] = null;
+    try {
+        $taStmt = $pdo->prepare('SELECT notes FROM trainer_assessments WHERE member_user_id = ? ORDER BY updated_at DESC, assessment_id DESC LIMIT 1');
+        $taStmt->execute([$userId]);
+        $taNotes = $taStmt->fetchColumn();
+        if ($taNotes !== false) {
+            $profile['trainer_assessment_notes'] = (string)$taNotes;
+        }
+    } catch (Throwable) {}
+
     $profileCache[$userId] = $profile;
     return $profile;
 }

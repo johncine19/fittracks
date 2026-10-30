@@ -261,7 +261,7 @@ function diet_page(): void
         $mealType = (string) (post('meal_type') ?: ($_GET['meal_type'] ?? 'Lunch'));
         $targetCals = max(100, (int) (post('calories') ?: ($_GET['calories'] ?? 400)));
 
-        $profile = $pdo->query('SELECT dietary_restrictions, primary_goal FROM member_profiles WHERE user_id = ' . $userId)->fetch();
+        $profile = member_profile($userId);
         $userRest = (string) ($profile['dietary_restrictions'] ?? 'none');
 
         $gymId = get_user_gym_id($user);
@@ -551,7 +551,7 @@ function diet_page(): void
                 redirect('diet');
             }
 
-            $profile = $pdo->query('SELECT * FROM member_profiles WHERE user_id = ' . $userId)->fetch();
+            $profile = member_profile($userId);
             if (!$profile || !(float)$profile['weight_kg'] || !(float)$profile['height_cm'] || !(int)$profile['age']) {
                 flash('Please ensure your height, weight, and age are set in your profile before generating a plan.', 'danger');
                 redirect('profile'); // Assuming 'profile' is the page to edit this
@@ -580,19 +580,17 @@ function diet_page(): void
             $targetCals = max(1200, round($targetCals));
             
             // 4. Macro Split (use prepared statements to prevent SQL injection)
-            $stmtRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ? AND experience_level = ?');
+            $stmtRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct FROM diet_rules WHERE primary_goal = ? AND experience_level = ?');
             $stmtRule->execute([$goal, $expLevel]);
             $rule = $stmtRule->fetch();
             if (!$rule) {
-                $stmtRule = $pdo->prepare('SELECT macro_split FROM diet_rules WHERE primary_goal = ?');
+                $stmtRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct FROM diet_rules WHERE primary_goal = ?');
                 $stmtRule->execute(['general_health']);
                 $rule = $stmtRule->fetch();
             }
-            $splitStr = $rule['macro_split'] ?? '35% Protein / 35% Carbs / 30% Fat';
-            preg_match('/(\d+)%\s+Protein\s*\/\s*(\d+)%\s+Carbs\s*\/\s*(\d+)%\s+Fat/i', $splitStr, $matches);
-            $p_pct = (isset($matches[1]) ? (int)$matches[1] : 35) / 100;
-            $c_pct = (isset($matches[2]) ? (int)$matches[2] : 35) / 100;
-            $f_pct = (isset($matches[3]) ? (int)$matches[3] : 30) / 100;
+            $p_pct = ((int)($rule['protein_pct'] ?? 35)) / 100;
+            $c_pct = ((int)($rule['carbs_pct'] ?? 35)) / 100;
+            $f_pct = ((int)($rule['fat_pct'] ?? 30)) / 100;
             
             $p_g = round(($targetCals * $p_pct) / 4);
             $c_g = round(($targetCals * $c_pct) / 4);
@@ -827,7 +825,7 @@ function diet_page(): void
         }
     }
 
-    $memberProfile = $pdo->query('SELECT dietary_restrictions, primary_goal, secondary_focus FROM member_profiles WHERE user_id = ' . $userId)->fetch();
+    $memberProfile = member_profile($userId);
     $userDietaryRestriction = (string) ($memberProfile['dietary_restrictions'] ?? 'none');
 
     render_header('My Diet Plan', $user);

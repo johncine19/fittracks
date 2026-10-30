@@ -58,8 +58,10 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     ')->fetchAll();
 
     $platformRatingStats = get_platform_rating_stats();
+    $newDemoRequests = (int) $pdo->query("SELECT COUNT(*) FROM demo_requests WHERE status = 'new'")->fetchColumn();
+    $recentDemoRequests = $pdo->query("SELECT id, gym_name, full_name, work_email, status, created_at FROM demo_requests ORDER BY created_at DESC LIMIT 5")->fetchAll();
 ?>
-    <?php render_skeleton_stats(5); ?>
+    <?php render_skeleton_stats(6); ?>
     <section class="dash-grid stats-row platform-admin-stats skeleton-content sk-display-grid">
         <?php 
         $iconMembers = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>';
@@ -73,6 +75,8 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
         dashboard_stat('Total Members', (string) $members, 'Across all gyms', $memberTrend, $iconMembers);
         dashboard_stat('Approved Gyms', (string) $gyms, 'Active on platform', '', $iconGyms);
         dashboard_stat('Pending Gyms', (string) $pendingGyms, 'Require approval', '', $iconPending);
+        $iconDemo = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>';
+        dashboard_stat('Demo Requests', (string) $newDemoRequests, 'New / Actionable', '', $iconDemo);
         ?>
     </section>
 
@@ -101,7 +105,43 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
         <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"></div></div>
     </section></div>
 
-    <section class="dash-grid lower-row skeleton-content sk-display-grid">
+    <section class="dash-grid lower-row skeleton-content sk-display-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+        <article class="panel">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <h2>Recent Demo Requests</h2>
+                    <?php if ($newDemoRequests > 0): ?>
+                        <span class="badge" style="background:rgba(199,255,34,0.15); color:var(--lime); font-size:11px; padding:2px 7px; border-radius:10px; font-weight:700;"><?= $newDemoRequests ?> New</span>
+                    <?php endif; ?>
+                </div>
+                <a href="index.php?page=demo_requests" style="font-size: 13px; color: var(--lime); text-decoration: none;">View all &rarr;</a>
+            </div>
+            <div class="list-stack">
+                <?php foreach ($recentDemoRequests as $dr): 
+                    $badgeStyle = "background: rgba(148, 163, 184, 0.15); color: #94a3b8;";
+                    if ($dr['status'] === 'new') $badgeStyle = "background: rgba(199, 255, 34, 0.15); color: var(--lime); border: 1px solid rgba(199, 255, 34, 0.3);";
+                    elseif ($dr['status'] === 'demo_scheduled') $badgeStyle = "background: rgba(56, 189, 248, 0.15); color: #38bdf8;";
+                    elseif ($dr['status'] === 'contacted') $badgeStyle = "background: rgba(245, 158, 11, 0.15); color: #f59e0b;";
+                ?>
+                    <div class="checkin-row" style="display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
+                        <div style="width: 40px; height: 40px; background: rgba(56, 189, 248, 0.12); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #38bdf8; flex-shrink: 0;">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        </div>
+                        <div style="flex:1; min-width:0;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= h($dr['gym_name']) ?></strong>
+                                <span style="font-size:10px; font-weight:700; text-transform:uppercase; padding:1px 6px; border-radius:4px; <?= $badgeStyle ?>"><?= h(str_replace('_', ' ', $dr['status'])) ?></span>
+                            </div>
+                            <small style="display:block; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                <?= h($dr['full_name']) ?> &bull; <?= h($dr['work_email']) ?>
+                            </small>
+                        </div>
+                        <time style="font-size:12px; color:var(--muted); flex-shrink:0;"><?= h(date('M d', strtotime($dr['created_at']))) ?></time>
+                    </div>
+                <?php endforeach;
+                if (!$recentDemoRequests): ?><p class="muted">No demo inquiries yet.</p><?php endif; ?>
+            </div>
+        </article>
         <article class="panel">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h2>Recent Gym Registrations</h2>

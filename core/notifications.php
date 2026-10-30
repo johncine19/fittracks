@@ -454,6 +454,11 @@ function handle_notification_click(): void
         redirect('trainer_assignments');
     } elseif ($notif['type'] === 'system' && str_starts_with($notif['title'], 'New Member Review')) {
         redirect('gym_profile');
+    } elseif ($notif['type'] === 'system' && in_array($notif['title'], ['Client Progress Logged', 'Client Fitness Goal Updated'], true)) {
+        $refMemberId = (int) ($notif['reference_id'] ?? 0);
+        redirect($refMemberId > 0 ? 'progress&member_user_id=' . $refMemberId : 'trainer_members');
+    } elseif ($notif['type'] === 'system' && in_array($notif['title'], ['New Demo Request', 'Live Demo Requested'], true)) {
+        redirect('demo_requests');
     } else {
         redirect('notifications');
     }
