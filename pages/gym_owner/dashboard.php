@@ -8,6 +8,8 @@ function admin_dashboard(PDO $pdo, array $user): void
     $subPlan = 'No Active Plan';
     $subStatus = 'inactive';
     $subRenewal = 'N/A';
+    $gymPayoutAccount = null;
+    $hasOnlinePayments = false;
     if (!$isPlatformAdmin) {
         $gymRow = $pdo->query('SELECT gym_id, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
         if ($gymRow) {
@@ -18,6 +20,11 @@ function admin_dashboard(PDO $pdo, array $user): void
                 $subStatus = 'expired';
             }
             $subRenewal = !empty($gymRow['subscription_renewal_date']) ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
+
+            $payoutStmt = $pdo->prepare('SELECT xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
+            $payoutStmt->execute([$gymId]);
+            $gymPayoutAccount = $payoutStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $hasOnlinePayments = !empty($gymPayoutAccount['xendit_subaccount_id']);
         }
     }
 
@@ -151,6 +158,7 @@ function admin_dashboard(PDO $pdo, array $user): void
     </div>
     <?php endif; ?>
     <?php render_announcement_carousel(get_active_announcements('gym_owners')); ?>
+
     <?php render_skeleton_stats(4); ?>
     <section class="dash-grid stats-row skeleton-content sk-display-grid">
         <?php 

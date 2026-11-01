@@ -675,4 +675,66 @@ HTML;
         queue_email($email, $ownerName, $subject, $htmlBody);
         return true;
     }
+    public static function sendXenditOnboardingInvite(
+        string $email,
+        string $ownerName,
+        string $gymName,
+        string $payoutChannel,
+        string $payoutAccountNumber,
+        string $payoutAccountName,
+        bool $immediate = true
+    ): bool {
+        $safeOwner = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
+        $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safeChannel = htmlspecialchars(strtoupper($payoutChannel), ENT_QUOTES, 'UTF-8');
+        $safeNumber = htmlspecialchars($payoutAccountNumber, ENT_QUOTES, 'UTF-8');
+        $safeAccountName = htmlspecialchars($payoutAccountName, ENT_QUOTES, 'UTF-8');
+        $onboardingUrl = 'https://dashboard.xendit.co/register';
+
+        $content = <<<HTML
+        <p>Hi <strong>{$safeOwner}</strong>,</p>
+        <p>We received your request to activate online member payments (GCash, Maya, cards, bank transfer) for <strong>{$safeGym}</strong> on FitTrack!</p>
+
+        <div style="background: rgba(199, 255, 34, 0.08); border: 1px solid rgba(199, 255, 34, 0.25); border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0; color: #c7ff22; font-size: 13px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Registered Payout Destination</p>
+            <table style="width: 100%; font-size: 14px; border-collapse: collapse; color: #e2e8f0;">
+                <tr><td style="padding: 4px 0; color: #94a3b8; width: 140px;">Channel:</td><td><strong>{$safeChannel}</strong></td></tr>
+                <tr><td style="padding: 4px 0; color: #94a3b8;">Account Number:</td><td><strong>{$safeNumber}</strong></td></tr>
+                <tr><td style="padding: 4px 0; color: #94a3b8;">Account Holder:</td><td><strong>{$safeAccountName}</strong></td></tr>
+            </table>
+        </div>
+
+        <h3 style="color: #c7ff22; font-size: 16px; margin: 25px 0 10px 0;">Next Step: Complete Your Xendit KYC Verification</h3>
+        <p>FitTrack operates on <strong>Xendit XenPlatform</strong>. Member payments bypass platform custody and are automatically disbursed straight to your verified {$safeChannel} account.</p>
+        <p>To comply with Bangko Sentral ng Pilipinas (BSP) merchant regulations, please verify your identity with Xendit:</p>
+
+        <ol style="line-height: 1.8; color: #e2e8f0; padding-left: 20px; margin: 15px 0 25px 0;">
+            <li>Click the button below to open the official <strong>Xendit Registration &amp; Verification Portal</strong>.</li>
+            <li>Create or sign in with your email (<strong>{$email}</strong>).</li>
+            <li>Upload 1 valid government ID (Passport, UMID, Driver's License, or PhilID) and your business permit for verification.</li>
+        </ol>
+
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{$onboardingUrl}" class="btn" target="_blank" style="display:inline-block; padding: 14px 32px; background-color: #c7ff22; color: #0b110e !important; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 15px;">Open Xendit Verification Portal &rarr;</a>
+        </p>
+
+        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin-top: 25px;">Once Xendit approves your verification, your Sub-Account ID will be linked to {$safeGym} and member online pass sales will become active automatically.</p>
+HTML;
+
+        $subject = "Activate Xendit Online Payments for {$gymName} - FITTRACKS";
+        $htmlBody = self::layout($content);
+
+        if ($immediate && function_exists('send_email_job')) {
+            return send_email_job([
+                'to' => $email,
+                'name' => $ownerName,
+                'subject' => $subject,
+                'body' => $htmlBody,
+            ]);
+        }
+
+        queue_email($email, $ownerName, $subject, $htmlBody);
+        return true;
+    }
 }
+

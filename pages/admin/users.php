@@ -365,6 +365,12 @@ function users_page(): void
                 redirect('users');
                 return;
             }
+            $targetUserRow = db()->query('SELECT status, email FROM users WHERE user_id = ' . (int)$targetUserId)->fetch();
+            if ($targetUserRow && ($targetUserRow['status'] === 'inactive' || str_starts_with((string)$targetUserRow['email'], 'deleted_'))) {
+                flash('Cannot change status: This account is permanently deleted and anonymized.', 'danger');
+                redirect('users');
+                return;
+            }
             db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([post('status'), $targetUserId]);
             audit_log($user['user_id'], 'update_status', 'user', (string) $targetUserId, json_encode(['new_status' => post('status')]));
             flash('User status updated.');
@@ -383,6 +389,12 @@ function users_page(): void
             $editUserId = (int) post('user_id');
             if (!$canManageUser($editUserId)) {
                 flash('Permission denied.', 'danger');
+                redirect('users');
+                return;
+            }
+            $targetUserRow = db()->query('SELECT status, email FROM users WHERE user_id = ' . (int)$editUserId)->fetch();
+            if ($targetUserRow && ($targetUserRow['status'] === 'inactive' || str_starts_with((string)$targetUserRow['email'], 'deleted_'))) {
+                flash('Cannot edit: This account is permanently deleted and anonymized.', 'danger');
                 redirect('users');
                 return;
             }
@@ -457,11 +469,16 @@ function users_page(): void
             if ($targetUserId === (int) $user['user_id']) {
                 flash('You cannot delete your own account.', 'danger');
             } else {
-                $targetUser = db()->prepare('SELECT role FROM users WHERE user_id = ?');
+                $targetUser = db()->prepare('SELECT role, status, email FROM users WHERE user_id = ?');
                 $targetUser->execute([$targetUserId]);
                 $targetUser = $targetUser->fetch();
                 
                 if ($targetUser) {
+                    if ($targetUser['status'] === 'inactive' || str_starts_with((string)$targetUser['email'], 'deleted_')) {
+                        flash('This account is already permanently deleted.', 'warning');
+                        redirect('users');
+                        return;
+                    }
                     if ($targetUser['role'] === 'member') {
                         $hasActiveMembership = (bool) scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active"', [$targetUserId]);
                         if ($hasActiveMembership) {
@@ -663,12 +680,24 @@ function users_page(): void
         elseif ($engScore < 45) $engTier = 'At-Risk';
 
         // Milestone progress calculation
-        $progressPct = 50;
+        $progressPct = 0;
         if ($targetWeight !== null && $startingWeight !== null && $currentWeight !== null) {
             $totalDistance = abs($targetWeight - $startingWeight);
             if ($totalDistance > 0) {
-                $covered = abs($currentWeight - $startingWeight);
-                $progressPct = (int) min(100, max(5, round(($covered / $totalDistance) * 100)));
+                $isWeightLoss = ($startingWeight > $targetWeight);
+                $covered = $isWeightLoss ? ($startingWeight - $currentWeight) : ($currentWeight - $startingWeight);
+                if ($covered > 0) {
+                    $progressPct = (int) min(100, max(0, round(($covered / $totalDistance) * 100)));
+                } else {
+                    $progressPct = 0;
+                }
+            } else {
+                $progressPct = 100;
+            }
+        } elseif (function_exists('calculate_member_goal_progress')) {
+            $goalProg = calculate_member_goal_progress($targetMemberId, $memberData, $logs);
+            if (isset($goalProg['progress_pct']) && $goalProg['progress_pct'] !== null) {
+                $progressPct = (int)$goalProg['progress_pct'];
             }
         }
 
@@ -1343,7 +1372,7 @@ function users_page(): void
                             </div>
                         </div>
                         <div class="mp-progress-track">
-                            <div id="mpProgressBar" class="mp-progress-fill" style="width: 50%;"></div>
+                            <div id="mpProgressBar" class="mp-progress-fill" style="width: 0%;"></div>
                         </div>
                         <div class="mp-progress-legend">
                             <span id="mpStartWeightLegend">Start: —</span>
@@ -1547,6 +1576,7 @@ function users_page(): void
                 <tbody id="userTableBody">
                 <?php foreach ($rows as $row):
                     $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
+                    $isInactiveOrDeleted = ($row['status'] === 'inactive' || str_starts_with((string)$row['email'], 'deleted_'));
                 ?>
                     <tr class="user-table-row" data-name="<?= strtolower(h($row['first_name'] . ' ' . $row['last_name'])) ?>" data-email="<?= strtolower(h($row['email'])) ?>" data-phone="<?= strtolower(h($row['phone'] ?? '')) ?>" data-role="<?= strtolower(h($row['role'])) ?>" data-id="<?= (int)$row['user_id'] ?>">
                         <td>
@@ -1585,7 +1615,9 @@ function users_page(): void
                             <?php if ($associatedGym): ?>
                                 <div class="user-gym-cell">
                                     <span class="user-gym-name" title="<?= h($associatedGym) ?>"><?= h($associatedGym) ?></span>
-                                    <?php if ($row['role'] === 'gym_owner'): ?>
+                                    <?php if ($isInactiveOrDeleted): ?>
+                                        <span class="user-status-pill is-inactive" style="font-size: 10px; padding: 1px 6px; margin-left: 4px;" title="Facility closed due to owner deletion">Closed</span>
+                                    <?php elseif ($row['role'] === 'gym_owner'): ?>
                                         <?= $renderGymVerifyMark($row['owner_gym_status'] ?? null, true) ?>
                                     <?php endif; ?>
                                 </div>
@@ -1622,7 +1654,7 @@ function users_page(): void
                         <td>
                             <span class="user-status-pill is-<?= h($row['status']) ?>">
                                 <span class="status-dot"></span>
-                                <?= ucfirst(h($row['status'])) ?>
+                                <?= $isInactiveOrDeleted ? 'Deleted' : ucfirst(h($row['status'])) ?>
                             </span>
                         </td>
                         <td>
@@ -1630,43 +1662,50 @@ function users_page(): void
                         </td>
                         <td style="text-align: right;">
                             <div class="user-actions-cluster">
-                                <?php if (!$isStaff): ?>
-                                <form method="post" class="user-quick-status-form">
-                                    <?= csrf_field() ?>
-                                    <input type="hidden" name="action" value="status">
-                                    <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
-                                    <select name="status" class="user-status-select-sm" onchange="this.form.submit()" title="Change Account Status">
-                                        <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
-                                        <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
-                                    </select>
-                                </form>
-                                <?php endif; ?>
+                                <?php if ($isInactiveOrDeleted): ?>
+                                    <span class="user-status-pill is-inactive" style="font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; cursor: default;" title="Permanently deleted account. Actions locked to preserve audit history.">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                        <span>Account Deleted</span>
+                                    </span>
+                                <?php else: ?>
+                                    <?php if (!$isStaff): ?>
+                                    <form method="post" class="user-quick-status-form">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="status">
+                                        <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
+                                        <select name="status" class="user-status-select-sm" onchange="this.form.submit()" title="Change Account Status">
+                                            <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
+                                            <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
+                                        </select>
+                                    </form>
+                                    <?php endif; ?>
 
-                                <button type="button" class="btn-user-action btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" title="Edit User">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                    <span>Edit</span>
-                                </button>
-
-                                <?php if ($isStaff === false && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
-                                    <button type="button" class="btn-user-action btn-user-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                                        <span>Progress</span>
-                                    </button>
-                                    <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn-user-action btn-user-diet" title="Manage Diet Plan">
+                                    <button type="button" class="btn-user-action btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>" title="Edit User">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                        <span>Diet</span>
-                                    </a>
-                                <?php endif; ?>
+                                        <span>Edit</span>
+                                    </button>
 
-                                <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
-                                <button type="button" 
-                                    class="btn-user-action btn-action-delete btn-delete-user" 
-                                    data-user-id="<?= (int) $row['user_id'] ?>" 
-                                    data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
-                                    data-user-role="<?= h($row['role']) ?>" 
-                                    title="Delete User">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                </button>
+                                    <?php if ($isStaff === false && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
+                                        <button type="button" class="btn-user-action btn-user-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                            <span>Progress</span>
+                                        </button>
+                                        <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn-user-action btn-user-diet" title="Manage Diet Plan">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                            <span>Diet</span>
+                                        </a>
+                                    <?php endif; ?>
+
+                                    <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
+                                    <button type="button" 
+                                        class="btn-user-action btn-action-delete btn-delete-user" 
+                                        data-user-id="<?= (int) $row['user_id'] ?>" 
+                                        data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
+                                        data-user-role="<?= h($row['role']) ?>" 
+                                        title="Delete User">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </td>
@@ -1680,6 +1719,7 @@ function users_page(): void
         <div id="userMobileCards" class="users-mobile-cards" style="<?= empty($rows) ? 'display: none;' : '' ?>">
             <?php foreach ($rows as $row):
                 $roleDisplayName = ucwords(str_replace('_', ' ', $row['role']));
+                $isInactiveOrDeleted = ($row['status'] === 'inactive' || str_starts_with((string)$row['email'], 'deleted_'));
                 
                 $associatedGym = null;
                 if ($row['role'] === 'gym_owner') $associatedGym = $row['owner_gym_name'];
@@ -1709,7 +1749,7 @@ function users_page(): void
                             <?php endif; ?>
                             <span class="user-status-pill is-<?= h($row['status']) ?>">
                                 <span class="status-dot"></span>
-                                <?= ucfirst(h($row['status'])) ?>
+                                <?= $isInactiveOrDeleted ? 'Deleted' : ucfirst(h($row['status'])) ?>
                             </span>
                         </div>
                     </div>
@@ -1731,7 +1771,9 @@ function users_page(): void
                             </span>
                             <div class="user-card-detail-value" style="display:inline-flex; align-items:center; justify-content:flex-end; gap:2px; max-width:65%;">
                                 <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?= h($associatedGym ?: '—') ?>"><?= h($associatedGym ?: '—') ?></span>
-                                <?php if ($row['role'] === 'gym_owner'): ?>
+                                <?php if ($isInactiveOrDeleted): ?>
+                                    <span class="user-status-pill is-inactive" style="font-size: 10px; padding: 1px 6px; margin-left: 4px;">Closed</span>
+                                <?php elseif ($row['role'] === 'gym_owner'): ?>
                                     <?= $renderGymVerifyMark($row['owner_gym_status'] ?? null, !empty($associatedGym)) ?>
                                 <?php endif; ?>
                             </div>
@@ -1760,46 +1802,56 @@ function users_page(): void
                     </div>
 
                     <div class="user-card-actions">
-                        <?php if (!$isStaff): ?>
-                        <form method="post" class="user-card-status-form">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="action" value="status">
-                            <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
-                            <span class="user-card-status-label">Status:</span>
-                            <select name="status" class="user-card-status-select" onchange="this.form.submit()">
-                                <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
-                                <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
-                            </select>
-                        </form>
-                        <?php endif; ?>
-                        
-                        <div class="user-card-btn-group">
-                            <button type="button" class="btn-card-action btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                <span>Edit</span>
-                            </button>
-                            <?php if (!$isStaff && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
-                                <button type="button" class="btn-card-action btn-card-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                                    <span>Progress</span>
-                                </button>
-                                <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn-card-action btn-card-diet" title="Manage Diet Plan">
+                        <?php if ($isInactiveOrDeleted): ?>
+                            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 4px 0;">
+                                <span class="user-status-pill is-inactive" style="font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;">
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <span>Account Deleted</span>
+                                </span>
+                                <span style="font-size: 11px; color: var(--muted); font-style: italic;">Actions locked</span>
+                            </div>
+                        <?php else: ?>
+                            <?php if (!$isStaff): ?>
+                            <form method="post" class="user-card-status-form">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="status">
+                                <input type="hidden" name="user_id" value="<?= (int) $row['user_id'] ?>">
+                                <span class="user-card-status-label">Status:</span>
+                                <select name="status" class="user-card-status-select" onchange="this.form.submit()">
+                                    <option value="active" <?= selected('active', $row['status']) ?>>Active</option>
+                                    <option value="suspended" <?= selected('suspended', $row['status']) ?>>Suspended</option>
+                                </select>
+                            </form>
+                            <?php endif; ?>
+                            
+                            <div class="user-card-btn-group">
+                                <button type="button" class="btn-card-action btn-edit-user" data-user="<?= htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') ?>">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                    <span>Diet</span>
-                                </a>
-                            <?php endif; ?>
-                            <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
-                            <button type="button" 
-                                class="btn-card-action btn-card-danger btn-delete-user" 
-                                data-user-id="<?= (int) $row['user_id'] ?>" 
-                                data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
-                                data-user-role="<?= h($row['role']) ?>"
-                                title="Delete User">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                <span>Delete</span>
-                            </button>
-                            <?php endif; ?>
-                        </div>
+                                    <span>Edit</span>
+                                </button>
+                                <?php if (!$isStaff && $user['role'] === 'gym_owner' && $row['role'] === 'member'): ?>
+                                    <button type="button" class="btn-card-action btn-card-progress btn-member-progress" data-member-id="<?= (int)$row['user_id'] ?>" data-member-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" title="View Member Progress">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                        <span>Progress</span>
+                                    </button>
+                                    <a href="index.php?page=diet_builder&member_user_id=<?= (int)$row['user_id'] ?>&ref=users" class="btn-card-action btn-card-diet" title="Manage Diet Plan">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        <span>Diet</span>
+                                    </a>
+                                <?php endif; ?>
+                                <?php if (!$isStaff && (int) $row['user_id'] !== (int) $user['user_id']): ?>
+                                <button type="button" 
+                                    class="btn-card-action btn-card-danger btn-delete-user" 
+                                    data-user-id="<?= (int) $row['user_id'] ?>" 
+                                    data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
+                                    data-user-role="<?= h($row['role']) ?>"
+                                    title="Delete User">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    <span>Delete</span>
+                                </button>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>

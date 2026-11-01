@@ -4938,35 +4938,28 @@
 
 .diet-history-title-wrap {
     display: flex;
-    align-items: center;
-    gap: 14px;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .diet-history-icon-badge {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--lime) 15%, transparent);
-    border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);
-    color: var(--lime);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    display: none;
 }
 
 .diet-history-title {
-    font-size: 1.25rem;
+    font-size: 1.15rem;
     font-weight: 800;
     color: var(--ink);
     margin: 0;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.2px;
+    line-height: 1.25;
 }
 
 .diet-history-subtitle {
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     color: var(--muted);
-    margin: 4px 0 0 0;
+    margin: 0;
+    line-height: 1.4;
 }
 
 /* KPI Cards Grid */
@@ -5627,7 +5620,14 @@
 
 @media (max-width: 680px) {
     .diet-history-hero {
-        padding: 18px;
+        padding: 16px;
+    }
+    .diet-history-title {
+        font-size: 0.95rem;
+        letter-spacing: -0.2px;
+    }
+    .diet-history-subtitle {
+        font-size: 0.8rem;
     }
     .diet-history-kpis {
         grid-template-columns: repeat(2, 1fr);
@@ -5643,12 +5643,16 @@
         width: 100%;
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
+        gap: 6px 14px;
     }
     .history-macro-pill {
-        justify-content: center;
-        padding: 5px 8px;
-        font-size: 11.5px;
+        justify-content: flex-start;
+        padding: 2px 0 !important;
+        font-size: 12px;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
     }
     .history-day-meals {
         padding: 12px 14px;
@@ -5795,6 +5799,10 @@
 }
 
 @media (max-width: 420px) {
+    .diet-history-title {
+        font-size: 0.85rem;
+        letter-spacing: -0.15px;
+    }
     .diet-plan-banner-targets {
         flex-direction: column;
         align-items: flex-start;
@@ -5810,4 +5818,52 @@
     .history-kpi-val {
         font-size: 1.15rem !important;
     }
+}
+
+
+/* ── Bento Meal Slot Picker (Breakfast, Lunch, Dinner, Snack) ── */
+.bento-meal-slot-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.bento-slot-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+}
+.meal-slot-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: var(--panel-soft, rgba(255, 255, 255, 0.04));
+    padding: 2px 4px;
+    border-radius: 999px;
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+}
+.slot-pill {
+    background: transparent;
+    border: none;
+    color: var(--muted, #94a3b8);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.35;
+}
+.slot-pill:hover {
+    color: var(--ink, #ffffff);
+}
+.slot-pill.active {
+    background: var(--lime, #c7ff22);
+    color: #080b0d !important;
+    font-weight: 700;
+}
+html[data-theme="light"] .slot-pill.active {
+    background: #84cc16;
+    color: #ffffff !important;
 }

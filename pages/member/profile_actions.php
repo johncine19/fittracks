@@ -612,6 +612,38 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             try {
                 $pdo->beginTransaction();
 
+                $userCols = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
+                $anonymizeUser = static function (int $targetId, string $targetRole, string $label) use ($pdo, $userCols): void {
+                    $anonEmail = 'deleted_' . $targetRole . '_' . $targetId . '_' . time() . '@deleted.local';
+                    $updateFields = [
+                        'first_name = "Deleted"',
+                        'last_name = ?',
+                        'email = ?',
+                        'phone = NULL',
+                        'password_hash = ""',
+                        'profile_picture = NULL',
+                        'status = "inactive"'
+                    ];
+                    $updateParams = [$label, $anonEmail];
+
+                    if (in_array('google_id', $userCols, true)) {
+                        $updateFields[] = 'google_id = NULL';
+                    }
+                    if (in_array('qr_token', $userCols, true)) {
+                        $updateFields[] = 'qr_token = NULL';
+                    }
+                    if (in_array('qr_expires_at', $userCols, true)) {
+                        $updateFields[] = 'qr_expires_at = NULL';
+                    }
+                    if (in_array('session_token', $userCols, true)) {
+                        $updateFields[] = 'session_token = NULL';
+                    }
+
+                    $updateParams[] = $targetId;
+                    $sql = 'UPDATE users SET ' . implode(', ', $updateFields) . ' WHERE user_id = ?';
+                    $pdo->prepare($sql)->execute($updateParams);
+                };
+
                 if ($role === 'gym_owner') {
                     $ownerGym = query_one('SELECT gym_id, name FROM gyms WHERE owner_user_id = ? LIMIT 1 FOR UPDATE', [$userId]);
                     if ($ownerGym) {
@@ -627,11 +659,56 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                             $respondError("Cannot delete account while {$ownerGym['name']} has {$activeMemberCount} active member subscription(s).", 422);
                         }
 
-                        // Deactivate gym and its plans
+                        // 1. Deactivate gym and its membership plans
                         $pdo->prepare('UPDATE gyms SET status = "rejected", subscription_status = "expired" WHERE gym_id = ?')
                             ->execute([$gymId]);
                         $pdo->prepare('UPDATE membership_plans SET is_active = 0 WHERE gym_id = ?')
                             ->execute([$gymId]);
+
+                        // 2. Gym Staff: delete staff association and deactivate/anonymize user accounts
+                        $staffList = query_all('SELECT user_id FROM gym_staff WHERE gym_id = ?', [$gymId]);
+                        $pdo->prepare('DELETE FROM gym_staff WHERE gym_id = ?')->execute([$gymId]);
+                        foreach ($staffList as $staff) {
+                            $staffUserId = (int) ($staff['user_id'] ?? 0);
+                            if ($staffUserId > 0) {
+                                $anonymizeUser($staffUserId, 'staff', 'Staff');
+                                audit_log($userId, 'deactivate', 'user', (string) $staffUserId, 'Staff account deactivated due to gym owner account deletion');
+                            }
+                        }
+
+                        // 3. Gym Trainers: end client assignments, remove trainer profile, and deactivate/anonymize user accounts
+                        $trainerList = query_all('SELECT trainer_id, user_id FROM trainer_profiles WHERE gym_id = ?', [$gymId]);
+                        foreach ($trainerList as $trainer) {
+                            $trainerId = (int) ($trainer['trainer_id'] ?? 0);
+                            $trainerUserId = (int) ($trainer['user_id'] ?? 0);
+
+                            if ($trainerId > 0) {
+                                $pdo->prepare('UPDATE trainer_assignments SET status = "ended" WHERE trainer_id = ? AND status = "active"')
+                                    ->execute([$trainerId]);
+                                $pdo->prepare('DELETE FROM trainer_profiles WHERE trainer_id = ?')->execute([$trainerId]);
+                            }
+                            if ($trainerUserId > 0) {
+                                $anonymizeUser($trainerUserId, 'trainer', 'Trainer');
+                                audit_log($userId, 'deactivate', 'user', (string) $trainerUserId, 'Trainer account deactivated due to gym owner account deletion');
+                            }
+                        }
+
+                        // 4. Classes & Schedules: cancel upcoming class bookings for this gym
+                        try {
+                            $pdo->prepare('UPDATE class_bookings SET booking_status = "cancelled" WHERE booking_status = "booked" AND schedule_id IN (SELECT schedule_id FROM class_schedules WHERE gym_id = ? OR class_id IN (SELECT class_id FROM classes WHERE gym_id = ?))')
+                                ->execute([$gymId, $gymId]);
+                        } catch (Throwable) {}
+
+                        // 5. Gym Members: Disaffiliate members from this gym and cancel gym-specific memberships, but keep member accounts and personal fitness data completely intact!
+                        $pdo->prepare('DELETE FROM gym_members WHERE gym_id = ?')->execute([$gymId]);
+                        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ?) AND status != "cancelled"')
+                            ->execute([$gymId]);
+
+                        // Cancel waiting equipment queues at this gym if any
+                        try {
+                            $pdo->prepare('UPDATE equipment_queues SET status = "cancelled" WHERE equipment_id IN (SELECT equipment_id FROM gym_equipment WHERE gym_id = ?) AND status = "waiting"')
+                                ->execute([$gymId]);
+                        } catch (Throwable) {}
                     }
                 } elseif ($role === 'member') {
                     $activeMem = query_one(
@@ -681,37 +758,8 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 $pdo->prepare('DELETE FROM password_resets WHERE email = ?')->execute([$otpKey]);
 
                 // Anonymize & deactivate the user row while preserving FK integrity for financial audit logs
-                $anonEmail = 'deleted_' . $role . '_' . $userId . '_' . time() . '@deleted.local';
                 $anonLabel = $role === 'gym_owner' ? 'Owner' : 'Member';
-
-                $userCols = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
-                $updateFields = [
-                    'first_name = "Deleted"',
-                    'last_name = ?',
-                    'email = ?',
-                    'phone = NULL',
-                    'password_hash = ""',
-                    'profile_picture = NULL',
-                    'status = "inactive"'
-                ];
-                $updateParams = [$anonLabel, $anonEmail];
-
-                if (in_array('google_id', $userCols, true)) {
-                    $updateFields[] = 'google_id = NULL';
-                }
-                if (in_array('qr_token', $userCols, true)) {
-                    $updateFields[] = 'qr_token = NULL';
-                }
-                if (in_array('qr_expires_at', $userCols, true)) {
-                    $updateFields[] = 'qr_expires_at = NULL';
-                }
-                if (in_array('session_token', $userCols, true)) {
-                    $updateFields[] = 'session_token = NULL';
-                }
-
-                $updateParams[] = $userId;
-                $sql = 'UPDATE users SET ' . implode(', ', $updateFields) . ' WHERE user_id = ?';
-                $pdo->prepare($sql)->execute($updateParams);
+                $anonymizeUser($userId, $role, $anonLabel);
 
                 audit_log($userId, 'delete_account', 'user', (string) $userId, "Permanently deleted and anonymized {$role} account via Email OTP");
                 $pdo->commit();

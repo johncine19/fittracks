@@ -264,7 +264,8 @@ function view_gym_page(): void
                             <form method="post" action="index.php?page=gym_selection" style="margin: 0;">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="select_gym">
-                                <input type="hidden" name="gym_id" value="<?= $gymId ?>">
+                                <input type="hidden" name="gym_id" value="<?= $gymId ?>">
+                                <input type="hidden" name="redirect_to" value="<?= $fromGymSelection ? 'index.php?page=dashboard' : 'index.php?page=view_gym&gym_id=' . $gymId ?>">
                                 <button type="submit" class="btn-action-primary" <?= $fromGymSelection ? '' : 'onclick="return confirm(\'Switch your affiliated gym to '.h(addslashes($gym['name'])).'?\')"' ?>>
                                     <span><?= $fromGymSelection ? 'Choose this gym' : 'Affiliate with Gym' ?></span>
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
@@ -601,7 +602,15 @@ function view_gym_page(): void
                             </p>
                             <?php if (!$isAffiliatedWithThisGym): ?>
                                 <div style="margin-top: 14px;">
-                                    <a href="index.php?page=gym_selection" class="btn btn-lime btn-sm">Affiliate With This Gym</a>
+                                    <form method="post" action="index.php?page=gym_selection" style="margin: 0;">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="action" value="select_gym">
+                                        <input type="hidden" name="gym_id" value="<?= $gymId ?>">
+                                        <input type="hidden" name="redirect_to" value="index.php?page=view_gym&gym_id=<?= $gymId ?>#gym-ratings-section">
+                                        <button type="submit" class="btn btn-lime btn-sm">
+                                            Affiliate With This Gym
+                                        </button>
+                                    </form>
                                 </div>
                             <?php endif; ?>
                         </div>

@@ -512,9 +512,31 @@ function reports_page(): void
             $platformSaaSMomGrowth = 100.0;
         }
 
-        $activeSubscribedGymsCount = (int) scalar("SELECT COUNT(DISTINCT sp.gym_id) FROM gym_subscription_payments sp WHERE sp.status = 'paid' AND sp.end_date >= CURDATE() $saasGymFilter");
-        if ($activeSubscribedGymsCount === 0 && !$isGymSpecific) {
-            $activeSubscribedGymsCount = (int) scalar("SELECT COUNT(*) FROM gyms WHERE status = 'approved' AND subscription_plan IS NOT NULL AND subscription_plan != ''");
+        if ($isGymSpecific) {
+            $activeSubscribedGymsCount = (int) scalar("
+                SELECT COUNT(*) FROM gyms g
+                WHERE g.gym_id = ?
+                  AND g.status = 'approved'
+                  AND (
+                      (g.subscription_status = 'active' AND (g.subscription_renewal_date IS NULL OR g.subscription_renewal_date >= CURDATE()) AND LOWER(COALESCE(g.subscription_plan, '')) NOT IN ('', 'none', 'free trial', 'trial'))
+                      OR EXISTS (
+                          SELECT 1 FROM gym_subscription_payments sp 
+                          WHERE sp.gym_id = g.gym_id AND sp.status = 'paid' AND sp.end_date >= CURDATE()
+                      )
+                  )
+            ", [(int)$selectedGymId]);
+        } else {
+            $activeSubscribedGymsCount = (int) scalar("
+                SELECT COUNT(*) FROM gyms g
+                WHERE g.status = 'approved'
+                  AND (
+                      (g.subscription_status = 'active' AND (g.subscription_renewal_date IS NULL OR g.subscription_renewal_date >= CURDATE()) AND LOWER(COALESCE(g.subscription_plan, '')) NOT IN ('', 'none', 'free trial', 'trial'))
+                      OR EXISTS (
+                          SELECT 1 FROM gym_subscription_payments sp 
+                          WHERE sp.gym_id = g.gym_id AND sp.status = 'paid' AND sp.end_date >= CURDATE()
+                      )
+                  )
+            ");
         }
         $arpg = $activeSubscribedGymsCount > 0 ? round($platformSaaSRevenueCurMonth / $activeSubscribedGymsCount, 2) : 0.0;
 

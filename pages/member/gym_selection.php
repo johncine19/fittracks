@@ -29,8 +29,13 @@ function gym_selection_page(): void
                 ->execute([$user['user_id'], $gymId]);
             clear_member_gyms_cache((int)$user['user_id']);
             $_SESSION['current_gym_id'] = $gymId;
-            flash('Successfully switched active gym to ' . $targetGym['name'] . '.', 'success');
-            redirect('index.php?page=dashboard');
+            flash('Successfully affiliated with ' . $targetGym['name'] . '.', 'success');
+            $redirectTarget = !empty($_POST['redirect_to']) ? trim((string)$_POST['redirect_to']) : '';
+            if ($redirectTarget !== '' && (str_starts_with($redirectTarget, 'index.php?') || str_starts_with($redirectTarget, '/'))) {
+                redirect($redirectTarget);
+            } else {
+                redirect('index.php?page=dashboard');
+            }
         }
     }
 
@@ -40,7 +45,7 @@ function gym_selection_page(): void
         WHERE status = 'approved'
     ")->fetchAll();
 
-    $gymData = load_gym_selection_data($gyms);
+    $gymData = load_gym_selection_data($gyms, (int)$user['user_id']);
 
     $profile = member_profile((int) $user['user_id']);
     $userGoal = strtolower($profile['primary_goal'] ?? '');
@@ -133,7 +138,9 @@ function gym_selection_page(): void
                         }
                     ?>
                         <div class="gym-card" tabindex="0" role="button" style="--lime: <?= !empty($gym['brand_color']) ? h($gym['brand_color']) : '#c7ff22' ?>;" onclick="openGymModal(<?= (int)$index ?>)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGymModal(<?= (int)$index ?>);}" data-index="<?= (int)$index ?>" data-gym-id="<?= (int)$gym['gym_id'] ?>" data-lat="<?= $gym['latitude'] !== null ? (float)$gym['latitude'] : '' ?>" data-lng="<?= $gym['longitude'] !== null ? (float)$gym['longitude'] : '' ?>" data-search="<?= h(mb_strtolower($gym['name'] . ' ' . $gym['address'])) ?>">
-                            <?php if ($isMatch): ?>
+                            <?php if (!empty($gym['is_affiliated'])): ?>
+                                <div class="gym-badge" style="background: rgba(45, 240, 165, 0.16); color: #2df0a5; border-color: rgba(45, 240, 165, 0.35);"><span class="dot" style="background: #2df0a5;"></span> Affiliated</div>
+                            <?php elseif ($isMatch): ?>
                                 <div class="gym-badge"><span class="dot"></span> Recommended</div>
                             <?php endif; ?>
                             <div class="gym-card-top">

@@ -169,7 +169,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                                         <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
                                     </svg>
                                     <h4 style="margin: 0 0 6px; font-size: 15px; color: var(--ink);">No Exercises in this Routine</h4>
-                                    <p style="margin: 0; font-size: 13px; color: var(--muted); max-width: 320px;">Your routine does not have exercises scheduled yet. Use the 'Regenerate Plan' button at the top to build your routine.</p>
+                                    <p style="margin: 0 auto; font-size: 13.5px; color: var(--muted); max-width: 460px; line-height: 1.5; text-align: center;">Your routine does not have exercises scheduled yet. Use the 'Regenerate Plan' button at the top to build your routine.</p>
                                 </div>
                             `;
                         }

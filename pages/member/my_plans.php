@@ -29,16 +29,15 @@ if (!function_exists('plan_icon')) {
 if (!function_exists('plan_initials')) {
     function plan_initials(string $name): string
     {
-        $words = preg_split('/\s+/', trim($name));
+        $words = preg_split('/[\s\/\-_]+/', trim($name));
+        $words = array_values(array_filter($words, fn($w) => $w !== '' && preg_match('/[a-zA-Z0-9]/', $w)));
         $initials = '';
         if (!empty($words)) {
             foreach (array_slice($words, 0, 2) as $w) {
-                if ($w !== '') {
-                    $initials .= strtoupper(mb_substr($w, 0, 1));
-                }
+                $initials .= strtoupper(mb_substr($w, 0, 1));
             }
         }
-        return $initials ?: 'PT';
+        return $initials ?: 'CS';
     }
 }
 
@@ -358,7 +357,8 @@ function my_plans_page(): void
                             $status = $plan['status'] ?? 'active';
                             $isActive = ($status === 'active');
                             $gymName = !empty($plan['gym_name']) ? (string)$plan['gym_name'] : 'Personal / Independent';
-                            $trainerDisplay = !empty($plan['trainer_name']) ? (string)$plan['trainer_name'] : 'Personal Trainer';
+                            $hasTrainer = !empty($plan['trainer_name']);
+                            $trainerDisplay = $hasTrainer ? (string)$plan['trainer_name'] : 'Coach / System';
                             $brandColor = !empty($plan['gym_brand_color']) ? (string)$plan['gym_brand_color'] : 'var(--lime)';
                             $daysCount = (int)($plan['workout_days_count'] ?? 0);
                             $exerciseCount = (int)($plan['exercise_count'] ?? 0);
@@ -384,9 +384,9 @@ function my_plans_page(): void
                                 <div class="plan-title-block">
                                     <h2><?= h(ucwords((string)$plan['title'])) ?></h2>
                                     <div class="plan-meta-row">
-                                        <div class="plan-coach-chip" title="Assigned Coach">
-                                            <span class="plan-coach-avatar"><?= plan_initials($trainerDisplay) ?></span>
-                                            <span class="plan-coach-name">Coach <?= h($trainerDisplay) ?></span>
+                                        <div class="plan-coach-chip" title="<?= $hasTrainer ? 'Assigned Coach' : 'Automated System Coach' ?>">
+                                            <span class="plan-coach-avatar"><?= plan_initials($hasTrainer ? $trainerDisplay : 'Coach / System') ?></span>
+                                            <span class="plan-coach-name"><?= $hasTrainer ? ('Coach ' . h($trainerDisplay)) : h($trainerDisplay) ?></span>
                                         </div>
                                         <?php if ($goalDisplay !== ''): ?>
                                             <div class="plan-goal-chip">

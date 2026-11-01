@@ -18,14 +18,23 @@ function gyms_page(): void
             $pdo->commit();
             flash('Gym suspended successfully.', 'success');
         } elseif ($action === 'reactivate') {
+            $ownerData = query_one('SELECT u.status, u.email FROM users u JOIN gyms g ON g.owner_user_id = u.user_id WHERE g.gym_id = ?', [$gymId]);
+            if ($ownerData && ($ownerData['status'] === 'inactive' || str_starts_with((string)$ownerData['email'], 'deleted_'))) {
+                flash('Cannot reactivate gym: The gym owner account has been permanently deleted.', 'danger');
+                redirect('gyms');
+                return;
+            }
             $pdo->beginTransaction();
             $pdo->prepare('UPDATE gyms SET status = "approved" WHERE gym_id = ?')->execute([$gymId]);
-            $pdo->prepare('UPDATE users SET status = "active" WHERE user_id = (SELECT owner_user_id FROM gyms WHERE gym_id = ?)')
+            $pdo->prepare('UPDATE users SET status = "active" WHERE user_id = (SELECT owner_user_id FROM gyms WHERE gym_id = ?) AND status != "inactive"')
                 ->execute([$gymId]);
             $pdo->commit();
             flash('Gym reactivated.', 'success');
         } elseif ($action === 'delete') {
+            $pdo->beginTransaction();
+            $pdo->prepare('DELETE FROM gym_staff WHERE gym_id = ?')->execute([$gymId]);
             $pdo->prepare('DELETE FROM gyms WHERE gym_id = ?')->execute([$gymId]);
+            $pdo->commit();
             flash('Gym deleted successfully.', 'success');
         } elseif ($action === 'update_subscription') {
             $plan = trim((string) post('subscription_plan'));

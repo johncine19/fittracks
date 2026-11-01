@@ -1363,11 +1363,12 @@ if (FT_USERS_CONFIG.hasOldUser) {
             if (targetWeightEl) targetWeightEl.textContent = s.target_weight ? `Target: ${s.target_weight} kg` : 'Target: Open';
 
             const progBar = document.getElementById('mpProgressBar');
-            if (progBar) progBar.style.width = `${s.progress_pct || 50}%`;
+            const pctVal = typeof s.progress_pct === 'number' ? s.progress_pct : (parseInt(s.progress_pct, 10) || 0);
+            if (progBar) progBar.style.width = `${pctVal}%`;
             const startLegend = document.getElementById('mpStartWeightLegend');
             if (startLegend) startLegend.textContent = s.starting_weight ? `Start: ${s.starting_weight} kg` : 'Start: —';
             const pctLegend = document.getElementById('mpProgressPctLegend');
-            if (pctLegend) pctLegend.textContent = `${s.progress_pct}% to milestone`;
+            if (pctLegend) pctLegend.textContent = `${pctVal}% to milestone`;
             const targetLegend = document.getElementById('mpTargetWeightLegend');
             if (targetLegend) targetLegend.textContent = s.target_weight ? `Target: ${s.target_weight} kg` : 'Target: —';
 

@@ -398,7 +398,7 @@ function profile_page(): void
                                                 <button
                                                     type="button"
                                                     class="btn-danger-zone btn-danger-zone-sm"
-                                                    <?= $canLeaveThisGym ? 'onclick="openLeaveGymModal(' . $mgId . ', ' . h((string) json_encode($mgName)) . ')"' : 'disabled title="Cannot leave ' . h($mgName) . ' while a membership is active or pending"' ?>
+                                                    <?= $canLeaveThisGym ? 'data-gym-id="' . (int)$mgId . '" data-gym-name="' . h($mgName) . '" onclick="openLeaveGymModal(this.dataset.gymId, this.dataset.gymName)"' : 'disabled title="Cannot leave ' . h($mgName) . ' while a membership is active or pending"' ?>
                                                 >
                                                     Leave <?= h($mgName) ?>
                                                 </button>
@@ -467,7 +467,7 @@ function profile_page(): void
                             <h3 class="danger-zone-title">Deactivate &amp; Delete <?= ($user['role'] ?? '') === 'gym_owner' ? 'Gym Facility / Owner' : 'Member' ?> Account</h3>
                             <p class="danger-zone-desc">
                                 <?php if (($user['role'] ?? '') === 'gym_owner'): ?>
-                                    Permanently deactivate your gym facility listing, archive membership plans, and anonymize your owner account while preserving historical accounting receipts. Automatically blocked if your gym still has active paid member subscriptions. Requires password + rate-limited 6-digit email verification code.
+                                    Permanently deactivate your gym facility listing, archive membership plans, and deactivate associated staff and trainer accounts while leaving member accounts intact. Automatically blocked if your gym still has active paid member subscriptions. Requires password + rate-limited 6-digit email verification code.
                                 <?php else: ?>
                                     Revoke active sessions, unlink Google sign-in, clear personal biometric data, and anonymize your account while keeping historical payment receipts intact for gym accounting. Blocked while an active paid membership is running. Requires password + rate-limited 6-digit email verification code.
                                 <?php endif; ?>
@@ -1786,7 +1786,7 @@ function profile_page(): void
                 </button>
             </div>
             <div class="modal-body">
-                <form method="post" enctype="multipart/form-data" class="form grid-form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class=\'loader\' style=\'width:16px;height:16px;border:2px solid var(--bg);border-bottom-color:transparent;border-radius:50%;display:inline-block;box-sizing:border-box;animation:rotation 1s linear infinite;margin-right:8px;vertical-align:-2px;\'></span> Saving...';">
+                <form method="post" enctype="multipart/form-data" class="form grid-form" style="margin-bottom:0;" onsubmit="const btn = this.querySelector('button[type=submit]'); if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }">
                     <?= csrf_field() ?>
                     <input type="hidden" name="update_account" value="1">
                     <div style="grid-column:1/-1;display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;">
@@ -1799,8 +1799,8 @@ function profile_page(): void
                             <input type="file" name="profile_picture" accept="image/*">
                         </label>
                     </div>
-                    <label><span class="label-title">First name <span class="req-star">*</span></span> <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
-                    <label><span class="label-title">Last name <span class="req-star">*</span></span> <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, l => l.toUpperCase())"></label>
+                    <label><span class="label-title">First name <span class="req-star">*</span></span> <input name="first_name" required value="<?= h($user['first_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, function(l){ return l.toUpperCase(); })"></label>
+                    <label><span class="label-title">Last name <span class="req-star">*</span></span> <input name="last_name" required value="<?= h($user['last_name']) ?>" autocapitalize="words" style="text-transform: capitalize;" onblur="this.value = this.value.trim().replace(/\b\w/g, function(l){ return l.toUpperCase(); })"></label>
                     <label><span class="label-title">Email <span class="req-star">*</span></span> <input type="email" name="email" required value="<?= h($user['email']) ?>" style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()"></label>
                     <label><span class="label-title">Mobile Number <span class="req-star">*</span></span> <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($user['phone'] ?? '') ?>" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)"></label>
                     <label style="grid-column:1/-1">New password
@@ -1940,6 +1940,8 @@ function profile_page(): void
                             <?php if (($user['role'] ?? '') === 'gym_owner'): ?>
                                 <ul class="danger-impact-list">
                                     <li>Your gym facility listing and membership plans will be deactivated immediately.</li>
+                                    <li>All staff and trainer accounts belonging to your gym will be permanently deactivated.</li>
+                                    <li>Member accounts will remain active and intact (they will only be disaffiliated from this gym).</li>
                                     <li><strong>Financial Guardrail:</strong> Deletion is automatically blocked if your gym still has active paid member subscriptions.</li>
                                     <li>Your personal login credentials will be permanently deactivated and anonymized while keeping historical revenue receipts intact.</li>
                                 </ul>
@@ -2068,10 +2070,10 @@ function profile_page(): void
                                 Quick Message Presets
                             </label>
                             <div style="position:relative; width:100%; max-width:100%; box-sizing:border-box;">
-                                <select id="pausePresetSelect" class="pause-preset-select" onchange="document.getElementById('pauseNoticeInput').value = this.value;" style="width:100%; max-width:100%; min-width:0; box-sizing:border-box; padding:10px 38px 10px 12px; font-size:13px; border-radius:9px; border:1px solid var(--line, rgba(255,255,255,0.15)); background-color:#1a1e26 !important; color:#f3f4f6 !important; color-scheme:dark !important; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; appearance:none; -webkit-appearance:none; background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2.2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E&quot;); background-repeat:no-repeat; background-position:right 12px center;">
-                                    <option style="background-color:#1a1e26 !important; color:#f3f4f6 !important;" value="Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!">Standard: Directory Paused (Member Access Normal)</option>
-                                    <option style="background-color:#1a1e26 !important; color:#f3f4f6 !important;" value="We are temporarily closed for facility maintenance and upgrades. Public listings are paused. Active memberships will resume automatically upon reopening.">Facility Upgrade: Temporarily Closed</option>
-                                    <option style="background-color:#1a1e26 !important; color:#f3f4f6 !important;" value="We are taking a brief holiday break. Public sign-ups are paused during this period. Have a great holiday!">Holiday Break: Closed for Holiday</option>
+                                <select id="pausePresetSelect" class="pause-preset-select" onchange="document.getElementById('pauseNoticeInput').value = this.value;">
+                                    <option value="Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!">Standard: Directory Paused (Member Access Normal)</option>
+                                    <option value="We are temporarily closed for facility maintenance and upgrades. Public listings are paused. Active memberships will resume automatically upon reopening.">Facility Upgrade: Temporarily Closed</option>
+                                    <option value="We are taking a brief holiday break. Public sign-ups are paused during this period. Have a great holiday!">Holiday Break: Closed for Holiday</option>
                                 </select>
                             </div>
                         </div>
@@ -2080,7 +2082,7 @@ function profile_page(): void
                             <label for="pauseNoticeInput" style="display:block; font-size:11.5px; font-weight:700; margin-bottom:5px; color:var(--ink); text-transform:uppercase; letter-spacing:0.04em;">
                                 Member In-App Notice Message (Stored in Database)
                             </label>
-                            <textarea id="pauseNoticeInput" name="pause_notice" rows="3" maxlength="255" class="pause-notice-textarea" style="width:100%; max-width:100%; min-width:0; box-sizing:border-box; border-radius:9px; border:1px solid var(--line, rgba(255,255,255,0.15)); background-color:#1a1e26; color:#f3f4f6; padding:10px 12px; font-size:13px; line-height:1.45; resize:vertical;"><?= h(get_gym_pause_notice($ownerGymId)) ?></textarea>
+                            <textarea id="pauseNoticeInput" name="pause_notice" rows="3" maxlength="255" class="pause-notice-textarea"><?= h(get_gym_pause_notice($ownerGymId)) ?></textarea>
                             <div style="font-size:11px; color:var(--muted); margin-top:4px;">
                                 Up to 255 characters. Displayed on member dashboards &amp; in-app notification bell.
                             </div>
@@ -2115,7 +2117,6 @@ function profile_page(): void
             };
         </script>
         <script src="<?= h(asset_url('js/pages/profile.js')) ?>"></script>
-    </div>
     </div>
 <?php
     render_footer();

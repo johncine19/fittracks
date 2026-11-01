@@ -1678,6 +1678,16 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 
                 <div class="bento-live-header-row">
                     <span class="bento-preview-label">Live Macros:</span>
+                    <div class="bento-meal-slot-picker">
+                        <span class="bento-slot-label">Slot:</span>
+                        <div class="meal-slot-pills">
+                            <button type="button" class="slot-pill" data-slot="Breakfast" onclick="setLoggerMealSlot('Breakfast')">Breakfast</button>
+                            <button type="button" class="slot-pill" data-slot="Lunch" onclick="setLoggerMealSlot('Lunch')">Lunch</button>
+                            <button type="button" class="slot-pill" data-slot="Dinner" onclick="setLoggerMealSlot('Dinner')">Dinner</button>
+                            <button type="button" class="slot-pill active" data-slot="Snack" onclick="setLoggerMealSlot('Snack')">Snack</button>
+                        </div>
+                        <input type="hidden" id="macro-input-meal-type" name="meal_type" value="Snack">
+                    </div>
                 </div>
 
                 <div class="bento-live-controls-row">
@@ -1949,16 +1959,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
         <div class="diet-history-hero">
             <div class="diet-history-hero-text">
                 <div class="diet-history-title-wrap">
-                    <div class="diet-history-icon-badge">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polyline points="12 6 12 12 16 14"></polyline>
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 class="diet-history-title">Past Meal Logs &amp; Nutrition History</h2>
-                        <p class="diet-history-subtitle">Review your logged meals, daily macro breakdown, and nutritional consistency over time.</p>
-                    </div>
+                    <h2 class="diet-history-title">Past Meal Logs &amp; Nutrition History</h2>
+                    <p class="diet-history-subtitle">Review your logged meals, daily macro breakdown, and nutritional consistency over time.</p>
                 </div>
             </div>
 

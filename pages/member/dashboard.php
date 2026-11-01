@@ -620,33 +620,11 @@ function member_dashboard(PDO $pdo, array $user): void
 
     <?php if ($missingCircumference): ?>
     <!-- Incomplete Body Measurements Reminder Banner -->
-    <div class="member-measurements-banner" id="member-measurements-reminder">
-        <div class="tour-banner-content">
-            <div class="tour-banner-icon icon-measurements-warn">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="8" x2="12" y2="12"></line>
-                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-            </div>
-            <div class="tour-banner-text">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap;">
-                    <h3 style="margin: 0; font-size: 14px; font-weight: 700;">Complete Your Body Measurements</h3>
-                    <span class="badge-pending-meas">Action Recommended</span>
-                </div>
-                <p class="meas-banner-desc">
-                    <span class="meas-desc-desktop">You skipped your neck &amp; waist sizes during signup. Enter them anytime (or ask a coach to measure you) to unlock precision Body Fat % tracking!</span>
-                    <span class="meas-desc-mobile">Enter neck &amp; waist sizes anytime to unlock precision Body Fat % tracking!</span>
-                </p>
-            </div>
+    <div class="tidb-banner animate-fade-in" id="member-measurements-reminder" role="alert" style="margin-bottom: 20px;">
+        <div class="tidb-banner-inner">
+            <span>You skipped your neck &amp; waist sizes during signup. Complete your body measurements anytime to unlock precision Body Fat % tracking. <a href="index.php?page=profile&open=physical" class="tidb-banner-link">Enter Sizes &rarr;</a></span>
         </div>
-        <div class="tour-banner-actions">
-            <a href="index.php?page=profile&open=physical" class="btn-start-tour btn-update-meas">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><line x1="14.5" y1="12.5" x2="16.5" y2="10.5"/><line x1="11.5" y1="9.5" x2="13.5" y2="7.5"/></svg>
-                <span>Enter Sizes</span>
-            </a>
-            <button type="button" class="btn-dismiss-tour" onclick="document.getElementById('member-measurements-reminder').style.display='none'; sessionStorage.setItem('dismiss_measurements_reminder', '1');" title="Dismiss for this session">&times;</button>
-        </div>
+        <button type="button" class="tidb-banner-close" onclick="document.getElementById('member-measurements-reminder').style.display='none'; sessionStorage.setItem('dismiss_measurements_reminder', '1');" title="Dismiss notice" aria-label="Dismiss notice">&times;</button>
     </div>
     <script>
         if (sessionStorage.getItem('dismiss_measurements_reminder') === '1') {
@@ -705,13 +683,6 @@ function member_dashboard(PDO $pdo, array $user): void
             <span>
                 <span class="tab-label-full">Rank & Missions</span>
                 <span class="tab-label-compact">Missions</span>
-            </span>
-        </button>
-        <button type="button" class="member-dash-tab" id="tab-btn-explore" onclick="switchMemberDashboardTab('explore')" title="Explore & Classes">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-            <span>
-                <span class="tab-label-full">Explore & Classes</span>
-                <span class="tab-label-compact">Classes</span>
             </span>
         </button>
     </nav>
@@ -787,15 +758,22 @@ function member_dashboard(PDO $pdo, array $user): void
         <div class="skeleton-content animate-fade-in delay-2" style="margin-bottom: 24px;">
             <?php
             $profile = member_profile((int)$user['user_id']);
-            if ($profile && ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0)) {
-                echo '<div style="background: rgba(255,165,0,0.1); border: 1px solid orange; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">';
-                echo '<h3 style="color: orange; margin: 0 0 12px 0;">We need a little more info!</h3>';
-                echo '<p style="color: var(--muted); margin: 0 0 16px 0;">To build your personalized workout plan, we need your accurate height and weight.</p>';
-                echo '<a href="index.php?page=profile" class="btn" style="background: orange; color: #111; font-weight: bold; padding: 10px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Complete Profile</a>';
-                echo '</div>';
-            } else {
-                render_current_workout($user['user_id'], true);
-            }
+            if ($profile && ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0)): ?>
+                <div class="tidb-banner animate-fade-in" id="member-profile-info-banner" role="alert" style="margin-bottom: 24px;">
+                    <div class="tidb-banner-inner">
+                        <span>To build and calibrate your personalized workout plan, we need your accurate height and weight. <a href="index.php?page=profile&open=physical" class="tidb-banner-link">Complete Profile &rarr;</a></span>
+                    </div>
+                    <button type="button" class="tidb-banner-close" onclick="document.getElementById('member-profile-info-banner').style.display='none'; sessionStorage.setItem('dismiss_profile_info_banner', '1');" title="Dismiss notice" aria-label="Dismiss notice">&times;</button>
+                </div>
+                <script>
+                    if (sessionStorage.getItem('dismiss_profile_info_banner') === '1') {
+                        const pInf = document.getElementById('member-profile-info-banner');
+                        if (pInf) pInf.style.display = 'none';
+                    }
+                </script>
+            <?php else: ?>
+                <?php render_current_workout($user['user_id'], true); ?>
+            <?php endif;
             ?>
         </div>
 
@@ -1097,13 +1075,6 @@ function member_dashboard(PDO $pdo, array $user): void
                             </button>
                         </div>
                     </div>
-                    <div class="act-peak-controls">
-                        <div class="act-range-group" role="group" aria-label="Peak Hours View Mode">
-                            <button type="button" class="act-range-btn active" id="act-range-day" onclick="actSetRange('day')">Day (Hourly)</button>
-                            <button type="button" class="act-range-btn" id="act-range-week" onclick="actSetRange('week')">Week (7 Days)</button>
-                            <button type="button" class="act-range-btn" id="act-range-month" onclick="actSetRange('month')">Month</button>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Peak Rush Callout Banner -->
@@ -1344,111 +1315,6 @@ function member_dashboard(PDO $pdo, array $user): void
                 </div>
             </section>
         </div>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- TAB 3: EXPLORE & CLASSES                   -->
-    <!-- ========================================== -->
-    <div id="panel-explore" class="member-tab-panel">
-        <?php
-        $profile = member_profile((int)$user['user_id']);
-        $recommendations = !empty($profile['primary_goal']) ? get_recommendations_by_goal(db(), $profile['primary_goal']) : ['classes' => [], 'gyms' => []];
-        $hasExploreContent = !empty($recommendations['classes']) || !empty($recommendations['gyms']);
-        ?>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <div>
-                <h3 style="margin: 0; font-size: 18px; color: var(--ink);">Classes & Gym Discovery</h3>
-                <p style="margin: 4px 0 0; color: var(--muted); font-size: 13px;">Curated classes and partner gym locations based on your fitness goals.</p>
-            </div>
-            <a href="index.php?page=book_classes" class="explore-browse-btn">
-                <span>Browse All Classes</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-            </a>
-        </div>
-
-        <?php if ($hasExploreContent): ?>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 20px;">
-                <!-- Recommended Classes -->
-                <?php if (!empty($recommendations['classes'])): ?>
-                    <div class="panel missions-panel-card" style="padding: 22px;">
-                        <h4 style="margin:0 0 18px; color:var(--ink); font-size: 16px; display:flex; align-items:center; gap:8px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                            Recommended Classes
-                        </h4>
-                        <div>
-                        <?php foreach ($recommendations['classes'] as $cls): ?>
-                            <div class="explore-card-item">
-                                <div style="display: flex; gap: 14px; align-items: flex-start; flex: 1; min-width: 0;">
-                                    <div style="width: 38px; height: 38px; border-radius: 10px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent);">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                                    </div>
-                                    <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 700; font-size: 14.5px; color: var(--ink); margin-bottom: 2px;"><?= h($cls['class_name']) ?></div>
-                                        <div style="font-size: 12px; color: var(--lime); font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                                            At <?= h($cls['gym_name']) ?>
-                                        </div>
-                                        <?php if (!empty($cls['description'])): ?>
-                                            <div style="font-size: 12.5px; color: var(--muted); line-height: 1.4;"><?= h($cls['description']) ?></div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                                <a href="index.php?page=book_classes" class="explore-action-btn btn-book">
-                                    <span>Book</span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                </a>
-                            </div>
-                        <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-
-                <!-- Recommended Gyms -->
-                <?php if (!empty($recommendations['gyms'])): ?>
-                    <div class="panel missions-panel-card" style="padding: 22px;">
-                        <h4 style="margin:0 0 18px; color:var(--ink); font-size: 16px; display:flex; align-items:center; gap:8px;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #a855f7;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                            Partner Gyms
-                        </h4>
-                        <div>
-                        <?php foreach ($recommendations['gyms'] as $gym): ?>
-                            <div class="explore-card-item accent-gym">
-                                <div style="display: flex; gap: 14px; align-items: flex-start; flex: 1; min-width: 0;">
-                                    <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(168, 85, 247, 0.15); color: #a855f7; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid rgba(168, 85, 247, 0.3);">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                                    </div>
-                                    <div style="flex: 1; min-width: 0;">
-                                        <div style="font-weight: 700; font-size: 14.5px; color: var(--ink); margin-bottom: 2px;"><?= h($gym['name']) ?></div>
-                                        <div style="font-size: 12px; color: var(--muted); font-weight: 500; display: flex; align-items: center; gap: 4px;">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"/></svg>
-                                            <?= h($gym['address'] ?? 'Partner Gym Location') ?>
-                                        </div>
-                                    </div>
-                                </div>
-                                <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>" class="explore-action-btn btn-view">
-                                    <span>View</span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                                </a>
-                            </div>
-                        <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-        <?php else: ?>
-            <div class="panel missions-panel-card" style="text-align: center; padding: 48px 24px; border-radius: 14px;">
-                <div style="width: 52px; height: 52px; border-radius: 14px; background: color-mix(in srgb, var(--lime) 15%, transparent); color: var(--lime); border: 1px solid color-mix(in srgb, var(--lime) 30%, transparent); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-                </div>
-                <h4 style="margin: 0 0 6px; font-size: 17px; color: var(--ink); font-weight: 700;">Set a Primary Goal to Unlock Recommendations</h4>
-                <p style="margin: 0 0 20px; font-size: 13.5px; color: var(--muted); max-width: 440px; margin-left: auto; margin-right: auto;">We personalize classes and workout routines to your target fitness goal.</p>
-                <a href="index.php?page=profile" class="explore-browse-btn" style="margin-top: 4px;">
-                    <span>Update Profile Goal</span>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                </a>
-            </div>
-        <?php endif; ?>
     </div>
 
     <!-- Tab Switching & Activity Dashboard Controller JavaScript -->

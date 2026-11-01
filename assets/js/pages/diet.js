@@ -189,6 +189,34 @@ function formatPortionQty(qty) {
 
     let activeLoggerTab = 'ai';
 
+    window.setLoggerMealSlot = function(slot) {
+        const input = document.getElementById('macro-input-meal-type');
+        if (input) input.value = slot;
+
+        const pills = document.querySelectorAll('.slot-pill');
+        pills.forEach(p => {
+            if (p.getAttribute('data-slot') === slot) {
+                p.classList.add('active');
+            } else {
+                p.classList.remove('active');
+            }
+        });
+    };
+
+    // Initialize logger slot based on current time
+    try {
+        const currentHour = new Date().getHours();
+        let initialSlot = 'Snack';
+        if (currentHour >= 5 && currentHour < 11) {
+            initialSlot = 'Breakfast';
+        } else if (currentHour >= 11 && currentHour < 15) {
+            initialSlot = 'Lunch';
+        } else if (currentHour >= 17 && currentHour < 21) {
+            initialSlot = 'Dinner';
+        }
+        window.setLoggerMealSlot(initialSlot);
+    } catch (e) {}
+
     window.switchLoggerTab = function(tab, shouldFocus = true) {
         activeLoggerTab = tab;
 
@@ -1543,6 +1571,8 @@ function formatPortionQty(qty) {
             : (inFoodItems?.value?.trim() || ninjaInput?.value?.trim() || '');
         currentSubmittedFoodName = foodNameVal;
 
+        const mealTypeVal = document.getElementById('macro-input-meal-type')?.value || 'Snack';
+
         const body = new URLSearchParams({
             mode:       activeMode,
             calories:   activeMode === 'reset' ? '0' : (inCals?.value  || '0'),
@@ -1550,6 +1580,7 @@ function formatPortionQty(qty) {
             carbs_g:    activeMode === 'reset' ? '0' : (inCarbs?.value || '0'),
             fat_g:      activeMode === 'reset' ? '0' : (inFat?.value   || '0'),
             food_items: foodNameVal,
+            meal_type:  mealTypeVal,
             csrf_token: csrf
         });
 
@@ -1589,6 +1620,7 @@ function formatPortionQty(qty) {
 
         if (data && data.success) {
             window.applyMacroLogResultToUI(data, true, activeMode);
+            if (activeMode === 'add' && typeof prependMealToHistoryDOM === 'function') { prependMealToHistoryDOM(data); }
 
             // In 'add' or 'reset' mode, clear inputs ready for the next food entry
             if (activeMode === 'add' || activeMode === 'reset') {
@@ -3078,3 +3110,90 @@ window.toggleMobileLoggerDropdown = toggleMobileLoggerDropdown;
 window.openLoggerWithMode = openLoggerWithMode;
 
 
+
+
+function prependMealToHistoryDOM(mealData) {
+    const timeline = document.getElementById('diet-history-timeline');
+    if (!timeline) return;
+
+    const emptyCard = timeline.querySelector('.history-empty-card');
+    if (emptyCard) emptyCard.style.display = 'none';
+
+    const todayDate = new Date();
+    const yyyy = todayDate.getFullYear();
+    const mm = String(todayDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(todayDate.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    let dayCard = timeline.querySelector(`.history-day-card[data-date="${todayStr}"]`);
+
+    const foodName = mealData.food_items || mealData.meal_type || 'Custom Meal';
+    const mealType = mealData.meal_type || 'Snack';
+    const timeStr = mealData.logged_time || todayDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const cals = parseInt(mealData.added_cals || mealData.calories || 0, 10);
+    const pro = parseFloat(mealData.added_pro || mealData.protein_g || 0);
+    const carbs = parseFloat(mealData.added_carbs || mealData.carbs_g || 0);
+    const fat = parseFloat(mealData.added_fat || mealData.fat_g || 0);
+
+    const mealCardHtml = `
+        <div class="history-meal-card animate-fade-in" data-meal-type="${escapeHtml(mealType)}" data-food-text="${escapeHtml(foodName.toLowerCase())}">
+            <div class="history-meal-main">
+                <div class="history-meal-thumb-wrap">
+                    <img src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80" alt="${escapeHtml(foodName)}" class="history-meal-thumb" loading="lazy">
+                </div>
+                <div class="history-meal-info">
+                    <div class="history-meal-top-row">
+                        <span class="history-meal-badge badge-${escapeHtml(mealType.toLowerCase())}">${escapeHtml(mealType)}</span>
+                        <span class="history-meal-time">${escapeHtml(timeStr)}</span>
+                    </div>
+                    <h5 class="history-meal-name" title="${escapeHtml(foodName)}">
+                        ${escapeHtml(foodName)}
+                    </h5>
+                    <div class="history-meal-macros-inline">
+                        <span><strong>${pro}g</strong> P</span>
+                        <span class="meta-dot">•</span>
+                        <span><strong>${carbs}g</strong> C</span>
+                        <span class="meta-dot">•</span>
+                        <span><strong>${fat}g</strong> F</span>
+                    </div>
+                </div>
+                <div class="history-meal-cals-badge">
+                    <span class="history-cals-num">${cals.toLocaleString()}</span>
+                    <span class="history-cals-unit">kcal</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (dayCard) {
+        const customNotice = dayCard.querySelector('.history-custom-total-notice');
+        if (customNotice) customNotice.remove();
+
+        let grid = dayCard.querySelector('.history-meals-grid');
+        if (!grid) {
+            grid = document.createElement('div');
+            grid.className = 'history-meals-grid';
+            const mealsContainer = dayCard.querySelector('.history-day-meals');
+            if (mealsContainer) mealsContainer.appendChild(grid);
+        }
+        if (grid) {
+            grid.insertAdjacentHTML('afterbegin', mealCardHtml);
+        }
+
+        const metaSpan = dayCard.querySelector('.history-day-meta span:first-child');
+        const mealCount = grid ? grid.querySelectorAll('.history-meal-card').length : 1;
+        if (metaSpan) {
+            metaSpan.textContent = `${mealCount} meal${mealCount === 1 ? '' : 's'} logged`;
+        }
+
+        const pillCals = dayCard.querySelector('.pill-cals strong');
+        const pillPro = dayCard.querySelector('.pill-pro strong');
+        const pillCarbs = dayCard.querySelector('.pill-carbs strong');
+        const pillFat = dayCard.querySelector('.pill-fat strong');
+        if (pillCals && mealData.logged_cals) pillCals.textContent = Number(mealData.logged_cals).toLocaleString();
+        if (pillPro && mealData.logged_pro !== undefined) pillPro.textContent = mealData.logged_pro + 'g';
+        if (pillCarbs && mealData.logged_carbs !== undefined) pillCarbs.textContent = mealData.logged_carbs + 'g';
+        if (pillFat && mealData.logged_fat !== undefined) pillFat.textContent = mealData.logged_fat + 'g';
+    }
+}
+window.prependMealToHistoryDOM = prependMealToHistoryDOM;

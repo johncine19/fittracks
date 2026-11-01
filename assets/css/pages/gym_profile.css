@@ -272,15 +272,24 @@
         }
 
         .profile-card-title {
+            font-family: 'Bricolage Grotesque', Inter, system-ui, -apple-system, sans-serif;
             margin: 0;
-            font-size: 13.5px;
+            font-size: 12px;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.035em;
             color: var(--lime, #84cc16);
             display: flex;
             align-items: center;
             gap: 8px;
+        }
+
+        .profile-card-desc {
+            font-family: Inter, system-ui, -apple-system, sans-serif;
+            margin: 5px 0 0;
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--muted, #94a3b8);
         }
 
         /* General Info Form Grid - Generous Breathing Room */
@@ -1304,6 +1313,13 @@
         }
 
         @media (max-width: 600px) {
+            .profile-card-title {
+                font-size: 10.5px !important;
+                letter-spacing: 0.02em !important;
+            }
+            .profile-card-desc {
+                font-size: 11px !important;
+            }
             .profile-page-header {
                 flex-direction: column;
                 align-items: stretch;

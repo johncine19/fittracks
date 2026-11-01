@@ -140,12 +140,19 @@
                             <span>${escapeHtml(gym.address)}</span>
                         </p>
                     </div>
-                    <form method="post" action="index.php?page=gym_map" class="desktop-only" style="margin: 0; flex-shrink: 0;">
-                        <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
-                        <input type="hidden" name="action" value="select_gym">
-                        <input type="hidden" name="gym_id" value="${gym.gym_id}">
-                        <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.95rem; white-space: nowrap; box-shadow: 0 4px 12px rgba(199, 255, 34, 0.2);">Select Gym</button>
-                    </form>
+                    ${gym.is_affiliated ? `
+                        <div class="desktop-only" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 0.88rem; font-weight: 700; flex-shrink: 0;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>Affiliated Gym</span>
+                        </div>
+                    ` : `
+                        <form method="post" action="index.php?page=gym_map" class="desktop-only" style="margin: 0; flex-shrink: 0;">
+                            <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                            <input type="hidden" name="action" value="select_gym">
+                            <input type="hidden" name="gym_id" value="${gym.gym_id}">
+                            <button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 0.95rem; white-space: nowrap; box-shadow: 0 4px 12px rgba(199, 255, 34, 0.2);">Select Gym</button>
+                        </form>
+                    `}
                 </div>
                 <div class="modal-hero-sub">
                     <div class="modal-quickstats">
@@ -153,12 +160,19 @@
                         ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(0)}</strong></span>` : ''}
                         <a href="index.php?page=view_gym&gym_id=${gym.gym_id}#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
                     </div>
-                    <form method="post" action="index.php?page=gym_map" class="mobile-only" style="margin: 0; flex-shrink: 0;">
-                        <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
-                        <input type="hidden" name="action" value="select_gym">
-                        <input type="hidden" name="gym_id" value="${gym.gym_id}">
-                        <button type="submit" class="modal-select-btn-sm">Select Gym</button>
-                    </form>
+                    ${gym.is_affiliated ? `
+                        <div class="mobile-only" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 6px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 0.78rem; font-weight: 700; flex-shrink: 0;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>Affiliated</span>
+                        </div>
+                    ` : `
+                        <form method="post" action="index.php?page=gym_map" class="mobile-only" style="margin: 0; flex-shrink: 0;">
+                            <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                            <input type="hidden" name="action" value="select_gym">
+                            <input type="hidden" name="gym_id" value="${gym.gym_id}">
+                            <button type="submit" class="modal-select-btn-sm">Select Gym</button>
+                        </form>
+                    `}
                 </div>
                 <svg class="modal-pulse-line" viewBox="0 0 500 16" preserveAspectRatio="none" aria-hidden="true">
                     <path d="M0,8 L200,8 L212,2 L224,14 L236,8 L500,8" />
@@ -605,12 +619,18 @@
                     ${distText ? `<span class="map-popup-chip dist">📍 ${distText}</span>` : ''}
                 </div>
                 <div class="map-popup-actions">
-                    <form method="post" action="index.php?page=gym_map" style="margin: 0; flex: 1;">
-                        <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
-                        <input type="hidden" name="action" value="select_gym">
-                        <input type="hidden" name="gym_id" value="${gym.gym_id}">
-                        <button type="submit" class="map-popup-btn primary" style="width: 100%;">Select Gym</button>
-                    </form>
+                    ${gym.is_affiliated ? `
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 10px; border-radius: 6px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 11px; font-weight: 700;">
+                            ✓ Affiliated
+                        </div>
+                    ` : `
+                        <form method="post" action="index.php?page=gym_map" style="margin: 0; flex: 1;">
+                            <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                            <input type="hidden" name="action" value="select_gym">
+                            <input type="hidden" name="gym_id" value="${gym.gym_id}">
+                            <button type="submit" class="map-popup-btn primary" style="width: 100%;">Select Gym</button>
+                        </form>
+                    `}
                     <button type="button" class="map-popup-btn secondary" data-gym-index="${index}" onclick="window.openGymModal && window.openGymModal(${index}); return false;">Details</button>
                 </div>
             </div>

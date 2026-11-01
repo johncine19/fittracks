@@ -600,6 +600,17 @@
             text-align: center;
             color: var(--muted);
             margin: 16px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .callout-rest p {
+            margin: 0 auto;
+            font-size: 13px;
+            max-width: 440px;
+            line-height: 1.45;
+            text-align: center;
         }
 
         /* Next Workout Preview Card on Rest Days */
@@ -720,10 +731,22 @@
         .callout-empty-routine {
             background: color-mix(in srgb, var(--orange, #f59e0b) 8%, transparent);
             border: 1px dashed color-mix(in srgb, var(--orange, #f59e0b) 30%, transparent);
-            padding: 24px 18px;
+            padding: 28px 24px;
             border-radius: 12px;
             text-align: center;
             margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .callout-empty-routine p {
+            margin: 0 auto;
+            font-size: 13.5px;
+            color: var(--muted);
+            max-width: 460px;
+            line-height: 1.5;
+            text-align: center;
         }
 
         /* Exercise Items List */

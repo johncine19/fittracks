@@ -339,9 +339,10 @@ function render_header(string $title, ?array $user = null): void
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
-            width: max-content !important;
-            min-width: min(260px, calc(100vw - 32px)) !important;
-            max-width: min(440px, calc(100vw - 32px)) !important;
+            justify-content: flex-start !important;
+            width: auto !important;
+            min-width: min(280px, calc(100vw - 32px)) !important;
+            max-width: min(480px, calc(100vw - 32px)) !important;
             box-sizing: border-box !important;
             position: relative !important;
             overflow: hidden !important;
@@ -485,16 +486,15 @@ function render_header(string $title, ?array $user = null): void
         .swal2-toast .swal2-title,
         .swal2-toast .swal2-html-container {
             flex: 1 1 auto !important;
-            min-width: max-content !important;
+            min-width: 0 !important;
             width: auto !important;
             margin: 0 !important;
             padding: 0 !important;
-            line-height: 1.4 !important;
+            line-height: 1.45 !important;
             text-align: left !important;
-            white-space: nowrap !important;
-            word-break: keep-all !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
         }
         .swal2-toast .swal2-title {
             font-size: 13.5px !important;
@@ -562,20 +562,22 @@ function render_header(string $title, ?array $user = null): void
                 z-index: 10000 !important;
             }
             .swal2-popup.swal2-toast {
-                width: max-content !important;
+                width: auto !important;
                 min-width: min(240px, calc(100vw - 28px)) !important;
                 max-width: calc(100vw - 28px) !important;
                 margin: 0 auto !important;
                 padding: 10px 14px !important;
                 font-size: 12.5px !important;
                 border-radius: 12px !important;
+                justify-content: flex-start !important;
             }
             .swal2-toast .swal2-title,
             .swal2-toast .swal2-html-container {
                 font-size: 12.5px !important;
-                white-space: nowrap !important;
-                min-width: max-content !important;
-                word-break: keep-all !important;
+                white-space: normal !important;
+                min-width: 0 !important;
+                word-break: normal !important;
+                overflow-wrap: break-word !important;
             }
             .swal2-toast .swal2-icon {
                 width: 24px !important;
@@ -1503,6 +1505,114 @@ function render_header(string $title, ?array $user = null): void
             .user-chip .avatar {
                 width: 32px !important;
                 height: 32px !important;
+            }
+        }
+
+        /* ── TIDB-STYLE CLEAN TOP NOTICE BANNER ──────────────────────── */
+        .tidb-banner {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+            padding: 8px 38px 8px 18px;
+            margin-bottom: 14px;
+            border-radius: 8px;
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.22);
+            color: #fef3c7;
+            font-size: 12.5px;
+            line-height: 1.45;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        [data-theme="light"] .tidb-banner {
+            background: #fefce8;
+            border-color: #fef08a;
+            color: #854d0e;
+        }
+
+        .tidb-banner-inner {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            max-width: 100%;
+        }
+
+        .tidb-banner strong {
+            font-weight: 600;
+            color: #fde68a;
+        }
+
+        [data-theme="light"] .tidb-banner strong {
+            color: #713f12;
+        }
+
+        .tidb-banner-link {
+            color: #38bdf8 !important;
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            transition: color 0.15s ease, opacity 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .tidb-banner-link:hover {
+            color: #7dd3fc !important;
+            text-decoration-thickness: 1.5px;
+        }
+
+        [data-theme="light"] .tidb-banner-link {
+            color: #0284c7 !important;
+        }
+
+        [data-theme="light"] .tidb-banner-link:hover {
+            color: #0369a1 !important;
+        }
+
+        .tidb-banner-close {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: currentColor;
+            opacity: 0.5;
+            font-size: 18px;
+            line-height: 1;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.15s ease, background 0.15s ease;
+            padding: 0;
+        }
+
+        .tidb-banner-close:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        [data-theme="light"] .tidb-banner-close:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        @media (max-width: 768px) {
+            .tidb-banner {
+                justify-content: flex-start;
+                text-align: left;
+                padding: 9px 34px 9px 14px;
+                font-size: 12px;
+            }
+            .tidb-banner-inner {
+                justify-content: flex-start;
             }
         }
 
@@ -2667,7 +2777,40 @@ function render_header(string $title, ?array $user = null): void
                     <?php if ($user && $user['role'] === 'gym_owner'): 
                         $gymInfo = get_user_gym($user);
                         $trialInfo = gym_trial_info($gymInfo);
+                        $gopGymId = (int)($gymInfo['gym_id'] ?? 0);
                     ?>
+                        <?php if (in_array($page, ['dashboard', ''], true) && $gopGymId > 0): 
+                            $gopPayoutAccount = null;
+                            $gopHasOnlinePayments = false;
+                            try {
+                                $payoutStmt = db()->prepare('SELECT xendit_subaccount_id, payout_channel, payout_account_number FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
+                                $payoutStmt->execute([$gopGymId]);
+                                $gopPayoutAccount = $payoutStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+                                $gopHasOnlinePayments = !empty($gopPayoutAccount['xendit_subaccount_id']);
+                            } catch (Throwable) {}
+                        ?>
+                            <?php if (!$gopHasOnlinePayments): 
+                                $hasPayoutDestination = !empty($gopPayoutAccount['payout_account_number']);
+                                $payoutChannelName = strtoupper((string)($gopPayoutAccount['payout_channel'] ?? 'GCash'));
+                            ?>
+                                <script>
+                                    if (sessionStorage.getItem('fittrack_dismiss_gop_banner') === '1') {
+                                        document.write('<style>#gym-online-payment-banner { display: none !important; }</style>');
+                                    }
+                                </script>
+                                <div class="tidb-banner animate-fade-in" id="gym-online-payment-banner" role="alert">
+                                    <div class="tidb-banner-inner">
+                                        <?php if ($hasPayoutDestination): ?>
+                                            <span>Online payment gateway activation is pending verification for <strong><?= h($payoutChannelName) ?> (<?= h($gopPayoutAccount['payout_account_number']) ?>)</strong>. Configure or check status via <a href="index.php?page=gym_profile&tab=payout#sec-payout" class="tidb-banner-link">Online Payments &amp; Settlement &rarr;</a></span>
+                                        <?php else: ?>
+                                            <span>Accept member pass and subscription payments online via GCash, Maya &amp; Cards. Start setup in <a href="index.php?page=gym_profile&tab=payout#sec-payout" class="tidb-banner-link">Online Payments &amp; Settlement &rarr;</a></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <button type="button" class="tidb-banner-close" onclick="document.getElementById('gym-online-payment-banner').style.display='none'; sessionStorage.setItem('fittrack_dismiss_gop_banner', '1');" title="Dismiss notice" aria-label="Dismiss notice">&times;</button>
+                                </div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+
                         <?php if ($trialInfo['is_trial_active']): ?>
                             <div class="panel trial-compact-banner is-trial">
                                 <div class="trial-banner-left">

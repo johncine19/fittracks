@@ -12,11 +12,16 @@
         let isScannerRunning = false;
         let isScannerPaused = false;
         let isProcessing = false;
+        let isStartingScanner = false;
+        let currentFacingMode = "environment";
         let currentCameraId = null;
         let availableCameras = [];
         let isTorchOn = false;
         let resetTimer = null;
         const processedTokensInSession = new Set();
+
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+            || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && window.innerWidth < 1024);
 
         // Elements
         const viewfinderWrap = document.getElementById('viewfinder-wrap');
@@ -509,6 +514,62 @@
             }
         }
 
+        function resetStandbyScreenPrompt() {
+            if (!standbyScreen) return;
+            const title = standbyScreen.querySelector(".standby-title");
+            const desc = standbyScreen.querySelector(".standby-desc");
+            const btnSpan = btnStartCamera ? btnStartCamera.querySelector("span") : null;
+            if (title) title.textContent = "Camera Scanner Ready";
+            if (desc) desc.textContent = "Click below to activate the optical scanner and grant browser camera access.";
+            if (btnSpan) btnSpan.textContent = "Activate Camera Scanner";
+        }
+
+        function setStandbyBlockedPrompt() {
+            if (!standbyScreen) return;
+            const title = standbyScreen.querySelector(".standby-title");
+            const desc = standbyScreen.querySelector(".standby-desc");
+            const btnSpan = btnStartCamera ? btnStartCamera.querySelector("span") : null;
+            if (title) title.textContent = "Camera Access Blocked";
+            if (desc) {
+                desc.innerHTML = 'Camera access was blocked by your browser.<br><span style="color:#60a5fa;display:inline-block;margin-top:4px;">Tap the 🔒 lock or settings icon in your browser address bar, set Camera to <b>Allow</b>, then tap below:</span>';
+            }
+            if (btnSpan) btnSpan.textContent = "Try Again & Allow Camera";
+        }
+
+        function setStandbyRetryPrompt(titleText, msgText) {
+            if (!standbyScreen) return;
+            const title = standbyScreen.querySelector(".standby-title");
+            const desc = standbyScreen.querySelector(".standby-desc");
+            const btnSpan = btnStartCamera ? btnStartCamera.querySelector("span") : null;
+            if (title) title.textContent = titleText || "Camera Notice";
+            if (desc) desc.textContent = msgText || "Camera failed to activate. Please tap below to try again.";
+            if (btnSpan) btnSpan.textContent = "Retry Camera Activation";
+        }
+
+        async function cleanScannerInstance() {
+            if (html5QrCode) {
+                try {
+                    if (isScannerRunning || (typeof html5QrCode.isScanning === "boolean" && html5QrCode.isScanning)) {
+                        await html5QrCode.stop();
+                    }
+                } catch (e) {
+                    console.warn("Scanner stop cleanup notice:", e);
+                }
+                try {
+                    html5QrCode.clear();
+                } catch (e) {
+                    console.warn("Scanner clear cleanup notice:", e);
+                }
+                html5QrCode = null;
+            }
+            const container = document.getElementById("reader-video-container");
+            if (container) {
+                container.innerHTML = "";
+            }
+            isScannerRunning = false;
+            isScannerPaused = false;
+        }
+
         // Initialize Low-Level Html5QrCode instance
         function initScannerEngine() {
             if (!html5QrCode) {
@@ -523,43 +584,58 @@
 
         // Camera permissions & start
         async function startCameraScanner(preferredCameraId = null) {
-            initScannerEngine();
-            setHudState('processing');
+            if (isStartingScanner) return;
+            isStartingScanner = true;
+
+            if (btnStartCamera) {
+                btnStartCamera.disabled = true;
+                const btnSpan = btnStartCamera.querySelector("span");
+                if (btnSpan) btnSpan.textContent = "Connecting Camera...";
+            }
+            setHudState("processing");
 
             try {
-                // Discover cameras if not yet cached
-                if (availableCameras.length === 0) {
-                    availableCameras = await Html5Qrcode.getCameras();
-                    populateCameraSelect(availableCameras);
-                }
+                // Ensure any previous faulted or running instance is safely released
+                await cleanScannerInstance();
+                initScannerEngine();
 
-                if (!availableCameras || availableCameras.length === 0) {
-                    showErrorResult('No Camera Detected', 'Please connect a webcam or enable camera permissions.');
-                    return;
-                }
+                let cameraConfig;
 
-                let cameraIdToUse = preferredCameraId;
-                if (!cameraIdToUse) {
-                    const savedCamera = localStorage.getItem('fittracks_scanner_cam');
-                    const foundSaved = availableCameras.find(c => c.id === savedCamera);
-                    if (foundSaved) {
-                        cameraIdToUse = foundSaved.id;
-                    } else {
-                        // 1. Prefer rear/environment camera (phones/tablets)
-                        const rear = availableCameras.find(c => /back|rear|environment/i.test(c.label));
-                        // 2. Prefer real physical webcam over virtual drivers (OBS, ManyCam, DroidCam)
-                        const physical = availableCameras.find(c => !/virtual|obs|manycam|droidcam|splitcam|ndi/i.test(c.label));
-                        cameraIdToUse = rear ? rear.id : (physical ? physical.id : availableCameras[0].id);
+                if (preferredCameraId) {
+                    // Explicit camera chosen by user
+                    cameraConfig = preferredCameraId;
+                    currentCameraId = preferredCameraId;
+                    if (cameraDropdown) cameraDropdown.select(currentCameraId, false);
+                } else if (isMobileDevice) {
+                    // Mobile: Default directly to environment (rear) camera without probing device IDs first.
+                    // This avoids camera hardware locking, bypasses randomized device IDs, and triggers native permission prompt reliably.
+                    cameraConfig = { facingMode: currentFacingMode };
+                } else {
+                    // Desktop / Laptop: discover cameras if not yet cached
+                    if (availableCameras.length === 0) {
+                        try {
+                            availableCameras = await Html5Qrcode.getCameras();
+                            populateCameraSelect(availableCameras);
+                        } catch (camErr) {
+                            console.warn("Desktop camera discovery probe notice:", camErr);
+                        }
                     }
-                }
 
-                currentCameraId = cameraIdToUse;
-                if (cameraDropdown) cameraDropdown.select(currentCameraId, false);
-
-                // Stop active stream before restarting
-                if (isScannerRunning) {
-                    await html5QrCode.stop();
-                    isScannerRunning = false;
+                    if (!availableCameras || availableCameras.length === 0) {
+                        cameraConfig = { facingMode: "environment" };
+                    } else {
+                        const savedCamera = localStorage.getItem("fittracks_scanner_cam");
+                        const foundSaved = availableCameras.find(c => c.id === savedCamera);
+                        if (foundSaved) {
+                            cameraConfig = foundSaved.id;
+                        } else {
+                            const rear = availableCameras.find(c => /back|rear|environment/i.test(c.label));
+                            const physical = availableCameras.find(c => !/virtual|obs|manycam|droidcam|splitcam|ndi/i.test(c.label));
+                            cameraConfig = rear ? rear.id : (physical ? physical.id : availableCameras[0].id);
+                        }
+                        currentCameraId = cameraConfig;
+                        if (cameraDropdown) cameraDropdown.select(currentCameraId, false);
+                    }
                 }
 
                 // Dynamic responsive qrbox
@@ -575,27 +651,42 @@
 
                 try {
                     await html5QrCode.start(
-                        cameraIdToUse,
+                        cameraConfig,
                         config,
                         onQrCodeScanned,
                         onQrScanFailure
                     );
                 } catch (startErr) {
-                    // If the camera failed and it's a virtual camera (like OBS), try auto-failing over to a physical camera
-                    const isVirtual = availableCameras.some(c => c.id === cameraIdToUse && /virtual|obs|manycam|droidcam/i.test(c.label));
-                    const physicalFallback = availableCameras.find(c => c.id !== cameraIdToUse && !/virtual|obs|manycam|droidcam/i.test(c.label));
+                    console.warn("Initial camera start notice, attempting failover:", startErr);
+                    const isVirtual = typeof cameraConfig === "string" && availableCameras.some(c => c.id === cameraConfig && /virtual|obs|manycam|droidcam/i.test(c.label));
+                    const physicalFallback = availableCameras.find(c => c.id !== cameraConfig && !/virtual|obs|manycam|droidcam/i.test(c.label));
+
                     if (isVirtual && physicalFallback) {
-                        console.warn("Virtual camera failed, auto-failing over to physical webcam:", physicalFallback.label);
-                        cameraIdToUse = physicalFallback.id;
-                        currentCameraId = cameraIdToUse;
+                        console.warn("Auto-failing over to physical webcam:", physicalFallback.label);
+                        cameraConfig = physicalFallback.id;
+                        currentCameraId = cameraConfig;
                         if (cameraDropdown) cameraDropdown.select(currentCameraId, false);
-                        localStorage.setItem('fittracks_scanner_cam', currentCameraId);
+                        localStorage.setItem("fittracks_scanner_cam", currentCameraId);
                         await html5QrCode.start(
-                            cameraIdToUse,
+                            cameraConfig,
                             config,
                             onQrCodeScanned,
                             onQrScanFailure
                         );
+                    } else if (isMobileDevice && typeof cameraConfig === "object") {
+                        // Mobile hardware might need a moment to release prior tracks
+                        await new Promise(r => setTimeout(r, 350));
+                        await cleanScannerInstance();
+                        initScannerEngine();
+                        const altFacing = cameraConfig.facingMode === "environment" ? "user" : "environment";
+                        console.warn("Retrying mobile start with alternate facing mode:", altFacing);
+                        await html5QrCode.start(
+                            { facingMode: altFacing },
+                            config,
+                            onQrCodeScanned,
+                            onQrScanFailure
+                        );
+                        currentFacingMode = altFacing;
                     } else {
                         throw startErr;
                     }
@@ -603,48 +694,73 @@
 
                 isScannerRunning = true;
                 isScannerPaused = false;
-                standbyScreen.style.display = 'none';
-                viewfinderWrap.classList.add('scanning');
-                btnPauseScanner.style.display = 'inline-flex';
-                btnPauseScanner.querySelector('span').textContent = 'Pause';
-                btnStopScanner.style.display = 'inline-flex';
-                topBadge.classList.add('is-active');
-                topBadgeText.textContent = 'LIVE SCANNING';
+                standbyScreen.style.display = "none";
+                viewfinderWrap.classList.add("scanning");
+                btnPauseScanner.style.display = "inline-flex";
+                btnPauseScanner.querySelector("span").textContent = "Pause";
+                btnStopScanner.style.display = "inline-flex";
+                topBadge.classList.add("is-active");
+                topBadgeText.textContent = "LIVE SCANNING";
+                resetStandbyScreenPrompt();
 
-                if (availableCameras.length > 1) {
-                    btnFlipCam.style.display = 'inline-flex';
+                // Background discover all cameras now that permissions are 100% active and running
+                Html5Qrcode.getCameras().then(devices => {
+                    if (devices && devices.length > 0) {
+                        availableCameras = devices;
+                        populateCameraSelect(devices);
+                        if (devices.length > 1 || isMobileDevice) {
+                            btnFlipCam.style.display = "inline-flex";
+                        }
+                    }
+                }).catch(() => {});
+
+                if (isMobileDevice) {
+                    btnFlipCam.style.display = "inline-flex";
                 }
 
                 // Check torch support
                 checkTorchSupport();
-                setHudState('idle');
+                setHudState("idle");
 
             } catch (err) {
                 console.error("Camera start error:", err);
-                viewfinderWrap.classList.remove('scanning');
-                standbyScreen.style.display = 'flex';
-                topBadge.classList.remove('is-active');
-                topBadgeText.textContent = 'OFFLINE';
-                btnPauseScanner.style.display = 'none';
-                btnStopScanner.style.display = 'none';
+                await cleanScannerInstance();
+                viewfinderWrap.classList.remove("scanning");
+                standbyScreen.style.display = "flex";
+                topBadge.classList.remove("is-active");
+                topBadgeText.textContent = "OFFLINE";
+                btnPauseScanner.style.display = "none";
+                btnStopScanner.style.display = "none";
+                btnFlipCam.style.display = "none";
+                btnToggleTorch.style.display = "none";
 
-                const errStr = (typeof err === 'string' ? err : (err?.message || err?.name || String(err))).toLowerCase();
-                let errTitle = 'Camera Error';
-                let errMsg = 'Could not start camera stream.';
+                // Clear cached empty/stale cameras so the next attempt always re-probes cleanly
+                availableCameras = [];
 
-                if (errStr.includes('notfound') || errStr.includes('devicesnotfound')) {
-                    errTitle = 'No Camera Detected';
-                    errMsg = 'No webcam or optical sensor found on this system.';
-                } else if (errStr.includes('notreadable') || errStr.includes('could not start video source') || errStr.includes('track') || errStr.includes('in use') || errStr.includes('source')) {
-                    errTitle = 'Camera Unavailable';
-                    errMsg = 'The selected camera (e.g. OBS Virtual Camera) is inactive or in use by another app. Please select your physical webcam from the dropdown above.';
-                } else if (errStr.includes('notallowed') || errStr.includes('permission') || errStr.includes('denied')) {
-                    errTitle = 'Camera Access Required';
-                    errMsg = 'Camera permission was denied. Please allow camera access in your browser.';
+                const errStr = (typeof err === "string" ? err : (err?.message || err?.name || String(err))).toLowerCase();
+                let errTitle = "Camera Error";
+                let errMsg = "Could not start camera stream.";
+
+                if (errStr.includes("notallowed") || errStr.includes("permission") || errStr.includes("denied")) {
+                    errTitle = "Camera Access Blocked";
+                    errMsg = "Camera permission was denied. Tap the 🔒 or settings icon in your browser address bar, set Camera to Allow, then tap below.";
+                    setStandbyBlockedPrompt();
+                } else if (errStr.includes("notfound") || errStr.includes("devicesnotfound")) {
+                    errTitle = "No Camera Detected";
+                    errMsg = "No webcam or optical sensor found on this system.";
+                    setStandbyRetryPrompt("No Camera Detected", "No optical sensor found. You can also select a QR image file below.");
+                } else if (errStr.includes("notreadable") || errStr.includes("could not start video source") || errStr.includes("track") || errStr.includes("in use") || errStr.includes("abort") || errStr.includes("source")) {
+                    errTitle = "Camera Busy / Resetting";
+                    errMsg = "The camera hardware is busy or resetting. Please tap below to try again.";
+                    setStandbyRetryPrompt("Camera Busy", "The camera hardware is resetting. Please tap below to try again.");
                 } else {
-                    errMsg = (err && err.message) ? err.message : 'Camera failed to activate. Please choose another camera from the dropdown.';
+                    errMsg = (err && err.message) ? err.message : "Camera failed to activate. Please choose another camera or tap retry.";
+                    setStandbyRetryPrompt("Camera Notice", errMsg);
                 }
                 showErrorResult(errTitle, errMsg);
+            } finally {
+                isStartingScanner = false;
+                if (btnStartCamera) btnStartCamera.disabled = false;
             }
         }
 
@@ -1079,13 +1195,18 @@
         });
 
         // Flip Camera Button
-        btnFlipCam.addEventListener('click', function() {
-            if (availableCameras.length < 2) return;
-            const curIndex = availableCameras.findIndex(c => c.id === currentCameraId);
-            const nextIndex = (curIndex + 1) % availableCameras.length;
-            const nextCam = availableCameras[nextIndex];
-            localStorage.setItem('fittracks_scanner_cam', nextCam.id);
-            startCameraScanner(nextCam.id);
+        btnFlipCam.addEventListener('click', async function() {
+            if (isMobileDevice) {
+                currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+                await startCameraScanner();
+            } else {
+                if (availableCameras.length < 2) return;
+                const curIndex = availableCameras.findIndex(c => c.id === currentCameraId);
+                const nextIndex = (curIndex + 1) % availableCameras.length;
+                const nextCam = availableCameras[nextIndex];
+                localStorage.setItem('fittracks_scanner_cam', nextCam.id);
+                await startCameraScanner(nextCam.id);
+            }
         });
 
         // Torch toggle
@@ -1431,13 +1552,27 @@
         // Render the loading state before device discovery completes.
         populateCameraSelect([]);
 
-        // Auto-check for cameras and prompt on page load
-        Html5Qrcode.getCameras().then(devices => {
-            if (devices && devices.length > 0) {
-                availableCameras = devices;
-                populateCameraSelect(devices);
-            }
-        }).catch(() => {});
+        // If permission was already granted in a previous session, silently pre-discover cameras
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: "camera" }).then(permissionStatus => {
+                if (permissionStatus.state === "granted") {
+                    Html5Qrcode.getCameras().then(devices => {
+                        if (devices && devices.length > 0) {
+                            availableCameras = devices;
+                            populateCameraSelect(devices);
+                        }
+                    }).catch(() => {});
+                }
+                permissionStatus.onchange = () => {
+                    if (permissionStatus.state === "granted") {
+                        availableCameras = [];
+                        resetStandbyScreenPrompt();
+                    } else if (permissionStatus.state === "denied") {
+                        setStandbyBlockedPrompt();
+                    }
+                };
+            }).catch(() => {});
+        }
 
         // Network connection listeners
         window.addEventListener('online', () => {

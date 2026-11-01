@@ -87,14 +87,23 @@ function redirect(string $page = 'dashboard'): never
 {
     if (str_starts_with($page, 'index.php') || str_starts_with($page, 'http://') || str_starts_with($page, 'https://')) {
         header('Location: ' . $page);
-    } elseif (str_contains($page, '?')) {
+        exit;
+    }
+
+    $fragment = '';
+    if (str_contains($page, '#')) {
+        [$page, $frag] = explode('#', $page, 2);
+        $fragment = '#' . $frag;
+    }
+
+    if (str_contains($page, '?')) {
         [$p, $query] = explode('?', $page, 2);
-        header('Location: index.php?page=' . urlencode($p) . '&' . $query);
+        header('Location: index.php?page=' . urlencode($p) . '&' . $query . $fragment);
     } elseif (str_contains($page, '&')) {
         [$p, $query] = explode('&', $page, 2);
-        header('Location: index.php?page=' . urlencode($p) . '&' . $query);
+        header('Location: index.php?page=' . urlencode($p) . '&' . $query . $fragment);
     } else {
-        header('Location: index.php?page=' . urlencode($page));
+        header('Location: index.php?page=' . urlencode($page) . $fragment);
     }
     exit;
 }

@@ -88,6 +88,8 @@ function gym_profile_page(): void
         $payoutAccountNumber = $payoutAccountNumber !== '' ? $payoutAccountNumber : null;
         $payoutAccountName = post('payout_account_name') !== null ? trim((string) post('payout_account_name')) : ($gym['payout_account_name'] ?? null);
         $payoutAccountName = $payoutAccountName !== '' ? $payoutAccountName : null;
+        $xenditSubaccountId = post('xendit_subaccount_id') !== null ? trim((string) post('xendit_subaccount_id')) : ($gym['xendit_subaccount_id'] ?? null);
+        $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
         
         $pendingGateTime = $gym['pending_eod_gate_time'] ?? null;
         $pendingGateEffectiveDate = $gym['eod_gate_effective_date'] ?? null;
@@ -234,11 +236,15 @@ function gym_profile_page(): void
                 'fire_safety_cert_url'   => $fireSafetyUrl,
             ]);
 
-            save_gym_payout_account((int)$gym['gym_id'], [
+            $payoutData = [
                 'payout_channel'        => $payoutChannel,
                 'payout_account_number' => $payoutAccountNumber,
                 'payout_account_name'   => $payoutAccountName,
-            ]);
+            ];
+            if ($isPlatformAdmin || $xenditSubaccountId !== null) {
+                $payoutData['xendit_subaccount_id'] = $xenditSubaccountId;
+            }
+            save_gym_payout_account((int)$gym['gym_id'], $payoutData);
 
             save_gym_settings((int)$gym['gym_id'], [
                 'inactivity_threshold_days' => $inactivityThreshold,
@@ -249,8 +255,33 @@ function gym_profile_page(): void
                 'pending_eod_gate_time'     => $pendingGateTime,
                 'eod_gate_effective_date'   => $pendingGateEffectiveDate,
             ]);
-            flash('Gym settings updated successfully.', 'success');
-            redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id']) : 'gym_profile');
+
+            if (isset($_POST['request_xendit_activation'])) {
+                notify_admins(
+                    'system',
+                    'Online Payment Activation Requested',
+                    "Gym '{$name}' requested Xendit online payment gateway activation for {$payoutChannel} ({$payoutAccountNumber})."
+                );
+
+                $ownerEmail = (string)($user['email'] ?? '');
+                $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
+                if ($ownerEmail !== '') {
+                    Emails::sendXenditOnboardingInvite(
+                        $ownerEmail,
+                        $ownerFullName,
+                        $name,
+                        $payoutChannel,
+                        (string)$payoutAccountNumber,
+                        (string)$payoutAccountName,
+                        true
+                    );
+                }
+
+                flash("Payout destination saved! An activation email has been sent to {$ownerEmail} with verification instructions.", 'success');
+            } else {
+                flash('Gym settings updated successfully.', 'success');
+            }
+            redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id'] . '&tab=payout#sec-payout') : 'gym_profile?tab=payout#sec-payout');
         } else {
             flash('Facility name and physical address are required.', 'danger');
         }
@@ -387,6 +418,11 @@ function gym_profile_page(): void
                                 <span class="settings-tab-label nav-label">Documents</span>
                                 <span class="menu-item-check">✓</span>
                             </button>
+                            <button type="button" class="mobile-menu-item" data-tab="payout" onclick="selectMobileTab('payout')">
+                                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
+                                <span class="settings-tab-label nav-label">Online Payments</span>
+                                <span class="menu-item-check">✓</span>
+                            </button>
                             <button type="button" class="mobile-menu-item" data-tab="reminders" onclick="selectMobileTab('reminders')">
                                 <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></span>
                                 <span class="settings-tab-label nav-label">Reminders</span>
@@ -432,6 +468,12 @@ function gym_profile_page(): void
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                                 </span>
                                 <span class="settings-tab-label nav-label">Documents</span>
+                            </button>
+                            <button type="button" class="settings-nav-link" data-tab="payout" onclick="switchSettingsTab('payout', this)">
+                                <span class="nav-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                </span>
+                                <span class="settings-tab-label nav-label">Online Payments</span>
                             </button>
                             <button type="button" class="settings-nav-link" data-tab="reminders" onclick="switchSettingsTab('reminders', this)">
                                 <span class="nav-icon">
@@ -587,58 +629,6 @@ function gym_profile_page(): void
                                     <input type="text" name="fb_page_url" id="fb_page_url" class="input-with-icon" value="<?= h($gym['fb_page_url'] ?? '') ?>" placeholder="https://facebook.com/yourgympage">
                                 </div>
                                 <span class="field-hint">Official Facebook or social profile link for prospective members.</span>
-                            </div>
-
-                            <div class="span-full" style="grid-column: 1 / -1; margin-top: 14px; padding-top: 16px; border-top: 1px dashed var(--line, #cbd5e1);">
-                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; flex-wrap: wrap; gap: 6px;">
-                                    <label class="field-label" style="font-size: 13.5px; font-weight: 700; color: var(--ink); margin: 0;">
-                                        Online Member Payments Payout Destination
-                                    </label>
-                                    <span style="font-size: 11px; font-weight: 700; color: var(--lime); background: rgba(132, 204, 22, 0.12); border: 1px solid rgba(132, 204, 22, 0.28); padding: 2px 8px; border-radius: 4px;">
-                                        Xendit Settlement
-                                    </span>
-                                </div>
-                                <span class="field-hint" style="margin-bottom: 12px; display: block; line-height: 1.45;">
-                                    When members pay for memberships online (via GCash, Maya, cards, or bank), earnings collected in your XenPlatform sub-account are disbursed to this destination.
-                                </span>
-
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                                    <div>
-                                        <label class="field-label">Payout Channel</label>
-                                        <div class="input-icon-wrap">
-                                            <span class="input-icon">
-                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                            </span>
-                                            <select name="payout_channel" class="input-with-icon" style="padding-left: 36px; height: 38px;">
-                                                <option value="gcash" <?= ($gym['payout_channel'] ?? 'gcash') === 'gcash' ? 'selected' : '' ?>>GCash</option>
-                                                <option value="maya" <?= ($gym['payout_channel'] ?? '') === 'maya' ? 'selected' : '' ?>>Maya</option>
-                                                <option value="bank_transfer" <?= ($gym['payout_channel'] ?? '') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label class="field-label">Account / Mobile Number</label>
-                                        <div class="input-icon-wrap">
-                                            <span class="input-icon">
-                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                            </span>
-                                            <input type="text" name="payout_account_number" class="input-with-icon" value="<?= h($gym['payout_account_number'] ?? '') ?>" placeholder="e.g. 09171234567">
-                                        </div>
-                                        <span class="field-hint">Your 11-digit GCash mobile number or bank account.</span>
-                                    </div>
-
-                                    <div>
-                                        <label class="field-label">Account Holder Full Name</label>
-                                        <div class="input-icon-wrap">
-                                            <span class="input-icon">
-                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                            </span>
-                                            <input type="text" name="payout_account_name" class="input-with-icon" value="<?= h($gym['payout_account_name'] ?? '') ?>" placeholder="e.g. Juan Dela Cruz">
-                                        </div>
-                                        <span class="field-hint">Exact name on verified GCash / Bank account.</span>
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </section>
@@ -881,7 +871,6 @@ function gym_profile_page(): void
                                     <?php endif; ?>
                                 </div>
                             </div>
-                        </div>
                     </section>
 
                 <!-- 3. BUSINESS LICENSE & PERMIT -->
@@ -1011,7 +1000,142 @@ function gym_profile_page(): void
                     </button>
                 </section>
 
-                <!-- 4. MEMBER INACTIVITY & REMINDERS -->
+                                    <!-- ONLINE PAYMENTS & SETTLEMENT PAYOUTS -->
+                    <section class="profile-card settings-tab-pane span-full" id="sec-payout">
+                        <div class="profile-card-header">
+                            <div>
+                                <h3 class="profile-card-title" style="margin-bottom: 2px;">Online Payments &amp; Settlement Payouts</h3>
+                                <p class="profile-card-desc">Receive online payments (GCash, Maya, cards, bank) from members directly into your designated settlement account through Xendit XenPlatform.</p>
+                            </div>
+                            <div>
+                                <?php if (!empty($gym['xendit_subaccount_id'])): ?>
+                                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(132, 204, 22, 0.15); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.35);">
+                                        <span style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e;"></span>
+                                        Gateway Active (<?= h($gym['xendit_subaccount_id']) ?>)
+                                    </span>
+                                <?php elseif (!empty($gym['payout_account_number'])): ?>
+                                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">
+                                        <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;"></span>
+                                        Activation Pending Linking
+                                    </span>
+                                <?php else: ?>
+                                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(148, 163, 184, 0.15); color: var(--muted); border: 1px solid rgba(148, 163, 184, 0.3);">
+                                        <span style="width: 7px; height: 7px; border-radius: 50%; background: #94a3b8;"></span>
+                                        Setup Incomplete (Cash Only)
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Explanatory Banner & XenPlatform Process -->
+                        <div style="background: rgba(132, 204, 22, 0.05); border: 1px solid rgba(132, 204, 22, 0.2); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+                            <div style="font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--lime);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                Automated Split Payments with Xendit XenPlatform
+                            </div>
+                            <p style="font-size: 12px; line-height: 1.5; color: var(--muted); margin: 0 0 10px 0;">
+                                FitTrack connects your gym to Xendit XenPlatform so member membership fees and pass purchases are automatically disbursed directly to your GCash or Bank account. Your platform admin does not hold your funds.
+                            </p>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12px;">
+                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
+                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">1. Enter Payout Details</strong>
+                                    Provide your verified GCash or Bank account number and full name below.
+                                </div>
+                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
+                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">2. Xendit Verification</strong>
+                                    Click &quot;Request Activation&quot;. An onboarding invitation link will be sent to your email to verify your ID and bank ownership.
+                                </div>
+                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
+                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">3. Instant Online Sales</strong>
+                                    Once verified, your sub-account ID is linked and members can instantly purchase passes online!
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="general-form-grid">
+                            <div>
+                                <label class="field-label" for="payout_channel">Payout Channel</label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                                    </span>
+                                    <select name="payout_channel" id="payout_channel" class="input-with-icon" style="padding-left: 36px; height: 38px;">
+                                        <option value="gcash" <?= ($gym['payout_channel'] ?? 'gcash') === 'gcash' ? 'selected' : '' ?>>GCash (Recommended)</option>
+                                        <option value="maya" <?= ($gym['payout_channel'] ?? '') === 'maya' ? 'selected' : '' ?>>Maya</option>
+                                        <option value="bank_transfer" <?= ($gym['payout_channel'] ?? '') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
+                                    </select>
+                                </div>
+                                <span class="field-hint">Preferred disbursement rail for collected member payments.</span>
+                            </div>
+
+                            <div>
+                                <label class="field-label" for="payout_account_number">Payout Account / Mobile Number</label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                    </span>
+                                    <input type="text" name="payout_account_number" id="payout_account_number" class="input-with-icon" value="<?= h($gym['payout_account_number'] ?? '') ?>" placeholder="e.g. 09171234567">
+                                </div>
+                                <span class="field-hint">Your 11-digit GCash mobile number or bank account number.</span>
+                            </div>
+
+                            <div>
+                                <label class="field-label" for="payout_account_name">Account Holder Full Name</label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                    </span>
+                                    <input type="text" name="payout_account_name" id="payout_account_name" class="input-with-icon" value="<?= h($gym['payout_account_name'] ?? '') ?>" placeholder="e.g. Juan Dela Cruz">
+                                </div>
+                                <span class="field-hint">Exact account name as registered on GCash or Bank account.</span>
+                            </div>
+
+                            <?php if ($isPlatformAdmin): ?>
+                                <div>
+                                    <label class="field-label" for="xendit_subaccount_id">Xendit Sub-Account ID (Platform Admin Only)</label>
+                                    <div class="input-icon-wrap">
+                                        <span class="input-icon">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                        </span>
+                                        <input type="text" name="xendit_subaccount_id" id="xendit_subaccount_id" class="input-with-icon" value="<?= h($gym['xendit_subaccount_id'] ?? '') ?>" placeholder="e.g. user_6492a5...">
+                                    </div>
+                                    <span class="field-hint">Xendit XenPlatform account ID created for this facility. When populated, online checkout is activated.</span>
+                                </div>
+                            <?php elseif (!empty($gym['xendit_subaccount_id'])): ?>
+                                <div>
+                                    <label class="field-label">Linked Xendit Sub-Account</label>
+                                    <div class="input-icon-wrap">
+                                        <span class="input-icon">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                        </span>
+                                        <input type="text" class="input-with-icon" value="<?= h($gym['xendit_subaccount_id']) ?>" readonly style="opacity: 0.75; cursor: not-allowed; background: rgba(255,255,255,0.04);">
+                                    </div>
+                                    <span class="field-hint" style="color: var(--lime);">Verified and ready to receive member online payments.</span>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, rgba(255,255,255,0.08)); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                            <div style="font-size: 12px; color: var(--muted);">
+                                <?php if (!empty($gym['xendit_subaccount_id'])): ?>
+                                    🟢 Online payments are actively routed to your sub-account.
+                                <?php else: ?>
+                                    Need help setting up? Save your account info and click &quot;Request Activation&quot;.
+                                <?php endif; ?>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="submit" class="btn btn-secondary btn-sm">Save Payout Details</button>
+                                <?php if (empty($gym['xendit_subaccount_id'])): ?>
+                                    <button type="submit" name="request_xendit_activation" value="1" class="btn btn-lime btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                        Save &amp; Request Xendit Activation
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 4. MEMBER INACTIVITY & REMINDERS -->
                 <section class="profile-card settings-tab-pane" id="sec-reminders">
                     <div class="profile-card-header">
                         <div>

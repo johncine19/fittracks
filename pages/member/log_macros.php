@@ -47,7 +47,7 @@ function log_macros_page(): void
     $pdo = db();
 
     // ----------------------------------------------------
-    // GUARD RAILS: Only Allow Today & One Log per Meal Type
+    // GUARD RAILS: Only Allow Today & One Log per Planned Meal
     // ----------------------------------------------------
     $mealId = post('meal_id') ? (int) post('meal_id') : null;
     $rawMealType = (string) (post('meal_type') ?: '');
@@ -73,6 +73,24 @@ function log_macros_page(): void
                 $foodItems = $planMeal['food_items'];
             }
         }
+    }
+
+    // Determine meal slot: use posted meal_type or default intelligently based on current hour
+    if (empty($rawMealType)) {
+        $hour = (int) date('G');
+        if ($hour >= 5 && $hour < 11) {
+            $rawMealType = 'Breakfast';
+        } elseif ($hour >= 11 && $hour < 15) {
+            $rawMealType = 'Lunch';
+        } elseif ($hour >= 17 && $hour < 21) {
+            $rawMealType = 'Dinner';
+        } else {
+            $rawMealType = 'Snack';
+        }
+    }
+    $normalizedType = ucfirst(strtolower(trim($rawMealType)));
+    if (strpos(strtolower($normalizedType), 'snack') !== false) {
+        $normalizedType = 'Snack';
     }
 
     // Guard: Unverified food items cannot be logged by a member
@@ -113,23 +131,17 @@ function log_macros_page(): void
         redirect('diet');
     }
 
-    // Guard 2: Prevent Duplicate Meal Logging (1 Log Per Meal Type Per Day)
-    $normalizedType = '';
-    if (!empty($rawMealType) && $mode === 'add') {
-        $normalizedType = ucfirst(strtolower(trim($rawMealType)));
-        if (strpos(strtolower($normalizedType), 'snack') !== false) {
-            $normalizedType = 'Snack';
-        }
-
+    // Guard 2: Prevent Duplicate Meal Logging (strictly for scheduled plan meals via meal_id)
+    if ($mealId !== null && !empty($normalizedType) && $mode === 'add') {
         $stmtCheckLog = $pdo->prepare(
-            "SELECT log_id, logged_at FROM member_meal_logs WHERE user_id = ? AND meal_type = ? AND log_date = CURDATE()"
+            "SELECT log_id, logged_at FROM member_meal_logs WHERE user_id = ? AND meal_id = ? AND log_date = CURDATE()"
         );
-        $stmtCheckLog->execute([$userId, $normalizedType]);
+        $stmtCheckLog->execute([$userId, $mealId]);
         $existingLog = $stmtCheckLog->fetch();
 
         if ($existingLog) {
             $loggedTime = date('g:i A', strtotime($existingLog['logged_at']));
-            $errMsg = "{$normalizedType} already logged today at {$loggedTime}. You can log {$normalizedType} again tomorrow.";
+            $errMsg = "{$normalizedType} from your scheduled plan was already logged today at {$loggedTime}.";
             if ($isAjax) {
                 if (ob_get_level()) ob_clean();
                 header('Content-Type: application/json');
@@ -150,6 +162,7 @@ function log_macros_page(): void
 
     $loggedAt = null;
     $loggedTime = null;
+    $savedFoodName = null;
 
     try {
         if ($mode === 'reset') {
@@ -161,8 +174,9 @@ function log_macros_page(): void
             $pdo->prepare('DELETE FROM member_meal_logs WHERE user_id = ? AND log_date = CURDATE()')->execute([$userId]);
             $calories = $protein = $carbs = $fat = 0;
         } elseif ($mode === 'add') {
-            // Save specific meal slot to member_meal_logs
+            // Save specific meal slot to member_meal_logs (both planned and custom/AI manual meals)
             if (!empty($normalizedType)) {
+                $savedFoodName = !empty($foodItems) ? trim($foodItems) : ($normalizedType . ' Log');
                 $stmtInsertMeal = $pdo->prepare(
                     "INSERT INTO member_meal_logs 
                      (user_id, meal_type, log_date, meal_id, food_items, calories, protein_g, carbs_g, fat_g, logged_at) 
@@ -172,7 +186,7 @@ function log_macros_page(): void
                     $userId,
                     $normalizedType,
                     $mealId ?: null,
-                    $foodItems ?: null,
+                    $savedFoodName,
                     $addedCals,
                     $addedPro,
                     $addedCarbs,
@@ -189,7 +203,7 @@ function log_macros_page(): void
                         $insLogFood->execute([
                             $newLogId,
                             $matchedFoodId ? (int)$matchedFoodId : null,
-                            $foodItems ?: $normalizedType,
+                            $savedFoodName,
                             $addedCals,
                             $addedPro,
                             $addedCarbs,
@@ -287,13 +301,17 @@ function log_macros_page(): void
         header('Content-Type: application/json');
         echo json_encode([
             'success'      => true,
+            'log_id'       => $newLogId ?? null,
             'mode'         => $mode,
             'meal_type'    => $normalizedType,
             'meal_id'      => $mealId,
-            'food_items'   => $foodItems ?: null,
+            'food_items'   => !empty($savedFoodName) ? $savedFoodName : ($foodItems ?: $normalizedType),
             'logged_at'    => $loggedAt ?? date('Y-m-d H:i:s'),
             'logged_time'  => $loggedTime ?? date('g:i A'),
             'added_cals'   => $addedCals,
+            'added_pro'    => $addedPro,
+            'added_carbs'  => $addedCarbs,
+            'added_fat'    => $addedFat,
             'logged_cals'  => $calories,
             'logged_pro'   => $protein,
             'logged_carbs' => $carbs,

@@ -29,8 +29,13 @@ function gym_map_page(): void
                 ->execute([$user['user_id'], $gymId]);
             clear_member_gyms_cache((int)$user['user_id']);
             $_SESSION['current_gym_id'] = $gymId;
-            flash('Successfully switched active gym to ' . $targetGym['name'] . '.', 'success');
-            redirect('index.php?page=dashboard');
+            flash('Successfully affiliated with ' . $targetGym['name'] . '.', 'success');
+            $redirectTarget = !empty($_POST['redirect_to']) ? trim((string)$_POST['redirect_to']) : '';
+            if ($redirectTarget !== '' && (str_starts_with($redirectTarget, 'index.php?') || str_starts_with($redirectTarget, '/'))) {
+                redirect($redirectTarget);
+            } else {
+                redirect('index.php?page=dashboard');
+            }
             return;
         }
     }
@@ -41,7 +46,7 @@ function gym_map_page(): void
         WHERE status = 'approved'
     ")->fetchAll();
 
-    $gymData = load_gym_selection_data($gyms);
+    $gymData = load_gym_selection_data($gyms, (int)$user['user_id']);
 
     render_header('Gym Locations Map', $user);
     ?>

@@ -39,7 +39,7 @@ if (!function_exists('get_gym_pause_notice')) {
     }
 }
 
-function load_gym_selection_data(array $gyms): array
+function load_gym_selection_data(array $gyms, ?int $userId = null): array
 {
     if (function_exists('hydrate_gym_rows')) {
         $gyms = hydrate_gym_rows($gyms);
@@ -55,6 +55,25 @@ function load_gym_selection_data(array $gyms): array
             }
         }
     } catch (Throwable) {}
+
+    if ($userId === null && !empty($_SESSION['user_id'])) {
+        $userId = (int) $_SESSION['user_id'];
+    }
+    $affiliatedGymMap = [];
+    if ($userId !== null && $userId > 0) {
+        try {
+            $affRows = query_all('
+                SELECT gym_id FROM gym_members WHERE user_id = ?
+                UNION
+                SELECT mp.gym_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND m.status = "active"
+            ', [$userId, $userId]);
+            foreach ($affRows as $row) {
+                $affiliatedGymMap[(int) $row['gym_id']] = true;
+            }
+        } catch (Throwable $e) {
+            error_log('Failed to query member affiliated gyms: ' . $e->getMessage());
+        }
+    }
 
     $eligibleGyms = array_values(array_filter(
         $gyms,
@@ -166,6 +185,7 @@ function load_gym_selection_data(array $gyms): array
         $gym['rating_stats'] = $ratingsByGym[$gymId];
         $gym['xendit_enabled'] = $xenditConfigured
             && trim((string) ($gym['xendit_subaccount_id'] ?? '')) !== '';
+        $gym['is_affiliated'] = !empty($affiliatedGymMap[$gymId]);
         if (!gym_has_feature('custom_branding', $gym)) {
             $gym['brand_color'] = null;
         }

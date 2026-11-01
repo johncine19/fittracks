@@ -2106,3 +2106,22 @@ html[data-theme="light"] .btn-card-action {
     white-space: nowrap !important;
 }
 
+
+
+/* ── Inactive / Deleted User Status Pill ── */
+.user-status-pill.is-inactive {
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+html[data-theme="light"] .user-status-pill.is-inactive {
+    background: #f1f5f9;
+    color: #64748b;
+    border-color: #e2e8f0;
+}
+.user-status-pill.is-inactive .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #94a3b8;
+}

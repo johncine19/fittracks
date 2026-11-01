@@ -137,7 +137,16 @@ As the member logs new weigh-ins or progress data, the system periodically check
 | Trainer | Review/adjust diet plans, manage training plans, log member progress |
 | User/Member | View own diet & training plan, book classes, log progress, manage billing |
 
-## IX. Future Enhancements
+## IX. Facility Decommissioning & Account Deletion Protocol
+
+When a gym owner permanently deletes their account:
+- **Financial Protection:** Account deletion is blocked while members have active, unexpired paid subscriptions.
+- **Facility & Plans:** The gym facility is marked `rejected`/inactive and its membership plans are archived (`is_active = 0`).
+- **Staff & Trainers:** All associated staff and trainer accounts belonging to the gym are automatically deactivated and anonymized, with active coaching assignments gracefully ended.
+- **Member Preservation:** Members are unlinked from the gym but their FitTracks user accounts, personal workout logs, custom dietary plans, meal records, and progress histories remain 100% active and preserved.
+- For complete technical and security details, see [GYM_OWNER_ACCOUNT_DELETION.md](GYM_OWNER_ACCOUNT_DELETION.md).
+
+## X. Future Enhancements
 
 - Mobile app companion for check-ins and meal logging on the go.
 - Wearable device integration (e.g., syncing steps/heart rate to refine activity level estimates).

@@ -35,7 +35,7 @@ window.actPeakChart = null;
 let actAutoRefreshTimer = null;
 
     function switchMemberDashboardTab(tabId) {
-        const tabs = ['today', 'activity', 'missions', 'explore'];
+        const tabs = ['today', 'activity', 'missions'];
         if (!tabs.includes(tabId)) tabId = 'today';
 
         tabs.forEach(t => {
@@ -800,9 +800,9 @@ let actAutoRefreshTimer = null;
         const hash = window.location.hash.replace('#', '');
         const savedTab = localStorage.getItem('fit_member_dashboard_tab');
 
-        if (['today', 'activity', 'missions', 'explore'].includes(hash)) {
+        if (['today', 'activity', 'missions'].includes(hash)) {
             initialTab = hash;
-        } else if (['today', 'activity', 'missions', 'explore'].includes(savedTab)) {
+        } else if (['today', 'activity', 'missions'].includes(savedTab)) {
             initialTab = savedTab;
         }
 
