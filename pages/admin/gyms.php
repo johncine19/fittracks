@@ -114,7 +114,14 @@ function gyms_page(): void
             $xenditSubaccountId = trim((string) post('xendit_subaccount_id'));
             $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
             $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
-            $payoutNumber = trim((string) post('payout_account_number')) ?: null;
+            $payoutNumberRaw = trim((string) post('payout_account_number'));
+            $payoutNumberDigits = preg_replace('/\D/', '', $payoutNumberRaw);
+            $payoutNumber = $payoutNumberDigits !== '' ? substr($payoutNumberDigits, 0, 11) : null;
+            if ($payoutNumberDigits !== '' && strlen($payoutNumber) !== 11) {
+                flash('Payout account number must be numbers only and exactly 11 digits (e.g. 09171234567).', 'danger');
+                redirect('gyms');
+                return;
+            }
             $payoutName = trim((string) post('payout_account_name')) ?: null;
 
             save_gym_payout_account($gymId, [
@@ -166,6 +173,18 @@ function gyms_page(): void
     if (!in_array($subStatusFilter, ['all', 'active', 'trialing', 'expired', 'inactive'], true)) {
         $subStatusFilter = 'all';
     }
+
+    $sort = strtolower(trim((string)($_GET['sort'] ?? 'name_asc')));
+    if (!in_array($sort, ['name_asc', 'name_desc', 'newest', 'oldest'], true)) {
+        $sort = 'name_asc';
+    }
+
+    $orderBySql = match ($sort) {
+        'name_desc' => 'TRIM(g.name) DESC, g.name DESC',
+        'newest' => 'g.created_at DESC, g.gym_id DESC',
+        'oldest' => 'g.created_at ASC, g.gym_id ASC',
+        default => 'TRIM(g.name) ASC, g.name ASC',
+    };
 
     $page = max(1, (int)($_GET['p'] ?? 1));
     $perPage = 10;
@@ -251,7 +270,7 @@ function gyms_page(): void
         FROM gyms g 
         JOIN users u ON u.user_id = g.owner_user_id 
         WHERE {$whereSql} 
-        ORDER BY g.created_at DESC 
+        ORDER BY {$orderBySql} 
         LIMIT :limit OFFSET :offset
     ");
     foreach ($params as $k => $v) {
@@ -267,7 +286,7 @@ function gyms_page(): void
     }
 
     $availablePlatformPlans = get_platform_subscription_plans();
-    $hasActiveFilters = ($facilityStatus !== 'all' || ($planFilter !== 'all' && $planFilter !== '') || $subStatusFilter !== 'all' || $q !== '');
+    $hasActiveFilters = ($facilityStatus !== 'all' || ($planFilter !== 'all' && $planFilter !== '') || $subStatusFilter !== 'all' || $q !== '' || $sort !== 'name_asc');
 
     // Build pagination base URL preserving active filters
     $paginationParams = ['page' => 'gyms'];
@@ -279,6 +298,9 @@ function gyms_page(): void
     }
     if ($subStatusFilter !== 'all') {
         $paginationParams['sub_status'] = $subStatusFilter;
+    }
+    if ($sort !== 'name_asc') {
+        $paginationParams['sort'] = $sort;
     }
     if ($q !== '') {
         $paginationParams['q'] = $q;
@@ -1109,18 +1131,29 @@ function gyms_page(): void
         </div>
 
         <?php
-        $statusNavUrl = function(string $s) use ($q, $planFilter, $subStatusFilter): string {
+        $statusNavUrl = function(string $s) use ($q, $planFilter, $subStatusFilter, $sort): string {
             $params = ['page' => 'gyms', 'status' => $s];
             if ($planFilter !== 'all' && $planFilter !== '') $params['plan'] = $planFilter;
             if ($subStatusFilter !== 'all') $params['sub_status'] = $subStatusFilter;
+            if ($sort !== 'name_asc') $params['sort'] = $sort;
             if ($q !== '') $params['q'] = $q;
             return 'index.php?' . http_build_query($params);
         };
-        $clearSearchUrl = function() use ($facilityStatus, $planFilter, $subStatusFilter): string {
+        $clearSearchUrl = function() use ($facilityStatus, $planFilter, $subStatusFilter, $sort): string {
             $params = ['page' => 'gyms'];
             if ($facilityStatus !== 'all') $params['status'] = $facilityStatus;
             if ($planFilter !== 'all' && $planFilter !== '') $params['plan'] = $planFilter;
             if ($subStatusFilter !== 'all') $params['sub_status'] = $subStatusFilter;
+            if ($sort !== 'name_asc') $params['sort'] = $sort;
+            return 'index.php?' . http_build_query($params);
+        };
+        $sortUrl = function(string $targetSort) use ($facilityStatus, $planFilter, $subStatusFilter, $q): string {
+            $params = ['page' => 'gyms'];
+            if ($facilityStatus !== 'all') $params['status'] = $facilityStatus;
+            if ($planFilter !== 'all' && $planFilter !== '') $params['plan'] = $planFilter;
+            if ($subStatusFilter !== 'all') $params['sub_status'] = $subStatusFilter;
+            if ($targetSort !== 'name_asc') $params['sort'] = $targetSort;
+            if ($q !== '') $params['q'] = $q;
             return 'index.php?' . http_build_query($params);
         };
         ?>
@@ -1174,6 +1207,13 @@ function gyms_page(): void
                         <option value="inactive" <?= selected($subStatusFilter, 'inactive') ?>>Inactive</option>
                     </select>
 
+                    <select name="sort" class="gyms-select" onchange="this.form.submit()">
+                        <option value="name_asc" <?= selected($sort, 'name_asc') ?>>Gym Name (A–Z)</option>
+                        <option value="name_desc" <?= selected($sort, 'name_desc') ?>>Gym Name (Z–A)</option>
+                        <option value="newest" <?= selected($sort, 'newest') ?>>Newest First</option>
+                        <option value="oldest" <?= selected($sort, 'oldest') ?>>Oldest First</option>
+                    </select>
+
                     <?php if ($hasActiveFilters): ?>
                         <a href="index.php?page=gyms" class="gyms-reset-btn" title="Reset all filters">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -1222,7 +1262,18 @@ function gyms_page(): void
             <table>
                 <thead>
                     <tr>
-                        <th>Gym Name</th>
+                        <th>
+                            <a href="<?= h($sortUrl($sort === 'name_asc' ? 'name_desc' : 'name_asc')) ?>" style="color:inherit; text-decoration:none; display:inline-flex; align-items:center; gap:5px;" title="Sort by Gym Name <?= $sort === 'name_asc' ? '(A-Z active, click for Z-A)' : '(click for A-Z)' ?>">
+                                <span>Gym Name</span>
+                                <?php if ($sort === 'name_asc'): ?>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                                <?php elseif ($sort === 'name_desc'): ?>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                <?php else: ?>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.4;"><polyline points="7 15 12 20 17 15"></polyline><polyline points="7 9 12 4 17 9"></polyline></svg>
+                                <?php endif; ?>
+                            </a>
+                        </th>
                         <th>Member Rating</th>
                         <th>Owner</th>
                         <th>Email</th>
@@ -1904,7 +1955,16 @@ function gyms_page(): void
                             </select>
                         </label>
                         <label style="flex: 1.5; display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Account / GCash #
-                            <input id="swal-payout-number" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safePayoutNumber}" placeholder="09171234567">
+                            <input id="swal-payout-number" 
+                                   type="tel" 
+                                   inputmode="numeric" 
+                                   maxlength="11" 
+                                   class="form-control" 
+                                   style="width: 100%; box-sizing: border-box; margin-top: 4px;" 
+                                   value="${safePayoutNumber}" 
+                                   placeholder="09171234567"
+                                   oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 11)">
+                            <small style="display:block; margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: normal;">Numbers only, exactly 11 digits</small>
                         </label>
                     </div>
 
@@ -1929,11 +1989,30 @@ function gyms_page(): void
             background: 'var(--bg)',
             color: 'var(--ink)',
             width: '490px',
+            didOpen: () => {
+                const pNumInput = document.getElementById('swal-payout-number');
+                if (pNumInput) {
+                    pNumInput.addEventListener('input', function() {
+                        this.value = this.value.replace(/\D/g, '').slice(0, 11);
+                    });
+                    pNumInput.addEventListener('paste', function() {
+                        setTimeout(() => {
+                            this.value = this.value.replace(/\D/g, '').slice(0, 11);
+                        }, 10);
+                    });
+                }
+            },
             preConfirm: () => {
                 const payoutChan = document.getElementById('swal-payout-channel').value;
-                const payoutNum = document.getElementById('swal-payout-number').value.trim();
+                const payoutNumRaw = document.getElementById('swal-payout-number').value.trim();
+                const payoutNum = payoutNumRaw.replace(/\D/g, '').slice(0, 11);
                 const payoutName = document.getElementById('swal-payout-name').value.trim();
                 const xenditAccount = document.getElementById('swal-xendit-account').value.trim();
+
+                if (payoutNumRaw !== '' && payoutNum.length !== 11) {
+                    Swal.showValidationMessage('Payout account number must be numbers only and exactly 11 digits (e.g. 09171234567).');
+                    return false;
+                }
 
                 document.getElementById('modal-payout-gym-id').value = gymId;
                 document.getElementById('modal-payout-channel').value = payoutChan;

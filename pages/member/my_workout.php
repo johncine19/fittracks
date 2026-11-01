@@ -381,7 +381,7 @@ function my_workout_page(): void
             <?php if ($isSelfGuided): ?>
                 <form id="regenerate-plan-form" class="workout-action-form" method="post">
                     <?= csrf_field() ?>
-                    <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one based on your profile. Continue?' : 'Generate a new AI workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, Regenerate Plan' : 'Yes, Generate Plan' ?>" class="btn btn-workout-action">
+                    <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one based on your profile. Continue?' : 'Generate a new system-recommended workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, Regenerate Plan' : 'Yes, Generate Plan' ?>" class="btn btn-workout-action">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
                         <span><?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?></span>
                     </button>
@@ -395,6 +395,44 @@ function my_workout_page(): void
                 </div>
             <?php endif; ?>
         </div>
+
+        <?php if ($isSelfGuided && !$hasTrainerPlan): ?>
+            <!-- Self-Guided Recommendation Notice -->
+            <div class="self-guided-coach-banner animate-fade-in" id="self-guided-workout-notice" role="complementary" aria-label="Personal trainer recommendation">
+                <div class="coach-banner-left">
+                    <div class="coach-banner-icon-wrap" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </div>
+                    <div class="coach-banner-content">
+                        <div class="coach-banner-header">
+                            <strong class="coach-banner-title">Pro Tip: Take Your Results to the Next Level</strong>
+                            <span class="coach-banner-badge">System Recommended</span>
+                        </div>
+                        <p class="coach-banner-text">
+                            This system-recommended plan offers a baseline for your fitness goals. For 1-on-1 form correction, tailored adjustments, and maximum accountability, connect with one of our certified personal trainers or upgrade to a gym membership.
+                        </p>
+                    </div>
+                </div>
+                <div class="coach-banner-actions">
+                    <a href="index.php?page=trainers" class="coach-banner-cta">
+                        <span>Browse Certified Trainers</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </a>
+                </div>
+                <button type="button" class="coach-banner-close" onclick="document.getElementById('self-guided-workout-notice').style.display='none'; sessionStorage.setItem('dismiss_coach_banner_workout', '1');" title="Dismiss notice" aria-label="Dismiss notice">&times;</button>
+            </div>
+            <script>
+                if (sessionStorage.getItem('dismiss_coach_banner_workout') === '1') {
+                    const wNotice = document.getElementById('self-guided-workout-notice');
+                    if (wNotice) wNotice.style.display = 'none';
+                }
+            </script>
+        <?php endif; ?>
 
         <?php if ($plan && empty($planExercises)): ?>
             <!-- Safeguard when plan exists but has 0 exercises configured -->

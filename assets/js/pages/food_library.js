@@ -941,7 +941,7 @@ function initMobileFoodTabDropdown() {
     const items = [
         {
             id: 'library',
-            label: 'Food Catalog',
+            label: isPlatformAdmin ? 'Food Catalog' : 'My Gym Foods',
             icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>'
         }];
 
@@ -951,6 +951,12 @@ function initMobileFoodTabDropdown() {
             label: pendingCount > 0 ? ('Custom Food Approvals (' + pendingCount + ')') : 'Custom Food Approvals',
             subtitle: pendingCount > 0 ? (pendingCount + ' pending') : '',
             icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>'
+        });
+    } else {
+        items.push({
+            id: 'import',
+            label: 'Import Platform Foods',
+            icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
         });
     }
 
@@ -1053,4 +1059,141 @@ if (document.readyState === 'loading') {
 } else {
     initMobileFoodDropdowns();
 }
+
+// ========================================================
+// Batch Selection & Multi-Food Import System
+// ========================================================
+function onFoodItemCheckboxChange(cb, foodId) {
+    const card = document.getElementById('food-card-' + foodId);
+    if (card) {
+        if (cb.checked) {
+            card.classList.add('is-selected');
+        } else {
+            card.classList.remove('is-selected');
+        }
+    }
+    updateImportSelectionUI();
+}
+
+function toggleSelectAllImport(masterCb) {
+    const isChecked = masterCb.checked;
+    const checkboxes = document.querySelectorAll('.food-item-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        const foodId = cb.value;
+        const card = document.getElementById('food-card-' + foodId);
+        if (card) {
+            if (isChecked) {
+                card.classList.add('is-selected');
+            } else {
+                card.classList.remove('is-selected');
+            }
+        }
+    });
+    updateImportSelectionUI();
+}
+
+function clearImportSelection() {
+    const masterCb = document.getElementById('selectAllImportCheckbox');
+    if (masterCb) masterCb.checked = false;
+    const checkboxes = document.querySelectorAll('.food-item-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+        const foodId = cb.value;
+        const card = document.getElementById('food-card-' + foodId);
+        if (card) card.classList.remove('is-selected');
+    });
+    updateImportSelectionUI();
+}
+
+function updateImportSelectionUI() {
+    const checked = document.querySelectorAll('.food-item-checkbox:checked');
+    const total = document.querySelectorAll('.food-item-checkbox');
+    const count = checked.length;
+
+    const countBadge = document.getElementById('importSelectionCountBadge');
+    if (countBadge) {
+        countBadge.textContent = count + ' selected';
+        if (count > 0) {
+            countBadge.style.color = 'var(--ink)';
+            countBadge.style.borderColor = 'var(--lime)';
+            countBadge.style.background = 'rgba(74, 222, 128, 0.1)';
+        } else {
+            countBadge.style.color = 'var(--muted)';
+            countBadge.style.borderColor = 'var(--line)';
+            countBadge.style.background = 'rgba(255,255,255,0.05)';
+        }
+    }
+
+    const clearBtn = document.getElementById('btnClearSelection');
+    if (clearBtn) {
+        clearBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+
+    const importBtn = document.getElementById('btnImportSelected');
+    const importBtnText = document.getElementById('btnImportSelectedText');
+    if (importBtn && importBtnText) {
+        if (count > 0) {
+            importBtn.disabled = false;
+            importBtn.style.opacity = '1';
+            importBtn.style.cursor = 'pointer';
+            importBtnText.textContent = 'Import Selected (' + count + ')';
+        } else {
+            importBtn.disabled = true;
+            importBtn.style.opacity = '0.45';
+            importBtn.style.cursor = 'not-allowed';
+            importBtnText.textContent = 'Import Selected (0)';
+        }
+    }
+
+    const masterCb = document.getElementById('selectAllImportCheckbox');
+    if (masterCb && total.length > 0) {
+        masterCb.checked = (count === total.length);
+        masterCb.indeterminate = (count > 0 && count < total.length);
+    }
+}
+
+function submitImportSelected() {
+    const checked = document.querySelectorAll('.food-item-checkbox:checked');
+    if (checked.length === 0) {
+        if (window.Swal) {
+            Swal.fire({
+                icon: 'info',
+                title: 'No Foods Selected',
+                text: 'Please select one or more food items using the checkboxes.',
+                background: 'var(--bg)',
+                color: 'var(--ink)'
+            });
+        } else {
+            alert('Please select one or more food items using the checkboxes.');
+        }
+        return false;
+    }
+
+    const container = document.getElementById('hiddenFoodInputs');
+    if (!container) return false;
+    container.innerHTML = '';
+
+    checked.forEach(cb => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'food_ids[]';
+        input.value = cb.value;
+        container.appendChild(input);
+    });
+
+    return true;
+}
+
+function validateImportSelectedSubmit() {
+    return submitImportSelected();
+}
+
+window.onFoodItemCheckboxChange = onFoodItemCheckboxChange;
+window.toggleSelectAllImport = toggleSelectAllImport;
+window.clearImportSelection = clearImportSelection;
+window.updateImportSelectionUI = updateImportSelectionUI;
+window.submitImportSelected = submitImportSelected;
+window.validateImportSelectedSubmit = validateImportSelectedSubmit;
+
 

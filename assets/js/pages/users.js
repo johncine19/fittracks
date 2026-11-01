@@ -98,7 +98,39 @@ if (FT_USERS_CONFIG.hasOldUser) {
         }
     }
 
+    window.toggleUserActionDropdown = function(btn, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        const dropdown = btn.closest('.action-kebab-dropdown');
+        if (!dropdown) return;
+
+        const isOpen = dropdown.classList.contains('is-open');
+        closeAllUserActionDropdowns();
+
+        if (!isOpen) {
+            dropdown.classList.remove('drop-up');
+            dropdown.classList.add('is-open');
+
+            const triggerRect = btn.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - triggerRect.bottom;
+            const spaceAbove = triggerRect.top;
+
+            if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+                dropdown.classList.add('drop-up');
+            }
+        }
+    };
+
+    window.closeAllUserActionDropdowns = function() {
+        document.querySelectorAll('.action-kebab-dropdown.is-open').forEach(el => el.classList.remove('is-open'));
+    };
+
     document.addEventListener('click', function(e) {
+        if (!e.target.closest('.action-kebab-dropdown')) {
+            closeAllUserActionDropdowns();
+        }
+
         const editBtn = e.target.closest('.btn-edit-user');
         if (editBtn) {
             try {
@@ -461,6 +493,11 @@ if (FT_USERS_CONFIG.hasOldUser) {
             col.style.display = (CURRENT_TAB === 'trainer') ? '' : 'none';
         });
 
+        const memCols = document.querySelectorAll('.col-membership');
+        memCols.forEach(col => {
+            col.style.display = (CURRENT_TAB === 'member') ? '' : 'none';
+        });
+
         const scoreCols = document.querySelectorAll('.col-score');
         scoreCols.forEach(col => {
             col.style.display = (CURRENT_TAB === 'member') ? '' : 'none';
@@ -527,6 +564,32 @@ if (FT_USERS_CONFIG.hasOldUser) {
             </div>`;
         }
 
+        let membershipHtml = '<span class="muted">—</span>';
+        if (u.is_member) {
+            if (u.membership_plan_name) {
+                const mStatus = (u.membership_status || '').toLowerCase();
+                const isMActive = (mStatus === 'active');
+                const endDateStr = u.membership_end_date ? ` · ${escapeUserHtml(u.membership_end_date)}` : '';
+                membershipHtml = `
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <span style="font-weight: 600; color: var(--ink); font-size: 13.5px;" title="${escapeUserHtml(u.membership_plan_name)}">
+                        ${escapeUserHtml(u.membership_plan_name)}
+                    </span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="user-status-pill is-${isMActive ? 'active' : 'inactive'}" style="font-size: 10px; padding: 1px 6px;">
+                            ${escapeUserHtml(mStatus.charAt(0).toUpperCase() + mStatus.slice(1))}
+                        </span>
+                        <span style="font-size: 11px; color: var(--muted);">${endDateStr}</span>
+                    </div>
+                </div>`;
+            } else {
+                membershipHtml = `
+                <span class="user-status-pill" style="font-size: 11px; padding: 2px 7px; background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid var(--line);">
+                    No Plan
+                </span>`;
+            }
+        }
+
         return `
         <tr class="user-table-row" data-name="${escapeUserHtml(u.full_name.toLowerCase())}" data-email="${escapeUserHtml(u.email.toLowerCase())}" data-phone="${escapeUserHtml(u.phone)}" data-role="${escapeUserHtml(u.role)}" data-id="${u.user_id}">
             <td>
@@ -551,6 +614,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
             </td>
             ${IS_ADMIN ? `<td class="user-gym-td">${associatedGymHtml}</td>` : ''}
             <td class="col-spec" style="${CURRENT_TAB === 'trainer' ? '' : 'display: none;'}">${specHtml}</td>
+            <td class="col-membership" style="${CURRENT_TAB === 'member' ? '' : 'display: none;'}">${membershipHtml}</td>
             <td class="col-score" style="${CURRENT_TAB === 'member' ? '' : 'display: none;'}">${scoreHtml}</td>
             <td>
                 <span class="user-status-pill is-${escapeUserHtml(u.status)}">
@@ -572,25 +636,50 @@ if (FT_USERS_CONFIG.hasOldUser) {
                             <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option>
                         </select>
                     </form>
-                    <button type="button" class="btn-user-action btn-edit-user" data-user="${rawUserJson}" title="Edit User">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        <span>Edit</span>
-                    </button>
-                    ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
-                        <button type="button" class="btn-user-action btn-user-progress btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" title="View Member Progress">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                            <span>Progress</span>
+                    <div class="action-kebab-dropdown">
+                        <button type="button" 
+                                class="action-kebab-btn" 
+                                onclick="toggleUserActionDropdown(this, event)" 
+                                title="More actions"
+                                aria-label="More actions">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="2"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                                <circle cx="12" cy="19" r="2"></circle>
+                            </svg>
                         </button>
-                        <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="btn-user-action btn-user-diet" title="Manage Diet Plan">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            <span>Diet</span>
-                        </a>
-                    ` : ''}
-                    ${u.can_delete ? `
-                        <button type="button" class="btn-user-action btn-action-delete btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" title="Delete User">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </button>
-                    ` : ''}
+                        <div class="action-kebab-menu">
+                            <button type="button" class="action-kebab-item btn-edit-user" data-user="${rawUserJson}" onclick="closeAllUserActionDropdowns()">
+                                <span class="action-item-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                </span>
+                                <span class="action-item-text">Edit</span>
+                            </button>
+                            ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
+                                <button type="button" class="action-kebab-item btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" onclick="closeAllUserActionDropdowns()" title="View Member Progress">
+                                    <span class="action-item-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    </span>
+                                    <span class="action-item-text">Progress</span>
+                                </button>
+                                <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="action-kebab-item" onclick="closeAllUserActionDropdowns()" title="Manage Diet Plan">
+                                    <span class="action-item-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    </span>
+                                    <span class="action-item-text">Diet</span>
+                                </a>
+                            ` : ''}
+                            ${u.can_delete ? `
+                                <div class="action-kebab-divider"></div>
+                                <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
+                                    <span class="action-item-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </span>
+                                    <span class="action-item-text">Delete</span>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
             </td>
         </tr>
@@ -671,6 +760,15 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 ${u.role === 'member' ? `
                 <div class="user-card-detail-item">
                     <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                        Membership
+                    </span>
+                    <span class="user-card-detail-value" style="font-weight: 600;">
+                        ${u.membership_plan_name ? `${escapeUserHtml(u.membership_plan_name)} <span style="font-size: 11px; font-weight: normal; color: ${(u.membership_status || '').toLowerCase() === 'active' ? 'var(--lime)' : 'var(--muted)'};">(${escapeUserHtml((u.membership_status || '').charAt(0).toUpperCase() + (u.membership_status || '').slice(1))})</span>` : '<span style="color: var(--muted); font-style: italic;">No Plan</span>'}
+                    </span>
+                </div>
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         Engagement
                     </span>
@@ -692,26 +790,50 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 </form>
                 
                 <div class="user-card-btn-group">
-                    <button type="button" class="btn-card-action btn-edit-user" data-user="${rawUserJson}">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                        <span>Edit</span>
-                    </button>
-                    ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
-                        <button type="button" class="btn-card-action btn-card-progress btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" title="View Member Progress">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                            <span>Progress</span>
+                    <div class="action-kebab-dropdown">
+                        <button type="button" 
+                                class="action-kebab-btn" 
+                                onclick="toggleUserActionDropdown(this, event)" 
+                                title="More actions"
+                                aria-label="More actions">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="2"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                                <circle cx="12" cy="19" r="2"></circle>
+                            </svg>
                         </button>
-                        <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="btn-card-action btn-card-diet" title="Manage Diet Plan">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            <span>Diet</span>
-                        </a>
-                    ` : ''}
-                    ${u.can_delete ? `
-                    <button type="button" class="btn-card-action btn-card-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" title="Delete User">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        <span>Delete</span>
-                    </button>
-                    ` : ''}
+                        <div class="action-kebab-menu">
+                            <button type="button" class="action-kebab-item btn-edit-user" data-user="${rawUserJson}" onclick="closeAllUserActionDropdowns()">
+                                <span class="action-item-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                </span>
+                                <span class="action-item-text">Edit</span>
+                            </button>
+                            ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
+                                <button type="button" class="action-kebab-item btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" onclick="closeAllUserActionDropdowns()" title="View Member Progress">
+                                    <span class="action-item-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                    </span>
+                                    <span class="action-item-text">Progress</span>
+                                </button>
+                                <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="action-kebab-item" onclick="closeAllUserActionDropdowns()" title="Manage Diet Plan">
+                                    <span class="action-item-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                    </span>
+                                    <span class="action-item-text">Diet</span>
+                                </a>
+                            ` : ''}
+                            ${u.can_delete ? `
+                                <div class="action-kebab-divider"></div>
+                                <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
+                                    <span class="action-item-icon">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </span>
+                                    <span class="action-item-text">Delete</span>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

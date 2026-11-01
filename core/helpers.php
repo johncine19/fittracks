@@ -1915,7 +1915,9 @@ function sync_trainer_assignments_with_memberships(?int $memberUserId = null): a
                         )" . $userCondition;
         $extended = (int) $pdo->exec($extendSql);
 
-        // 2. Automatically end active assignments if the member has no active membership plan
+        // 2. Automatically end active assignments when:
+        // - Appointment scheduled end date and assigned date have passed (< CURDATE()), and
+        // - Member has no active membership plan covering them.
         $endSql = "UPDATE trainer_assignments ca
                    SET ca.status = 'ended',
                        ca.ended_date = COALESCE(
@@ -1924,6 +1926,8 @@ function sync_trainer_assignments_with_memberships(?int $memberUserId = null): a
                            CURDATE()
                        )
                    WHERE ca.status = 'active'
+                     AND (ca.ended_date IS NULL OR ca.ended_date < CURDATE())
+                     AND (ca.assigned_date IS NULL OR ca.assigned_date < CURDATE())
                      AND NOT EXISTS (
                        SELECT 1 
                        FROM memberships m_active 

@@ -95,6 +95,7 @@ function render_header(string $title, ?array $user = null): void
                 'notifications' => 'Notifications',
                 'qr_attendance' => 'My QR',
                 'equipment' => 'Equipment',
+                'exercises' => 'Exercises',
                 'trainer_members' => 'Clients',
                 'training' => 'Workouts',
                 'food_library' => 'Food Library',
@@ -1789,6 +1790,180 @@ function render_header(string $title, ?array $user = null): void
                 display: none !important;
             }
         }
+
+        /* ── SELF-GUIDED SYSTEM RECOMMENDED COACH BANNER ──────────────── */
+        .self-guided-coach-banner {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 44px 14px 18px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, color-mix(in srgb, var(--lime, #84cc16) 9%, var(--panel, #12181f)) 0%, var(--panel, #12181f) 100%);
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 28%, var(--line, rgba(255,255,255,0.08)));
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+        [data-theme="light"] .self-guided-coach-banner {
+            background: linear-gradient(135deg, color-mix(in srgb, var(--lime, #84cc16) 12%, #ffffff) 0%, #ffffff 100%);
+            border-color: color-mix(in srgb, var(--lime, #84cc16) 40%, #e2e8f0);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+        }
+        .coach-banner-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+            flex: 1;
+        }
+        .coach-banner-icon-wrap {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--lime, #84cc16) 16%, transparent);
+            color: var(--lime, #84cc16);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 30%, transparent);
+        }
+        [data-theme="light"] .coach-banner-icon-wrap {
+            background: color-mix(in srgb, var(--lime, #84cc16) 20%, #f0fdf4);
+            border-color: color-mix(in srgb, var(--lime, #84cc16) 45%, #bbf7d0);
+        }
+        .coach-banner-content {
+            min-width: 0;
+            flex: 1;
+        }
+        .coach-banner-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+        .coach-banner-title {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: var(--ink, #fff);
+        }
+        [data-theme="light"] .coach-banner-title {
+            color: #0f172a;
+        }
+        .coach-banner-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
+            color: var(--lime, #84cc16);
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 35%, transparent);
+            white-space: nowrap;
+        }
+        [data-theme="light"] .coach-banner-badge {
+            background: color-mix(in srgb, var(--lime, #84cc16) 25%, #f7fee7);
+            color: #3f6212;
+            border-color: color-mix(in srgb, var(--lime, #84cc16) 55%, #bef264);
+        }
+        .coach-banner-text {
+            margin: 0;
+            font-size: 12.5px;
+            line-height: 1.45;
+            color: var(--muted, #94a3b8);
+        }
+        [data-theme="light"] .coach-banner-text {
+            color: #475569;
+        }
+        .coach-banner-actions {
+            flex-shrink: 0;
+        }
+        .coach-banner-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--lime, #84cc16);
+            color: var(--lime-contrast, #080b0d) !important;
+            font-weight: 700;
+            font-size: 12.5px;
+            padding: 9px 15px;
+            border-radius: 10px;
+            text-decoration: none !important;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            white-space: nowrap;
+            border: none;
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--lime, #84cc16) 25%, transparent);
+        }
+        .coach-banner-cta:hover {
+            filter: brightness(1.08);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--lime, #84cc16) 35%, transparent);
+        }
+        .coach-banner-close {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            color: var(--muted, #94a3b8);
+            opacity: 0.6;
+            font-size: 19px;
+            line-height: 1;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+            padding: 0;
+        }
+        .coach-banner-close:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--ink, #fff);
+        }
+        [data-theme="light"] .coach-banner-close:hover {
+            background: rgba(0, 0, 0, 0.06);
+            color: #0f172a;
+        }
+        @media (max-width: 768px) {
+            .self-guided-coach-banner {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                padding: 13px 38px 13px 14px;
+            }
+            .coach-banner-left {
+                align-items: flex-start;
+                gap: 12px;
+            }
+            .coach-banner-icon-wrap {
+                width: 34px;
+                height: 34px;
+                margin-top: 2px;
+            }
+            .coach-banner-actions {
+                width: 100%;
+            }
+            .coach-banner-cta {
+                width: 100%;
+                justify-content: center;
+                padding: 10px 14px;
+            }
+            .coach-banner-close {
+                top: 14px;
+                transform: none;
+            }
+        }
+
         .sidebar-bottom a {
             padding: 9px 8px !important;
             gap: 8px !important;

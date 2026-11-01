@@ -30,17 +30,52 @@ function trainer_members_page(): void
             }
             // Scope to the logged-in trainer so a trainer cannot accept (and earn commission on) another trainer's assignment
             db()->prepare('UPDATE trainer_assignments SET status = "active" WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
-            $stmt = db()->prepare('SELECT member_user_id, assigned_by FROM trainer_assignments WHERE assignment_id = ? AND trainer_id = ?');
+            $stmt = db()->prepare('SELECT member_user_id, assigned_date, ended_date, assigned_by FROM trainer_assignments WHERE assignment_id = ? AND trainer_id = ?');
             $stmt->execute([$assignmentId, $coachId]);
             $assignment = $stmt->fetch();
             if ($assignment) {
-                notify_user((int)$assignment['member_user_id'], 'system', 'Appointment Accepted', 'Your trainer appointment request was accepted by the trainer.');
+                $memberUserId = (int)$assignment['member_user_id'];
+                $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$memberUserId]);
+                
+                $assignedDate = !empty($assignment['assigned_date']) ? (string)$assignment['assigned_date'] : '';
+                $endedDate = !empty($assignment['ended_date']) ? (string)$assignment['ended_date'] : '';
+                
+                $aptDateStr = '';
+                if ($assignedDate && $endedDate) {
+                    if (date('Y-m-d', strtotime($assignedDate)) === date('Y-m-d', strtotime($endedDate))) {
+                        $aptDateStr = date('M j, Y \a\t g:i A', strtotime($assignedDate)) . ' (Single Day)';
+                    } else {
+                        $aptDateStr = date('M j, Y \a\t g:i A', strtotime($assignedDate)) . ' to ' . date('M j, Y', strtotime($endedDate));
+                    }
+                } elseif ($assignedDate) {
+                    $aptDateStr = date('M j, Y \a\t g:i A', strtotime($assignedDate));
+                }
+
+                if ($hasActivePlan) {
+                    notify_user($memberUserId, 'system', 'Appointment Accepted', 'Your trainer appointment request was accepted by ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . '.');
+                    flash('Appointment accepted.');
+                } else {
+                    $notifMsg = 'Your appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Please prepare your personal session fee to pay the trainer directly at the appointment.';
+                    notify_user($memberUserId, 'system', 'Appointment Confirmed (Direct Payment)', $notifMsg);
+                    flash('Appointment accepted. Note: Client does not have an active gym membership plan and will pay you directly for the session.');
+                }
+
                 if ($assignment['assigned_by']) {
                     notify_user((int)$assignment['assigned_by'], 'system', 'Appointment Accepted', 'Trainer ' . $user['first_name'] . ' accepted the appointment request.');
                 }
-                grant_retroactive_commission((int)$assignment['member_user_id'], (int)$coachId);
+                grant_retroactive_commission($memberUserId, (int)$coachId);
             }
-            flash('Appointment accepted.');
+        } elseif (post('action') === 'complete_session') {
+            $assignmentId = (int) post('assignment_id');
+            db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = NOW() WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
+            $stmt = db()->prepare('SELECT member_user_id FROM trainer_assignments WHERE assignment_id = ?');
+            $stmt->execute([$assignmentId]);
+            $assignRow = $stmt->fetch();
+            if ($assignRow) {
+                notify_user((int)$assignRow['member_user_id'], 'system', 'Coaching Session Concluded', 'Your coaching session / appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ' has concluded. Thank you!');
+            }
+            flash('Coaching session marked as completed.');
+            redirect('trainer_members');
         } elseif (post('action') === 'reject_appointment') {
             $assignmentId = (int) post('assignment_id');
             $reason = post('rejection_reason');
@@ -65,6 +100,11 @@ function trainer_members_page(): void
     if (function_exists('sync_trainer_assignments_with_memberships')) {
         sync_trainer_assignments_with_memberships();
     }
+    
+    $tab = (isset($_GET['tab']) && $_GET['tab'] === 'past') ? 'past' : 'active';
+    $activeCount = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"', [$coachId]);
+    $pastCount = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "ended"', [$coachId]);
+
     $members = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
         mp.height_cm, mp.primary_goal,
@@ -74,12 +114,13 @@ function trainer_members_page(): void
         (SELECT dp.title FROM dietary_plans dp WHERE dp.member_user_id = ca.member_user_id AND dp.status = "active" AND EXISTS (SELECT 1 FROM dietary_plan_meals dpm WHERE dpm.plan_id = dp.plan_id AND TRIM(dpm.food_items) <> "") ORDER BY (dp.trainer_id = ca.trainer_id) DESC, dp.is_preferred DESC, dp.plan_id DESC LIMIT 1) AS active_diet_title,
         (SELECT dp.plan_id FROM dietary_plans dp WHERE dp.member_user_id = ca.member_user_id AND dp.status = "active" AND EXISTS (SELECT 1 FROM dietary_plan_meals dpm WHERE dpm.plan_id = dp.plan_id AND TRIM(dpm.food_items) <> "") ORDER BY (dp.trainer_id = ca.trainer_id) DESC, dp.is_preferred DESC, dp.plan_id DESC LIMIT 1) AS active_diet_id,
         (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count,
-        (SELECT COUNT(DISTINCT log_date) FROM member_meal_logs WHERE user_id = ca.member_user_id) AS food_logs_count
+        (SELECT COUNT(DISTINCT log_date) FROM member_meal_logs WHERE user_id = ca.member_user_id) AS food_logs_count,
+        (EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = ca.member_user_id AND m.status = "active" AND m.end_date >= CURDATE())) AS has_gym_membership
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 
     LEFT JOIN member_profiles mp ON mp.user_id = u.user_id 
-    WHERE ca.trainer_id = ? AND ca.status = "active" 
-    ORDER BY ca.assignment_id DESC', [$coachId]);
+    WHERE ca.trainer_id = ? AND ca.status = ? 
+    ORDER BY ' . ($tab === 'past' ? 'ca.ended_date DESC, ' : '') . 'ca.assignment_id DESC', [$coachId, $tab === 'past' ? 'ended' : 'active']);
 
     $pending_requests = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
@@ -130,7 +171,7 @@ function trainer_members_page(): void
                 </div>
                 <div class="tm-kpi-info">
                     <div class="tm-kpi-num"><?= $totalClients ?></div>
-                    <div class="tm-kpi-label">Active Clients</div>
+                    <div class="tm-kpi-label"><?= $tab === 'past' ? 'Past Clients' : 'Active Clients' ?></div>
                 </div>
             </div>
 
@@ -199,7 +240,11 @@ function trainer_members_page(): void
                     
                     $dateTimeText = 'Immediate (Ongoing)';
                     if ($req['assigned_date'] && $req['ended_date']) {
-                        $dateTimeText = date('M j, Y g:i A', strtotime($req['assigned_date']));
+                        if (date('Y-m-d', strtotime($req['assigned_date'])) === date('Y-m-d', strtotime($req['ended_date']))) {
+                            $dateTimeText = date('M j, Y g:i A', strtotime($req['assigned_date'])) . ' (Single Day)';
+                        } else {
+                            $dateTimeText = date('M j, Y g:i A', strtotime($req['assigned_date'])) . ' to ' . date('M j, Y', strtotime($req['ended_date']));
+                        }
                     } elseif ($req['assigned_date']) {
                         $dateTimeText = date('M j, Y', strtotime($req['assigned_date'])) . ' (Ongoing)';
                     }
@@ -248,6 +293,18 @@ function trainer_members_page(): void
                 </div>
             </section>
         <?php endif; ?>
+
+        <!-- Roster Navigation Tabs -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--line); padding-bottom: 12px;">
+            <a href="index.php?page=trainer_members" style="padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; <?= $tab === 'active' ? 'background: var(--ink); color: var(--bg); border: 1px solid var(--ink);' : 'background: color-mix(in srgb, var(--surface) 50%, var(--bg)); color: var(--muted); border: 1px solid var(--line);' ?>">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Active Clients (<?= $activeCount ?>)</span>
+            </a>
+            <a href="index.php?page=trainer_members&tab=past" style="padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; <?= $tab === 'past' ? 'background: var(--ink); color: var(--bg); border: 1px solid var(--ink);' : 'background: color-mix(in srgb, var(--surface) 50%, var(--bg)); color: var(--muted); border: 1px solid var(--line);' ?>">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                <span>Past / Completed (<?= $pastCount ?>)</span>
+            </a>
+        </div>
 
         <!-- Search & Filter Controls -->
         <div class="tm-toolbar">
@@ -310,7 +367,11 @@ function trainer_members_page(): void
 
                 $dateTimeText = 'Immediate (Ongoing)';
                 if ($member['assigned_date'] && $member['ended_date']) {
-                    $dateTimeText = date('M j, Y', strtotime($member['assigned_date']));
+                    if (date('Y-m-d', strtotime($member['assigned_date'])) === date('Y-m-d', strtotime($member['ended_date']))) {
+                        $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date'])) . ' (Single Day)';
+                    } else {
+                        $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date'])) . ' – ' . date('M j, Y', strtotime($member['ended_date']));
+                    }
                 } elseif ($member['assigned_date']) {
                     $dateTimeText = date('M j, Y', strtotime($member['assigned_date'])) . ' (Ongoing)';
                 }
@@ -325,7 +386,11 @@ function trainer_members_page(): void
                     <div class="tm-card-top">
                         <div class="tm-avatar-wrapper">
                             <?= $avatarHtml ?>
-                            <span class="tm-status-dot" title="Active Client"></span>
+                            <?php if ($tab === 'active'): ?>
+                                <span class="tm-status-dot" title="Active Client"></span>
+                            <?php else: ?>
+                                <span class="tm-status-dot" style="background: var(--muted); box-shadow: none;" title="Completed Client"></span>
+                            <?php endif; ?>
                         </div>
                         <div style="flex: 1; min-width: 0;">
                             <h3 class="tm-client-name"><?= $name ?></h3>
@@ -339,6 +404,12 @@ function trainer_members_page(): void
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                             <?= $goal ?>
                         </span>
+                        <?php if (empty($member['has_gym_membership'])): ?>
+                            <span class="tm-badge-activity" title="Session is paid directly by the client">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                <span>Direct Pay</span>
+                            </span>
+                        <?php endif; ?>
                         <?php if ($activityTitle): ?>
                             <span class="tm-badge-activity">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
@@ -379,7 +450,7 @@ function trainer_members_page(): void
                     <div class="tm-date-strip">
                         <span style="display:flex; align-items:center; gap:5px;">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                            Assignment:
+                            <?= $tab === 'past' ? 'Completed Session:' : 'Session / Duration:' ?>
                         </span>
                         <span style="font-weight: 600; color: var(--ink);"><?= $dateTimeText ?></span>
                     </div>
@@ -428,13 +499,26 @@ function trainer_members_page(): void
                         </a>
                     </div>
 
-                    <!-- Direct Client Chat -->
-                    <a href="index.php?page=messages&chat=<?= $memberId ?>" class="tm-btn-chat" title="Send direct message to <?= $firstName ?>">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                        </svg>
-                        Message <?= $firstName ?>
-                    </a>
+                    <div style="display: flex; gap: 8px;">
+                        <!-- Direct Client Chat -->
+                        <a href="index.php?page=messages&chat=<?= $memberId ?>" class="tm-btn-chat" style="flex: 1;" title="Send direct message to <?= $firstName ?>">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                            Message <?= $firstName ?>
+                        </a>
+                        <?php if ($tab === 'active'): ?>
+                            <form method="post" id="complete-form-<?= (int)$member['assignment_id'] ?>" style="display:none;">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="complete_session">
+                                <input type="hidden" name="assignment_id" value="<?= (int)$member['assignment_id'] ?>">
+                            </form>
+                            <button type="button" class="tm-btn-tool" style="padding: 0 12px;" onclick="confirmCompleteSession(<?= (int)$member['assignment_id'] ?>, <?= htmlspecialchars(json_encode($name), ENT_QUOTES, 'UTF-8') ?>)" title="Mark this coaching session as completed">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                <span>Complete</span>
+                            </button>
+                        <?php endif; ?>
+                    </div>
                 </article>
             <?php endforeach; ?>
             </div>
@@ -475,9 +559,11 @@ function trainer_members_page(): void
                         <line x1="23" y1="11" x2="17" y2="11"/>
                     </svg>
                 </div>
-                <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);">No Assigned Clients Yet</h3>
+                <h3 style="margin: 0; font-size: 1.2rem; color: var(--ink);">
+                    <?= $tab === 'past' ? 'No Completed Sessions Yet' : 'No Assigned Clients Yet' ?>
+                </h3>
                 <p style="margin: 0; color: var(--muted); font-size: 0.92rem; max-width: 420px;">
-                    When gym administrators assign members to you or members book personal training appointments, they will appear right here.
+                    <?= $tab === 'past' ? 'Completed or concluded client sessions will appear here for your records.' : 'When gym administrators assign members to you or members book personal training appointments, they will appear right here.' ?>
                 </p>
             </div>
         <?php endif; ?>
@@ -505,6 +591,24 @@ function trainer_members_page(): void
     window.TRAINER_PAGE_CONFIG = {
         csrfToken: <?= json_encode(csrf_token()) ?>
     };
+
+    function confirmCompleteSession(assignmentId, clientName) {
+        Swal.fire({
+            title: 'Complete Session?',
+            text: 'Are you sure you want to mark the coaching session for ' + clientName + ' as completed? This will move the client to Completed Sessions.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Complete',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('complete-form-' + assignmentId).submit();
+            }
+        });
+    }
     </script>
     <script src="<?= h(asset_url('js/pages/trainer.js')) ?>"></script>
     <?php

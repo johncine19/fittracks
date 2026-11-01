@@ -3,16 +3,16 @@ declare(strict_types=1);
 
 function exercises_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner']);
+    $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
     $pdo = db();
     verify_csrf();
 
     $gymId = null;
     $gyms = [];
-    if ($user['role'] === 'gym_owner') {
-        $gymId = scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+    if (in_array($user['role'], ['gym_owner', 'trainer'], true)) {
+        $gymId = get_user_gym_id($user);
         if (!$gymId) {
-            flash('No gym found for this owner.', 'danger');
+            flash('No gym assigned to your account.', 'danger');
             redirect('dashboard');
         }
     } else {
@@ -434,7 +434,7 @@ Safety: " : "") . $safety;
                     $editId = (int) post('exercise_id');
                     // Ensure permission
                     $exGymId = scalar('SELECT gym_id FROM exercises WHERE exercise_id = ?', [$editId]);
-                    if ($user['role'] === 'gym_owner' && (string)$exGymId !== (string)$gymId) {
+                    if (in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$exGymId !== (string)$gymId) {
                         flash('Permission denied.', 'danger');
                     } else {
                         $dupCheck = query_one('SELECT exercise_id, gym_id FROM exercises WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND exercise_id != ? LIMIT 1', [$targetGymId, $name, $editId]);
@@ -474,7 +474,7 @@ Safety: " : "") . $safety;
                 redirect('exercises');
             }
 
-            if ($user['role'] === 'gym_owner' && (string)$exRow['gym_id'] !== (string)$gymId) {
+            if (in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$exRow['gym_id'] !== (string)$gymId) {
                 flash('Permission denied.', 'danger');
                 redirect('exercises');
             }

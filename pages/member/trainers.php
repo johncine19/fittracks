@@ -23,13 +23,31 @@ function trainers_page(): void
         $assignedDate = date('Y-m-d H:i:s');
         $endedDate = null;
         if (!$hasActivePlan) {
+            $aptType = post('appointment_type') === 'range' ? 'range' : 'single';
             $reqDate = post('appointment_date');
             if (!$reqDate) {
-                flash('Please select an appointment date.', 'danger');
+                flash('Please select an appointment date and time.', 'danger');
                 redirect('trainers');
             }
             $assignedDate = date('Y-m-d H:i:s', strtotime($reqDate));
-            $endedDate = $assignedDate;
+
+            if ($aptType === 'range') {
+                $reqEndDate = post('appointment_end_date');
+                if (!$reqEndDate) {
+                    $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate));
+                } else {
+                    $startTime = strtotime($reqDate);
+                    $endTime = strtotime($reqEndDate);
+                    if ($endTime < strtotime(date('Y-m-d', $startTime))) {
+                        flash('End date cannot be earlier than start date.', 'danger');
+                        redirect('trainers');
+                    }
+                    $endedDate = date('Y-m-d 23:59:59', $endTime);
+                }
+            } else {
+                // Specific Day Only: session automatically ends at 23:59:59 of that day
+                $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate));
+            }
         }
         
         // Check if there is already an active or pending assignment for this facility
@@ -50,7 +68,11 @@ function trainers_page(): void
             // Notify the specific trainer
             $trainerUserId = scalar('SELECT user_id FROM trainer_profiles WHERE trainer_id = ?', [$trainerId]);
             if ($trainerUserId) {
-                $dateStr = date('M j, Y g:i A', strtotime($assignedDate));
+                if ($endedDate && date('Y-m-d', strtotime($assignedDate)) !== date('Y-m-d', strtotime($endedDate))) {
+                    $dateStr = date('M j, Y g:i A', strtotime($assignedDate)) . ' to ' . date('M j, Y', strtotime($endedDate));
+                } else {
+                    $dateStr = date('M j, Y g:i A', strtotime($assignedDate)) . ' (Single Day Session)';
+                }
                 notify_user((int) $trainerUserId, 'system', 'New Appointment Request', $user['first_name'] . ' ' . $user['last_name'] . ' has requested an appointment with you for ' . $dateStr . '.');
             }
             
@@ -267,8 +289,18 @@ function trainers_page(): void
                                         <?php endif; ?>
                                     </div>
                                 </div>
+                                <?php
+                                    $schedText = 'Assigned ' . date('M j, Y', strtotime($assign['assigned_date']));
+                                    if (!empty($assign['assigned_date']) && !empty($assign['ended_date'])) {
+                                        if (date('Y-m-d', strtotime($assign['assigned_date'])) === date('Y-m-d', strtotime($assign['ended_date']))) {
+                                            $schedText = 'Appointment: ' . date('M j, Y g:i A', strtotime($assign['assigned_date'])) . ' (Single Day)';
+                                        } else {
+                                            $schedText = 'Appointment: ' . date('M j, Y g:i A', strtotime($assign['assigned_date'])) . ' to ' . date('M j, Y', strtotime($assign['ended_date']));
+                                        }
+                                    }
+                                ?>
                                 <p class="active-assignment-meta">
-                                    Coach <strong style="color: var(--ink);"><?= h($assign['coach_fn'] . ' ' . $assign['coach_ln']) ?></strong> &bull; <?= h($assign['specialization'] ?: 'General Fitness') ?> &bull; Assigned <?= date('M j, Y', strtotime($assign['assigned_date'])) ?>
+                                    Coach <strong style="color: var(--ink);"><?= h($assign['coach_fn'] . ' ' . $assign['coach_ln']) ?></strong> &bull; <?= h($assign['specialization'] ?: 'General Fitness') ?> &bull; <?= $schedText ?>
                                 </p>
                             </div>
                         </div>
@@ -309,7 +341,9 @@ function trainers_page(): void
                                 <button type="button" class="btn" style="width: 100%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed;" disabled>Request Appointment</button>
                             <?php endif; ?>
                         <?php elseif (!$hasActivePlan): ?>
+                            <input type="hidden" name="appointment_type" id="type-<?= $trainer['trainer_id'] ?>" value="single">
                             <input type="hidden" name="appointment_date" id="date-<?= $trainer['trainer_id'] ?>" value="">
+                            <input type="hidden" name="appointment_end_date" id="end-date-<?= $trainer['trainer_id'] ?>" value="">
                             <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>)" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
                         <?php else: ?>
                             <button type="submit" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
@@ -327,10 +361,89 @@ function trainers_page(): void
     </section>
 
     <script>
+    window.swalAptMode = 'single';
+    window.swalSwitchMode = function(mode) {
+        window.swalAptMode = mode;
+        const tabSingle = document.getElementById('swal-tab-single');
+        const tabRange = document.getElementById('swal-tab-range');
+        const groupSingle = document.getElementById('swal-group-single');
+        const groupRange = document.getElementById('swal-group-range');
+        
+        if (mode === 'single') {
+            tabSingle.style.background = 'var(--lime)';
+            tabSingle.style.color = '#000';
+            tabSingle.style.border = '1px solid var(--lime)';
+            tabRange.style.background = 'transparent';
+            tabRange.style.color = 'var(--muted)';
+            tabRange.style.border = '1px solid transparent';
+            groupSingle.style.display = 'block';
+            groupRange.style.display = 'none';
+        } else {
+            tabRange.style.background = 'var(--lime)';
+            tabRange.style.color = '#000';
+            tabRange.style.border = '1px solid var(--lime)';
+            tabSingle.style.background = 'transparent';
+            tabSingle.style.color = 'var(--muted)';
+            tabSingle.style.border = '1px solid transparent';
+            groupSingle.style.display = 'none';
+            groupRange.style.display = 'block';
+        }
+    };
+
     function requestTrainerDate(trainerId) {
+        window.swalAptMode = 'single';
+        const minDateTime = '<?= date('Y-m-d\TH:i') ?>';
+        const minDate = '<?= date('Y-m-d') ?>';
+
+        const modalHtml = `
+            <div style="text-align:left; margin-top:10px;">
+                <label style="font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Session Option</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 16px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; border: 1px solid var(--line);">
+                    <button type="button" id="swal-tab-single" onclick="swalSwitchMode('single')" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--lime); background: var(--lime); color: #000; transition: all 0.2s;">
+                        Specific Day Only
+                    </button>
+                    <button type="button" id="swal-tab-range" onclick="swalSwitchMode('range')" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--muted); transition: all 0.2s;">
+                        Date Range
+                    </button>
+                </div>
+
+                <!-- Single Day Group -->
+                <div id="swal-group-single">
+                    <label style="font-size: 13px; color: var(--ink); font-weight: 500; margin-bottom: 6px; display: block;">Session Date & Time:</label>
+                    <input type="datetime-local" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="${minDateTime}">
+                    <div style="font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4;">
+                        Single-day appointment that automatically concludes at 11:59 PM on the selected day.
+                    </div>
+                </div>
+
+                <!-- Date Range Group -->
+                <div id="swal-group-range" style="display: none;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 13px; color: var(--ink); font-weight: 500; margin-bottom: 6px; display: block;">Start Date & Time:</label>
+                        <input type="datetime-local" id="swal-input-start-date" class="form-control" style="width:100%; box-sizing: border-box;" min="${minDateTime}" onchange="document.getElementById('swal-input-end-date').min = this.value.split('T')[0]">
+                    </div>
+                    <div>
+                        <label style="font-size: 13px; color: var(--ink); font-weight: 500; margin-bottom: 6px; display: block;">End Date (Duration Ends):</label>
+                        <input type="date" id="swal-input-end-date" class="form-control" style="width:100%; box-sizing: border-box;" min="${minDate}">
+                    </div>
+                    <div style="font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4;">
+                        Coaching duration runs until 11:59 PM on the selected end date, after which it automatically completes.
+                    </div>
+                </div>
+
+                <!-- Payment Notice -->
+                <div style="margin-top:16px;padding:10px 14px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:flex-start;gap:10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span style="font-size:12.5px;color:#f59e0b;line-height:1.45;">
+                        <strong>Direct Payment:</strong> Please prepare your payment for the session/package. You will pay the trainer directly.
+                    </span>
+                </div>
+            </div>
+        `;
+
         Swal.fire({
-            title: 'Appointment Date',
-            html: '<div style="text-align:left; margin-top:10px;"><label style="font-size: 14px; color: var(--muted); margin-bottom: 8px; display: block;">Select a date and time for your appointment:</label><input type="datetime-local" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="<?= date('Y-m-d\TH:i') ?>"><div style="margin-top:14px;padding:10px 14px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);display:flex;align-items:flex-start;gap:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span style="font-size:13px;color:#f59e0b;line-height:1.4;">Please prepare your payment for the session. You will pay the trainer directly at the appointment.</span></div></div>',
+            title: 'Schedule Appointment',
+            html: modalHtml,
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Submit Request',
@@ -339,16 +452,37 @@ function trainers_page(): void
             background: 'var(--bg)',
             color: 'var(--ink)',
             preConfirm: () => {
-                const val = document.getElementById('swal-input-date').value;
-                if (!val) {
-                    Swal.showValidationMessage('Please select a date');
-                    return false;
+                if (window.swalAptMode === 'single') {
+                    const val = document.getElementById('swal-input-date').value;
+                    if (!val) {
+                        Swal.showValidationMessage('Please select a date and time for your appointment');
+                        return false;
+                    }
+                    return { type: 'single', startDate: val, endDate: '' };
+                } else {
+                    const startVal = document.getElementById('swal-input-start-date').value;
+                    const endVal = document.getElementById('swal-input-end-date').value;
+                    if (!startVal) {
+                        Swal.showValidationMessage('Please select a start date and time');
+                        return false;
+                    }
+                    if (!endVal) {
+                        Swal.showValidationMessage('Please select an end date');
+                        return false;
+                    }
+                    const startDateOnly = startVal.split('T')[0];
+                    if (endVal < startDateOnly) {
+                        Swal.showValidationMessage('End date cannot be earlier than start date');
+                        return false;
+                    }
+                    return { type: 'range', startDate: startVal, endDate: endVal };
                 }
-                return val;
             }
         }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('date-' + trainerId).value = result.value;
+            if (result.isConfirmed && result.value) {
+                document.getElementById('type-' + trainerId).value = result.value.type;
+                document.getElementById('date-' + trainerId).value = result.value.startDate;
+                document.getElementById('end-date-' + trainerId).value = result.value.endDate;
                 document.getElementById('form-trainer-' + trainerId).submit();
             }
         });

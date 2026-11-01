@@ -4,9 +4,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../core/file_handler.php';
 
 if (!function_exists('render_food_verification_badge')) {
-    function render_food_verification_badge(string $status, bool $isCustom = true, ?string $rejectionReason = null): string {
+    function render_food_verification_badge(string $status, bool $isCustom = true, ?string $rejectionReason = null, string $source = 'custom'): string {
         if (!$isCustom) {
-            return '<span class="food-tag-frosted" style="color: #94a3b8;">Staple</span>';
+            return '<span class="food-tag-frosted" style="color: var(--muted);">Staple</span>';
+        }
+        if ($source === 'imported') {
+            return '<span class="food-tag-frosted" style="color: var(--muted);"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Imported</span>';
         }
         return match ($status) {
             'verified' => '<span class="food-vbadge vbadge-verified" title="Reviewed and verified by Platform Administrator"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Verified</span>',
@@ -415,6 +418,213 @@ function food_library_page(): void
             }
             redirect('food_library');
         }
+
+        if ($postAction === 'import_food') {
+            if (!in_array($user['role'], ['gym_owner', 'trainer'], true) || !$gymId) {
+                flash('Permission denied.', 'danger');
+                redirect('food_library');
+            }
+            $sourceFoodId = (int) post('food_id');
+            $stmtSrc = $pdo->prepare("SELECT * FROM food_items WHERE food_id = ? AND is_active = 1 AND gym_id IS NULL");
+            $stmtSrc->execute([$sourceFoodId]);
+            $src = $stmtSrc->fetch(PDO::FETCH_ASSOC);
+            if (!$src) {
+                flash('Platform food item not found.', 'danger');
+                redirect('food_library&tab=import');
+            }
+
+            // Check if already in gym
+            $alreadyExists = (bool) scalar(
+                "SELECT 1 FROM food_items WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND is_active = 1 LIMIT 1",
+                [$gymId, $src['name']]
+            );
+            if ($alreadyExists) {
+                flash("'{$src['name']}' is already in your gym library.", 'info');
+            } else {
+                $stmtIns = $pdo->prepare("
+                    INSERT INTO food_items 
+                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, ingredients, source, verification_status, created_by_user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', 'verified', ?)
+                ");
+                $stmtIns->execute([
+                    $gymId,
+                    $src['name'],
+                    $src['meal_type'],
+                    $src['dietary_restriction'],
+                    $src['serving_size'],
+                    $src['calories'],
+                    $src['protein_g'],
+                    $src['carbs_g'],
+                    $src['fat_g'],
+                    $src['image_url'],
+                    $src['recipe_desc'],
+                    $src['ingredients'],
+                    (int)$user['user_id']
+                ]);
+                $newId = (int) $pdo->lastInsertId();
+                if ($newId > 0) {
+                    if (function_exists('sync_food_dietary_restrictions') && !empty($src['dietary_restriction'])) {
+                        sync_food_dietary_restrictions($newId, $src['dietary_restriction']);
+                    }
+                    if (function_exists('save_food_ingredients') && !empty($src['ingredients'])) {
+                        $parsed = json_decode($src['ingredients'], true);
+                        if (is_array($parsed)) {
+                            save_food_ingredients($newId, $parsed);
+                        }
+                    }
+                }
+                flash("'{$src['name']}' successfully imported into your gym library! It is now available in My Gym Foods below.", 'success');
+            }
+            redirect('food_library&tab=library');
+        }
+
+        if ($postAction === 'import_selected_foods') {
+            if (!in_array($user['role'], ['gym_owner', 'trainer'], true) || !$gymId) {
+                flash('Permission denied.', 'danger');
+                redirect('food_library');
+            }
+            $selectedRaw = post('food_ids');
+            if (empty($selectedRaw)) {
+                flash('Please select at least one food item to import.', 'warning');
+                redirect('food_library&tab=import');
+            }
+
+            $selectedIds = is_array($selectedRaw) ? $selectedRaw : explode(',', (string)$selectedRaw);
+            $selectedIds = array_values(array_filter(array_map('intval', $selectedIds), fn($v) => $v > 0));
+            if (empty($selectedIds)) {
+                flash('Please select at least one food item to import.', 'warning');
+                redirect('food_library&tab=import');
+            }
+
+            $inPlaceholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $stmtSrc = $pdo->prepare("SELECT * FROM food_items WHERE food_id IN ({$inPlaceholders}) AND is_active = 1 AND gym_id IS NULL");
+            $stmtSrc->execute($selectedIds);
+            $selectedFoods = $stmtSrc->fetchAll(PDO::FETCH_ASSOC);
+
+            $importedCount = 0;
+            $alreadyCount = 0;
+            foreach ($selectedFoods as $src) {
+                $alreadyExists = (bool) scalar(
+                    "SELECT 1 FROM food_items WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND is_active = 1 LIMIT 1",
+                    [$gymId, $src['name']]
+                );
+                if ($alreadyExists) {
+                    $alreadyCount++;
+                    continue;
+                }
+
+                $stmtIns = $pdo->prepare("
+                    INSERT INTO food_items 
+                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, ingredients, source, verification_status, created_by_user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', 'verified', ?)
+                ");
+                $stmtIns->execute([
+                    $gymId,
+                    $src['name'],
+                    $src['meal_type'],
+                    $src['dietary_restriction'],
+                    $src['serving_size'],
+                    $src['calories'],
+                    $src['protein_g'],
+                    $src['carbs_g'],
+                    $src['fat_g'],
+                    $src['image_url'],
+                    $src['recipe_desc'],
+                    $src['ingredients'],
+                    (int)$user['user_id']
+                ]);
+                $newId = (int) $pdo->lastInsertId();
+                if ($newId > 0) {
+                    if (function_exists('sync_food_dietary_restrictions') && !empty($src['dietary_restriction'])) {
+                        sync_food_dietary_restrictions($newId, $src['dietary_restriction']);
+                    }
+                    if (function_exists('save_food_ingredients') && !empty($src['ingredients'])) {
+                        $parsed = json_decode($src['ingredients'], true);
+                        if (is_array($parsed)) {
+                            save_food_ingredients($newId, $parsed);
+                        }
+                    }
+                }
+                $importedCount++;
+            }
+
+            if ($importedCount > 0) {
+                flash("Successfully imported {$importedCount} food item" . ($importedCount === 1 ? '' : 's') . " into your gym library! You can view them in My Gym Foods below.", 'success');
+                redirect('food_library&tab=library');
+            } else {
+                flash('All selected foods are already present in your gym library.', 'info');
+                redirect('food_library&tab=library');
+            }
+        }
+
+        if ($postAction === 'import_all_platform_foods') {
+            if (!in_array($user['role'], ['gym_owner', 'trainer'], true) || !$gymId) {
+                flash('Permission denied.', 'danger');
+                redirect('food_library');
+            }
+            $staples = query_all("SELECT * FROM food_items WHERE gym_id IS NULL AND is_active = 1 AND verification_status = 'verified'");
+            $importedCount = 0;
+            foreach ($staples as $src) {
+                $alreadyExists = (bool) scalar(
+                    "SELECT 1 FROM food_items WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND is_active = 1 LIMIT 1",
+                    [$gymId, $src['name']]
+                );
+                if ($alreadyExists) continue;
+
+                $stmtIns = $pdo->prepare("
+                    INSERT INTO food_items 
+                    (gym_id, name, meal_type, dietary_restriction, serving_size, calories, protein_g, carbs_g, fat_g, image_url, recipe_desc, ingredients, source, verification_status, created_by_user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'imported', 'verified', ?)
+                ");
+                $stmtIns->execute([
+                    $gymId,
+                    $src['name'],
+                    $src['meal_type'],
+                    $src['dietary_restriction'],
+                    $src['serving_size'],
+                    $src['calories'],
+                    $src['protein_g'],
+                    $src['carbs_g'],
+                    $src['fat_g'],
+                    $src['image_url'],
+                    $src['recipe_desc'],
+                    $src['ingredients'],
+                    (int)$user['user_id']
+                ]);
+                $newId = (int) $pdo->lastInsertId();
+                if ($newId > 0) {
+                    if (function_exists('sync_food_dietary_restrictions') && !empty($src['dietary_restriction'])) {
+                        sync_food_dietary_restrictions($newId, $src['dietary_restriction']);
+                    }
+                    if (function_exists('save_food_ingredients') && !empty($src['ingredients'])) {
+                        $parsed = json_decode($src['ingredients'], true);
+                        if (is_array($parsed)) {
+                            save_food_ingredients($newId, $parsed);
+                        }
+                    }
+                }
+                $importedCount++;
+            }
+            if ($importedCount > 0) {
+                flash("Successfully imported {$importedCount} platform food" . ($importedCount === 1 ? '' : 's') . " into your gym library!", 'success');
+            } else {
+                flash('All platform staple foods are already in your gym library.', 'info');
+            }
+            redirect('food_library&tab=library');
+        }
+    }
+
+    // Pre-calculate gym vs platform foods counts
+    $gymFoodsCount = 0;
+    $platformFoodsCount = 0;
+    $existingGymFoodNames = [];
+    if (in_array($user['role'], ['gym_owner', 'trainer'], true)) {
+        $gymFoodsCount = (int) scalar("SELECT COUNT(*) FROM food_items WHERE gym_id = ? AND is_active = 1", [$gymId]);
+        $platformFoodsCount = (int) scalar("SELECT COUNT(*) FROM food_items WHERE gym_id IS NULL AND is_active = 1 AND verification_status = 'verified'");
+        $existingGymFoodNames = array_column(
+            query_all("SELECT LOWER(TRIM(name)) AS food_name FROM food_items WHERE gym_id = ? AND is_active = 1", [$gymId]),
+            'food_name'
+        );
     }
 
     // Verification Status Filter
@@ -425,13 +635,12 @@ function food_library_page(): void
     $params = [];
 
     if (in_array($user['role'], ['gym_owner', 'trainer'], true)) {
-        if ($scopeFilter === 'gym') {
-            $where[] = 'gym_id = ?';
-            $params[] = $gymId;
-        } elseif ($scopeFilter === 'global') {
-            $where[] = 'gym_id IS NULL';
+        if ($activeTab === 'import') {
+            // Browsing platform staple foods to import
+            $where[] = 'gym_id IS NULL AND verification_status = "verified"';
         } else {
-            $where[] = '(gym_id = ? OR gym_id IS NULL)';
+            // Default Gym View: strictly show ONLY their gym's custom / imported foods!
+            $where[] = 'gym_id = ?';
             $params[] = $gymId;
         }
     } else {
@@ -483,7 +692,7 @@ function food_library_page(): void
     $totalFoods = (int) $countStmt->fetchColumn();
 
     // Pagination configuration
-    $perPage = 12;
+    $perPage = ($activeTab === 'import') ? 60 : 12;
     $totalPages = max(1, (int) ceil($totalFoods / $perPage));
     $page = max(1, min($totalPages, (int) ($_GET['p'] ?? 1)));
     $offset = ($page - 1) * $perPage;
@@ -562,10 +771,10 @@ function food_library_page(): void
     }
 
     // Helper URL for pagination and filters
-    $buildFilterUrl = function(array $overrides = []) use ($searchQuery, $mealTypeFilter, $restrictionFilter, $scopeFilter, $statusFilter, $page) {
+    $buildFilterUrl = function(array $overrides = []) use ($searchQuery, $mealTypeFilter, $restrictionFilter, $scopeFilter, $statusFilter, $page, $activeTab) {
         $q = [
             'page' => 'food_library',
-            'tab' => 'library',
+            'tab' => $activeTab,
             'q' => $searchQuery,
             'meal_type' => $mealTypeFilter,
             'restriction' => $restrictionFilter,
@@ -589,7 +798,7 @@ function food_library_page(): void
         return 'index.php?' . http_build_query($q);
     };
 
-    $paginationBaseUrl = 'index.php?page=food_library&tab=library';
+    $paginationBaseUrl = 'index.php?page=food_library&tab=' . urlencode($activeTab);
     if ($searchQuery) $paginationBaseUrl .= '&q=' . urlencode($searchQuery);
     if ($mealTypeFilter) $paginationBaseUrl .= '&meal_type=' . urlencode($mealTypeFilter);
     if ($restrictionFilter) $paginationBaseUrl .= '&restriction=' . urlencode($restrictionFilter);
@@ -605,16 +814,37 @@ function food_library_page(): void
     <div class="food-page-header">
         <div class="food-page-header-info">
             <div class="food-page-title-row">
-                <h1 class="food-page-title">Food & Recipe Library</h1>
+                <h1 class="food-page-title">
+                    <?= $activeTab === 'import' ? 'Import Platform Foods' : 'Food & Recipe Library' ?>
+                </h1>
                 <span class="food-count-badge">
                     <?= $totalFoods ?> <?= $totalFoods === 1 ? 'Food' : 'Foods' ?>
                 </span>
             </div>
             <p class="food-page-desc">
-                Manage meal templates, customize gym food options, and oversee verified food items.
+                <?php if ($activeTab === 'import'): ?>
+                    Browse verified nutrition staples seeded by platform administrators. Import any item into your gym library with one click.
+                <?php elseif (in_array($user['role'], ['gym_owner', 'trainer'], true)): ?>
+                    Manage your gym's custom food menu, imported staples, and meal templates for member diet plans.
+                <?php else: ?>
+                    Manage global meal templates, oversee gym custom foods, and review submissions.
+                <?php endif; ?>
             </p>
         </div>
         <div class="food-page-header-actions">
+            <?php if (in_array($user['role'], ['gym_owner', 'trainer'], true)): ?>
+                <?php if ($activeTab !== 'import'): ?>
+                    <a href="index.php?page=food_library&tab=import" class="food-header-btn-secondary">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Import Platform Foods</span>
+                    </a>
+                <?php else: ?>
+                    <a href="index.php?page=food_library&tab=library" class="food-header-btn-secondary">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                        <span>Back to My Gym Foods (<?= $gymFoodsCount ?>)</span>
+                    </a>
+                <?php endif; ?>
+            <?php endif; ?>
             <button onclick="openAddFoodModal()" class="food-add-btn">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Add Custom Food</span>
@@ -624,11 +854,21 @@ function food_library_page(): void
 
     <!-- Navigation Tabs: Library vs Online Search vs Verifications -->
     <div class="food-tabs-bar">
-        <a href="index.php?page=food_library&tab=library" class="food-tab-link <?= $activeTab === 'library' ? 'active' : '' ?>">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="6" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
-            <span>Food Catalog</span>
-        </a>
-        <?php if ($user['role'] === 'platform_admin'): ?>
+        <?php if (in_array($user['role'], ['gym_owner', 'trainer'], true)): ?>
+            <a href="index.php?page=food_library&tab=library" class="food-tab-link <?= $activeTab === 'library' ? 'active' : '' ?>">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="6" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                <span>My Gym Foods (<?= $gymFoodsCount ?>)</span>
+            </a>
+            <a href="index.php?page=food_library&tab=import" class="food-tab-link <?= $activeTab === 'import' ? 'active' : '' ?>">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Import Platform Foods</span>
+                <span class="food-count-badge" style="font-size: 11px; padding: 2px 7px;"><?= $platformFoodsCount ?> Available</span>
+            </a>
+        <?php else: ?>
+            <a href="index.php?page=food_library&tab=library" class="food-tab-link <?= $activeTab === 'library' ? 'active' : '' ?>">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="6" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                <span>Platform Food Catalog</span>
+            </a>
             <a href="index.php?page=food_library&tab=verifications" class="food-tab-link <?= $activeTab === 'verifications' ? 'active' : '' ?>">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
                 <span>Custom Food Approvals</span>
@@ -648,11 +888,11 @@ function food_library_page(): void
         <div id="mobileFoodTabDropdown"></div>
     </div>
 
-    <?php if ($activeTab === 'library'): ?>
+    <?php if ($activeTab === 'library' || $activeTab === 'import'): ?>
         <!-- Modernized Filter Toolbar -->
         <form method="get" class="food-filter-toolbar">
             <input type="hidden" name="page" value="food_library">
-            <input type="hidden" name="tab" value="library">
+            <input type="hidden" name="tab" value="<?= h($activeTab) ?>">
 
             <div class="filter-search-box">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="filter-search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -697,6 +937,7 @@ function food_library_page(): void
                 </select>
             </div>
 
+            <?php if ($user['role'] === 'platform_admin'): ?>
             <div class="filter-select-wrapper">
                 <select name="scope" onchange="this.form.submit()">
                     <option value="all" <?= $scopeFilter === 'all' ? 'selected' : '' ?>>All Items</option>
@@ -704,14 +945,15 @@ function food_library_page(): void
                     <option value="global" <?= $scopeFilter === 'global' ? 'selected' : '' ?>>Platform Staples</option>
                 </select>
             </div>
+            <?php endif; ?>
 
             <div class="filter-btn-col">
                 <button type="submit" class="btn btn-filter-submit">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                     <span>Filter</span>
                 </button>
-                <?php if ($searchQuery || $mealTypeFilter || $restrictionFilter || $scopeFilter !== 'all' || $statusFilter !== 'all'): ?>
-                    <a href="index.php?page=food_library&tab=library" class="btn btn-filter-reset" title="Reset all filters">
+                <?php if ($searchQuery || $mealTypeFilter || $restrictionFilter || ($user['role'] === 'platform_admin' && $scopeFilter !== 'all') || $statusFilter !== 'all'): ?>
+                    <a href="index.php?page=food_library&tab=<?= h($activeTab) ?>" class="btn btn-filter-reset" title="Reset all filters">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                         <span>Reset</span>
                     </a>
@@ -720,7 +962,7 @@ function food_library_page(): void
         </form>
 
         <?php 
-        $hasActiveFilters = !empty($searchQuery) || !empty($mealTypeFilter) || !empty($restrictionFilter) || ($scopeFilter && $scopeFilter !== 'all') || ($statusFilter && $statusFilter !== 'all');
+        $hasActiveFilters = !empty($searchQuery) || !empty($mealTypeFilter) || !empty($restrictionFilter) || ($user['role'] === 'platform_admin' && $scopeFilter && $scopeFilter !== 'all') || ($statusFilter && $statusFilter !== 'all');
         ?>
         <?php if ($hasActiveFilters): ?>
             <div class="food-active-filters">
@@ -754,14 +996,14 @@ function food_library_page(): void
                     </a>
                 <?php endif; ?>
 
-                <?php if (!empty($scopeFilter) && $scopeFilter !== 'all'): ?>
+                <?php if ($user['role'] === 'platform_admin' && !empty($scopeFilter) && $scopeFilter !== 'all'): ?>
                     <a href="<?= $buildFilterUrl(['scope' => 'all', 'p' => 1]) ?>" class="filter-chip" title="Remove scope filter">
                         <span>Scope: <strong><?= $scopeFilter === 'gym' ? 'Gym Custom' : 'Platform Staples' ?></strong></span>
                         <span class="chip-remove">&times;</span>
                     </a>
                 <?php endif; ?>
 
-                <a href="index.php?page=food_library&tab=library" class="filter-clear-all" title="Clear all active filters">
+                <a href="index.php?page=food_library&tab=<?= h($activeTab) ?>" class="filter-clear-all" title="Clear all active filters">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                         <path d="M3 3v5h5"/>
@@ -771,27 +1013,91 @@ function food_library_page(): void
             </div>
         <?php endif; ?>
 
+        <!-- Batch Selection Toolbar for Import Tab -->
+        <?php if ($activeTab === 'import' && in_array($user['role'], ['gym_owner', 'trainer'], true) && !empty($foods)): ?>
+            <?php 
+            $unimportedOnPage = 0;
+            foreach ($foods as $f) {
+                if (!in_array(strtolower(trim($f['name'])), $existingGymFoodNames ?? [], true)) {
+                    $unimportedOnPage++;
+                }
+            }
+            ?>
+            <div class="food-import-selection-bar" style="background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 13.5px; font-weight: 600; color: var(--ink); margin: 0;">
+                        <input type="checkbox" id="selectAllImportCheckbox" onchange="toggleSelectAllImport(this)" style="width: 17px; height: 17px; accent-color: var(--lime); cursor: pointer; border-radius: 4px;" <?= $unimportedOnPage === 0 ? 'disabled' : '' ?>>
+                        <span>Select All Available (<?= $unimportedOnPage ?>)</span>
+                    </label>
+                    <span id="importSelectionCountBadge" style="font-size: 12px; color: var(--muted); padding: 3px 10px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid var(--line);">
+                        0 selected
+                    </span>
+                    <button type="button" class="btn-sm btn-ghost" onclick="clearImportSelection()" id="btnClearSelection" style="display: none; padding: 2px 8px; font-size: 11.5px; border-radius: 6px; color: var(--muted);">
+                        Clear selection
+                    </button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <form method="post" id="importSelectedForm" style="margin: 0;" onsubmit="return validateImportSelectedSubmit();">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="import_selected_foods">
+                        <div id="hiddenFoodInputs"></div>
+                        <button type="submit" id="btnImportSelected" class="food-add-btn" disabled style="opacity: 0.45; cursor: not-allowed; transition: all 0.2s;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span id="btnImportSelectedText">Import Selected (0)</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <!-- Foods Grid -->
         <?php if (empty($foods)): ?>
             <div style="text-align: center; padding: 60px 20px; background: var(--bg); border: 1px dashed var(--line); border-radius: 12px;">
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-bottom: 12px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                <h3 style="margin: 0; font-size: 16px; color: var(--ink);">No food items found</h3>
-                <button onclick="openAddFoodModal()" class="food-add-btn">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    <span>Add Custom Food</span>
-                </button>
+                <h3 style="margin: 0; font-size: 16px; color: var(--ink);">
+                    <?= $activeTab === 'import' ? 'No platform staple foods found matching your filter' : 'No food items found in your gym library' ?>
+                </h3>
+                <p style="margin: 8px 0 16px; font-size: 13.5px; color: var(--muted); max-width: 480px; margin-inline: auto;">
+                    <?= $activeTab === 'import' ? 'Try adjusting or clearing your search filters above.' : 'Build your gym food catalog by importing platform staple foods or adding custom nutrition items.' ?>
+                </p>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <?php if ($activeTab === 'library' && in_array($user['role'], ['gym_owner', 'trainer'], true)): ?>
+                        <a href="index.php?page=food_library&tab=import" class="food-add-btn" style="text-decoration: none;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span>Browse & Import Platform Foods</span>
+                        </a>
+                    <?php endif; ?>
+                    <button onclick="openAddFoodModal()" class="food-add-btn" style="background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--ink);">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Add Custom Food</span>
+                    </button>
+                </div>
             </div>
         <?php else: ?>
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px;">
                 <?php foreach ($foods as $food): 
                     $photoUrl = get_meal_photo_url($food['image_url'], $food['name'], $food['meal_type']);
                     $isCustom = !empty($food['gym_id']);
+                    $isAlreadyInGym = in_array(strtolower(trim($food['name'])), $existingGymFoodNames ?? [], true);
                 ?>
-                    <div class="food-card-organic">
+                    <div class="food-card-organic" id="food-card-<?= (int)$food['food_id'] ?>">
                         <!-- Food Card Header / Image -->
                         <div style="position: relative; height: 130px; background: #000; overflow: hidden;">
                             <img id="food-card-img-<?= $food['food_id'] ?>" src="<?= h($photoUrl) ?>" alt="<?= h($food['name']) ?>" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.88;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';">
-                            <div style="position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; flex-wrap: wrap; z-index: 2;">
+
+                            <?php if ($activeTab === 'import' && in_array($user['role'], ['gym_owner', 'trainer'], true) && !$isAlreadyInGym): ?>
+                                <div class="food-import-cb-container" onclick="event.stopPropagation();" style="position: absolute; top: 10px; left: 10px; z-index: 5; background: rgba(0,0,0,0.72); backdrop-filter: blur(4px); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.22); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                    <input type="checkbox" 
+                                           class="food-item-checkbox" 
+                                           value="<?= (int)$food['food_id'] ?>" 
+                                           id="cb-food-<?= (int)$food['food_id'] ?>" 
+                                           onchange="onFoodItemCheckboxChange(this, <?= (int)$food['food_id'] ?>)" 
+                                           style="width: 16px; height: 16px; accent-color: var(--lime); cursor: pointer; margin: 0;">
+                                    <label for="cb-food-<?= (int)$food['food_id'] ?>" style="cursor: pointer; font-size: 11px; font-weight: 700; color: #fff; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; user-select: none;">Select</label>
+                                </div>
+                            <?php endif; ?>
+
+                            <div style="position: absolute; top: 10px; <?= ($activeTab === 'import' && in_array($user['role'], ['gym_owner', 'trainer'], true) && !$isAlreadyInGym) ? 'left: 96px;' : 'left: 10px;' ?> display: flex; gap: 6px; flex-wrap: wrap; z-index: 2;">
                                 <span class="food-tag-frosted">
                                     <?= h($food['meal_type']) ?>
                                 </span>
@@ -860,25 +1166,47 @@ function food_library_page(): void
                                 <span>View Ingredients</span>
                             </button>
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <button type="button" 
-                                        onclick='openFoodPhotoModal(<?= (int)$food['food_id'] ?>, <?= json_encode($food['name'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['meal_type'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['image_url'] ?? '', JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($photoUrl, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>)' 
-                                        class="btn-sm btn-ghost" 
-                                        style="padding: 4px 10px; font-size: 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;"
-                                        title="Customize Meal Photo">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                                    Photo
-                                </button>
-                                <?php 
-                                $canManageFood = ($user['role'] === 'platform_admin' || ($isCustom && in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$food['gym_id'] === (string)$gymId));
-                                ?>
-                                <?php if ($canManageFood): ?>
-                                    <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($food), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Edit</button>
-                                    <form method="post" style="margin:0;" onsubmit="return confirm('Delete this food item?');">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="food_id" value="<?= (int)$food['food_id'] ?>">
-                                        <button class="btn-sm btn-danger" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Delete</button>
-                                    </form>
+                                <?php if ($activeTab === 'import' && in_array($user['role'], ['gym_owner', 'trainer'], true)): ?>
+                                    <?php 
+                                    $isAlreadyImported = in_array(strtolower(trim($food['name'])), $existingGymFoodNames ?? [], true);
+                                    ?>
+                                    <?php if ($isAlreadyImported): ?>
+                                        <span class="food-tag-frosted" style="padding: 5px 10px; font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; background: rgba(255,255,255,0.04);">
+                                            ✓ In Your Library
+                                        </span>
+                                    <?php else: ?>
+                                        <form method="post" style="margin:0;">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="action" value="import_food">
+                                            <input type="hidden" name="food_id" value="<?= (int)$food['food_id'] ?>">
+                                            <input type="hidden" name="return_tab" value="library">
+                                            <button type="submit" class="food-add-btn" style="padding: 5px 12px; font-size: 12px; border-radius: 6px; height: auto;">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                                <span>Import to Gym</span>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <button type="button" 
+                                            onclick='openFoodPhotoModal(<?= (int)$food['food_id'] ?>, <?= json_encode($food['name'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['meal_type'], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($food['image_url'] ?? '', JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>, <?= json_encode($photoUrl, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>)' 
+                                            class="btn-sm btn-ghost" 
+                                            style="padding: 4px 10px; font-size: 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;"
+                                            title="Customize Meal Photo">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                        Photo
+                                    </button>
+                                    <?php 
+                                    $canManageFood = ($user['role'] === 'platform_admin' || ($isCustom && in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$food['gym_id'] === (string)$gymId));
+                                    ?>
+                                    <?php if ($canManageFood): ?>
+                                        <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($food), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Edit</button>
+                                        <form method="post" style="margin:0;" onsubmit="return confirm('Delete this food item?');">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="food_id" value="<?= (int)$food['food_id'] ?>">
+                                            <button class="btn-sm btn-danger" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Delete</button>
+                                        </form>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>

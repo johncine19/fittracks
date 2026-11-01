@@ -1238,6 +1238,44 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
     </div>
 </div>
 
+<?php if ($isDietSelfGuided): ?>
+    <!-- Self-Guided Recommendation Notice -->
+    <div class="self-guided-coach-banner animate-fade-in" id="self-guided-diet-notice" role="complementary" aria-label="Personal trainer recommendation">
+        <div class="coach-banner-left">
+            <div class="coach-banner-icon-wrap" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+            </div>
+            <div class="coach-banner-content">
+                <div class="coach-banner-header">
+                    <strong class="coach-banner-title">Pro Tip: Take Your Results to the Next Level</strong>
+                    <span class="coach-banner-badge">System Recommended</span>
+                </div>
+                <p class="coach-banner-text">
+                    This system-recommended nutrition plan offers a baseline for your fitness goals. For personalized macro targets, tailored meal adjustments, and maximum accountability, connect with one of our certified personal trainers or upgrade to a gym membership.
+                </p>
+            </div>
+        </div>
+        <div class="coach-banner-actions">
+            <a href="index.php?page=trainers" class="coach-banner-cta">
+                <span>Browse Certified Trainers</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </a>
+        </div>
+        <button type="button" class="coach-banner-close" onclick="document.getElementById('self-guided-diet-notice').style.display='none'; sessionStorage.setItem('dismiss_coach_banner_diet', '1');" title="Dismiss notice" aria-label="Dismiss notice">&times;</button>
+    </div>
+    <script>
+        if (sessionStorage.getItem('dismiss_coach_banner_diet') === '1') {
+            const dNotice = document.getElementById('self-guided-diet-notice');
+            if (dNotice) dNotice.style.display = 'none';
+        }
+    </script>
+<?php endif; ?>
+
 <!-- ==================================================== -->
 <!-- VIEW 1: TODAY'S MACRO TRACKER (BENTO GRID)           -->
 <!-- ==================================================== -->
@@ -2407,7 +2445,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <?php endif; ?>
 
                 <!-- 3. Dietary Protocol -->
-                <div class="diet-plan-info-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+                <div class="diet-plan-info-item" style="<?= $isDietSelfGuided ? '' : 'border-bottom: none; margin-bottom: 0; padding-bottom: 0;' ?>">
                     <div class="diet-plan-info-icon diet-icon">
                         <span style="font-size: 16px;">🥗</span>
                     </div>
@@ -2416,6 +2454,25 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         <strong class="diet-plan-info-val"><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction === 'none' ? 'Standard' : $userDietaryRestriction))) ?></strong>
                     </div>
                 </div>
+
+                <!-- 4. Guidance Mode / Personal Trainer Recommendation -->
+                <?php if ($isDietSelfGuided): ?>
+                <div class="diet-plan-info-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+                    <div class="diet-plan-info-icon" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </div>
+                    <div class="diet-plan-info-text">
+                        <span class="diet-plan-info-label">Guidance Mode</span>
+                        <strong class="diet-plan-info-val">System Recommended</strong>
+                        <p style="margin: 4px 0 8px 0; font-size: 12px; color: var(--muted); line-height: 1.45;">
+                            Calculated baseline recommendations. For customized meal prep advice, tailored macro adjustments, and 1-on-1 coaching, connect with a certified personal trainer.
+                        </p>
+                        <a href="index.php?page=trainers" style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--lime); text-decoration: none;">
+                            Browse Certified Trainers &rarr;
+                        </a>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
         <div class="ft-modal-footer" style="padding: 12px 20px; justify-content: flex-end;">

@@ -377,6 +377,10 @@ select {
     border-color: var(--line);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
+.food-card-organic.is-selected {
+    border-color: var(--lime) !important;
+    box-shadow: 0 0 0 1.5px var(--lime), 0 6px 20px rgba(0, 0, 0, 0.35) !important;
+}
 
 .food-card-title {
     margin: 0 0 6px;
@@ -1612,7 +1616,37 @@ select {
 .food-page-header-actions {
     display: flex;
     align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
     flex-shrink: 0;
+}
+
+.food-header-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 18px;
+    height: 42px;
+    border-radius: 11px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    box-sizing: border-box;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.food-header-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: var(--ink);
+    transform: translateY(-1px);
 }
 
 .food-add-btn {
@@ -1620,7 +1654,8 @@ select {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 9px 18px;
+    padding: 0 18px;
+    height: 42px;
     border-radius: 11px;
     background: color-mix(in srgb, var(--lime) 12%, transparent);
     border: 1px solid color-mix(in srgb, var(--lime) 32%, transparent);
@@ -1630,6 +1665,7 @@ select {
     text-decoration: none;
     cursor: pointer;
     white-space: nowrap;
+    box-sizing: border-box;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
@@ -1715,14 +1751,20 @@ select {
 
     .food-page-header-actions {
         width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
     }
 
+    .food-header-btn-secondary,
     .food-add-btn {
         width: 100%;
         padding: 12px 18px;
         font-size: 13.5px;
         border-radius: 12px;
         box-sizing: border-box;
+        text-align: center;
+        justify-content: center;
     }
 
     .food-page-title {
