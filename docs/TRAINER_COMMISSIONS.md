@@ -23,51 +23,26 @@ FitTrack separates **commission eligibility** from **commission rates**:
    - `NULL` means *inherit the next applicable rate down the hierarchy*.
    - `0.00%` means *an explicitly configured 0% commission rate* (which yields ₱0 commission).
    - `allow_trainer_commission = 0` halts commission creation altogether.
-4. **Performance Bonuses**:
-   - The best matching active performance tier bonus is added to the resolved base rate.
-   - The final rate is strictly capped between `0.00%` and `100.00%`.
 
 ```
 if (!plan.allow_trainer_commission) => return (no commission)
-base_rate = resolve_hierarchy(trainer_plan_override, trainer_base, plan_default, gym_default, platform_default)
-final_rate = min(100, max(0, base_rate + best_tier_bonus))
+final_rate = resolve_hierarchy(trainer_plan_override, trainer_base, plan_default, gym_default, platform_default)
 commission = round(payment.amount × final_rate / 100, 2)
 ```
 
 ### Examples (plan rate 10%)
 
-| Trainer | Personal rate | Tier reached | Final rate | On ₱1,000 payment |
-|---|---|---|---|---|
-| New trainer | *(blank)* | none | 10% | ₱100 |
-| Senior trainer | 15% | none | 15% | ₱150 |
-| Senior trainer, 12 active clients | 15% | 10+ clients → +5% | 20% | ₱200 |
-| Anyone, on a plan with rate **0%** | any | any | — | **no commission** |
+| Trainer | Personal rate | Final rate | On ₱1,000 payment |
+|---|---|---|---|
+| New trainer | *(blank)* | 10% | ₱100 |
+| Senior trainer | 15% | 15% | ₱150 |
+| Anyone, on a plan with rate **0%** | any | — | **no commission** |
 
 > **A plan rate of 0% means "this plan never pays commission"** (for example day passes). A trainer's personal rate does not override that.
 
 ---
 
-## 2. Performance Tiers & Configurable Bonus Caps
-
-Gym owners manage tier incentives on **Commissions → Commission Settings → Performance Tiers & Caps**:
-
-- **Optional Performance Bonuses Toggle**:
-  - Gym owners can enable or disable performance tier bonuses gym-wide using the `Enable Performance Tier Bonuses` switch (`gyms.enable_commission_tiers`).
-  - When disabled, commissions only pay out base rates (from the 5-level hierarchy), ignoring any active tier definitions.
-- **Configurable Maximum Commission Cap**:
-  - Gyms can enforce a strict upper ceiling on payouts (`gyms.max_commission_rate_cap`, e.g., 20.00%, 35.00%, or 50.00%).
-  - Even if a trainer's base rate plus tier bonus totals 30%, a cap of 20% strictly bounds the applied rate to 20.00%.
-- **Tier Metrics**:
-  - `active_clients`: number of distinct members with an `active` assignment to the trainer.
-  - `monthly_revenue`: total of payments that **already** earned this trainer a commission in the current calendar month.
-- **Bonus Rules**:
-  - Each tier defines a threshold and a `bonus_rate` in percentage points.
-  - **Bonuses do not stack**: if a trainer qualifies for multiple tiers across metrics, the single highest bonus wins.
-  - Tiers are evaluated at payment settlement time and snapshotted. Changing tiers later does not alter historical payouts.
-
----
-
-## 3. Rate snapshots & Immutable Reversals (Accounting Integrity)
+## 2. Rate snapshots & Immutable Reversals (Accounting Integrity)
 
 Every `trainer_commissions` row stores how it was calculated:
 
@@ -75,10 +50,8 @@ Every `trainer_commissions` row stores how it was calculated:
 |---|---|
 | `amount` | Commission owed (positive for credits, negative `-₱X.XX` for reversal debits) |
 | `base_amount` | Payment amount it was calculated from (honours promos/discounts) |
-| `rate_applied` | Final % used (`base_rate + tier_bonus`), clamped to the gym cap |
-| `base_rate` | Resolved rate from the 5-level hierarchy before performance bonus |
-| `tier_bonus` | Bonus percentage points applied (or `0.00` if tiers disabled/none met) |
-| `tier_id` | Tier that granted the bonus (nullable) |
+| `rate_applied` | Final % used (`base_rate`), snapshotted |
+| `base_rate` | Resolved rate from the 5-level hierarchy |
 | `rate_source` | Source tag (`trainer_plan_override`, `trainer`, `plan`, `gym`, or `platform`) |
 | `status` | `pending`, `paid`, `cancelled`, or `reversed` |
 | `reversal_reason` | Audit description for why a commission was cancelled or reversed |
@@ -140,17 +113,16 @@ A tab switcher separates the commission payout logs from the configuration panel
 - **Tab 1: Commission Payouts (`?tab=payouts`)**:
   - Full payout ledger with live filters, pagination, and settlement actions.
   - **Search filter**: instant search by trainer name, member name, receipt number, or plan name with reset shortcut.
-  - Shows the **Rate** breakdown column (e.g., `20% (15% + 5% tier)`).
+  - Shows the **Rate** applied column.
   - **Dedicated Note Column (`ℹ` icon)**: Cleans up the status pill by moving cancellation/reversal reasons to an interactive info modal. Clicking `ℹ` opens a clean pop-up detailing the audit reason and timestamp.
   - **Cancel/Reverse Modal with Client Unassignment**: When reversing or cancelling a commission, owners can toggle `[x] Also end trainer assignment for this member` (checked by default), immediately ending the coach's assignment and pruning them from the trainer's active roster.
   - Supports deep linking with `&trainer_id=<trainer_profiles.trainer_id>` from reports.
 - **Tab 2: Commission Settings (`?tab=settings`)**:
-  - **Trainer Rates**: configure individual commission % overrides per coach. Includes an **instant search box** (`Search trainers by name or specialization...`) and scrollable container when managing large rosters of coaches. Each row displays real-time statistics (active client count, current month's revenue, active tier badges).
-  - **Performance Tiers**: add/remove client count or monthly revenue bonus thresholds.
+  - **Trainer Rates**: configure individual commission % overrides per coach. Includes an **instant search box** (`Search trainers by name or specialization...`) and scrollable container when managing large rosters of coaches. Each row displays real-time statistics (active client count, current month's revenue).
   - Submitting forms preserves your position on the settings tab.
 
 ### Trainer: `index.php?page=my_commissions`
-- New **Your Commission Rate** card: personal rate (or "Plan rate"), current tier bonus, active clients and revenue this month.
+- **Your Commission Rate** card: personal rate (or "Plan rate"), active clients and revenue this month.
 - History table has a **Rate** column.
 
 ---
@@ -166,23 +138,10 @@ ALTER TABLE trainer_commissions
   ADD COLUMN base_amount  DECIMAL(10,2) NULL,
   ADD COLUMN rate_applied DECIMAL(5,2)  NULL,
   ADD COLUMN base_rate    DECIMAL(5,2)  NULL,
-  ADD COLUMN tier_bonus   DECIMAL(5,2)  NOT NULL DEFAULT 0.00,
-  ADD COLUMN tier_id      INT UNSIGNED  NULL,
-  ADD COLUMN rate_source  VARCHAR(20)   NOT NULL DEFAULT 'plan';
-
-CREATE TABLE commission_tiers (
-  tier_id    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  gym_id     INT UNSIGNED NOT NULL,
-  metric     ENUM('active_clients','monthly_revenue') NOT NULL,
-  threshold  DECIMAL(12,2) NOT NULL,
-  bonus_rate DECIMAL(5,2)  NOT NULL,
-  is_active  TINYINT(1)    NOT NULL DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_commission_tiers_gym (gym_id, is_active)
-);
+  ADD COLUMN rate_source  VARCHAR(30)   NOT NULL DEFAULT 'plan';
 ```
 
-> `trainer_commissions.trainer_id` references **`users.user_id`** (not `trainer_profiles.trainer_id`). `commission_tiers` and `trainer_assignments` use `trainer_profiles.trainer_id`.
+> `trainer_commissions.trainer_id` references **`users.user_id`** (not `trainer_profiles.trainer_id`). `trainer_assignments` uses `trainer_profiles.trainer_id`.
 
 ---
 

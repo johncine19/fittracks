@@ -22,16 +22,23 @@ function trainer_members_page(): void
             flash('Workout plan generated for client.');
         } elseif (post('action') === 'accept_appointment') {
             $assignmentId = (int) post('assignment_id');
-            db()->prepare('UPDATE trainer_assignments SET status = "active" WHERE assignment_id = ?')->execute([$assignmentId]);
-            $stmt = db()->prepare('SELECT member_user_id, assigned_by FROM trainer_assignments WHERE assignment_id = ?');
-            $stmt->execute([$assignmentId]);
+            // Ensure assignment has a valid group_id
+            $curGid = scalar('SELECT group_id FROM trainer_assignments WHERE assignment_id = ?', [$assignmentId]);
+            if (empty($curGid)) {
+                $newGid = bin2hex(random_bytes(16));
+                db()->prepare('UPDATE trainer_assignments SET group_id = ? WHERE assignment_id = ?')->execute([$newGid, $assignmentId]);
+            }
+            // Scope to the logged-in trainer so a trainer cannot accept (and earn commission on) another trainer's assignment
+            db()->prepare('UPDATE trainer_assignments SET status = "active" WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
+            $stmt = db()->prepare('SELECT member_user_id, assigned_by FROM trainer_assignments WHERE assignment_id = ? AND trainer_id = ?');
+            $stmt->execute([$assignmentId, $coachId]);
             $assignment = $stmt->fetch();
             if ($assignment) {
                 notify_user((int)$assignment['member_user_id'], 'system', 'Appointment Accepted', 'Your trainer appointment request was accepted by the trainer.');
                 if ($assignment['assigned_by']) {
                     notify_user((int)$assignment['assigned_by'], 'system', 'Appointment Accepted', 'Trainer ' . $user['first_name'] . ' accepted the appointment request.');
                 }
-                grant_retroactive_commission((int)$assignment['member_user_id']);
+                grant_retroactive_commission((int)$assignment['member_user_id'], (int)$coachId);
             }
             flash('Appointment accepted.');
         } elseif (post('action') === 'reject_appointment') {
@@ -55,12 +62,17 @@ function trainer_members_page(): void
         }
         redirect('trainer_members');
     }
+    if (function_exists('sync_trainer_assignments_with_memberships')) {
+        sync_trainer_assignments_with_memberships();
+    }
     $members = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
         mp.height_cm, mp.primary_goal,
         (SELECT mg.target_value FROM member_goals mg WHERE mg.user_id = ca.member_user_id AND mg.goal_type = "weight" LIMIT 1) AS target_weight_kg,
         (SELECT title FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_title,
         (SELECT plan_id FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_id,
+        (SELECT title FROM dietary_plans WHERE member_user_id = ca.member_user_id AND status = "active" ORDER BY (trainer_id = ca.trainer_id) DESC, is_preferred DESC, plan_id DESC LIMIT 1) AS active_diet_title,
+        (SELECT plan_id FROM dietary_plans WHERE member_user_id = ca.member_user_id AND status = "active" ORDER BY (trainer_id = ca.trainer_id) DESC, is_preferred DESC, plan_id DESC LIMIT 1) AS active_diet_id,
         (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count,
         (SELECT COUNT(DISTINCT log_date) FROM member_meal_logs WHERE user_id = ca.member_user_id) AS food_logs_count
     FROM trainer_assignments ca 
@@ -280,9 +292,11 @@ function trainer_members_page(): void
                 $avatarHtml = render_avatar($member, 'large');
                 $activityTitle = $member['activity_title'] ?? '';
                 
-                // Active Plan
+                // Active Plans
                 $activePlanTitle = $member['active_plan_title'] ?? null;
                 $hasPlan = !empty($activePlanTitle);
+                $activeDietTitle = $member['active_diet_title'] ?? null;
+                $hasDietPlan = !empty($activeDietTitle);
                 $logsCount = (int) ($member['logs_count'] ?? 0);
                 $foodLogsCount = (int) ($member['food_logs_count'] ?? 0);
 
@@ -333,27 +347,29 @@ function trainer_members_page(): void
                         <?php endif; ?>
                     </div>
 
-                    <!-- Vitals & Metrics Strip -->
+                    <!-- Plans Strip (Workout & Diet) -->
                     <div class="tm-vitals-grid">
-                        <div class="tm-vital-item">
-                            <span class="tm-vital-label">Weight</span>
-                            <span class="tm-vital-val" id="vital-weight-<?= $memberId ?>"><?= $weight ?> <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">kg</small></span>
-                            <span class="tm-vital-sub"><?= $targetWeight ? "Goal: {$targetWeight}kg" : "Target: -" ?></span>
-                        </div>
-                        <div class="tm-vital-item">
-                            <span class="tm-vital-label">Height</span>
-                            <span class="tm-vital-val" id="vital-height-<?= $memberId ?>"><?= $height ?> <small style="font-size:0.75rem;font-weight:normal;color:var(--muted);">cm</small></span>
-                            <span class="tm-vital-sub"><?= $bmiText ?></span>
-                        </div>
                         <div class="tm-vital-item">
                             <span class="tm-vital-label">Workout Plan</span>
                             <?php if ($hasPlan): ?>
-                                <span class="tm-vital-val" style="font-size: 0.82rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 90px;" title="<?= h($activePlanTitle) ?>">
+                                <span class="tm-vital-val tm-plan-val" title="<?= h($activePlanTitle) ?>">
                                     <?= h($activePlanTitle) ?>
                                 </span>
-                                <span class="tm-vital-sub">Active</span>
+                                <span class="tm-vital-sub tm-plan-active">Active</span>
                             <?php else: ?>
-                                <span class="tm-vital-val" style="font-size: 0.82rem; color: var(--muted);">None</span>
+                                <span class="tm-vital-val tm-plan-val tm-plan-none">None</span>
+                                <span class="tm-vital-sub">Not assigned</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="tm-vital-item">
+                            <span class="tm-vital-label">Diet Plan</span>
+                            <?php if ($hasDietPlan): ?>
+                                <span class="tm-vital-val tm-plan-val" title="<?= h($activeDietTitle) ?>">
+                                    <?= h($activeDietTitle) ?>
+                                </span>
+                                <span class="tm-vital-sub tm-plan-active">Active</span>
+                            <?php else: ?>
+                                <span class="tm-vital-val tm-plan-val tm-plan-none">None</span>
                                 <span class="tm-vital-sub">Not assigned</span>
                             <?php endif; ?>
                         </div>

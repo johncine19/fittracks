@@ -233,6 +233,28 @@ function run_normalize_phase5_migration(?PDO $pdo = null): void
     $canTrigger = function_exists('db_supports_triggers') ? db_supports_triggers($pdo) : true;
     if ($canTrigger) {
         try {
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_before_insert');
+            $pdo->exec("
+                CREATE TRIGGER trg_trainer_assignments_before_insert BEFORE INSERT ON trainer_assignments
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.group_id IS NULL OR NEW.group_id = '' THEN
+                        SET NEW.group_id = UUID();
+                    END IF;
+                END
+            ");
+
+            $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_before_update');
+            $pdo->exec("
+                CREATE TRIGGER trg_trainer_assignments_before_update BEFORE UPDATE ON trainer_assignments
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.group_id IS NULL OR NEW.group_id = '' THEN
+                        SET NEW.group_id = IF(OLD.group_id IS NOT NULL AND OLD.group_id != '', OLD.group_id, UUID());
+                    END IF;
+                END
+            ");
+
             $pdo->exec('DROP TRIGGER IF EXISTS trg_trainer_assignments_insert');
             $pdo->exec("
                 CREATE TRIGGER trg_trainer_assignments_insert AFTER INSERT ON trainer_assignments
@@ -265,20 +287,22 @@ function run_normalize_phase5_migration(?PDO $pdo = null): void
                 CREATE TRIGGER trg_trainer_assignments_update AFTER UPDATE ON trainer_assignments
                 FOR EACH ROW
                 BEGIN
-                    UPDATE assignment_groups
-                    SET trainer_id = NEW.trainer_id,
-                        activity_title = COALESCE(NEW.activity_title, activity_title),
-                        status = NEW.status
-                    WHERE group_id = NEW.group_id;
+                    IF NEW.group_id IS NOT NULL AND NEW.group_id != '' THEN
+                        UPDATE assignment_groups
+                        SET trainer_id = NEW.trainer_id,
+                            activity_title = COALESCE(NEW.activity_title, activity_title),
+                            status = NEW.status
+                        WHERE group_id = NEW.group_id;
 
-                    UPDATE assignment_group_members
-                    SET group_id = NEW.group_id,
-                        member_user_id = NEW.member_user_id,
-                        status = NEW.status,
-                        assigned_date = NEW.assigned_date,
-                        ended_date = NEW.ended_date,
-                        rejection_reason = NEW.rejection_reason
-                    WHERE assignment_id = NEW.assignment_id;
+                        UPDATE assignment_group_members
+                        SET group_id = NEW.group_id,
+                            member_user_id = NEW.member_user_id,
+                            status = NEW.status,
+                            assigned_date = NEW.assigned_date,
+                            ended_date = NEW.ended_date,
+                            rejection_reason = NEW.rejection_reason
+                        WHERE assignment_id = NEW.assignment_id;
+                    END IF;
                 END
             ");
 

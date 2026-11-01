@@ -360,67 +360,324 @@ function check_and_upgrade_tier(int $userId, int $planId = 0): ?array {
     return null;
 }
 
-function process_trainer_commission(int $paymentId, float $amount): void
+/**
+ * How many days back a payment may be when a trainer is assigned afterwards
+ * and still earn that trainer a (retroactive) commission. See docs/TRAINER_COMMISSIONS.md.
+ */
+const COMMISSION_RETRO_WINDOW_DAYS = 30;
+
+/**
+ * Current performance figures for a trainer (active clients & current month's revenue).
+ *
+ * - active_clients:  distinct members with an active assignment to this trainer.
+ * - monthly_revenue: sum of payments that earned this trainer a commission in the current calendar month.
+ *
+ * @return array{active_clients: int, monthly_revenue: float}
+ */
+function trainer_commission_metrics(int $trainerProfileId, int $trainerUserId): array
+{
+    $activeClients = (int) scalar(
+        "SELECT COUNT(DISTINCT member_user_id) FROM trainer_assignments WHERE trainer_id = ? AND status = 'active'",
+        [$trainerProfileId]
+    );
+    $monthlyRevenue = (float) scalar(
+        "SELECT COALESCE(SUM(COALESCE(tc.base_amount, p.amount)), 0)
+         FROM trainer_commissions tc
+         JOIN payments p ON p.payment_id = tc.payment_id
+         WHERE tc.trainer_id = ? AND tc.status IN ('pending', 'paid')
+           AND tc.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')",
+        [$trainerUserId]
+    );
+
+    return ['active_clients' => $activeClients, 'monthly_revenue' => $monthlyRevenue];
+}
+
+/**
+ * Credit a trainer commission for a paid membership payment.
+ *
+ * Eligibility & 5-Level Rate Hierarchy (Phase 1):
+ *   0. Eligibility Check: membership_plans.allow_trainer_commission must be 1.
+ *      If 0, no commission is created regardless of trainer rates.
+ *   
+ *   Rate Cascade (highest priority wins; base rates are never summed together):
+ *     Level 1: Trainer + Plan Override (trainer_plan_commission_overrides)
+ *     Level 2: Trainer Base Rate (trainer_profiles.commission_rate)
+ *     Level 3: Plan Default Rate (membership_plans.commission_rate)
+ *     Level 4: Gym Default Rate (gyms.default_commission_rate)
+ *     Level 5: Platform Default Rate (system_settings 'platform_default_commission_rate' or fallback 5.00%)
+ *
+ *   NULL vs 0.00% distinction:
+ *     - NULL = inherit lower-level fallback.
+ *     - 0.00% = explicitly configured 0% rate (creates no payout).
+ *
+ *   Incentives:
+ *     + Best performance tier bonus (if applicable).
+ *     Clamped to 0% – 100%.
+ *
+ * @param int|null $preferredTrainerId trainer_profiles.trainer_id to credit.
+ */
+function process_trainer_commission(int $paymentId, float $amount, ?int $preferredTrainerId = null): void
 {
     $pdo = db();
     // Idempotency: Ensure commission is not credited multiple times for the same payment
-    $alreadyCredited = (bool) scalar('SELECT 1 FROM trainer_commissions WHERE payment_id = ? LIMIT 1', [(int)$paymentId]);
+    $alreadyCredited = (bool) scalar('SELECT 1 FROM trainer_commissions WHERE payment_id = ? LIMIT 1', [$paymentId]);
     if ($alreadyCredited) {
         return;
     }
 
-    // 1. Get the membership ID and plan commission rate from the payment
-    $paymentInfo = $pdo->query("
-        SELECT m.user_id, m.membership_id, mp.commission_rate
+    // 1. Payment, member, plan details, eligibility switch, and the plan's gym
+    $stmt = $pdo->prepare("
+        SELECT m.user_id, m.membership_id, m.plan_id, p.amount AS paid_amount, 
+               mp.commission_rate AS plan_rate, 
+               mp.allow_trainer_commission,
+               mp.gym_id,
+               g.default_commission_rate AS gym_rate
         FROM payments p
         JOIN memberships m ON m.membership_id = p.membership_id
         JOIN membership_plans mp ON mp.plan_id = m.plan_id
-        WHERE p.payment_id = " . (int)$paymentId
-    )->fetch();
+        LEFT JOIN gyms g ON g.gym_id = mp.gym_id
+        WHERE p.payment_id = ?
+    ");
+    $stmt->execute([$paymentId]);
+    $paymentInfo = $stmt->fetch();
 
-    if (!$paymentInfo || $paymentInfo['commission_rate'] <= 0) {
+    if (!$paymentInfo) {
         return;
     }
 
-    // 2. Check if the member has an active trainer and get the trainer's user_id
-    $trainer = $pdo->query("
-        SELECT tp.user_id 
+    // Explicit Eligibility check: If plan disables trainer commissions, halt immediately.
+    if (isset($paymentInfo['allow_trainer_commission']) && (int)$paymentInfo['allow_trainer_commission'] === 0) {
+        return;
+    }
+
+    // Use the amount actually recorded on the payment (honours discounts/promos)
+    $baseAmount = (float) $paymentInfo['paid_amount'] > 0 ? (float) $paymentInfo['paid_amount'] : $amount;
+    if ($baseAmount <= 0) {
+        return;
+    }
+
+    // 2. Active trainer for this member, restricted to the plan's gym
+    $sql = "
+        SELECT tp.trainer_id, tp.user_id, tp.commission_rate AS trainer_rate
         FROM trainer_assignments ta
         JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id
-        WHERE ta.member_user_id = " . (int)$paymentInfo['user_id'] . " 
-        AND ta.status = 'active'
-        LIMIT 1
-    ")->fetch();
+        WHERE ta.member_user_id = ?
+          AND ta.status = 'active'
+          AND (tp.gym_id <=> ?)";
+    $params = [(int) $paymentInfo['user_id'], $paymentInfo['gym_id']];
+    if ($preferredTrainerId !== null) {
+        $sql .= ' AND tp.trainer_id = ?';
+        $params[] = $preferredTrainerId;
+    }
+    $sql .= ' ORDER BY ta.assigned_date DESC LIMIT 1';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $trainer = $stmt->fetch();
 
-    if ($trainer) {
-        // 3. Calculate and insert commission
-        $commissionAmount = $amount * ((float)$paymentInfo['commission_rate'] / 100);
-        if ($commissionAmount > 0) {
-            $pdo->prepare('INSERT INTO trainer_commissions (trainer_id, payment_id, amount, status) VALUES (?, ?, ?, "pending")')
-                ->execute([$trainer['user_id'], $paymentId, $commissionAmount]);
+    if (!$trainer) {
+        return;
+    }
+
+    // 3. Resolve base rate through the 5-Level Hierarchy (Highest priority wins, NULL inherits)
+    $baseRate = null;
+    $rateSource = 'platform';
+
+    // Level 1: Trainer + Plan Override
+    $overrideRate = scalar(
+        'SELECT commission_rate FROM trainer_plan_commission_overrides WHERE trainer_id = ? AND plan_id = ? LIMIT 1',
+        [(int)$trainer['trainer_id'], (int)$paymentInfo['plan_id']]
+    );
+    if ($overrideRate !== null && $overrideRate !== false) {
+        $baseRate = (float) $overrideRate;
+        $rateSource = 'trainer_plan_override';
+    }
+
+    // Level 2: Trainer Base Rate
+    if ($baseRate === null && $trainer['trainer_rate'] !== null) {
+        $baseRate = (float) $trainer['trainer_rate'];
+        $rateSource = 'trainer';
+    }
+
+    // Level 3: Plan Default Rate
+    if ($baseRate === null && $paymentInfo['plan_rate'] !== null) {
+        $baseRate = (float) $paymentInfo['plan_rate'];
+        $rateSource = 'plan';
+    }
+
+    // Level 4: Gym Default Rate
+    if ($baseRate === null && !empty($paymentInfo['gym_rate'])) {
+        $baseRate = (float) $paymentInfo['gym_rate'];
+        $rateSource = 'gym';
+    }
+
+    // Level 5: Platform Default Rate
+    if ($baseRate === null) {
+        $platformSetting = get_setting('platform_default_commission_rate', '5.00');
+        $baseRate = is_numeric($platformSetting) ? (float)$platformSetting : 5.00;
+        $rateSource = 'platform';
+    }
+
+    // If explicit rate is 0%, no positive commission generated
+    $baseRate = max(0.0, (float)$baseRate);
+    $finalRate = min(100.0, $baseRate);
+    $commissionAmount = round($baseAmount * $finalRate / 100, 2);
+    if ($commissionAmount <= 0) {
+        return;
+    }
+
+    $pdo->prepare('
+        INSERT INTO trainer_commissions
+            (trainer_id, payment_id, amount, base_amount, rate_applied, base_rate, rate_source, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, "pending")
+    ')->execute([
+        (int) $trainer['user_id'],
+        $paymentId,
+        $commissionAmount,
+        $baseAmount,
+        $finalRate,
+        $baseRate,
+        $rateSource,
+    ]);
+}
+/**
+ * Automatically handle immutable commission reversal/cancellation when a payment
+ * is refunded, charged back, or cancelled.
+ *
+ * Rules:
+ *   - If commission status was 'pending':
+ *       Mark as 'cancelled' with reason and timestamp.
+ *   - If commission status was 'paid':
+ *       Mark existing row as 'reversed' AND create an immutable debit reversal entry
+ *       (amount: -X.XX, base_amount: -Y.YY, status: 'reversed') to preserve the ledger trail.
+ *
+ * @param int $paymentId ID of the refunded/cancelled payment
+ * @param string $reason Brief audit reason (e.g. 'Payment refunded', 'Chargeback')
+ * @param int|null $actorUserId User ID of admin/owner/system making the change
+ * @return int Number of commission records adjusted/reversed
+ */
+function reverse_trainer_commission_for_payment(int $paymentId, string $reason = 'Payment refunded', ?int $actorUserId = null, bool $endTrainerAssignment = true): int
+{
+    if ($paymentId <= 0) {
+        return 0;
+    }
+
+    $pdo = db();
+    $commissions = query_all(
+        'SELECT * FROM trainer_commissions WHERE payment_id = ? AND status IN ("pending", "paid")',
+        [$paymentId]
+    );
+
+    if (empty($commissions)) {
+        return 0;
+    }
+
+    $reversedCount = 0;
+    $now = date('Y-m-d H:i:s');
+
+    foreach ($commissions as $comm) {
+        $commId = (int)$comm['commission_id'];
+        $status = (string)$comm['status'];
+
+        if ($status === 'pending') {
+            // Pending commission is simply cancelled without altering net paid balances
+            $pdo->prepare('
+                UPDATE trainer_commissions
+                SET status = "cancelled",
+                    reversal_reason = ?,
+                    reversed_at = ?,
+                    reversed_by = ?
+                WHERE commission_id = ? AND status = "pending"
+            ')->execute([$reason, $now, $actorUserId, $commId]);
+            $reversedCount++;
+        } elseif ($status === 'paid') {
+            // Paid commission must be marked reversed AND an immutable debit ledger row created
+            $pdo->prepare('
+                UPDATE trainer_commissions
+                SET status = "reversed",
+                    reversal_reason = ?,
+                    reversed_at = ?,
+                    reversed_by = ?
+                WHERE commission_id = ? AND status = "paid"
+            ')->execute([$reason, $now, $actorUserId, $commId]);
+
+            // Create offsetting immutable ledger entry
+            $debitAmount = -abs((float)$comm['amount']);
+            $debitBase = $comm['base_amount'] !== null ? -abs((float)$comm['base_amount']) : null;
+
+            $pdo->prepare('
+                INSERT INTO trainer_commissions
+                    (trainer_id, payment_id, amount, base_amount, rate_applied, base_rate, rate_source, status, reversal_reason, reversed_at, reversed_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, "reversed", ?, ?, ?)
+            ')->execute([
+                (int)$comm['trainer_id'],
+                $paymentId,
+                $debitAmount,
+                $debitBase,
+                $comm['rate_applied'],
+                $comm['base_rate'],
+                $comm['rate_source'] ?? 'plan',
+                'Reversal debit: ' . $reason,
+                $now,
+                $actorUserId
+            ]);
+            $reversedCount++;
         }
     }
+
+    if ($endTrainerAssignment && $reversedCount > 0) {
+        $mRow = query_all("
+            SELECT m.user_id, mp.gym_id 
+            FROM payments p 
+            JOIN memberships m ON m.membership_id = p.membership_id 
+            JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+            WHERE p.payment_id = ? LIMIT 1
+        ", [$paymentId])[0] ?? null;
+        if ($mRow) {
+            $memberUserId = (int)$mRow['user_id'];
+            $gymId = (int)$mRow['gym_id'];
+            $pdo->prepare("
+                UPDATE trainer_assignments ta
+                JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id
+                SET ta.status = 'ended', ta.ended_date = CURDATE()
+                WHERE ta.member_user_id = ? AND (tp.gym_id <=> ? OR ? = 0) AND ta.status = 'active'
+            ")->execute([$memberUserId, $gymId, $gymId]);
+        }
+    }
+
+    return $reversedCount;
 }
 
-function grant_retroactive_commission(int $memberUserId): void
+/**
+ * Credit a commission for a member's most recent payment when a trainer is assigned
+ * after the member already paid. Only payments within COMMISSION_RETRO_WINDOW_DAYS,
+ * on an active membership at the trainer's gym, qualify.
+ *
+ * @param int|null $trainerId trainer_profiles.trainer_id of the trainer being assigned.
+ */
+function grant_retroactive_commission(int $memberUserId, ?int $trainerId = null): void
 {
-    $pdo = db();
-    $recentPayment = $pdo->query("
-        SELECT p.payment_id, p.amount 
+    $sql = "
+        SELECT p.payment_id, p.amount
         FROM memberships m
         JOIN payments p ON p.membership_id = m.membership_id
-        WHERE m.user_id = " . (int)$memberUserId . " 
-        AND m.status = 'active' 
-        AND p.status = 'paid'
-        ORDER BY p.payment_date DESC 
-        LIMIT 1
-    ")->fetch();
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE m.user_id = ?
+          AND m.status = 'active'
+          AND p.status = 'paid'
+          AND p.payment_date >= DATE_SUB(CURDATE(), INTERVAL " . (int) COMMISSION_RETRO_WINDOW_DAYS . " DAY)";
+    $params = [$memberUserId];
+    if ($trainerId !== null) {
+        $sql .= ' AND mp.gym_id <=> (SELECT gym_id FROM trainer_profiles WHERE trainer_id = ?)';
+        $params[] = $trainerId;
+    }
+    $sql .= ' ORDER BY p.payment_date DESC, p.payment_id DESC LIMIT 1';
+
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $recentPayment = $stmt->fetch();
 
     if ($recentPayment) {
-        $exists = scalar('SELECT COUNT(*) FROM trainer_commissions WHERE payment_id = ?', [$recentPayment['payment_id']]);
-        if (!$exists) {
-            process_trainer_commission((int)$recentPayment['payment_id'], (float)$recentPayment['amount']);
-        }
+        process_trainer_commission((int) $recentPayment['payment_id'], (float) $recentPayment['amount'], $trainerId);
     }
 }
 

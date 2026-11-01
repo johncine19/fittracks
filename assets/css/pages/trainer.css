@@ -319,10 +319,10 @@
         font-weight: 500;
     }
 
-    /* Vitals Strip (3 columns) */
+    /* Plans Strip (2 columns: Workout Plan & Diet Plan) */
     .tm-vitals-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
         background: color-mix(in srgb, var(--surface) 55%, var(--bg));
         border: 1px solid var(--line);
@@ -334,6 +334,7 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
+        min-width: 0;
     }
     .tm-vital-item:not(:last-child) {
         border-right: 1px solid var(--line);
@@ -350,6 +351,24 @@
         font-size: 0.95rem;
         font-weight: 700;
         color: var(--ink);
+    }
+    .tm-plan-val {
+        font-size: 0.88rem;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+        max-width: 130px;
+        color: var(--ink);
+        display: inline-block;
+    }
+    .tm-plan-none {
+        color: var(--muted);
+        font-weight: 500;
+    }
+    .tm-plan-active {
+        color: var(--lime);
+        font-weight: 600;
     }
     .tm-vital-sub {
         font-size: 0.72rem;

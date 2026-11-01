@@ -12,12 +12,17 @@ function trainer_dashboard(PDO $pdo, array $user): void
     $stmt->execute([$user['user_id']]);
     $coachId = (int) ($stmt->fetchColumn() ?: 0);
 
+    // Sync assignments with active memberships
+    if (function_exists('sync_trainer_assignments_with_memberships')) {
+        sync_trainer_assignments_with_memberships();
+    }
+
     // Gather stats
     $clientCount = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "active"', [$coachId]);
     $pendingCount = (int) scalar('SELECT COUNT(*) FROM trainer_assignments WHERE trainer_id = ? AND status = "pending_trainer"', [$coachId]);
     $planCount = (int) scalar('SELECT COUNT(*) FROM training_plans WHERE trainer_id = ? AND status IN ("active", "draft")', [$coachId]);
-    $totalEarnings = (float) scalar('SELECT COALESCE(SUM(amount), 0) FROM trainer_commissions WHERE trainer_id = ? AND status = "paid"', [$coachId]);
-    $pendingEarnings = (float) scalar('SELECT COALESCE(SUM(amount), 0) FROM trainer_commissions WHERE trainer_id = ? AND status = "pending"', [$coachId]);
+    $totalEarnings = (float) scalar('SELECT COALESCE(SUM(amount), 0) FROM trainer_commissions WHERE trainer_id = ? AND status IN ("paid", "reversed")', [$user['user_id']]);
+    $pendingEarnings = (float) scalar('SELECT COALESCE(SUM(amount), 0) FROM trainer_commissions WHERE trainer_id = ? AND status = "pending"', [$user['user_id']]);
 
     // Upcoming appointments (today & future)
     $upcomingAppointments = query_all(

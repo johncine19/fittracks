@@ -195,7 +195,35 @@ try {
         "ALTER TABLE `trainer_profiles` ADD INDEX `idx_trainer_gym_user` (`gym_id`, `user_id`)",
         "ALTER TABLE `class_schedules` ADD INDEX `idx_class_sched_gym_class` (`gym_id`, `class_id`)",
         // ── Fix Misaligned SaaS Subscription Payment End Dates ──
-        "UPDATE gym_subscription_payments sp JOIN gyms g ON g.gym_id = sp.gym_id SET sp.end_date = g.subscription_renewal_date WHERE sp.end_date < sp.start_date AND g.subscription_renewal_date >= sp.start_date"
+        "UPDATE gym_subscription_payments sp JOIN gyms g ON g.gym_id = sp.gym_id SET sp.end_date = g.subscription_renewal_date WHERE sp.end_date < sp.start_date AND g.subscription_renewal_date >= sp.start_date",
+        // ── Flexible Trainer Commissions (per-trainer rates, rate snapshots) ──
+        "ALTER TABLE trainer_profiles ADD COLUMN commission_rate DECIMAL(5,2) NULL DEFAULT NULL AFTER bio",
+        "ALTER TABLE trainer_commissions ADD COLUMN base_amount DECIMAL(10,2) NULL DEFAULT NULL AFTER amount",
+        "ALTER TABLE trainer_commissions ADD COLUMN rate_applied DECIMAL(5,2) NULL DEFAULT NULL AFTER base_amount",
+        "ALTER TABLE trainer_commissions ADD COLUMN base_rate DECIMAL(5,2) NULL DEFAULT NULL AFTER rate_applied",
+        "ALTER TABLE trainer_commissions ADD COLUMN rate_source VARCHAR(30) NOT NULL DEFAULT 'plan' AFTER base_rate",
+        // Backfill snapshots for historical commissions so old rows display a rate
+        "UPDATE trainer_commissions tc JOIN payments p ON p.payment_id = tc.payment_id SET tc.base_amount = p.amount, tc.rate_applied = ROUND(tc.amount / p.amount * 100, 2), tc.base_rate = ROUND(tc.amount / p.amount * 100, 2) WHERE tc.base_amount IS NULL AND p.amount > 0",
+        // ── Decoupled Commission Eligibility & Hierarchy ──
+        "ALTER TABLE trainer_commissions MODIFY COLUMN rate_source VARCHAR(30) NOT NULL DEFAULT 'plan'",
+        "ALTER TABLE membership_plans ADD COLUMN allow_trainer_commission TINYINT(1) NOT NULL DEFAULT 1 AFTER commission_rate",
+        "ALTER TABLE gyms ADD COLUMN default_commission_rate DECIMAL(5,2) NULL DEFAULT NULL AFTER brand_color",
+        "CREATE TABLE IF NOT EXISTS trainer_plan_commission_overrides (override_id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, trainer_id INT UNSIGNED NOT NULL, plan_id INT UNSIGNED NOT NULL, commission_rate DECIMAL(5,2) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_trainer_plan (trainer_id, plan_id), INDEX idx_tpco_plan (plan_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // Safe backward-compatibility: If an existing plan had commission_rate = 0, set allow_trainer_commission = 0
+        "UPDATE membership_plans SET allow_trainer_commission = 0 WHERE commission_rate <= 0",
+        // ── Refund Automation, Immutable Reversal Ledger & Net Payout Adjustments ──
+        "ALTER TABLE trainer_commissions MODIFY COLUMN status ENUM('pending','paid','cancelled','reversed') NOT NULL DEFAULT 'pending'",
+        "ALTER TABLE trainer_commissions ADD COLUMN reversal_reason VARCHAR(255) NULL DEFAULT NULL AFTER status",
+        "ALTER TABLE trainer_commissions ADD COLUMN reversed_at TIMESTAMP NULL DEFAULT NULL AFTER reversal_reason",
+        "ALTER TABLE trainer_commissions ADD COLUMN reversed_by INT UNSIGNED NULL DEFAULT NULL AFTER reversed_at",
+        "ALTER TABLE trainer_commissions DROP INDEX uq_trainer_comm_payment",
+        "ALTER TABLE trainer_commissions ADD INDEX idx_trainer_comm_payment (payment_id)",
+        // ── Cleanup / Removal of Performance Tiers & Caps ──
+        "DROP TABLE IF EXISTS commission_tiers",
+        "ALTER TABLE gyms DROP COLUMN enable_commission_tiers",
+        "ALTER TABLE gyms DROP COLUMN max_commission_rate_cap",
+        "ALTER TABLE trainer_commissions DROP COLUMN tier_bonus",
+        "ALTER TABLE trainer_commissions DROP COLUMN tier_id"
     ];
 
     foreach ($migrations as $sql) {
@@ -203,10 +231,17 @@ try {
             $pdo->exec($sql);
             echo "<li><span style='color:green;'>Success:</span> " . htmlspecialchars($sql) . "</li>";
         } catch (PDOException $e) {
-            // Ignore "Duplicate column name", "Duplicate key name", and already existing definitions
+            // Ignore "Duplicate column name", "Duplicate key name", already existing definitions, and "check that column/key exists" when dropping
             $msg = $e->getMessage();
-            if (strpos($msg, 'Duplicate column name') !== false || strpos($msg, 'Duplicate key name') !== false || strpos($msg, 'already exists') !== false) {
-                echo "<li><span style='color:gray;'>Skipped (Already exists):</span> " . htmlspecialchars($sql) . "</li>";
+            if (
+                strpos($msg, 'Duplicate column name') !== false ||
+                strpos($msg, 'Duplicate key name') !== false ||
+                strpos($msg, 'already exists') !== false ||
+                strpos($msg, "check that column/key exists") !== false ||
+                strpos($msg, "Can't DROP") !== false ||
+                strpos($msg, 'Unknown column') !== false
+            ) {
+                echo "<li><span style='color:gray;'>Skipped (Already satisfied):</span> " . htmlspecialchars($sql) . "</li>";
             } else {
                 echo "<li><span style='color:red;'>Error:</span> " . htmlspecialchars($msg) . "</li>";
             }

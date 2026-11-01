@@ -702,7 +702,7 @@ function reports_page(): void
                    u.user_id, u.first_name, u.last_name, u.email, u.profile_picture,
                    COALESCE(g.name, 'Independent') AS gym_name,
                    (SELECT COUNT(*) FROM trainer_assignments ta WHERE ta.trainer_id = tp.trainer_id AND ta.status = 'active') as active_clients,
-                   (SELECT COALESCE(SUM(tc.amount), 0) FROM trainer_commissions tc WHERE tc.trainer_id = tp.trainer_id AND tc.status = 'paid') as total_commissions
+                   (SELECT COALESCE(SUM(tc.amount), 0) FROM trainer_commissions tc WHERE tc.trainer_id = u.user_id AND tc.status IN ('paid', 'reversed')) as total_commissions
             FROM trainer_profiles tp
             JOIN users u ON u.user_id = tp.user_id
             LEFT JOIN gyms g ON g.gym_id = tp.gym_id

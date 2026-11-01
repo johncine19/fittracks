@@ -44,7 +44,8 @@ function trainers_page(): void
         if ($existing) {
             flash('You already have an active or pending trainer appointment for this facility. You must end it before requesting a new one.', 'danger');
         } else {
-            db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, ended_date, status) VALUES (?, ?, ?, ?, "pending_trainer")')->execute([$trainerId, $user['user_id'], $assignedDate, $endedDate]);
+            $assignmentGroupId = bin2hex(random_bytes(16));
+            db()->prepare('INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, assigned_date, ended_date, status) VALUES (?, ?, ?, ?, ?, "pending_trainer")')->execute([$assignmentGroupId, $trainerId, $user['user_id'], $assignedDate, $endedDate]);
             
             // Notify the specific trainer
             $trainerUserId = scalar('SELECT user_id FROM trainer_profiles WHERE trainer_id = ?', [$trainerId]);

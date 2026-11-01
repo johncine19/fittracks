@@ -178,13 +178,27 @@ function memberships_page(): void
                 }
             } elseif ($status === 'cancelled') {
                 db()->prepare('UPDATE payments SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
+                
+                // Cascade: Automatically reverse trainer commissions and end assignments for this cancelled membership
+                if (function_exists('reverse_trainer_commission_for_payment')) {
+                    $mPayments = query_all('SELECT payment_id FROM payments WHERE membership_id = ?', [$membershipId]);
+                    foreach ($mPayments as $mpRow) {
+                        reverse_trainer_commission_for_payment((int)$mpRow['payment_id'], 'Membership cancelled by gym: ' . ($mInfo['plan_name'] ?? 'Plan'), (int)$user['user_id'], true);
+                    }
+                }
+
                 if ($mInfo) {
                     notify_user((int) $mInfo['user_id'], 'system', 'Membership Request Cancelled', 'Your subscription request for ' . $mInfo['plan_name'] . ' was cancelled by the gym.');
                 }
             }
 
-            if ($mInfo && in_array($status, ['cancelled', 'expired'], true) && function_exists('pause_plans_for_lapsed_memberships')) {
-                pause_plans_for_lapsed_memberships((int) $mInfo['user_id'], (int) ($mInfo['gym_id'] ?? 0));
+            if ($mInfo && in_array($status, ['cancelled', 'expired'], true)) {
+                if (function_exists('pause_plans_for_lapsed_memberships')) {
+                    pause_plans_for_lapsed_memberships((int) $mInfo['user_id'], (int) ($mInfo['gym_id'] ?? 0));
+                }
+                if (function_exists('sync_trainer_assignments_with_memberships')) {
+                    sync_trainer_assignments_with_memberships((int) $mInfo['user_id']);
+                }
             }
 
             audit_log($user['user_id'], 'update_status', 'membership', (string) $membershipId, json_encode(['new_status' => $status]));
@@ -686,9 +700,23 @@ function memberships_page(): void
             $prevStatus = $recordToCancel['status'];
             db()->prepare("UPDATE memberships SET status = 'cancelled' WHERE membership_id = ?")->execute([$cancelMembershipId]);
             db()->prepare("UPDATE payments SET status = 'cancelled' WHERE membership_id = ? AND status = 'pending'")->execute([$cancelMembershipId]);
+
+            // Cascade: Automatically reverse trainer commissions and end assignments for this cancelled membership
+            if (function_exists('reverse_trainer_commission_for_payment')) {
+                $mPayments = query_all('SELECT payment_id FROM payments WHERE membership_id = ?', [$cancelMembershipId]);
+                foreach ($mPayments as $mpRow) {
+                    reverse_trainer_commission_for_payment((int)$mpRow['payment_id'], 'Membership cancelled by member: ' . $recordToCancel['plan_name'], (int)$user['user_id'], true);
+                }
+            }
+
             audit_log($user['user_id'], 'cancel', 'membership', (string)$cancelMembershipId, json_encode(['prev_status' => $prevStatus]));
-            if ($prevStatus === 'active' && function_exists('pause_plans_for_lapsed_memberships')) {
-                pause_plans_for_lapsed_memberships((int) $user['user_id'], (int) $user['user_id']);
+            if ($prevStatus === 'active') {
+                if (function_exists('pause_plans_for_lapsed_memberships')) {
+                    pause_plans_for_lapsed_memberships((int) $user['user_id'], (int) $user['user_id']);
+                }
+                if (function_exists('sync_trainer_assignments_with_memberships')) {
+                    sync_trainer_assignments_with_memberships((int) $user['user_id']);
+                }
             }
 
             $msg = $prevStatus === 'pending'

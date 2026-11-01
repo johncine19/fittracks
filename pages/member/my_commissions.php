@@ -33,10 +33,19 @@ function my_commissions_page(): void
     $stats = db()->query('
         SELECT 
             SUM(CASE WHEN status = "pending" THEN amount ELSE 0 END) AS pending_total,
-            SUM(CASE WHEN status = "paid" THEN amount ELSE 0 END) AS paid_total
+            SUM(CASE WHEN status IN ("paid", "reversed") THEN amount ELSE 0 END) AS net_paid_total
         FROM trainer_commissions
         WHERE trainer_id = ' . (int)$user['user_id'] . '
     ')->fetch();
+
+    // Current personal rate (see docs/TRAINER_COMMISSIONS.md)
+    $profile = query_all('SELECT trainer_id, gym_id, commission_rate FROM trainer_profiles WHERE user_id = ? LIMIT 1', [(int) $user['user_id']])[0] ?? null;
+    $myMetrics = ['active_clients' => 0, 'monthly_revenue' => 0.0];
+    if ($profile) {
+        $myMetrics = trainer_commission_metrics((int) $profile['trainer_id'], (int) $user['user_id']);
+    }
+    $fmtPct = static fn ($v): string => rtrim(rtrim(number_format((float) $v, 2), '0'), '.') . '%';
+    $myRateText = ($profile && $profile['commission_rate'] !== null) ? $fmtPct($profile['commission_rate']) : 'Plan rate';
 
     render_header('My Commissions', $user);
     ?>
@@ -93,8 +102,17 @@ function my_commissions_page(): void
                 <div style="font-size:24px; font-weight:bold; color:var(--ink);"><?= h(money($stats['pending_total'] ?? 0)) ?></div>
             </div>
             <div style="background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
-                <div style="color:var(--muted); font-size:13px; margin-bottom:5px;">Paid Earnings (All Time)</div>
-                <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($stats['paid_total'] ?? 0)) ?></div>
+                <div style="color:var(--muted); font-size:13px; margin-bottom:5px;">Net Paid Earnings (All Time)</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--lime);"><?= h(money($stats['net_paid_total'] ?? 0)) ?></div>
+            </div>
+            <div style="background:var(--bg); padding:15px; border-radius:8px; border:1px solid var(--line);">
+                <div style="color:var(--muted); font-size:13px; margin-bottom:5px;">Your Commission Rate</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--ink);">
+                    <?= h($myRateText) ?>
+                </div>
+                <div style="color:var(--muted); font-size:12px; margin-top:4px;">
+                    <?= (int) $myMetrics['active_clients'] ?> active client(s) · <?= h(money($myMetrics['monthly_revenue'])) ?> revenue this month
+                </div>
             </div>
         </div>
 
@@ -112,23 +130,56 @@ function my_commissions_page(): void
                         <th>Member</th>
                         <th>Plan</th>
                         <th>Receipt</th>
+                        <th>Rate</th>
                         <th>Commission</th>
                         <th>Date Earned</th>
                         <th>Status</th>
+                        <th style="text-align:center; width:60px;">Note</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php foreach ($commissions as $row): 
-                    $statusClass = $row['status'] === 'paid' ? 'badge badge-active' : 'badge badge-pending';
+                    $statusClass = match ($row['status']) {
+                        'paid' => 'badge badge-active',
+                        'pending' => 'badge badge-pending',
+                        'reversed' => 'badge',
+                        'cancelled' => 'badge',
+                        default => 'badge'
+                    };
+                    $statusStyle = match ($row['status']) {
+                        'reversed' => 'background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);',
+                        'cancelled' => 'background: rgba(148, 163, 184, 0.15); color: var(--muted); border: 1px solid var(--line);',
+                        default => ''
+                    };
+                    $isNegative = (float)$row['amount'] < 0;
                 ?>
                     <tr>
                         <td><strong><?= h($row['member_name']) ?></strong></td>
                         <td style="font-size:13px;color:var(--muted)"><?= h($row['plan_name']) ?></td>
                         <td style="font-size:13px;font-family:monospace;color:var(--muted)"><?= h($row['receipt_number']) ?></td>
-                        <td><strong style="color:var(--lime)"><?= h(money($row['amount'])) ?></strong></td>
+                        <td style="font-size:13px;color:var(--muted)"><?= $row['rate_applied'] !== null ? h($fmtPct($row['rate_applied'])) : '—' ?></td>
+                        <td><strong style="color:<?= $isNegative ? '#ef4444' : 'var(--lime)' ?>"><?= h(money($row['amount'])) ?></strong></td>
                         <td><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
-                        <td><span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span></td>
-                    </tr>
+                        <td>
+                                <span class="<?= $statusClass ?>" style="<?= $statusStyle ?>"><?= h(ucfirst($row['status'])) ?></span>
+                            </td>
+                            <td style="text-align:center;">
+                                <?php if (!empty($row['reversal_reason'])): 
+                                    $reasonPayload = htmlspecialchars(json_encode([
+                                        'status' => ucfirst($row['status']),
+                                        'reason' => rawurldecode((string)$row['reversal_reason']),
+                                        'date' => !empty($row['reversed_at']) ? date('M j, Y g:i A', strtotime($row['reversed_at'])) : date('M j, Y', strtotime($row['created_at']))
+                                    ]), ENT_QUOTES, 'UTF-8');
+                                ?>
+                                    <button type="button" onclick="showReasonModal(<?= $reasonPayload ?>)" 
+                                            title="View reason note" 
+                                            style="background:rgba(255,255,255,0.06); border:1px solid var(--line); color:var(--ink); border-radius:50%; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:all 0.15s ease;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    </button>
+                                <?php else: ?>
+                                    <span style="color:var(--muted); font-size:12px;">—</span>
+                                <?php endif; ?>
+                            </td>
                 <?php endforeach; ?>
                 </tbody>
             </table>
@@ -158,6 +209,19 @@ function my_commissions_page(): void
                         <div>
                             <span class="commission-mobile-label">Status</span>
                             <span class="<?= $statusClass ?>"><?= h(ucfirst($row['status'])) ?></span>
+                            <?php if (!empty($row['reversal_reason'])): 
+                                $reasonPayload = htmlspecialchars(json_encode([
+                                    'status' => ucfirst($row['status']),
+                                    'reason' => rawurldecode((string)$row['reversal_reason']),
+                                    'date' => !empty($row['reversed_at']) ? date('M j, Y g:i A', strtotime($row['reversed_at'])) : date('M j, Y', strtotime($row['created_at']))
+                                ]), ENT_QUOTES, 'UTF-8');
+                            ?>
+                                <button type="button" onclick="showReasonModal(<?= $reasonPayload ?>)" 
+                                        title="View reason note" 
+                                        style="background:rgba(255,255,255,0.06); border:1px solid var(--line); color:var(--ink); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; margin-left:6px; vertical-align:middle;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                </button>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </article>
@@ -166,6 +230,31 @@ function my_commissions_page(): void
         <?php render_pagination($page, $totalPages, '?page=my_commissions'); ?>
         <?php endif; ?>
     </section>
+    <script>
+    function showReasonModal(data) {
+        if (!data) return;
+        const status = data.status || 'Note';
+        const reason = data.reason || 'No description provided.';
+        const date = data.date || '';
+
+        Swal.fire({
+            title: status + ' Note',
+            html: `
+                <div style="text-align: left; padding: 6px 0; font-size: 14px; line-height: 1.5; color: var(--ink);">
+                    <div style="background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; word-break: break-word;">
+                        ${reason.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}
+                    </div>
+                    ${date ? `<div style="margin-top: 10px; font-size: 12px; color: var(--muted); text-align: right;">Logged: ${date}</div>` : ''}
+                </div>
+            `,
+            icon: 'info',
+            confirmButtonText: 'Close',
+            confirmButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)'
+        });
+    }
+    </script>
     <?php
     render_footer();
 }

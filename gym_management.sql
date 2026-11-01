@@ -364,6 +364,7 @@ CREATE TABLE `gyms` (
   `cover_image_url` varchar(255) DEFAULT NULL,
   `public_description` text DEFAULT NULL,
   `brand_color` varchar(20) DEFAULT '#c7ff22',
+  `default_commission_rate` decimal(5,2) DEFAULT NULL COMMENT 'Gym default rate fallback (NULL = inherit platform default)',
   `fb_page_url` varchar(255) DEFAULT NULL,
   `status` enum('pending','approved','rejected','suspended') NOT NULL DEFAULT 'pending',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -527,6 +528,7 @@ CREATE TABLE `membership_plans` (
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `commission_rate` decimal(5,2) NOT NULL DEFAULT '5.00',
+  `allow_trainer_commission` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Eligibility switch: 1=eligible, 0=no commission regardless of trainer rate',
   `gym_id` int UNSIGNED DEFAULT NULL,
   `is_popular` tinyint(1) NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -776,7 +778,14 @@ CREATE TABLE `trainer_commissions` (
   `trainer_id` int UNSIGNED NOT NULL,
   `payment_id` int UNSIGNED NOT NULL,
   `amount` decimal(10,2) NOT NULL,
-  `status` enum('pending','paid') NOT NULL DEFAULT 'pending',
+  `base_amount` decimal(10,2) DEFAULT NULL COMMENT 'Payment amount the commission was calculated from',
+  `rate_applied` decimal(5,2) DEFAULT NULL COMMENT 'Final % used (base_rate), snapshotted',
+  `base_rate` decimal(5,2) DEFAULT NULL,
+  `rate_source` varchar(30) NOT NULL DEFAULT 'plan' COMMENT 'plan | trainer | override',
+  `status` enum('pending','paid','cancelled','reversed') NOT NULL DEFAULT 'pending',
+  `reversal_reason` varchar(255) DEFAULT NULL COMMENT 'Reason for cancellation or reversal (e.g. payment refunded, chargeback)',
+  `reversed_at` timestamp NULL DEFAULT NULL,
+  `reversed_by` int UNSIGNED DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -798,6 +807,23 @@ CREATE TABLE `trainer_messages` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `trainer_plan_commission_overrides`
+--
+
+CREATE TABLE `trainer_plan_commission_overrides` (
+  `override_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `trainer_id` int UNSIGNED NOT NULL,
+  `plan_id` int UNSIGNED NOT NULL,
+  `commission_rate` decimal(5,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_trainer_plan` (`trainer_id`,`plan_id`),
+  KEY `idx_tpco_plan` (`plan_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `trainer_profiles`
 --
 
@@ -806,6 +832,7 @@ CREATE TABLE `trainer_profiles` (
   `user_id` int UNSIGNED NOT NULL,
   `specialization` varchar(100) DEFAULT NULL,
   `bio` text,
+  `commission_rate` decimal(5,2) DEFAULT NULL COMMENT 'Personal commission % (NULL = use plan rate)',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `gym_id` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

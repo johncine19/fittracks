@@ -353,7 +353,7 @@ function trainer_assignments_page(): void
                 db()->prepare('INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, assigned_date, ended_date, activity_title, status, assigned_by) VALUES (?, ?, ?, ?, ?, ?, "active", ?)')
                     ->execute([$groupId, $trainerId, $mid, $assignedDate, $endedDate, $activityTitle, $user['user_id']]);
 
-                grant_retroactive_commission($mid);
+                grant_retroactive_commission($mid, $trainerId);
                 notify_user($mid, 'system', 'Trainer assigned', 'You have been added to ' . $trainerName . '\'s assignment (' . $activityTitle . ').');
                 $addedCount++;
             }
@@ -461,7 +461,7 @@ function trainer_assignments_page(): void
                 db()->prepare('INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, assigned_date, ended_date, activity_title, status, assigned_by) VALUES (?, ?, ?, ?, ?, ?, "active", ?)')
                     ->execute([$groupId, $trainerId, $mid, $assignedDate, $endedDate, $finalTitle, $user['user_id']]);
 
-                grant_retroactive_commission($mid);
+                grant_retroactive_commission($mid, $trainerId);
                 notify_user($mid, 'system', 'Trainer assigned', 'You have been assigned to ' . $trainerName . ' for ' . $finalTitle . '.');
                 $createdCount++;
             }
