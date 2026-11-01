@@ -368,6 +368,28 @@
 }
 
 /* ==================================================== */
+/* WEEKLY DIET PLAN MEALS GRID & RESPONSIVE CONSTRAINTS */
+/* ==================================================== */
+.diet-plan-meals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 20px;
+    align-items: stretch;
+}
+
+/* Single meal layout: prevent stretching across full screen width */
+.diet-plan-meals-grid.single-meal,
+.diet-plan-meals-grid:has(> .meal-card:only-child) {
+    grid-template-columns: minmax(min(100%, 280px), 380px);
+}
+
+.diet-plan-meals-grid.single-meal > .meal-card,
+.diet-plan-meals-grid:has(> .meal-card:only-child) > .meal-card {
+    max-width: 380px;
+    width: 100%;
+}
+
+/* ==================================================== */
 /* MEAL CARD PHOTO BANNER (IMAGEKIT & SMART AUTO-MATCH) */
 /* ==================================================== */
 .meal-photo-banner {
@@ -5282,6 +5304,15 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 350px), 1fr));
     gap: 14px;
+}
+
+.history-meals-grid:has(> .history-meal-card:only-child) {
+    grid-template-columns: minmax(min(100%, 320px), 420px);
+}
+
+.history-meals-grid:has(> .history-meal-card:only-child) > .history-meal-card {
+    max-width: 420px;
+    width: 100%;
 }
 
 /* Card Redesign (Fixed Truncation & Proportional Hierarchy) */

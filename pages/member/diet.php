@@ -760,6 +760,7 @@ function diet_page(): void
         LEFT JOIN users u ON u.user_id = tp.user_id 
         LEFT JOIN gyms g ON g.gym_id = COALESCE(dp.gym_id, tp.gym_id)
         WHERE dp.member_user_id = ? AND dp.status = "active" 
+          AND EXISTS (SELECT 1 FROM dietary_plan_meals dpm WHERE dpm.plan_id = dp.plan_id AND TRIM(dpm.food_items) <> "")
         ORDER BY dp.is_preferred DESC, dp.plan_id DESC
     ');
     $planStmt->execute([$userId]);
@@ -1792,8 +1793,10 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     <div style="padding: 40px; text-align: center; color: var(--muted); background: var(--bg); border-radius: 8px; border: 1px dashed var(--line);">
                         <p style="margin:0; font-style: italic;">No meals specified for this day.</p>
                     </div>
-                <?php else: ?>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px;">
+                <?php else: 
+                    $dayMealsCount = count($mealsByDay[$dayNum]);
+                ?>
+                    <div class="diet-plan-meals-grid <?= $dayMealsCount === 1 ? 'single-meal' : '' ?>">
                         <?php 
                         $dayCals = 0; $dayPro = 0; $dayCarbs = 0; $dayFat = 0;
                         $isToday = ($dayNum === $todayNum);

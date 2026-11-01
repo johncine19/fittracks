@@ -54,13 +54,32 @@ function confirmGeneratePlan(btn, event) {
     return false;
 }
 
-function confirmPublishPlan(btn, event) {
+function confirmPublishPlan(btn, event, mealCount) {
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
     const form = btn.closest('form');
     if (!form) return false;
+
+    // Check if the plan is empty
+    if (typeof mealCount !== 'undefined' && parseInt(mealCount, 10) <= 0) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Cannot Publish Empty Plan',
+                html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">This diet plan has no scheduled meals yet. Please add at least one meal or use <strong>Generate Plan</strong> before publishing it to the member.</div>',
+                icon: 'warning',
+                iconColor: '#f59e0b',
+                confirmButtonText: 'Understood',
+                confirmButtonColor: 'var(--lime-dark, #65a30d)',
+                background: 'var(--panel, #121721)',
+                color: 'var(--ink, #ffffff)'
+            });
+        } else {
+            alert('Cannot publish an empty diet plan. Please add at least one meal before publishing.');
+        }
+        return false;
+    }
 
     if (typeof Swal !== 'undefined') {
         Swal.fire({
@@ -87,17 +106,23 @@ function confirmPublishPlan(btn, event) {
     return false;
 }
 
-function confirmRemoveMeal(form, event, dayName) {
+function confirmRemoveMeal(target, event, dayName, isLastMeal) {
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
+    const form = target && target.tagName === 'FORM' ? target : target?.closest('form');
     if (!form) return false;
+
+    const titleText = isLastMeal ? 'Remove Only Meal?' : 'Remove Meal?';
+    const descHtml = isLastMeal 
+        ? `<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">Are you sure you want to remove this meal from <strong>${dayName}</strong>?<br><br><span style="color: #ef4444; font-weight: 600;">⚠️ This is the only meal left in this diet plan. Removing it will leave the plan with no meals scheduled.</span></div>`
+        : `<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">Are you sure you want to remove this meal from <strong>${dayName}</strong>?</div>`;
 
     if (typeof Swal !== 'undefined') {
         Swal.fire({
-            title: 'Remove Meal?',
-            text: `Are you sure you want to remove this meal from ${dayName}?`,
+            title: titleText,
+            html: descHtml,
             icon: 'warning',
             iconColor: '#ef4444',
             showCancelButton: true,
@@ -107,16 +132,100 @@ function confirmRemoveMeal(form, event, dayName) {
             cancelButtonColor: 'var(--line, #334155)',
             background: 'var(--panel, #121721)',
             color: 'var(--ink, #ffffff)',
-            reverseButtons: true
+            reverseButtons: true,
+            focusCancel: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
+            }
+        });
+    } else if (confirm(`Remove this meal from ${dayName}?` + (isLastMeal ? ' This is the only meal left in this plan.' : ''))) {
+        if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
+    }
+    return false;
+}
+
+function confirmDiscardDraft(btn, event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const form = btn && btn.tagName === 'FORM' ? btn : btn?.closest('form');
+    if (!form) return false;
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Discard Draft Changes?',
+            html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">Are you sure you want to discard all unpublished changes in this draft?<br><br><span style="color: #ef4444; font-weight: 600;">⚠️ The member\'s current active diet plan will be restored.</span></div>',
+            icon: 'warning',
+            iconColor: '#ef4444',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Discard Draft',
+            cancelButtonText: 'Keep Editing',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: 'var(--line, #334155)',
+            background: 'var(--panel, #121721)',
+            color: 'var(--ink, #ffffff)',
+            reverseButtons: true,
+            focusCancel: true
         }).then((result) => {
             if (result.isConfirmed) {
                 form.submit();
             }
         });
-    } else if (confirm(`Remove this meal from ${dayName}?`)) {
+    } else if (confirm('Discard all draft changes and restore the member\'s active plan?')) {
         form.submit();
     }
     return false;
+}
+
+function handleBackClick(anchor, event, mealCount, hasActivePlan) {
+    if (parseInt(mealCount, 10) === 0 && hasActivePlan) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Empty Draft Plan',
+                html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">You have removed all meals from this draft.<br><br>Would you like to <strong>revert to the member\'s active plan</strong>, or keep this empty draft?</div>',
+                icon: 'warning',
+                iconColor: '#f59e0b',
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: 'Revert to Active Plan',
+                denyButtonText: 'Keep Empty Draft',
+                cancelButtonText: 'Stay on Page',
+                confirmButtonColor: '#ef4444',
+                denyButtonColor: 'var(--line, #334155)',
+                cancelButtonColor: 'transparent',
+                background: 'var(--panel, #121721)',
+                color: 'var(--ink, #ffffff)',
+                reverseButtons: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const discardForm = document.getElementById('form-discard-draft');
+                    if (discardForm) {
+                        discardForm.submit();
+                    } else {
+                        window.location.href = anchor.href;
+                    }
+                } else if (result.isDenied) {
+                    window.location.href = anchor.href;
+                }
+            });
+            return false;
+        }
+    }
+    return true;
 }
 
 function updateMacros() {

@@ -79,6 +79,25 @@ function diet_builder_page(): void
         $gymId = (int) (get_user_gym_id($user) ?? 0);
     }
     
+    // Check if an active plan exists for this member (prioritizing same gym facility)
+    if ($gymId > 0) {
+        $stmtActive = $pdo->prepare('
+            SELECT dp.* 
+            FROM dietary_plans dp 
+            LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id 
+            WHERE dp.member_user_id = ? 
+              AND (dp.gym_id = ? OR dp.gym_id IS NULL OR dp.trainer_id = ? OR tp.gym_id = ?) 
+              AND dp.status = "active" 
+            ORDER BY (dp.gym_id = ?) DESC, dp.plan_id DESC LIMIT 1
+        ');
+        $stmtActive->execute([$memberId, $gymId, $trainerId, $gymId, $gymId]);
+    } else {
+        $stmtActive = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
+        $stmtActive->execute([$memberId]);
+    }
+    $activePlan = $stmtActive->fetch();
+    $hasActivePlan = (bool) $activePlan;
+
     // Check for draft for this member scoped to this trainer / gym facility
     if ($gymId > 0) {
         $stmt = $pdo->prepare('
@@ -98,24 +117,6 @@ function diet_builder_page(): void
     $draft = $stmt->fetch();
     
     if (!$draft) {
-        // Check if there is an active plan to clone as a draft (prioritizing same gym)
-        if ($gymId > 0) {
-            $stmtActive = $pdo->prepare('
-                SELECT dp.* 
-                FROM dietary_plans dp 
-                LEFT JOIN trainer_profiles tp ON dp.trainer_id = tp.trainer_id 
-                WHERE dp.member_user_id = ? 
-                  AND (dp.gym_id = ? OR (dp.gym_id IS NULL AND (dp.trainer_id = ? OR tp.gym_id = ?))) 
-                  AND dp.status = "active" 
-                ORDER BY dp.plan_id DESC LIMIT 1
-            ');
-            $stmtActive->execute([$memberId, $gymId, $trainerId, $gymId]);
-        } else {
-            $stmtActive = $pdo->prepare('SELECT * FROM dietary_plans WHERE member_user_id = ? AND trainer_id = ? AND status = "active" ORDER BY plan_id DESC LIMIT 1');
-            $stmtActive->execute([$memberId, $trainerId]);
-        }
-        $activePlan = $stmtActive->fetch();
-        
         if ($activePlan) {
             $goal = $activePlan['goal'];
             $title = $activePlan['title'];
@@ -156,6 +157,17 @@ function diet_builder_page(): void
         $action = post('action');
         
         if ($action === 'publish') {
+            // Guard: Prevent publishing an empty diet plan (must have at least 1 valid meal)
+            $mealCount = (int) scalar(
+                'SELECT COUNT(*) FROM dietary_plan_meals WHERE plan_id = ? AND TRIM(food_items) <> ""',
+                [$planId]
+            );
+            if ($mealCount === 0) {
+                flash('Cannot publish an empty diet plan. Please add at least one meal to the plan or click "Generate Plan" first.', 'danger');
+                header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery);
+                exit;
+            }
+
             // Archive old active plans strictly for this trainer or gym facility
             if ($gymId > 0) {
                 $pdo->prepare('
@@ -503,10 +515,21 @@ function diet_builder_page(): void
             exit;
         }
 
+        if ($action === 'discard_draft') {
+            $pdo->prepare('DELETE FROM dietary_plans WHERE plan_id = ? AND status = "draft"')->execute([$planId]);
+            if (function_exists('log_plan_change')) {
+                log_plan_change('diet', $planId, $gymId > 0 ? $gymId : null, (int)$user['user_id'], 'deleted', 'Draft diet plan discarded');
+            }
+            flash('Draft discarded. Restored member\'s active diet plan.', 'info');
+            header('Location: ' . $backUrl);
+            exit;
+        }
+
         if ($action === 'remove_meal') {
             $mealId = (int) post('meal_id');
             $currentDay = (int) post('current_day');
             $pdo->prepare('DELETE FROM dietary_plan_meals WHERE meal_id = ? AND plan_id = ?')->execute([$mealId, $planId]);
+            flash('Meal removed successfully.', 'info');
             $activeDayParam = ($currentDay >= 1 && $currentDay <= 7) ? '&active_day=' . $currentDay : '';
             header('Location: index.php?page=diet_builder&member_user_id=' . $memberId . $refQuery . $activeDayParam);
             exit;
@@ -573,10 +596,20 @@ function diet_builder_page(): void
         </div>
         <div class="diet-actions-wrap">
             <a href="index.php?page=progress&member_user_id=<?= (int)$memberId ?>&tab=nutrition" class="diet-action-btn diet-btn-food-diary" title="View member's logged meals and macro history"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg><span>Food Diary</span></a>
-            <a href="<?= h($backUrl) ?>" class="diet-action-btn diet-btn-back" title="Go back">
+            <a href="<?= h($backUrl) ?>" class="diet-action-btn diet-btn-back" onclick="return handleBackClick(this, event, <?= count($mealsRaw) ?>, <?= $hasActivePlan ? 'true' : 'false' ?>);" title="Go back">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                 <span>Back</span>
             </a>
+            <?php if ($hasActivePlan): ?>
+            <form method="post" id="form-discard-draft" style="margin:0;">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="discard_draft">
+                <button type="button" class="diet-action-btn diet-btn-discard" onclick="confirmDiscardDraft(this, event);" title="Discard draft edits and revert to the member's active plan">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+                    <span>Discard Draft</span>
+                </button>
+            </form>
+            <?php endif; ?>
             <form method="post" style="margin:0;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="generate_plan">
@@ -588,7 +621,7 @@ function diet_builder_page(): void
             <form method="post" style="margin:0;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="publish">
-                <button type="button" class="diet-action-btn diet-btn-publish" onclick="confirmPublishPlan(this, event);" title="Publish this diet plan to member">
+                <button type="button" class="diet-action-btn diet-btn-publish" onclick="confirmPublishPlan(this, event, <?= count($mealsRaw) ?>);" title="Publish this diet plan to member">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     <span>Publish Plan</span>
                 </button>
@@ -742,19 +775,19 @@ function diet_builder_page(): void
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div style="background: var(--bg); border: 1px solid var(--diet-border); border-radius: 8px; padding: 8px 10px;">
                             <span style="font-size: 11px; font-weight: 600; color: var(--diet-muted); display: block;">Calories</span>
-                            <input type="number" name="calories" id="calc_cals" min="0" value="0" readonly style="width: 100%; border: none; background: transparent; color: var(--diet-accent); font-size: 16px; font-weight: 700; outline: none; padding: 2px 0;">
+                            <input type="number" name="calories" id="calc_cals" min="0" step="any" value="0" readonly style="width: 100%; border: none; background: transparent; color: var(--diet-accent); font-size: 16px; font-weight: 700; outline: none; padding: 2px 0;">
                         </div>
                         <div style="background: var(--bg); border: 1px solid var(--diet-border); border-radius: 8px; padding: 8px 10px;">
                             <span style="font-size: 11px; font-weight: 600; color: var(--diet-muted); display: block;">Protein (g)</span>
-                            <input type="number" name="protein_g" id="calc_p" min="0" value="0" oninput="updateMacros()" style="width: 100%; border: none; background: transparent; color: var(--ink); font-size: 16px; font-weight: 600; outline: none; padding: 2px 0;">
+                            <input type="number" name="protein_g" id="calc_p" min="0" step="any" value="0" oninput="updateMacros()" style="width: 100%; border: none; background: transparent; color: var(--ink); font-size: 16px; font-weight: 600; outline: none; padding: 2px 0;">
                         </div>
                         <div style="background: var(--bg); border: 1px solid var(--diet-border); border-radius: 8px; padding: 8px 10px;">
                             <span style="font-size: 11px; font-weight: 600; color: var(--diet-muted); display: block;">Carbs (g)</span>
-                            <input type="number" name="carbs_g" id="calc_c" min="0" value="0" oninput="updateMacros()" style="width: 100%; border: none; background: transparent; color: var(--ink); font-size: 16px; font-weight: 600; outline: none; padding: 2px 0;">
+                            <input type="number" name="carbs_g" id="calc_c" min="0" step="any" value="0" oninput="updateMacros()" style="width: 100%; border: none; background: transparent; color: var(--ink); font-size: 16px; font-weight: 600; outline: none; padding: 2px 0;">
                         </div>
                         <div style="background: var(--bg); border: 1px solid var(--diet-border); border-radius: 8px; padding: 8px 10px;">
                             <span style="font-size: 11px; font-weight: 600; color: var(--diet-muted); display: block;">Fat (g)</span>
-                            <input type="number" name="fat_g" id="calc_f" min="0" value="0" oninput="updateMacros()" style="width: 100%; border: none; background: transparent; color: var(--ink); font-size: 16px; font-weight: 600; outline: none; padding: 2px 0;">
+                            <input type="number" name="fat_g" id="calc_f" min="0" step="any" value="0" oninput="updateMacros()" style="width: 100%; border: none; background: transparent; color: var(--ink); font-size: 16px; font-weight: 600; outline: none; padding: 2px 0;">
                         </div>
                     </div>
                 </div>
@@ -862,12 +895,12 @@ function diet_builder_page(): void
                                         </div>
                                     </div>
                                 </div>
-                                <form method="post" style="margin:0; flex-shrink: 0;" onsubmit="return confirmRemoveMeal(this, event, <?= json_encode($dayName) ?>);">
+                                <form method="post" style="margin:0; flex-shrink: 0;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="remove_meal">
                                     <input type="hidden" name="meal_id" value="<?= $meal['meal_id'] ?>">
                                     <input type="hidden" name="current_day" value="<?= $dayNum ?>">
-                                    <button type="submit" class="btn-diet-remove-meal" title="Remove Meal">Remove</button>
+                                    <button type="button" class="btn-diet-remove-meal" onclick="confirmRemoveMeal(this, event, '<?= h(addslashes($dayName)) ?>', <?= count($mealsRaw) <= 1 ? 'true' : 'false' ?>);" title="Remove Meal">Remove</button>
                                 </form>
                             </div>
                         <?php endforeach; ?>

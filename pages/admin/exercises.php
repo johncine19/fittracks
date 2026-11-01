@@ -593,16 +593,17 @@ Safety: " : "") . $safety;
     ?>
 
     <style>
-        .ex-card { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 16px; padding: 20px; transition: all 0.2s ease; display: flex; flex-direction: column; gap: 12px; position: relative; overflow: hidden; }
+        .ex-card { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 16px; padding: 20px; transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; position: relative; overflow: hidden; height: 100%; box-sizing: border-box; }
         .ex-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-        .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: start; }
-        .ex-meta-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+        .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: stretch; }
+        .ex-meta-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; align-content: flex-start; min-height: 58px; }
         .ex-meta-tag { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); font-size: 11.5px; line-height: 1.2; color: var(--ink); }
         .ex-meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
         .ex-meta-value { font-weight: 600; color: var(--ink); }
         .ex-anim-link { background: rgba(163, 230, 53, 0.1); border-color: rgba(163, 230, 53, 0.25); color: #84cc16; text-decoration: none; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
         .ex-anim-link:hover { background: rgba(163, 230, 53, 0.2); border-color: #84cc16; color: #a3e635; }
-        .ex-desc-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; font-size: 13.5px; color: var(--muted); margin: 0; }
+        .ex-desc-wrap { flex-grow: 1; margin-top: 10px; display: flex; flex-direction: column; justify-content: space-between; }
+        .ex-desc-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; font-size: 13.5px; color: var(--muted); margin: 0; min-height: 60px; }
         .ex-desc-clamp.expanded { display: block; -webkit-line-clamp: unset; overflow: visible; }
         .ex-see-more-btn {
             background: transparent !important;
@@ -743,7 +744,10 @@ Safety: " : "") . $safety;
             transition: all 0.18s ease;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             gap: 10px;
+            height: 100%;
+            box-sizing: border-box;
         }
         .ninja-card:hover {
             border-color: rgba(255, 255, 255, 0.18);
@@ -998,7 +1002,7 @@ Safety: " : "") . $safety;
                                 $descText = trim((string)($ex['description'] ?? ''));
                                 $isLong = mb_strlen($descText) > 130;
                             ?>
-                            <div style="flex-grow:1; margin-top: 10px;">
+                            <div class="ex-desc-wrap">
                                 <p class="ex-desc-clamp">
                                     <?= nl2br(h($descText ?: 'No description provided.')) ?>
                                 </p>

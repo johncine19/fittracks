@@ -112,6 +112,20 @@
     box-shadow: 0 4px 12px rgba(199, 255, 34, 0.2);
 }
 
+/* Discard Draft Button */
+.diet-btn-discard {
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+.diet-btn-discard:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: #ef4444;
+    color: #f87171;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
 /* Publish Plan Button (Solid Primary Green Accent) */
 .diet-btn-publish {
     background: var(--diet-accent);
@@ -149,6 +163,16 @@
     background: #f8fafc;
     border-color: #94a3b8;
     color: #0f172a;
+}
+[data-theme="light"] .diet-btn-discard {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fca5a5;
+}
+[data-theme="light"] .diet-btn-discard:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+    color: #b91c1c;
 }
 [data-theme="light"] .diet-btn-publish {
     background: #65a30d;

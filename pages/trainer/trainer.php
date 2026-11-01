@@ -71,8 +71,8 @@ function trainer_members_page(): void
         (SELECT mg.target_value FROM member_goals mg WHERE mg.user_id = ca.member_user_id AND mg.goal_type = "weight" LIMIT 1) AS target_weight_kg,
         (SELECT title FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_title,
         (SELECT plan_id FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_id,
-        (SELECT title FROM dietary_plans WHERE member_user_id = ca.member_user_id AND status = "active" ORDER BY (trainer_id = ca.trainer_id) DESC, is_preferred DESC, plan_id DESC LIMIT 1) AS active_diet_title,
-        (SELECT plan_id FROM dietary_plans WHERE member_user_id = ca.member_user_id AND status = "active" ORDER BY (trainer_id = ca.trainer_id) DESC, is_preferred DESC, plan_id DESC LIMIT 1) AS active_diet_id,
+        (SELECT dp.title FROM dietary_plans dp WHERE dp.member_user_id = ca.member_user_id AND dp.status = "active" AND EXISTS (SELECT 1 FROM dietary_plan_meals dpm WHERE dpm.plan_id = dp.plan_id AND TRIM(dpm.food_items) <> "") ORDER BY (dp.trainer_id = ca.trainer_id) DESC, dp.is_preferred DESC, dp.plan_id DESC LIMIT 1) AS active_diet_title,
+        (SELECT dp.plan_id FROM dietary_plans dp WHERE dp.member_user_id = ca.member_user_id AND dp.status = "active" AND EXISTS (SELECT 1 FROM dietary_plan_meals dpm WHERE dpm.plan_id = dp.plan_id AND TRIM(dpm.food_items) <> "") ORDER BY (dp.trainer_id = ca.trainer_id) DESC, dp.is_preferred DESC, dp.plan_id DESC LIMIT 1) AS active_diet_id,
         (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count,
         (SELECT COUNT(DISTINCT log_date) FROM member_meal_logs WHERE user_id = ca.member_user_id) AS food_logs_count
     FROM trainer_assignments ca 

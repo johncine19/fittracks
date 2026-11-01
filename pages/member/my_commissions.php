@@ -87,6 +87,41 @@ function my_commissions_page(): void
             }
             .commission-mobile-value { color: var(--ink); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
         }
+        .btn-reason-info {
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            min-height: 22px !important;
+            max-width: 22px !important;
+            max-height: 22px !important;
+            aspect-ratio: 1 / 1 !important;
+            border-radius: 50% !important;
+            box-sizing: border-box !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
+            line-height: 0 !important;
+            vertical-align: middle !important;
+            flex-shrink: 0 !important;
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid var(--line) !important;
+            color: var(--ink) !important;
+            cursor: pointer !important;
+            transition: all 0.15s ease !important;
+        }
+        .btn-reason-info:hover {
+            background: rgba(255, 255, 255, 0.18) !important;
+            border-color: var(--muted) !important;
+            color: #ffffff !important;
+            transform: scale(1.08) !important;
+        }
+        .btn-reason-info svg {
+            width: 12px !important;
+            height: 12px !important;
+            display: block !important;
+            flex-shrink: 0 !important;
+        }
     </style>
     <section class="panel">
         <div class="page-header">
@@ -171,10 +206,8 @@ function my_commissions_page(): void
                                         'date' => !empty($row['reversed_at']) ? date('M j, Y g:i A', strtotime($row['reversed_at'])) : date('M j, Y', strtotime($row['created_at']))
                                     ]), ENT_QUOTES, 'UTF-8');
                                 ?>
-                                    <button type="button" onclick="showReasonModal(<?= $reasonPayload ?>)" 
-                                            title="View reason note" 
-                                            style="background:rgba(255,255,255,0.06); border:1px solid var(--line); color:var(--ink); border-radius:50%; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:all 0.15s ease;">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    <button type="button" class="btn-reason-info" onclick="showReasonModal(<?= $reasonPayload ?>)" title="View reason note">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                     </button>
                                 <?php else: ?>
                                     <span style="color:var(--muted); font-size:12px;">—</span>
@@ -216,10 +249,8 @@ function my_commissions_page(): void
                                     'date' => !empty($row['reversed_at']) ? date('M j, Y g:i A', strtotime($row['reversed_at'])) : date('M j, Y', strtotime($row['created_at']))
                                 ]), ENT_QUOTES, 'UTF-8');
                             ?>
-                                <button type="button" onclick="showReasonModal(<?= $reasonPayload ?>)" 
-                                        title="View reason note" 
-                                        style="background:rgba(255,255,255,0.06); border:1px solid var(--line); color:var(--ink); border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; margin-left:6px; vertical-align:middle;">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                <button type="button" class="btn-reason-info" onclick="showReasonModal(<?= $reasonPayload ?>)" title="View reason note" style="margin-left:6px !important;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                 </button>
                             <?php endif; ?>
                         </div>

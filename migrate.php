@@ -223,7 +223,9 @@ try {
         "ALTER TABLE gyms DROP COLUMN enable_commission_tiers",
         "ALTER TABLE gyms DROP COLUMN max_commission_rate_cap",
         "ALTER TABLE trainer_commissions DROP COLUMN tier_bonus",
-        "ALTER TABLE trainer_commissions DROP COLUMN tier_id"
+        "ALTER TABLE trainer_commissions DROP COLUMN tier_id",
+        // ── Demote Empty Active Dietary Plans to Draft ──
+        "UPDATE dietary_plans dp LEFT JOIN dietary_plan_meals dpm ON dp.plan_id = dpm.plan_id SET dp.status = 'draft' WHERE dp.status = 'active' AND dpm.meal_id IS NULL"
     ];
 
     foreach ($migrations as $sql) {
