@@ -3395,7 +3395,6 @@ input::-ms-clear {
     75% { transform: translateY(-15px) rotate(-15deg); }
 }
 
-.skeleton-content,
 body:not(.loaded) .skeleton-content {
     display: none !important;
     opacity: 0 !important;

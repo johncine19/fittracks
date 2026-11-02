@@ -761,7 +761,7 @@ function member_dashboard(PDO $pdo, array $user): void
         </div>
 
         <!-- Current Scheduled Workout Section -->
-        <div class="skeleton-content animate-fade-in delay-2" style="margin-bottom: 24px;">
+        <div class="skeleton-content sk-display-block animate-fade-in delay-2" style="margin-bottom: 24px;">
             <?php
             $profile = member_profile((int)$user['user_id']);
             if ($profile && ((float)$profile['height_cm'] == 0 || (float)$profile['weight_kg'] == 0)): ?>
@@ -784,7 +784,7 @@ function member_dashboard(PDO $pdo, array $user): void
         </div>
 
         <!-- Exercise Recommendations -->
-        <div class="skeleton-content animate-fade-in delay-3" style="margin-bottom: 24px;">
+        <div class="skeleton-content sk-display-block animate-fade-in delay-3" style="margin-bottom: 24px;">
             <?php render_exercise_recommendations((int) $user['user_id'], true); ?>
         </div>
     </div>
@@ -1259,7 +1259,7 @@ function member_dashboard(PDO $pdo, array $user): void
         $completedCount = count(array_filter($missions, fn($m) => $m['completed']));
         $totalMissions = count($missions);
         ?>
-        <div id="missions-section" class="skeleton-content animate-fade-in delay-1" style="margin-bottom: 24px;">
+        <div id="missions-section" class="skeleton-content sk-display-block animate-fade-in delay-1" style="margin-bottom: 24px;">
             <section class="panel missions-panel-card" style="padding: 0; overflow: hidden;">
                 <div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">

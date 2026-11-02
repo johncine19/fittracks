@@ -6,7 +6,7 @@ function trainer_dashboard(PDO $pdo, array $user): void
     render_skeleton_banner();
     render_skeleton_stats(4);
     render_skeleton_cards(3);
-    echo '<div class="skeleton-content">';
+    echo '<div class="skeleton-content sk-display-block">';
 
     $stmt = $pdo->prepare('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?');
     $stmt->execute([$user['user_id']]);
