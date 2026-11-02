@@ -87,6 +87,7 @@ function render_header(string $title, ?array $user = null): void
                 'walk_ins' => 'Walk-ins',
                 'users' => 'Member Lookup',
                 'gym_equipment' => 'Equipment',
+                'reports' => 'Reports',
             ];
         }
         if ($role === 'trainer') {
@@ -2359,7 +2360,7 @@ function render_header(string $title, ?array $user = null): void
                 <nav class="side-nav">
                     <?php foreach ($nav as $key => $label): 
                         $tierBadge = null;
-                        if ($role === 'gym_owner' && $gym) {
+                        if (($role === 'gym_owner' || $role === 'staff') && $gym) {
                             $mappedFeature = match ($key) {
                                 'trainer_assignments' => 'trainers',
                                 'commissions' => 'commissions',
@@ -2427,7 +2428,7 @@ function render_header(string $title, ?array $user = null): void
                 <div class="sidebar-bottom">
                     <?php
                         $profileSubPill = null;
-                        if ($role === 'gym_owner' && $gym) {
+                        if (($role === 'gym_owner' || $role === 'staff') && $gym) {
                             $trialInfo = gym_trial_info($gym);
                             if ($trialInfo['is_trial_active']) {
                                 $profileSubPill = [

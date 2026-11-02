@@ -185,12 +185,13 @@ function render_report_tf_group(
 
 function reports_page(): void
 {
-    $user = require_roles(['platform_admin', 'gym_owner']);
-    if ($user['role'] === 'gym_owner') {
+    $user = require_roles(['platform_admin', 'gym_owner', 'staff']);
+    if ($user['role'] === 'gym_owner' || $user['role'] === 'staff') {
         require_gym_feature('reports');
     }
     $pdo = db();
     $isPlatformAdmin = $user['role'] === 'platform_admin';
+    $isStaff = $user['role'] === 'staff';
     $isStaffRestricted = is_staff_financials_restricted($user);
     
     // AJAX Hybrid Live Search Endpoint for Gym Partners
@@ -270,13 +271,17 @@ function reports_page(): void
     $currentGymName = 'FitTrack Platform';
     $gymBrandColor = null;
     if (!$isPlatformAdmin) {
-        $gymRow = $pdo->prepare('SELECT gym_id, name, brand_color FROM gyms WHERE owner_user_id = ?');
-        $gymRow->execute([$user['user_id']]);
-        $gData = $gymRow->fetch(PDO::FETCH_ASSOC);
+        $gData = get_user_gym($user);
         if ($gData) {
             $gymId = (int)$gData['gym_id'];
             $currentGymName = (string)$gData['name'] ?: 'FitTrack Gym';
             $gymBrandColor = !empty($gData['brand_color']) ? (string)$gData['brand_color'] : null;
+        }
+        if (!$gymId) {
+            render_header('Reports', $user);
+            echo '<section class="panel"><h2>No Gym Assigned</h2><p>Your account is not assigned to a gym facility yet. Please contact your Gym Owner.</p></section>';
+            render_footer();
+            return;
         }
     }
 
@@ -610,6 +615,17 @@ function reports_page(): void
     $subSharePct = $curMonthGross > 0 ? round(($curMonthSub / $curMonthGross) * 100, 1) : 0.0;
     $arpu = $activeMembersCount > 0 ? round($curMonthGross / $activeMembersCount, 2) : 0.0;
 
+    // Staff Operational Totals
+    if ($isCustomDateRange) {
+        $curPeriodAttendance = (int) scalar("SELECT COUNT(*) FROM ($attendanceCondition) AS a");
+        $curPeriodWalkins = (int) scalar("SELECT COUNT(*) FROM ($walkinCondition) AS w");
+    } else {
+        $curPeriodAttendance = (int) scalar("SELECT COUNT(*) FROM ($attendanceCondition) AS a WHERE a.month = ?", [$curMonth]);
+        $curPeriodWalkins = (int) scalar("SELECT COUNT(*) FROM ($walkinCondition) AS w WHERE w.month = ?", [$curMonth]);
+    }
+    $todayAttendance = (int) scalar("SELECT COUNT(*) FROM attendance WHERE (gym_id = " . (int)$gymId . " OR (gym_id IS NULL AND recorded_by = " . (int)$user['user_id'] . ")) AND DATE(check_in_time) = CURDATE()");
+    $todayWalkins = (int) scalar("SELECT COUNT(*) FROM walk_in_transactions WHERE gym_id = " . (int)$gymId . " AND DATE(visit_date) = CURDATE()");
+
     // Multi-Stream Revenue Time Series
     $dailyLimit = $isCustomDateRange ? '' : ' LIMIT 14';
     $monthlyLimit = $isCustomDateRange ? '' : ' LIMIT 12';
@@ -693,7 +709,7 @@ function reports_page(): void
     }
 
     // Trainer Performance & Commission Leaderboard (Gym Owner Pro / Business feature only)
-    $canViewTrainers = !$isPlatformAdmin && gym_has_feature('trainer_commissions');
+    $canViewTrainers = !$isPlatformAdmin && !$isStaff && gym_has_feature('trainer_commissions');
     $trainersList = [];
     $trainerStats = ['total_trainers' => 0, 'total_active_clients' => 0, 'total_paid_commissions' => 0.0];
     if ($canViewTrainers) {
@@ -988,8 +1004,12 @@ function reports_page(): void
             }
             handle_export('platform_saas_revenue', $format, $exportRows, $gymForPrint);
         }
-        if ($type === 'engagement' && !$isPlatformAdmin) handle_export($type, $format, $engagementData, $gymForPrint);
+        if ($type === 'engagement' && !$isPlatformAdmin && !$isStaff) handle_export($type, $format, $engagementData, $gymForPrint);
         if ($type === 'revenue') {
+            if ($isStaffRestricted) {
+                redirect('reports');
+                return;
+            }
             $exportRows = [];
             $key = ($timeframe === 'daily') ? 'day' : (($timeframe === 'monthly') ? 'month' : 'year');
             foreach ($revenue[$timeframe] ?? $revenue['monthly'] as $row) {
@@ -1127,12 +1147,14 @@ function reports_page(): void
     <!-- Header / Banner -->
     <div class="animate-fade-in reports-hero-banner">
         <div>
-            <?php if ($isPlatformScope || $isGlobalScope): ?>
+            <?php if ($isPlatformScope || $isGlobalScope || $isStaff): ?>
             <div class="reports-hero-badges">
                 <?php if ($isPlatformScope): ?>
                     <span class="pill-badge lime" style="color: var(--lime); border-color: rgba(132,204,22,0.3);">FitTrack Platform (SaaS Revenue)</span>
-                <?php else: ?>
+                <?php elseif ($isGlobalScope): ?>
                     <span class="pill-badge blue" style="color: #38bdf8; border-color: rgba(56,189,248,0.3);">All Gyms (Global Ecosystem)</span>
+                <?php elseif ($isStaff): ?>
+                    <span class="pill-badge lime" style="color: var(--lime); border-color: rgba(132,204,22,0.3);">Staff Operations View</span>
                 <?php endif; ?>
             </div>
             <?php endif; ?>
@@ -1142,6 +1164,8 @@ function reports_page(): void
                     Platform Software Subscriptions & SaaS Financials
                 <?php elseif ($isGlobalScope): ?>
                     Global Gym Network GMV & Ecosystem Analytics
+                <?php elseif ($isStaff): ?>
+                    Staff Operations & Attendance Intelligence
                 <?php else: ?>
                     <?= $isPlatformAdmin ? 'Gym Facility Audit: ' . h($currentGymName) : 'Gym Financials & Attendance Intelligence' ?>
                 <?php endif; ?>
@@ -1151,6 +1175,8 @@ function reports_page(): void
                     Software subscription licensing revenue collected directly from gym owners, tier breakdown, and partner recurring plans.
                 <?php elseif ($isGlobalScope): ?>
                     Consolidated multi-stream revenues, walk-in day passes, check-in rush distribution, and member retention benchmarks across all partner gyms.
+                <?php elseif ($isStaff): ?>
+                    Operational foot-traffic rush patterns, daily walk-in guest pass counts, and member attendance patterns for <?= h($currentGymName) ?>.
                 <?php else: ?>
                     Multi-stream revenue tracking, peak rush foot-traffic intelligence, and member attendance patterns for <?= h($currentGymName) ?>.
                 <?php endif; ?>
@@ -1324,6 +1350,64 @@ function reports_page(): void
                     <span>Consolidated monthly yield across active members</span>
                 </div>
             </div>
+        <?php elseif ($isStaff): ?>
+            <!-- STAFF OPERATIONAL KPI CARDS (Minified for Front Desk & Staff) -->
+            <!-- 1. Attendance Volume -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title"><?= $isCustomDateRange ? 'Check-Ins (' . h($activeDateRangeLabel) . ')' : 'Check-Ins (This Month)' ?></span>
+                    <span class="pill-badge green">Floor Activity</span>
+                </div>
+                <div class="kpi-value"><?= number_format($curPeriodAttendance) ?></div>
+                <div class="kpi-sub">
+                    <span><?= $todayAttendance ?> checked in today &bull; <?= $isCustomDateRange ? h($activeDateRangeLabel) : 'This Month' ?></span>
+                </div>
+            </div>
+
+            <!-- 2. Walk-In Day Passes -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title"><?= $isCustomDateRange ? 'Walk-Ins (' . h($activeDateRangeLabel) . ')' : 'Walk-Ins (This Month)' ?></span>
+                    <span class="pill-badge blue">Guest Passes</span>
+                </div>
+                <div class="kpi-value"><?= number_format($curPeriodWalkins) ?></div>
+                <div class="kpi-sub">
+                    <span><?= $todayWalkins ?> passes issued today &bull; <?= $isCustomDateRange ? h($activeDateRangeLabel) : 'This Month' ?></span>
+                </div>
+            </div>
+
+            <!-- 3. Active Facility Members -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title">Active Gym Members</span>
+                    <span class="pill-badge lime"><?= number_format($activeMembersCount) ?> Active</span>
+                </div>
+                <div class="kpi-value"><?= number_format($activeMembersCount) ?></div>
+                <div class="kpi-sub">
+                    <span>Enrolled members at <?= h($currentGymName) ?></span>
+                </div>
+            </div>
+
+            <!-- 4. Front Desk Collections -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title"><?= $isCustomDateRange ? 'Collections (' . h($activeDateRangeLabel) . ')' : 'Collections (This Month)' ?></span>
+                    <?php if ($isStaffRestricted): ?>
+                        <span class="pill-badge red">🔒 Restricted</span>
+                    <?php else: ?>
+                        <span class="pill-badge green">Passes & Subs</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($isStaffRestricted): ?>
+                    <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
+                    <div class="kpi-sub"><span>Staff Privacy active</span></div>
+                <?php else: ?>
+                    <div class="kpi-value">₱<?= number_format($curMonthGross, 2) ?></div>
+                    <div class="kpi-sub">
+                        <span>₱<?= number_format($curMonthWalk, 0) ?> walk-ins &bull; ₱<?= number_format($curMonthSub, 0) ?> subs</span>
+                    </div>
+                <?php endif; ?>
+            </div>
         <?php else: ?>
             <!-- GYM SPECIFIC OPERATIONAL CARDS (Gym Owner or Platform Admin Inspecting a Gym) -->
             <!-- 1. Gross Revenue -->
@@ -1465,6 +1549,21 @@ function reports_page(): void
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
                 Walk-In Traffic
             </button>
+        <?php elseif ($isStaff): ?>
+            <button class="report-tab-btn active" data-tab="attendance-tab" onclick="showTab('attendance-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                Attendance & Peak Rush
+            </button>
+            <button class="report-tab-btn" data-tab="walkin-tab" onclick="showTab('walkin-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                Walk-In Traffic
+            </button>
+            <?php if (!$isStaffRestricted): ?>
+            <button class="report-tab-btn" data-tab="revenue-tab" onclick="showTab('revenue-tab')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
+                Collections & Sales
+            </button>
+            <?php endif; ?>
         <?php else: ?>
             <button class="report-tab-btn active" data-tab="revenue-tab" onclick="showTab('revenue-tab')">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 19v-14h3.5a4.5 4.5 0 1 1 0 9h-3.5"></path><path d="M6 8h12"></path><path d="M6 11h12"></path></svg>
@@ -1718,9 +1817,9 @@ function reports_page(): void
     </div>
     <?php endif; ?>
 
-    <?php if (!$isPlatformScope): ?>
+    <?php if (!$isPlatformScope && (!$isStaff || !$isStaffRestricted)): ?>
     <!-- ==================== TAB 1: REVENUE & FINANCIALS ==================== -->
-    <div id="revenue-tab" class="tab-content animate-fade-in">
+    <div id="revenue-tab" class="tab-content animate-fade-in" style="<?= $isStaff ? 'display: none;' : 'display: block;' ?>">
         <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
                 <div>
@@ -2023,7 +2122,7 @@ function reports_page(): void
 
     <?php if (!$isPlatformScope): ?>
     <!-- ==================== TAB 2: ATTENDANCE & PEAK RUSH ==================== -->
-    <div id="attendance-tab" class="tab-content animate-fade-in" style="display: none;">
+    <div id="attendance-tab" class="tab-content animate-fade-in" style="<?= $isStaff ? 'display: block;' : 'display: none;' ?>">
         <div class="panel report-panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
                 <div>
@@ -2271,7 +2370,7 @@ function reports_page(): void
     </div>
     <?php endif; ?>
 
-    <?php if (!$isPlatformAdmin): ?>
+    <?php if (!$isPlatformAdmin && !$isStaff): ?>
     <!-- ==================== TAB 4: TRAINERS & COMMISSIONS ==================== -->
     <div id="trainers-tab" class="tab-content animate-fade-in" style="display: none;">
         <div class="panel" style="border-radius: 16px; padding: 26px;">
@@ -2462,6 +2561,7 @@ function reports_page(): void
     </div>
 
     <!-- ==================== TAB 5: MEMBER ENGAGEMENT ==================== -->
+    <?php if (!$isStaff): ?>
     <div id="engagement-tab" class="tab-content animate-fade-in" style="display: none;">
         <div class="panel" style="border-radius: 16px; padding: 26px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
@@ -2490,11 +2590,13 @@ function reports_page(): void
                     </div>
                     <h3 style="font-size: 20px; font-weight: 700; color: var(--ink); margin: 0 0 8px;">Member Engagement Scoring is a Professional Feature</h3>
                     <p style="color: var(--muted); font-size: 14px; max-width: 540px; margin: 0 auto 24px; line-height: 1.5;">
-                        Upgrade to the <strong>Professional Plan (₱999/mo)</strong> to unlock rule-based member engagement scores, inactivity alerts, and attendance consistency tracking.
+                        <?= $isStaff ? 'Contact your Gym Owner to upgrade to the <strong>Professional Plan</strong> to unlock member engagement scores, inactivity alerts, and attendance consistency tracking.' : 'Upgrade to the <strong>Professional Plan (₱999/mo)</strong> to unlock rule-based member engagement scores, inactivity alerts, and attendance consistency tracking.' ?>
                     </p>
+                    <?php if (!$isStaff): ?>
                     <a href="index.php?page=gym_subscription" class="btn" style="background: var(--lime); color: #0b110e; font-weight: 800; padding: 12px 28px; border-radius: 8px; text-decoration: none; display: inline-block;">
                         Upgrade to Professional (₱999/mo)
                     </a>
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
             <div class="dash-grid engagement-grid" style="grid-template-columns: 1.1fr 2fr; gap: 28px; align-items: start;">
@@ -2595,6 +2697,7 @@ function reports_page(): void
             <?php endif; ?>
         </div>
     </div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <script>
