@@ -8,8 +8,8 @@ function db(): PDO
         return $pdo;
     }
 
-    $port = $_ENV['DB_PORT'] ?? '3306';
-    $useSSL = !empty($_ENV['DB_PORT']) && (int) $_ENV['DB_PORT'] === 4000; // TiDB Cloud requires SSL
+    $port = (string) ($_ENV['DB_PORT'] ?? $_SERVER['DB_PORT'] ?? (getenv('DB_PORT') !== false ? getenv('DB_PORT') : '3306'));
+    $useSSL = $port !== '' && (int) $port === 4000; // TiDB Cloud requires SSL
     $dsn = 'mysql:host=' . DB_HOST . ';port=' . $port . ';dbname=' . DB_NAME . ';charset=utf8mb4';
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,

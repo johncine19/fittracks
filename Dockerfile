@@ -12,9 +12,12 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Enable Apache mod_rewrite and harden production PHP configuration
+# Note: php.ini-production sets variables_order = "GPCS" (omitting E), which prevents
+# $_ENV from being populated by container environment variables on Render.
+# Setting variables_order = EGPCS restores $_ENV while keeping production hardening.
 RUN a2enmod rewrite \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
-    && printf "expose_php = Off\ndisplay_errors = Off\ndisplay_startup_errors = Off\nlog_errors = On\nerror_log = /dev/stderr\n" > "$PHP_INI_DIR/conf.d/zz-security.ini"
+    && printf "variables_order = EGPCS\nexpose_php = Off\ndisplay_errors = Off\ndisplay_startup_errors = Off\nlog_errors = On\nerror_log = /dev/stderr\n" > "$PHP_INI_DIR/conf.d/zz-security.ini"
 
 # Set working directory
 WORKDIR /var/www/html

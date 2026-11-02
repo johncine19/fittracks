@@ -54,9 +54,13 @@ require __DIR__ . '/verification_policy.php';
 require __DIR__ . '/seeds.php';
 $seedLockFile = __DIR__ . '/../storage/.seeded.lock';
 if (!file_exists($seedLockFile)) {
-    seed_reference_data_if_empty();
-    if (is_dir(__DIR__ . '/../storage')) {
-        @file_put_contents($seedLockFile, '1');
+    try {
+        seed_reference_data_if_empty();
+        if (is_dir(__DIR__ . '/../storage')) {
+            @file_put_contents($seedLockFile, '1');
+        }
+    } catch (Throwable $e) {
+        error_log('[Bootstrap Seed] Deferred seed check: ' . $e->getMessage());
     }
 }
 
