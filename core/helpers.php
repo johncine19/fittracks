@@ -1439,10 +1439,16 @@ function render_announcement_carousel(array $announcements): void
 if (!function_exists('setup_error')) {
     function setup_error(Throwable $e): void
     {
-        error_log('Application Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        $uri = $_SERVER['REQUEST_URI'] ?? 'CLI';
+        $logMessage = sprintf("[%s] Application Error: %s in %s:%d [URI: %s]\n%s\n", date('Y-m-d H:i:s'), $e->getMessage(), $e->getFile(), $e->getLine(), $uri, $e->getTraceAsString());
+        error_log($logMessage);
+        $logDir = __DIR__ . '/../storage';
+        if (is_dir($logDir) && is_writable($logDir)) {
+            @file_put_contents($logDir . '/php_errors.log', $logMessage, FILE_APPEND | LOCK_EX);
+        }
         http_response_code(500);
         $isDev = in_array(strtolower($_ENV['APP_ENV'] ?? 'production'), ['development', 'dev', 'local'], true) 
-                 || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1'], true));
+                 || (isset($_SERVER['REMOTE_ADDR']) && in_array($_SERVER['REMOTE_ADDR'], ['127.0.0.1', '::1'], true) && empty($_SERVER['HTTP_X_FORWARDED_FOR']) && empty($_SERVER['HTTP_CF_CONNECTING_IP']));
 
         $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
             || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))

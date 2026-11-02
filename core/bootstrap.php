@@ -7,6 +7,31 @@ $dotenv->safeLoad();
 
 date_default_timezone_set('Asia/Manila');
 
+// Production vs Local Error Handling & Hardening
+$appEnv = strtolower((string)($_ENV['APP_ENV'] ?? getenv('APP_ENV') ?: 'production'));
+$isLocalDev = in_array($appEnv, ['local', 'dev', 'development'], true)
+    || (in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true) && empty($_SERVER['HTTP_X_FORWARDED_FOR']) && empty($_SERVER['HTTP_CF_CONNECTING_IP']));
+
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', $isLocalDev ? '1' : '0');
+ini_set('display_startup_errors', $isLocalDev ? '1' : '0');
+@header_remove('X-Powered-By');
+
+set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    $logDir = __DIR__ . '/../storage';
+    if (is_dir($logDir) && is_writable($logDir)) {
+        $uri = $_SERVER['REQUEST_URI'] ?? 'CLI';
+        $entry = sprintf("[%s] PHP Warning/Notice (%d): %s in %s:%d [URI: %s]\n", date('Y-m-d H:i:s'), $severity, $message, $file, $line, $uri);
+        @file_put_contents($logDir . '/php_errors.log', $entry, FILE_APPEND | LOCK_EX);
+    }
+    // Return false so PHP's standard error logger (and local display_errors in dev) still handles it
+    return false;
+});
+
 header('Content-Type: text/html; charset=UTF-8');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');

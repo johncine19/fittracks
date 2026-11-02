@@ -30,6 +30,9 @@ Options -Indexes
     # Block direct HTTP access to internal application, test, scratch, and storage directories
     RewriteRule ^(core|config|database|storage|scratch|tests|deploy|docs|views|vendor)(/|$) - [F,L,NC]
 
+    # Never allow executable scripts to run inside public upload directories
+    RewriteRule ^assets/(uploads|permits|exercise_animations)/.*\.(php[0-9]?|phtml|phar|inc|cgi|pl|py|sh|asp|aspx|jsp)$ - [F,L,NC]
+
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.php?page=404 [L,QSA]
