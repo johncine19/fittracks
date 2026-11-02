@@ -1,7 +1,7 @@
-FROM php:8.2-apache
+FROM php:8.3-apache
 
-# Install dependencies, GD (with FreeType, JPEG, WebP), PDO MySQL, and EXIF
-RUN apt-get update && apt-get install -y \
+# Install dependencies, apply OS security updates, configure GD (with FreeType, JPEG, WebP), PDO MySQL, and EXIF
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     zip unzip git curl ca-certificates \
     libfreetype6-dev libjpeg62-turbo-dev libpng-dev libwebp-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
@@ -16,17 +16,23 @@ RUN a2enmod rewrite \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
     && printf "expose_php = Off\ndisplay_errors = Off\ndisplay_startup_errors = Off\nlog_errors = On\nerror_log = /dev/stderr\n" > "$PHP_INI_DIR/conf.d/zz-security.ini"
 
-# Copy project files
-COPY . /var/www/html/
-
 # Set working directory
 WORKDIR /var/www/html
 
-# Install PHP dependencies via Composer (no dev dependencies, optimized autoloader)
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Cache optimization: install Composer dependencies before copying the full codebase.
+# This layer is reused on every deploy unless composer.json / composer.lock change.
+COPY composer.json composer.lock* /var/www/html/
+RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --prefer-dist
 
-# Set correct permissions
+# Copy project files (owned by root, read-only to the www-data web server process)
+COPY . /var/www/html/
+
+# Generate the optimized autoloader now that application files are present
+RUN composer dump-autoload --optimize --no-dev
+
+# Secure permissions: ONLY runtime-writable data directories are granted to www-data
 RUN mkdir -p /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits /var/www/html/assets/exercise_animations \
-    && chown -R www-data:www-data /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits /var/www/html/assets/exercise_animations
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits /var/www/html/assets/exercise_animations \
+    && chmod -R 775 /var/www/html/storage /var/www/html/assets/uploads /var/www/html/assets/permits /var/www/html/assets/exercise_animations
 
 EXPOSE 80

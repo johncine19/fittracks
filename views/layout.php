@@ -3311,9 +3311,18 @@ HTML;
 
     $skeletonScript = <<<HTML
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.body.classList.add('loaded');
-});
+(function() {
+    function markLoaded() {
+        if (document.body) document.body.classList.add('loaded');
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', markLoaded);
+        window.addEventListener('load', markLoaded);
+        setTimeout(markLoaded, 120);
+    } else {
+        markLoaded();
+    }
+})();
 </script>
 HTML;
 

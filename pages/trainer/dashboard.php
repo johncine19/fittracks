@@ -131,7 +131,7 @@ function trainer_dashboard(PDO $pdo, array $user): void
     </div>
 
     <!-- Two-Column: Upcoming Appointments & Recent Clients -->
-    <div class="skeleton-content animate-fade-in delay-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
+    <div class="skeleton-content sk-display-grid animate-fade-in delay-2" style="grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px;">
         
         <!-- Upcoming Appointments -->
         <section class="panel" style="padding: 0; overflow: hidden;">

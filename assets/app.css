@@ -3395,14 +3395,16 @@ input::-ms-clear {
     75% { transform: translateY(-15px) rotate(-15deg); }
 }
 
-.skeleton-content {
-    display: none;
-    opacity: 0;
+.skeleton-content,
+body:not(.loaded) .skeleton-content {
+    display: none !important;
+    opacity: 0 !important;
 }
 
 body.loaded .skeleton-wrapper {
-    opacity: 0;
-    pointer-events: none;
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
     position: absolute;
     width: 0;
     height: 0;
@@ -3411,17 +3413,21 @@ body.loaded .skeleton-wrapper {
 
 body.loaded .skeleton-content {
     display: block;
-    opacity: 1;
+    opacity: 1 !important;
     animation: skeletonFadeIn 0.3s ease forwards;
 }
 
 /* Grid/flex containers need display restoration */
 body.loaded .skeleton-content.sk-display-grid {
-    display: grid;
+    display: grid !important;
 }
 
 body.loaded .skeleton-content.sk-display-flex {
-    display: flex;
+    display: flex !important;
+}
+
+body.loaded .skeleton-content.sk-display-block {
+    display: block !important;
 }
 
 @keyframes skeletonFadeIn {

@@ -13,6 +13,9 @@ tests
 docs
 deploy
 node_modules
+vendor
+storage/*.log
+storage/.seeded.lock
 .DS_Store
 *.sql
 *.md

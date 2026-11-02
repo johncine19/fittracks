@@ -1576,7 +1576,12 @@ if (!function_exists('is_gym_paused')) {
         if ($gymId <= 0) {
             return false;
         }
-        return get_setting('gym_paused_' . $gymId, '0') === '1';
+        try {
+            $val = scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_paused_' . $gymId]);
+            return (string) $val === '1';
+        } catch (Throwable) {
+            return false;
+        }
     }
 }
 
@@ -1586,9 +1591,13 @@ if (!function_exists('get_gym_pause_notice')) {
         if ($gymId <= 0) {
             return '';
         }
-        $val = trim(get_setting('gym_pause_notice_' . $gymId, ''));
-        if ($val !== '') {
-            return $val;
+        try {
+            $val = (string) scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_pause_notice_' . $gymId]);
+            if (trim($val) !== '') {
+                return trim($val);
+            }
+        } catch (Throwable) {
+            // fallback
         }
         return 'Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!';
     }

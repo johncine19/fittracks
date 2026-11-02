@@ -546,7 +546,7 @@ function member_dashboard(PDO $pdo, array $user): void
     <?php endif; ?>
 
     <?php if (!empty($isGymPaused)): ?>
-        <div class="member-gym-pause-banner animate-fade-in">
+        <div class="member-gym-pause-banner skeleton-content sk-display-block animate-fade-in">
             <div class="gym-pause-banner-header">
                 <div class="gym-pause-banner-lead">
                     <div class="gym-pause-banner-icon">
@@ -626,7 +626,7 @@ function member_dashboard(PDO $pdo, array $user): void
 
     <?php if ($missingCircumference): ?>
     <!-- Incomplete Body Measurements Reminder Banner -->
-    <div class="tidb-banner animate-fade-in" id="member-measurements-reminder" role="alert" style="margin-bottom: 20px;">
+    <div class="tidb-banner skeleton-content sk-display-flex animate-fade-in" id="member-measurements-reminder" role="alert" style="margin-bottom: 20px;">
         <div class="tidb-banner-inner">
             <span>You skipped your neck &amp; waist sizes during signup. Complete your body measurements anytime to unlock precision Body Fat % tracking. <a href="index.php?page=profile&open=physical" class="tidb-banner-link">Enter Sizes &rarr;</a></span>
         </div>
@@ -669,7 +669,7 @@ function member_dashboard(PDO $pdo, array $user): void
     </div>
 
     <!-- Top View Switcher with Vector SVG Icons & Responsive Labels -->
-    <nav class="member-dashboard-nav" aria-label="Dashboard Views">
+    <nav class="member-dashboard-nav skeleton-content sk-display-flex" aria-label="Dashboard Views">
         <button type="button" class="member-dash-tab active" id="tab-btn-today" onclick="switchMemberDashboardTab('today')" title="Today & Workout">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
             <span>
@@ -1119,7 +1119,7 @@ function member_dashboard(PDO $pdo, array $user): void
         ?>
 
         <!-- Leaderboard & Badges Grid -->
-        <div class="skeleton-content animate-fade-in" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; margin-bottom: 24px;">
+        <div class="skeleton-content sk-display-grid animate-fade-in" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; margin-bottom: 24px;">
             <!-- Gym Leaderboard -->
             <section id="gym-leaderboard-section" class="panel missions-panel-card" style="padding: 20px;">
                 <h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
