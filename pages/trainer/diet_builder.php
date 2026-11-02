@@ -591,6 +591,10 @@ function diet_builder_page(): void
                     <span class="diet-meta-sep">·</span>
                     <span class="diet-meta-item">GOAL: <strong style="color: var(--ink);"><?= h(ucwords(str_replace('_', ' ', (string)$profile['primary_goal']))) ?></strong></span>
                 <?php endif; ?>
+                <?php if (!empty($profile['secondary_focus'])): ?>
+                    <span class="diet-meta-sep">·</span>
+                    <span class="diet-meta-item">FOCUS: <strong style="color: var(--ink);"><?= h(ucwords(str_replace('_', ' ', (string)$profile['secondary_focus']))) ?></strong></span>
+                <?php endif; ?>
             </div>
             <p style="color: var(--diet-muted, var(--muted)); font-size: 13px; margin: 6px 0 0;">Manage daily meals, nutrition, and macro targets tailored to this member.</p>
         </div>

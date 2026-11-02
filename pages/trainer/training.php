@@ -174,13 +174,13 @@ function training_page(): void
     // TAB 1 DATA: Eligible Members & Created Plans
     // ----------------------------------------------------
     if ($user['role'] === 'gym_owner' && $gymId) {
-        $members = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
+        $members = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
         $allGymMembers = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM gym_members gm JOIN users u ON u.user_id = gm.user_id WHERE gm.gym_id = ? AND u.status = "active" ORDER BY u.first_name ASC', [$gymId]);
     } elseif ($user['role'] === 'trainer') {
-        $members = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
+        $members = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
         $allGymMembers = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id WHERE ca.trainer_id = ? AND ca.status = "active" ORDER BY u.first_name ASC', [$coachId]);
     } else {
-        $members = query_all('SELECT u.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, 1 AS has_membership FROM users u LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE u.role = "member" AND u.status = "active" LIMIT 100');
+        $members = query_all('SELECT u.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, 1 AS has_membership FROM users u LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE u.role = "member" AND u.status = "active" LIMIT 100');
         $allGymMembers = query_all('SELECT u.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u WHERE u.role = "member" AND u.status = "active" ORDER BY u.first_name ASC LIMIT 100');
     }
 
@@ -197,7 +197,8 @@ function training_page(): void
             'subtitle' => $sub,
             'initials' => $ini ?: 'M',
             'avatar'   => !empty($m['profile_picture']) ? upload_url($m['profile_picture']) : null,
-            'goal'     => (string) ($m['primary_goal'] ?? '')
+            'goal'            => (string) ($m['primary_goal'] ?? ''),
+            'secondary_focus' => (string) ($m['secondary_focus'] ?? '')
         ];
     }, $members ?: []);
 
@@ -868,6 +869,11 @@ function training_page(): void
             <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Goal 
                 <input id="planGoalInput" name="goal" class="form-control" placeholder="e.g., muscle_gain, fat_loss" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
             </label>
+            <div id="planSecondaryGoalWrap" style="display:none;">
+                <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Secondary Goal / Focus Areas
+                    <input id="planSecondaryGoalInput" class="form-control" readonly style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;opacity:0.9;cursor:default;">
+                </label>
+            </div>
             <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap;">
                 <button type="button" onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="background:var(--panel-soft);color:var(--ink);border:1px solid var(--line);padding:9px 22px;border-radius:8px;font-size:13px;font-weight:600;min-height:42px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">Cancel</button>
                 <button type="submit" class="btn btn-primary" style="padding:9px 24px;border-radius:8px;font-size:13px;font-weight:700;min-height:42px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">Create & Build Plan</button>

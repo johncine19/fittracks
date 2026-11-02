@@ -1165,6 +1165,44 @@ function progress_page(): void
                             <button type="button" class="toggle-btn" id="tf-btn-3m" onclick="setChartTimeframe('3m')">3M</button>
                             <button type="button" class="toggle-btn" id="tf-btn-6m" onclick="setChartTimeframe('6m')">6M</button>
                             <button type="button" class="toggle-btn active" id="tf-btn-all" onclick="setChartTimeframe('all')">All</button>
+                            <button type="button" class="toggle-btn" id="tf-btn-custom" onclick="toggleCustomDatePicker()" title="Pick custom date range">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right: 3px; vertical-align: -1px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                                <span>Custom</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <?php
+                    $earliestLogDate = !empty($chartDataPoints) ? $chartDataPoints[0]['date'] : date('Y-m-d');
+                    $todayDate = date('Y-m-d');
+                    ?>
+                    <!-- Custom Date Range Bar -->
+                    <div id="chart-custom-date-wrap" class="chart-custom-date-bar" style="display: none;">
+                        <div class="custom-date-inputs">
+                            <div class="custom-date-item">
+                                <span class="custom-date-label">From:</span>
+                                <input type="date" 
+                                       id="chart-custom-from" 
+                                       class="custom-date-input" 
+                                       min="<?= h($earliestLogDate) ?>" 
+                                       max="<?= h($todayDate) ?>" 
+                                       value="<?= h($earliestLogDate) ?>" 
+                                       onchange="onCustomFromDateChange()">
+                            </div>
+                            <span class="custom-date-sep">&rarr;</span>
+                            <div class="custom-date-item">
+                                <span class="custom-date-label">To:</span>
+                                <input type="date" 
+                                       id="chart-custom-to" 
+                                       class="custom-date-input" 
+                                       min="<?= h($earliestLogDate) ?>" 
+                                       max="<?= h($todayDate) ?>" 
+                                       value="<?= h($todayDate) ?>" 
+                                       onchange="onCustomToDateChange()">
+                            </div>
+                            <button type="button" class="custom-date-btn-apply" onclick="applyCustomDateRange()">Apply</button>
+                            <button type="button" class="custom-date-btn-reset" onclick="setChartTimeframe('all')" title="Reset to All">Reset</button>
+                            <span id="chart-custom-count-info" class="custom-date-info"></span>
                         </div>
                     </div>
 

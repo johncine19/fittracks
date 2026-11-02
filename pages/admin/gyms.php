@@ -15,6 +15,9 @@ function gyms_page(): void
             $pdo->prepare('UPDATE gyms SET status = "suspended" WHERE gym_id = ?')->execute([$gymId]);
             $pdo->prepare('UPDATE users SET status = "suspended" WHERE user_id = (SELECT owner_user_id FROM gyms WHERE gym_id = ?)')
                 ->execute([$gymId]);
+            if (function_exists('archive_defunct_plans')) {
+                archive_defunct_plans($gymId);
+            }
             $pdo->commit();
             flash('Gym suspended successfully.', 'success');
         } elseif ($action === 'reactivate') {
@@ -32,6 +35,9 @@ function gyms_page(): void
             flash('Gym reactivated.', 'success');
         } elseif ($action === 'delete') {
             $pdo->beginTransaction();
+            if (function_exists('archive_defunct_plans')) {
+                archive_defunct_plans($gymId);
+            }
             $pdo->prepare('DELETE FROM gym_staff WHERE gym_id = ?')->execute([$gymId]);
             $pdo->prepare('DELETE FROM gyms WHERE gym_id = ?')->execute([$gymId]);
             $pdo->commit();

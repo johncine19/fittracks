@@ -137,35 +137,51 @@
 
 /* Conflict Alerts */
 .conflict-alert-card {
-    background: color-mix(in srgb, #f59e0b 10%, var(--panel));
-    border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
-    border-left: 4px solid #f59e0b;
+    background: var(--panel, #111827);
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
+    border-left: 3px solid #f59e0b;
     border-radius: 12px;
     padding: 16px 20px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     display: flex;
     gap: 16px;
     align-items: flex-start;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.conflict-alert-card.conflict-card-diet {
+    border-left-color: #3b82f6;
 }
 
 .conflict-alert-icon {
-    font-size: 24px;
+    font-size: 22px;
     color: #f59e0b;
     flex-shrink: 0;
     line-height: 1;
+    margin-top: 2px;
+}
+
+.conflict-alert-card.conflict-card-diet .conflict-alert-icon {
+    color: #3b82f6;
+}
+
+.conflict-alert-content {
+    flex: 1;
+    min-width: 0;
 }
 
 .conflict-alert-content h3 {
     margin: 0 0 4px 0;
     font-size: 15px;
     font-weight: 700;
-    color: var(--ink);
+    color: var(--ink, #ffffff);
+    letter-spacing: -0.01em;
 }
 
 .conflict-alert-content p {
-    margin: 0 0 10px 0;
-    font-size: 13.5px;
-    color: var(--muted);
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    color: var(--muted, #94a3b8);
     line-height: 1.5;
 }
 
@@ -176,16 +192,62 @@
 }
 
 .conflict-badge-pill {
-    background: color-mix(in srgb, #f59e0b 20%, transparent);
-    color: #b45309;
-    border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
-    border-radius: 20px;
-    padding: 4px 12px;
-    font-size: 12px;
-    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ink, #f1f5f9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 500;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    line-height: 1.4;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.conflict-badge-pill:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.conflict-badge-pill strong {
+    color: #fbbf24;
+    font-weight: 600;
+}
+
+.conflict-badge-pill svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+html[data-theme="light"] .conflict-alert-card {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    border-left-color: #d97706;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+html[data-theme="light"] .conflict-alert-card.conflict-card-diet {
+    border-left-color: #2563eb;
+}
+
+html[data-theme="light"] .conflict-alert-content h3 {
+    color: #0f172a;
+}
+
+html[data-theme="light"] .conflict-alert-content p {
+    color: #64748b;
+}
+
+html[data-theme="light"] .conflict-badge-pill {
+    background: #f8fafc;
+    color: #1e293b;
+    border-color: #cbd5e1;
+}
+
+html[data-theme="light"] .conflict-badge-pill strong {
+    color: #b45309;
 }
 
 /* Tabs & Controls Bar */

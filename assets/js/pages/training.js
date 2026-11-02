@@ -93,8 +93,19 @@ document.addEventListener('DOMContentLoaded', () => {
             items: window.planMembersData,
             onChange: (selectedMember) => {
                 const goalInput = document.getElementById('planGoalInput');
-                if (goalInput && selectedMember && selectedMember.goal) {
-                    goalInput.value = selectedMember.goal;
+                if (goalInput) {
+                    goalInput.value = (selectedMember && selectedMember.goal) ? selectedMember.goal : '';
+                }
+                const secWrap = document.getElementById('planSecondaryGoalWrap');
+                const secInput = document.getElementById('planSecondaryGoalInput');
+                if (secWrap && secInput) {
+                    if (selectedMember && selectedMember.secondary_focus) {
+                        secInput.value = selectedMember.secondary_focus;
+                        secWrap.style.display = 'block';
+                    } else {
+                        secInput.value = '';
+                        secWrap.style.display = 'none';
+                    }
                 }
             }
         });

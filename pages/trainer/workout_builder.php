@@ -922,9 +922,16 @@ function workout_builder_page(): void
 
             <div class="wb-plain-info-list">
                 <div class="wb-plain-info-row">
-                    <span class="wb-plain-info-label">Goal:</span>
+                    <span class="wb-plain-info-label">Primary Goal:</span>
                     <span class="wb-plain-info-val"><?= h(ucwords(str_replace('_', ' ', (string)($profile['primary_goal'] ?? 'General Health')))) ?></span>
                 </div>
+                <?php if (!empty($profile['secondary_focus'])): ?>
+                <div class="wb-plain-info-row">
+                    <span class="wb-plain-info-label">Secondary Goal:</span>
+                    <span class="wb-plain-info-val"><?= h(ucwords(str_replace('_', ' ', (string)$profile['secondary_focus']))) ?></span>
+                </div>
+                <?php endif; ?>
+                
 
                 <div class="wb-plain-info-row">
                     <span class="wb-plain-info-label">Weight:</span>
@@ -1005,6 +1012,7 @@ function workout_builder_page(): void
         csrfToken: <?= json_encode(csrf_token()) ?>,
         memberId: <?= (int)$memberId ?>,
         primaryGoal: <?= json_encode($profile['primary_goal'] ?? '') ?>,
+        secondaryFocus: <?= json_encode($profile['secondary_focus'] ?? '') ?>,
         prefDays: <?= (int)$prefDays ?>,
         memberName: <?= json_encode($member['first_name'] ?? 'Member') ?>,
         hasMembership: <?= json_encode((bool)$hasMembership) ?>,

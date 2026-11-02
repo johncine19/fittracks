@@ -7,7 +7,8 @@ const FT_WB_CONFIG = window.WORKOUT_BUILDER_CONFIG || {};
 window.gymExercisesData = FT_WB_CONFIG.gymExercisesData || [];
 const csrfToken = FT_WB_CONFIG.csrfToken || (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
 const memberId = FT_WB_CONFIG.memberId || 0;
-const userGoal = FT_WB_CONFIG.primaryGoal || '';
+const userGoal = FT_WB_CONFIG.primaryGoal || '';
+const secondaryFocus = FT_WB_CONFIG.secondaryFocus || '';
 const prefDays = FT_WB_CONFIG.prefDays || 3;
 const memberName = FT_WB_CONFIG.memberName || 'Member';
 const hasMembership = Boolean(FT_WB_CONFIG.hasMembership);
@@ -165,8 +166,14 @@ const esc = window.escapeHtml || function(s) {
                             <option value="muscle_gain" ${userGoal === 'muscle_gain' ? 'selected' : ''}>Muscle Hypertrophy (Mass)</option>
                             <option value="strength" ${userGoal === 'strength' ? 'selected' : ''}>Max Strength & Power</option>
                             <option value="endurance" ${userGoal === 'endurance' ? 'selected' : ''}>Stamina & Endurance</option>
-                            <option value="general_health" ${userGoal === 'general_health' ? 'selected' : ''}>General Health & Mobility</option>
-                        </select>
+                            <option value="general_health" ${userGoal === 'general_health' ? 'selected' : ''}>General Health & Mobility</option>
+                        </select>
+                        ${secondaryFocus ? `
+                        <div style="margin-top: 6px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px;">
+                            <span>Secondary Focus:</span>
+                            <strong style="color: var(--ink);">${esc(secondaryFocus)}</strong>
+                        </div>` : ''}
+                        
                     </div>
                     <div class="wb-modal-select-grid">
                         <div>

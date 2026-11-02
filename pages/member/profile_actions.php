@@ -709,6 +709,11 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                             $pdo->prepare('UPDATE equipment_queues SET status = "cancelled" WHERE equipment_id IN (SELECT equipment_id FROM gym_equipment WHERE gym_id = ?) AND status = "waiting"')
                                 ->execute([$gymId]);
                         } catch (Throwable) {}
+
+                        // Archive active and paused workout and diet plans issued by this defunct gym
+                        if (function_exists('archive_defunct_plans')) {
+                            archive_defunct_plans($gymId);
+                        }
                     }
                 } elseif ($role === 'member') {
                     $activeMem = query_one(

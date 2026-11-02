@@ -372,6 +372,9 @@ function users_page(): void
                 return;
             }
             db()->prepare('UPDATE users SET status = ? WHERE user_id = ?')->execute([post('status'), $targetUserId]);
+            if (post('status') === 'inactive' && function_exists('archive_defunct_plans')) {
+                archive_defunct_plans(null, $targetUserId);
+            }
             audit_log($user['user_id'], 'update_status', 'user', (string) $targetUserId, json_encode(['new_status' => post('status')]));
             flash('User status updated.');
         } elseif (post('action') === 'edit_user') {
@@ -498,6 +501,9 @@ function users_page(): void
                         }
                     }
                     
+                    if (function_exists('archive_defunct_plans')) {
+                        archive_defunct_plans(null, $targetUserId);
+                    }
                     db()->prepare('DELETE FROM gym_staff WHERE user_id=?')->execute([$targetUserId]);
                     db()->prepare('DELETE FROM users WHERE user_id=?')->execute([$targetUserId]);
                     audit_log($user['user_id'], 'delete', 'user', (string) $targetUserId, json_encode(['role' => $targetUser['role']]));
@@ -553,6 +559,7 @@ function users_page(): void
             $memberData['age'] = $normProf['age'] ?? null;
             $memberData['biological_sex'] = $normProf['biological_sex'] ?? null;
             $memberData['primary_goal'] = $normProf['primary_goal'] ?? null;
+            $memberData['secondary_focus'] = $normProf['secondary_focus'] ?? null;
             $memberData['weekly_workout_target'] = $normProf['weekly_workout_target'] ?? null;
             $memberData['fitness_tier'] = $normProf['fitness_tier'] ?? 1;
         }
@@ -729,6 +736,7 @@ function users_page(): void
                 'bmi' => $bmi,
                 'bmi_category' => $bmiCategory,
                 'primary_goal' => $goalLabel,
+                'secondary_focus' => $memberData['secondary_focus'] ?? null,
                 'weekly_target' => (int)($memberData['weekly_workout_target'] ?? 3),
                 'total_checkins' => $totalCheckins,
                 'total_logs' => count($logs),
@@ -1374,6 +1382,7 @@ function users_page(): void
                             <div class="mp-goal-label-group">
                                 <span class="mp-section-title">Primary Fitness Goal</span>
                                 <span id="mpGoalName" class="mp-goal-name">General Fitness</span>
+                                <span id="mpSecondaryGoal" class="mp-secondary-goal" style="display:none; font-size:12px; color:var(--muted); margin-top:3px;"></span>
                             </div>
                             <div class="mp-goal-meta">
                                 <span id="mpWeeklyTarget" class="mp-goal-tag">3 workouts / week</span>

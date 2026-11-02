@@ -125,12 +125,113 @@ const rawChartData = FT_CONFIG.rawChartData || [];
 
     function setChartTimeframe(tf) {
         currentTimeframe = tf;
-        ['1m', '3m', '6m', 'all'].forEach(t => {
+        const customWrap = document.getElementById('chart-custom-date-wrap');
+        if (customWrap && tf !== 'custom') {
+            customWrap.style.display = 'none';
+        }
+        ['1m', '3m', '6m', 'all', 'custom'].forEach(t => {
             const btn = document.getElementById('tf-btn-' + t);
             if (btn) btn.classList.toggle('active', t === tf);
         });
         renderFilteredChart();
     }
+
+    function toggleCustomDatePicker() {
+        const customWrap = document.getElementById('chart-custom-date-wrap');
+        if (!customWrap) return;
+        const isShowing = customWrap.style.display !== 'none';
+        if (isShowing && currentTimeframe === 'custom') {
+            setChartTimeframe('all');
+        } else {
+            customWrap.style.display = 'flex';
+            currentTimeframe = 'custom';
+            ['1m', '3m', '6m', 'all'].forEach(t => {
+                const btn = document.getElementById('tf-btn-' + t);
+                if (btn) btn.classList.remove('active');
+            });
+            const customBtn = document.getElementById('tf-btn-custom');
+            if (customBtn) customBtn.classList.add('active');
+
+            const fromInput = document.getElementById('chart-custom-from');
+            const toInput = document.getElementById('chart-custom-to');
+            const todayStr = new Date().toISOString().split('T')[0];
+            const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
+
+            if (fromInput) {
+                fromInput.min = earliestStr;
+                fromInput.max = todayStr;
+                if (!fromInput.value || fromInput.value < earliestStr || fromInput.value > todayStr) {
+                    fromInput.value = earliestStr;
+                }
+            }
+            if (toInput) {
+                toInput.min = fromInput && fromInput.value ? fromInput.value : earliestStr;
+                toInput.max = todayStr;
+                if (!toInput.value || toInput.value > todayStr || toInput.value < earliestStr) {
+                    toInput.value = todayStr;
+                }
+            }
+            applyCustomDateRange();
+        }
+    }
+
+    function onCustomFromDateChange() {
+        const fromInput = document.getElementById('chart-custom-from');
+        const toInput = document.getElementById('chart-custom-to');
+        if (!fromInput || !toInput) return;
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
+
+        // Constraint: cannot pick before member's start of logging
+        if (fromInput.value && fromInput.value < earliestStr) {
+            fromInput.value = earliestStr;
+        }
+        // Constraint: cannot pick in the future
+        if (fromInput.value && fromInput.value > todayStr) {
+            fromInput.value = todayStr;
+        }
+        // Constraint: End date cannot be earlier than start date
+        if (fromInput.value && toInput.value && toInput.value < fromInput.value) {
+            toInput.value = fromInput.value;
+        }
+        toInput.min = fromInput.value || earliestStr;
+        applyCustomDateRange();
+    }
+
+    function onCustomToDateChange() {
+        const fromInput = document.getElementById('chart-custom-from');
+        const toInput = document.getElementById('chart-custom-to');
+        if (!fromInput || !toInput) return;
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
+
+        // Constraint: cannot pick in the future (e.g. Nov 3 when today is Nov 2)
+        if (toInput.value && toInput.value > todayStr) {
+            toInput.value = todayStr;
+        }
+        // Constraint: cannot pick before earliest log
+        if (toInput.value && toInput.value < earliestStr) {
+            toInput.value = earliestStr;
+        }
+        // Constraint: Start date cannot be after end date
+        if (fromInput.value && toInput.value && fromInput.value > toInput.value) {
+            fromInput.value = toInput.value;
+        }
+        fromInput.max = toInput.value || todayStr;
+        applyCustomDateRange();
+    }
+
+    function applyCustomDateRange() {
+        renderFilteredChart();
+    }
+
+    window.setChartTimeframe = setChartTimeframe;
+    window.toggleCustomDatePicker = toggleCustomDatePicker;
+    window.applyCustomDateRange = applyCustomDateRange;
+    window.onCustomFromDateChange = onCustomFromDateChange;
+    window.onCustomToDateChange = onCustomToDateChange;
 
     // Toggle visibility of individual measurement lines (Waist, Arms, Chest)
     window.toggleMeasurementDataset = function(index) {
@@ -276,24 +377,48 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     function renderFilteredChart() {
         if (!window.hubChartInstance) return;
 
-        // Filter data by timeframe
-        const now = new Date();
-        let cutoffDate = null;
-        if (currentTimeframe === '1m') {
-            cutoffDate = new Date();
-            cutoffDate.setMonth(now.getMonth() - 1);
-        } else if (currentTimeframe === '3m') {
-            cutoffDate = new Date();
-            cutoffDate.setMonth(now.getMonth() - 3);
-        } else if (currentTimeframe === '6m') {
-            cutoffDate = new Date();
-            cutoffDate.setMonth(now.getMonth() - 6);
+        let filtered = rawChartData;
+        if (currentTimeframe === 'custom') {
+            const fromVal = document.getElementById('chart-custom-from')?.value;
+            const toVal = document.getElementById('chart-custom-to')?.value;
+            filtered = rawChartData.filter(d => {
+                if (fromVal && d.date < fromVal) return false;
+                if (toVal && d.date > toVal) return false;
+                return true;
+            });
+        } else {
+            // Filter data by timeframe
+            const now = new Date();
+            let cutoffDate = null;
+            if (currentTimeframe === '1m') {
+                cutoffDate = new Date();
+                cutoffDate.setMonth(now.getMonth() - 1);
+            } else if (currentTimeframe === '3m') {
+                cutoffDate = new Date();
+                cutoffDate.setMonth(now.getMonth() - 3);
+            } else if (currentTimeframe === '6m') {
+                cutoffDate = new Date();
+                cutoffDate.setMonth(now.getMonth() - 6);
+            }
+
+            if (cutoffDate) {
+                filtered = rawChartData.filter(d => new Date(d.date) >= cutoffDate);
+            }
         }
 
-        const filtered = rawChartData.filter(d => {
-            if (!cutoffDate) return true;
-            return new Date(d.date) >= cutoffDate;
-        });
+        const countInfo = document.getElementById('chart-custom-count-info');
+        if (countInfo) {
+            if (currentTimeframe === 'custom') {
+                const count = filtered.length;
+                if (count === 0) {
+                    countInfo.textContent = 'No logs in this range';
+                } else {
+                    countInfo.textContent = `${count} ${count === 1 ? 'log' : 'logs'} (earliest: ${filtered[0].label})`;
+                }
+            } else {
+                countInfo.textContent = '';
+            }
+        }
 
         const labels = filtered.map(d => d.label);
         const isDark = document.documentElement.getAttribute('data-theme') !== 'light';

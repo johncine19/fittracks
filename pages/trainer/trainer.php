@@ -108,6 +108,9 @@ function trainer_members_page(): void
     $members = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
         mp.height_cm, mp.primary_goal,
+        (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = ca.member_user_id) AS secondary_focus,
+
+
         (SELECT mg.target_value FROM member_goals mg WHERE mg.user_id = ca.member_user_id AND mg.goal_type = "weight" LIMIT 1) AS target_weight_kg,
         (SELECT title FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_title,
         (SELECT plan_id FROM training_plans WHERE member_user_id = ca.member_user_id AND trainer_id = ca.trainer_id AND status = "active" ORDER BY plan_id DESC LIMIT 1) AS active_plan_id,
@@ -124,7 +127,8 @@ function trainer_members_page(): void
 
     $pending_requests = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
-        mp.height_cm, mp.primary_goal 
+        mp.height_cm, mp.primary_goal,
+        (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = ca.member_user_id) AS secondary_focus 
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 
     LEFT JOIN member_profiles mp ON mp.user_id = u.user_id 
@@ -265,6 +269,12 @@ function trainer_members_page(): void
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                                 <?= $goal ?>
                             </span>
+                            <?php if (!empty($req['secondary_focus'])): ?>
+                                <span class="tm-badge-goal" title="Secondary Focus">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                                    <?= h($req['secondary_focus']) ?>
+                                </span>
+                            <?php endif; ?>
                             <span style="font-size: 0.8rem; color: var(--muted);">Weight: <?= $weight ?> kg</span>
                         </div>
 
@@ -404,6 +414,12 @@ function trainer_members_page(): void
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                             <?= $goal ?>
                         </span>
+                        <?php if (!empty($member['secondary_focus'])): ?>
+                            <span class="tm-badge-goal" title="Secondary Focus">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                                <?= h($member['secondary_focus']) ?>
+                            </span>
+                        <?php endif; ?>
                         <?php if (empty($member['has_gym_membership'])): ?>
                             <span class="tm-badge-activity" title="Session is paid directly by the client">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>

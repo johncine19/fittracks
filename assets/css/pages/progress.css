@@ -816,6 +816,118 @@
             border: 1px solid var(--line);
         }
 
+        /* Custom Date Range Bar */
+        .chart-custom-date-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            margin-top: -6px;
+            margin-bottom: 14px;
+            padding: 8px 12px;
+            background: color-mix(in srgb, var(--panel-soft) 60%, transparent);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            animation: fadeIn 0.15s ease-out;
+        }
+        [data-theme="light"] .chart-custom-date-bar {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+        }
+        .custom-date-inputs {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .custom-date-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .custom-date-label {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+        .custom-date-input {
+            background: var(--bg);
+            color: var(--ink);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+        [data-theme="light"] .custom-date-input {
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: #0f172a;
+        }
+        .custom-date-input:focus,
+        .custom-date-input:hover {
+            border-color: var(--lime);
+        }
+        .custom-date-sep {
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .custom-date-btn-apply {
+            background: color-mix(in srgb, var(--lime) 20%, transparent);
+            color: var(--lime);
+            border: 1px solid color-mix(in srgb, var(--lime) 40%, transparent);
+            font-size: 11.5px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        [data-theme="light"] .custom-date-btn-apply {
+            background: #dcfce7;
+            color: #15803d;
+            border-color: #86efac;
+        }
+        .custom-date-btn-apply:hover {
+            background: var(--lime);
+            color: #080b0d;
+        }
+        .custom-date-btn-reset {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--line);
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .custom-date-btn-reset:hover {
+            color: var(--ink);
+            border-color: var(--muted);
+        }
+        .custom-date-info {
+            font-size: 11.5px;
+            color: var(--muted);
+            margin-left: 6px;
+            font-weight: 500;
+        }
+        @media (max-width: 640px) {
+            .chart-custom-date-bar {
+                justify-content: stretch;
+            }
+            .custom-date-inputs {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .custom-date-input {
+                width: 120px;
+                font-size: 11px;
+            }
+        }
+
         /* Chart Legend & Measurement Badges */
         .chart-controls-left {
             display: flex;

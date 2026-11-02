@@ -79,10 +79,38 @@ function my_plans_page(): void
                 flash('Invalid plan status.', 'error');
                 redirect('my_plans&tab=' . ($planType === 'workout' ? 'workouts' : 'diet'));
             }
-            // Cannot resume a gym-issued plan once that gym membership has ended.
+
+            // Cannot resume an archived plan or a plan from a defunct gym/coach
             if ($newStatus === 'active' && $ownerCheck === $userId) {
-                $planGymId = (int) scalar("SELECT gym_id FROM {$table} WHERE plan_id = ? AND trainer_id IS NOT NULL", [$planId]);
-                if ($planGymId > 0) {
+                $planDetails = query_one("
+                    SELECT p.status AS current_status, p.gym_id, p.trainer_id,
+                           g.status AS gym_status,
+                           u_tr.status AS tr_status, u_tr.email AS tr_email,
+                           u_ow.status AS ow_status, u_ow.email AS ow_email
+                    FROM {$table} p
+                    LEFT JOIN gyms g ON g.gym_id = p.gym_id
+                    LEFT JOIN trainer_profiles tpr ON tpr.trainer_id = p.trainer_id
+                    LEFT JOIN users u_tr ON u_tr.user_id = tpr.user_id
+                    LEFT JOIN users u_ow ON u_ow.user_id = g.owner_user_id
+                    WHERE p.plan_id = ?
+                ", [$planId]);
+
+                if ($planDetails) {
+                    if (($planDetails['current_status'] ?? '') === 'archived') {
+                        flash('Archived plans cannot be resumed.', 'warning');
+                        redirect('my_plans&tab=' . ($planType === 'workout' ? 'workouts' : 'diet'));
+                    }
+                    if (in_array($planDetails['gym_status'] ?? '', ['rejected', 'suspended'], true) ||
+                        ($planDetails['tr_status'] ?? '') === 'inactive' || str_starts_with((string)($planDetails['tr_email'] ?? ''), 'deleted_') ||
+                        ($planDetails['ow_status'] ?? '') === 'inactive' || str_starts_with((string)($planDetails['ow_email'] ?? ''), 'deleted_')) {
+                        flash('This plan cannot be resumed because the associated gym or coach is no longer active.', 'warning');
+                        redirect('my_plans&tab=' . ($planType === 'workout' ? 'workouts' : 'diet'));
+                    }
+                }
+
+                // Cannot resume a gym-issued plan once that gym membership has ended.
+                $planGymId = (int) ($planDetails['gym_id'] ?? 0);
+                if ($planGymId > 0 && !empty($planDetails['trainer_id'])) {
                     $hadMembership = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? LIMIT 1', [$userId, $planGymId]);
                     $hasActive = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status IN ("active","pending") AND m.end_date >= CURDATE() LIMIT 1', [$userId, $planGymId]);
                     if ($hadMembership && !$hasActive) {
@@ -222,9 +250,9 @@ function my_plans_page(): void
 
         <!-- Diet Conflict Warning -->
         <?php if (!empty($dietConflicts['has_conflict'])): ?>
-            <div class="conflict-alert-card" style="border-left-color: #3b82f6; background: color-mix(in srgb, #3b82f6 10%, var(--panel)); border-color: color-mix(in srgb, #3b82f6 30%, transparent);">
-                <div class="conflict-alert-icon" style="color: #3b82f6;">
-                    <?= plan_icon('diet', 24) ?>
+            <div class="conflict-alert-card conflict-card-diet">
+                <div class="conflict-alert-icon">
+                    <?= plan_icon('diet', 22) ?>
                 </div>
                 <div class="conflict-alert-content">
                     <h3>Multiple Active Diet Protocols</h3>
@@ -235,9 +263,9 @@ function my_plans_page(): void
 
         <!-- Workload / Recovery Warnings -->
         <?php if (!empty($workloadWarnings)): ?>
-            <div class="conflict-alert-card" id="workload-warning-card" style="border-left-color: #f59e0b; background: color-mix(in srgb, #f59e0b 10%, var(--panel)); border-color: color-mix(in srgb, #f59e0b 30%, transparent);">
-                <div class="conflict-alert-icon" style="color: #f59e0b;">
-                    <?= plan_icon('flame', 24) ?>
+            <div class="conflict-alert-card" id="workload-warning-card">
+                <div class="conflict-alert-icon">
+                    <?= plan_icon('flame', 22) ?>
                 </div>
                 <div class="conflict-alert-content">
                     <h3>Combined Training Load Warning</h3>
@@ -448,6 +476,11 @@ function my_plans_page(): void
                                         <?= plan_icon('check', 14) ?>
                                         <span>Routine Completed</span>
                                     </div>
+                                <?php elseif ($status === 'archived'): ?>
+                                    <div class="plan-completed-state-pill" title="This routine is archived and inactive">
+                                        <?= plan_icon('calendar', 14) ?>
+                                        <span>Plan Archived</span>
+                                    </div>
                                 <?php else: ?>
                                     <a href="index.php?page=my_workout&plan_id=<?= (int)$plan['plan_id'] ?>" class="plan-btn-primary">
                                         <span>Open Routine</span>
@@ -596,6 +629,11 @@ function my_plans_page(): void
                                     <div class="plan-completed-state-pill" title="This nutrition protocol has concluded">
                                         <?= plan_icon('check', 14) ?>
                                         <span>Plan Completed</span>
+                                    </div>
+                                <?php elseif ($status === 'archived'): ?>
+                                    <div class="plan-completed-state-pill" title="This nutrition plan is archived and inactive">
+                                        <?= plan_icon('calendar', 14) ?>
+                                        <span>Plan Archived</span>
                                     </div>
                                 <?php else: ?>
                                     <a href="index.php?page=diet&plan_id=<?= (int)$plan['plan_id'] ?>" class="plan-btn-primary">

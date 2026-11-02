@@ -44,46 +44,37 @@ function get_member_affiliated_gyms(int $userId): array
 {
     $pdo = db();
     $sql = "
-        SELECT DISTINCT g.gym_id, g.name, g.logo_url, g.brand_color,
-               m.status AS membership_status,
-               m.end_date AS membership_end_date,
-               mp.name AS plan_name
+        SELECT g.gym_id, g.name, g.logo_url, g.brand_color,
+               MAX(m.status) AS membership_status,
+               MAX(m.end_date) AS membership_end_date,
+               MAX(m.plan_name) AS plan_name
         FROM gyms g
         LEFT JOIN gym_members gm ON gm.gym_id = g.gym_id AND gm.user_id = :u1
-        LEFT JOIN memberships m ON m.user_id = :u2 AND m.status = 'active' AND m.end_date >= CURDATE()
-        LEFT JOIN membership_plans mp ON mp.plan_id = m.plan_id AND mp.gym_id = g.gym_id
-        WHERE (gm.user_id IS NOT NULL OR m.user_id IS NOT NULL)
-          AND g.status = 'approved'
+        LEFT JOIN (
+            SELECT m2.user_id, m2.status, m2.end_date, mp2.gym_id, mp2.plan_name
+            FROM memberships m2
+            JOIN membership_plans mp2 ON mp2.plan_id = m2.plan_id
+            WHERE m2.user_id = :u2 AND m2.status = 'active' AND m2.end_date >= CURDATE()
+        ) m ON m.gym_id = g.gym_id
+        LEFT JOIN (
+            SELECT DISTINCT gym_id FROM training_plans WHERE member_user_id = :u3 AND gym_id IS NOT NULL AND status IN ('active', 'paused', 'upcoming')
+            UNION
+            SELECT DISTINCT gym_id FROM dietary_plans WHERE member_user_id = :u4 AND gym_id IS NOT NULL AND status IN ('active', 'paused', 'upcoming')
+        ) p ON p.gym_id = g.gym_id
+        WHERE g.status = 'approved'
+          AND (gm.user_id IS NOT NULL OR m.gym_id IS NOT NULL OR p.gym_id IS NOT NULL)
+        GROUP BY g.gym_id, g.name, g.logo_url, g.brand_color
         ORDER BY g.name ASC
     ";
     try {
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([':u1' => $userId, ':u2' => $userId]);
-        $gyms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Also check if member has plans originating from gyms not currently in gym_members
-        $planGymsSql = "
-            SELECT DISTINCT g.gym_id, g.name, g.logo_url, g.brand_color, 'plan_assigned' AS membership_status, NULL AS membership_end_date, NULL AS plan_name
-            FROM gyms g
-            WHERE g.status = 'approved'
-              AND (
-                  g.gym_id IN (SELECT DISTINCT gym_id FROM training_plans WHERE member_user_id = :u1 AND gym_id IS NOT NULL)
-                  OR g.gym_id IN (SELECT DISTINCT gym_id FROM dietary_plans WHERE member_user_id = :u2 AND gym_id IS NOT NULL)
-              )
-        ";
-        $stmt2 = $pdo->prepare($planGymsSql);
-        $stmt2->execute([':u1' => $userId, ':u2' => $userId]);
-        $planGyms = $stmt2->fetchAll(PDO::FETCH_ASSOC);
-
-        $existingIds = array_column($gyms, 'gym_id');
-        foreach ($planGyms as $pg) {
-            if (!in_array($pg['gym_id'], $existingIds, true)) {
-                $gyms[] = $pg;
-                $existingIds[] = $pg['gym_id'];
-            }
-        }
-
-        return $gyms;
+        $stmt->execute([
+            ':u1' => $userId,
+            ':u2' => $userId,
+            ':u3' => $userId,
+            ':u4' => $userId,
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
         error_log('get_member_affiliated_gyms error: ' . $e->getMessage());
         return [];
@@ -95,6 +86,7 @@ function get_member_affiliated_gyms(int $userId): array
  */
 function get_member_workout_plans(int $userId, ?int $gymId = null, ?string $status = null): array
 {
+    ensure_archived_plan_support();
     $pdo = db();
     $params = [':user_id' => $userId];
     $where = 'tp.member_user_id = :user_id';
@@ -110,6 +102,9 @@ function get_member_workout_plans(int $userId, ?int $gymId = null, ?string $stat
     if ($status !== null && $status !== '' && $status !== 'all') {
         $where .= ' AND tp.status = :status';
         $params[':status'] = $status;
+    } else {
+        // When viewing all (default view), exclude archived plans so active view stays clean
+        $where .= " AND tp.status != 'archived'";
     }
 
     $sql = "
@@ -168,6 +163,9 @@ function get_member_dietary_plans(int $userId, ?int $gymId = null, ?string $stat
     if ($status !== null && $status !== '' && $status !== 'all') {
         $where .= ' AND dp.status = :status';
         $params[':status'] = $status;
+    } else {
+        // When viewing all (default view), exclude archived plans so active view stays clean
+        $where .= " AND dp.status != 'archived'";
     }
 
     $sql = "
@@ -696,21 +694,37 @@ function detect_workload_warnings(int $userId, int $maxDailySets = 30): array
             }
         }
 
+        $shortDayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
         foreach ($muscleDayGyms as $muscle => $days) {
+            $involvedDays = [];
+            $involvedGyms = [];
             foreach ($days as $dow => $gyms) {
                 $next = $dow === 7 ? 1 : $dow + 1;
-                if (empty($days[$next])) {
-                    continue;
+                if (!empty($days[$next])) {
+                    $combinedGyms = $gyms + $days[$next];
+                    if (count($combinedGyms) > 1) {
+                        $involvedDays[$dow] = true;
+                        $involvedDays[$next] = true;
+                        foreach ($combinedGyms as $gk => $gn) {
+                            $involvedGyms[$gk] = $gn;
+                        }
+                    }
                 }
-                // Only flag when the back-to-back sessions come from different gyms
-                $allGyms = $gyms + $days[$next];
-                if (count($allGyms) > 1) {
-                    $warnings[] = [
-                        'type' => 'recovery',
-                        'day_of_week' => $dow,
-                        'message' => sprintf('%s is trained on %s and %s by different gyms (%s). Allow at least 48h recovery.', ucfirst($muscle), $dayNames[$dow], $dayNames[$next], implode(' & ', array_unique(array_values($allGyms)))),
-                    ];
-                }
+            }
+            if (!empty($involvedDays)) {
+                ksort($involvedDays);
+                $dayLabels = array_map(fn($d) => $shortDayNames[$d] ?? "Day $d", array_keys($involvedDays));
+                $gymList = implode(' & ', array_unique(array_values($involvedGyms)));
+                $warnings[] = [
+                    'type' => 'recovery',
+                    'muscle' => $muscle,
+                    'message' => sprintf(
+                        '%s is trained consecutively (%s) across %s. Allow 48h recovery between sessions.',
+                        ucfirst($muscle),
+                        implode(', ', $dayLabels),
+                        $gymList
+                    ),
+                ];
             }
         }
     } catch (Throwable $e) {
@@ -718,4 +732,148 @@ function detect_workload_warnings(int $userId, int $maxDailySets = 30): array
     }
 
     return $warnings;
+}
+
+/**
+ * Ensure dietary_plans supports 'archived' status and run one-time orphan plan sweep safely outside transactions.
+ */
+function ensure_archived_plan_support(): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    $checked = true;
+
+    $lockFile = __DIR__ . '/../storage/cache/.archived_plan_schema_v1.lock';
+    if (file_exists($lockFile)) {
+        return;
+    }
+
+    try {
+        $pdo = db();
+        if ($pdo->inTransaction()) {
+            return;
+        }
+        $col = query_one("SHOW COLUMNS FROM dietary_plans LIKE 'status'");
+        $type = strtolower((string)($col['Type'] ?? $col['type'] ?? ''));
+        if ($type !== '' && !str_contains($type, "'archived'")) {
+            $pdo->exec("ALTER TABLE dietary_plans MODIFY COLUMN status ENUM('active','completed','cancelled','draft','upcoming','paused','archived') NOT NULL DEFAULT 'draft'");
+        }
+        archive_defunct_plans();
+        if (is_dir(__DIR__ . '/../storage/cache')) {
+            @file_put_contents($lockFile, '1');
+        }
+    } catch (Throwable $e) {
+        error_log('ensure_archived_plan_support notice: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Automatically archive active/paused plans associated with defunct gyms, rejected gyms, or deleted trainers/owners.
+ */
+function archive_defunct_plans(?int $gymId = null, ?int $userId = null): int
+{
+    $pdo = db();
+    $archivedCount = 0;
+
+    // 1. If gymId is given, archive all plans for that gym
+    if ($gymId !== null && $gymId > 0) {
+        try {
+            $stmt1 = $pdo->prepare("UPDATE training_plans SET status = 'archived' WHERE gym_id = ? AND status IN ('active', 'paused', 'upcoming')");
+            $stmt1->execute([$gymId]);
+            $archivedCount += (int)$stmt1->rowCount();
+        } catch (Throwable $e) {
+            error_log('archive_defunct_plans workout gym error: ' . $e->getMessage());
+        }
+
+        try {
+            $stmt2 = $pdo->prepare("UPDATE dietary_plans SET status = 'archived', is_preferred = 0 WHERE gym_id = ? AND status IN ('active', 'paused', 'upcoming')");
+            $stmt2->execute([$gymId]);
+            $archivedCount += (int)$stmt2->rowCount();
+        } catch (Throwable $e) {
+            try {
+                $stmtFallback = $pdo->prepare("UPDATE dietary_plans SET status = 'cancelled', is_preferred = 0 WHERE gym_id = ? AND status IN ('active', 'paused', 'upcoming')");
+                $stmtFallback->execute([$gymId]);
+                $archivedCount += (int)$stmtFallback->rowCount();
+            } catch (Throwable) {}
+        }
+        return $archivedCount;
+    }
+
+    // 2. If userId is given (deleted gym owner or trainer)
+    if ($userId !== null && $userId > 0) {
+        try {
+            $trainerId = (int) scalar('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?', [$userId]);
+            if ($trainerId > 0) {
+                try {
+                    $stmt1 = $pdo->prepare("UPDATE training_plans SET status = 'archived' WHERE trainer_id = ? AND status IN ('active', 'paused', 'upcoming')");
+                    $stmt1->execute([$trainerId]);
+                    $archivedCount += (int)$stmt1->rowCount();
+                } catch (Throwable) {}
+
+                try {
+                    $stmt2 = $pdo->prepare("UPDATE dietary_plans SET status = 'archived', is_preferred = 0 WHERE trainer_id = ? AND status IN ('active', 'paused', 'upcoming')");
+                    $stmt2->execute([$trainerId]);
+                    $archivedCount += (int)$stmt2->rowCount();
+                } catch (Throwable) {
+                    try {
+                        $stmtFallback = $pdo->prepare("UPDATE dietary_plans SET status = 'cancelled', is_preferred = 0 WHERE trainer_id = ? AND status IN ('active', 'paused', 'upcoming')");
+                        $stmtFallback->execute([$trainerId]);
+                        $archivedCount += (int)$stmtFallback->rowCount();
+                    } catch (Throwable) {}
+                }
+            }
+
+            $ownedGymIds = $pdo->prepare('SELECT gym_id FROM gyms WHERE owner_user_id = ?');
+            $ownedGymIds->execute([$userId]);
+            $gIds = $ownedGymIds->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($gIds as $gId) {
+                $archivedCount += archive_defunct_plans((int)$gId);
+            }
+        } catch (Throwable $e) {
+            error_log('archive_defunct_plans user error: ' . $e->getMessage());
+        }
+        return $archivedCount;
+    }
+
+    // 3. Global sweep (single-table UPDATE for MySQL 8.0 & TiDB Cloud compatibility)
+    $defunctGymSubquery = "
+        SELECT g.gym_id FROM gyms g
+        LEFT JOIN users u_ow ON u_ow.user_id = g.owner_user_id
+        WHERE g.status IN ('rejected', 'suspended')
+           OR u_ow.status = 'inactive'
+           OR u_ow.email LIKE 'deleted_%'
+    ";
+    $defunctTrainerSubquery = "
+        SELECT tpr.trainer_id FROM trainer_profiles tpr
+        JOIN users u_tr ON u_tr.user_id = tpr.user_id
+        WHERE u_tr.status = 'inactive' OR u_tr.email LIKE 'deleted_%'
+    ";
+
+    try {
+        $sqlWorkout = "
+            UPDATE training_plans
+            SET status = 'archived'
+            WHERE status IN ('active', 'paused', 'upcoming')
+              AND (gym_id IN ($defunctGymSubquery) OR trainer_id IN ($defunctTrainerSubquery))
+        ";
+        $archivedCount += (int)$pdo->exec($sqlWorkout);
+    } catch (Throwable $e) {
+        error_log('archive_defunct_plans global workout error: ' . $e->getMessage());
+    }
+
+    try {
+        $sqlDiet = "
+            UPDATE dietary_plans
+            SET status = 'archived', is_preferred = 0
+            WHERE status IN ('active', 'paused', 'upcoming')
+              AND (gym_id IN ($defunctGymSubquery) OR trainer_id IN ($defunctTrainerSubquery))
+        ";
+        $archivedCount += (int)$pdo->exec($sqlDiet);
+    } catch (Throwable $e) {
+        error_log('archive_defunct_plans global diet error: ' . $e->getMessage());
+    }
+
+    return $archivedCount;
 }

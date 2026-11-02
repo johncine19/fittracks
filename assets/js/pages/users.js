@@ -112,11 +112,26 @@ if (FT_USERS_CONFIG.hasOldUser) {
             dropdown.classList.remove('drop-up');
             dropdown.classList.add('is-open');
 
+            const tr = btn.closest('.user-table-row');
+            if (tr) tr.classList.add('has-dropdown-open');
+            const card = btn.closest('.user-card-item');
+            if (card) card.classList.add('has-dropdown-open');
+
             const triggerRect = btn.getBoundingClientRect();
             const spaceBelow = window.innerHeight - triggerRect.bottom;
             const spaceAbove = triggerRect.top;
 
-            if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+            // Check if there is genuine space above inside the table/card container
+            const tableContainer = dropdown.closest('.users-desktop-table') || dropdown.closest('.table-wrap');
+            let tableSpaceAbove = 999;
+            if (tableContainer) {
+                const containerRect = tableContainer.getBoundingClientRect();
+                tableSpaceAbove = triggerRect.top - containerRect.top;
+            }
+
+            // Only flip to drop-up if there is genuine room above within the table (> 200px)
+            // and space below in viewport is tight (< 200px)
+            if (spaceBelow < 200 && spaceAbove > spaceBelow && tableSpaceAbove >= 200) {
                 dropdown.classList.add('drop-up');
             }
         }
@@ -124,6 +139,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
     window.closeAllUserActionDropdowns = function() {
         document.querySelectorAll('.action-kebab-dropdown.is-open').forEach(el => el.classList.remove('is-open'));
+        document.querySelectorAll('.has-dropdown-open').forEach(el => el.classList.remove('has-dropdown-open'));
     };
 
     document.addEventListener('click', function(e) {
@@ -1479,6 +1495,15 @@ if (FT_USERS_CONFIG.hasOldUser) {
             // Fitness Goal & Milestone Track
             const goalNameEl = document.getElementById('mpGoalName');
             if (goalNameEl) goalNameEl.textContent = s.primary_goal;
+            const secGoalEl = document.getElementById('mpSecondaryGoal');
+            if (secGoalEl) {
+                if (s.secondary_focus) {
+                    secGoalEl.innerHTML = `Secondary Focus: <strong style="color:var(--ink);">${escapeHtml(s.secondary_focus)}</strong>`;
+                    secGoalEl.style.display = 'block';
+                } else {
+                    secGoalEl.style.display = 'none';
+                }
+            }
             const weeklyTargetEl = document.getElementById('mpWeeklyTarget');
             if (weeklyTargetEl) weeklyTargetEl.textContent = `${s.weekly_target} workouts / week`;
             const targetWeightEl = document.getElementById('mpTargetWeight');

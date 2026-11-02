@@ -441,6 +441,11 @@ html[data-theme="light"] .users-counter-chip {
 .users-desktop-table {
     display: block;
     margin-bottom: 16px;
+    min-height: 240px;
+    overflow: visible !important;
+}
+.users-desktop-table.table-wrap {
+    overflow: visible !important;
 }
 
 .users-master-table {
@@ -740,12 +745,14 @@ html[data-theme="light"] .user-score-badge.tier-high {
     display: inline-block;
 }
 .action-kebab-dropdown.is-open {
-    z-index: 1050;
+    z-index: 1060;
 }
+.user-table-row.has-dropdown-open,
 .user-table-row:has(.action-kebab-dropdown.is-open),
+.user-card-item.has-dropdown-open,
 .user-card-item:has(.action-kebab-dropdown.is-open) {
     position: relative;
-    z-index: 1040;
+    z-index: 1050;
 }
 .action-kebab-btn {
     width: 30px;
