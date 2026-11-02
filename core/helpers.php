@@ -888,33 +888,34 @@ function get_user_gym(array $user, bool $forceRefresh = false): ?array
         }
 
         if (!$resolvedGym) {
-            // 1. Most recent active physical check-in
-            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId AND a.check_out_time IS NULL ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
-            if ($gym) $resolvedGym = $gym;
-        }
-
-        if (!$resolvedGym) {
-            // 2. Most recent physical check-in overall
-            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN attendance a ON a.gym_id = g.gym_id WHERE a.user_id = $userId ORDER BY a.check_in_time DESC LIMIT 1")->fetch();
-            if ($gym) $resolvedGym = $gym;
-        }
-
-        if (!$resolvedGym) {
-            // 3. Find gym of active membership
-            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'active' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
-            if ($gym) $resolvedGym = $gym;
-        }
-        
-        if (!$resolvedGym) {
-            // 4. Fallback to any pending membership gym
-            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN membership_plans mp ON mp.gym_id = g.gym_id JOIN memberships m ON m.plan_id = mp.plan_id WHERE m.user_id = $userId AND m.status = 'pending' ORDER BY m.membership_id DESC LIMIT 1")->fetch();
-            if ($gym) $resolvedGym = $gym;
-        }
-
-        if (!$resolvedGym) {
-            // 5. Fallback to gym_members direct association
-            $gym = $pdo->query("SELECT g.* FROM gyms g JOIN gym_members gm ON gm.gym_id = g.gym_id WHERE gm.user_id = $userId LIMIT 1")->fetch();
-            $resolvedGym = $gym ?: null;
+            try {
+                $bestGymId = (int) scalar("
+                    SELECT gym_id FROM (
+                        SELECT a.gym_id, 1 AS prio, a.attendance_id AS sort_id
+                        FROM attendance a WHERE a.user_id = ? AND a.check_out_time IS NULL AND a.gym_id IS NOT NULL
+                        UNION ALL
+                        SELECT a.gym_id, 2 AS prio, a.attendance_id AS sort_id
+                        FROM attendance a WHERE a.user_id = ? AND a.gym_id IS NOT NULL
+                        UNION ALL
+                        SELECT mp.gym_id, 3 AS prio, m.membership_id AS sort_id
+                        FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                        WHERE m.user_id = ? AND m.status = 'active' AND mp.gym_id IS NOT NULL
+                        UNION ALL
+                        SELECT mp.gym_id, 4 AS prio, m.membership_id AS sort_id
+                        FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                        WHERE m.user_id = ? AND m.status = 'pending' AND mp.gym_id IS NOT NULL
+                        UNION ALL
+                        SELECT gm.gym_id, 5 AS prio, 0 AS sort_id
+                        FROM gym_members gm WHERE gm.user_id = ? AND gm.gym_id IS NOT NULL
+                    ) AS resolved_gyms
+                    ORDER BY prio ASC, sort_id DESC
+                    LIMIT 1
+                ", [$userId, $userId, $userId, $userId, $userId]);
+                if ($bestGymId > 0) {
+                    $gym = $pdo->query("SELECT * FROM gyms WHERE gym_id = $bestGymId LIMIT 1")->fetch();
+                    $resolvedGym = $gym ?: null;
+                }
+            } catch (Throwable) {}
         }
     }
 
@@ -1022,38 +1023,43 @@ function hydrate_gym_rows(array $gyms): array
         }
     } catch (Throwable) {}
 
-    // 2. Payout accounts
+    // 2. Payout accounts & Gym settings (combined into a single round-trip)
     try {
-        $payStmt = $pdo->prepare("SELECT * FROM gym_payout_accounts WHERE gym_id IN ($placeholders)");
-        $payStmt->execute($idList);
-        foreach ($payStmt->fetchAll(PDO::FETCH_ASSOC) as $p) {
-            $gid = (int)$p['gym_id'];
+        $metaStmt = $pdo->prepare("
+            SELECT g.gym_id,
+                   p.xendit_subaccount_id, p.payout_channel, p.payout_account_number, p.payout_account_name,
+                   p.gym_id AS has_payout,
+                   s.inactivity_threshold_days, s.inactivity_cooldown_days, s.auto_inactivity_alerts,
+                   s.staff_hide_financials, s.eod_email_summary, s.last_eod_email_sent_at, s.last_eod_email_sent_by,
+                   s.eod_gate_time, s.pending_eod_gate_time, s.eod_gate_effective_date,
+                   s.gym_id AS has_settings
+            FROM gyms g
+            LEFT JOIN gym_payout_accounts p ON p.gym_id = g.gym_id
+            LEFT JOIN gym_settings s ON s.gym_id = g.gym_id
+            WHERE g.gym_id IN ($placeholders)
+        ");
+        $metaStmt->execute($idList);
+        foreach ($metaStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $gid = (int)$row['gym_id'];
             foreach ($gymIds[$gid] ?? [] as $idx) {
-                $gyms[$idx]['xendit_subaccount_id'] = $p['xendit_subaccount_id'] ?? null;
-                $gyms[$idx]['payout_channel'] = $p['payout_channel'] ?? 'gcash';
-                $gyms[$idx]['payout_account_number'] = $p['payout_account_number'] ?? null;
-                $gyms[$idx]['payout_account_name'] = $p['payout_account_name'] ?? null;
-            }
-        }
-    } catch (Throwable) {}
-
-    // 3. Gym settings
-    try {
-        $setStmt = $pdo->prepare("SELECT * FROM gym_settings WHERE gym_id IN ($placeholders)");
-        $setStmt->execute($idList);
-        foreach ($setStmt->fetchAll(PDO::FETCH_ASSOC) as $s) {
-            $gid = (int)$s['gym_id'];
-            foreach ($gymIds[$gid] ?? [] as $idx) {
-                $gyms[$idx]['inactivity_threshold_days'] = $s['inactivity_threshold_days'] ?? null;
-                $gyms[$idx]['inactivity_cooldown_days'] = $s['inactivity_cooldown_days'] ?? null;
-                $gyms[$idx]['auto_inactivity_alerts'] = $s['auto_inactivity_alerts'] ?? 1;
-                $gyms[$idx]['staff_hide_financials'] = $s['staff_hide_financials'] ?? 0;
-                $gyms[$idx]['eod_email_summary'] = $s['eod_email_summary'] ?? 1;
-                $gyms[$idx]['last_eod_email_sent_at'] = $s['last_eod_email_sent_at'] ?? null;
-                $gyms[$idx]['last_eod_email_sent_by'] = $s['last_eod_email_sent_by'] ?? null;
-                $gyms[$idx]['eod_gate_time'] = $s['eod_gate_time'] ?? '17:00:00';
-                $gyms[$idx]['pending_eod_gate_time'] = $s['pending_eod_gate_time'] ?? null;
-                $gyms[$idx]['eod_gate_effective_date'] = $s['eod_gate_effective_date'] ?? null;
+                if (!empty($row['has_payout'])) {
+                    $gyms[$idx]['xendit_subaccount_id'] = $row['xendit_subaccount_id'] ?? null;
+                    $gyms[$idx]['payout_channel'] = $row['payout_channel'] ?? 'gcash';
+                    $gyms[$idx]['payout_account_number'] = $row['payout_account_number'] ?? null;
+                    $gyms[$idx]['payout_account_name'] = $row['payout_account_name'] ?? null;
+                }
+                if (!empty($row['has_settings'])) {
+                    $gyms[$idx]['inactivity_threshold_days'] = $row['inactivity_threshold_days'] ?? null;
+                    $gyms[$idx]['inactivity_cooldown_days'] = $row['inactivity_cooldown_days'] ?? null;
+                    $gyms[$idx]['auto_inactivity_alerts'] = $row['auto_inactivity_alerts'] ?? 1;
+                    $gyms[$idx]['staff_hide_financials'] = $row['staff_hide_financials'] ?? 0;
+                    $gyms[$idx]['eod_email_summary'] = $row['eod_email_summary'] ?? 1;
+                    $gyms[$idx]['last_eod_email_sent_at'] = $row['last_eod_email_sent_at'] ?? null;
+                    $gyms[$idx]['last_eod_email_sent_by'] = $row['last_eod_email_sent_by'] ?? null;
+                    $gyms[$idx]['eod_gate_time'] = $row['eod_gate_time'] ?? '17:00:00';
+                    $gyms[$idx]['pending_eod_gate_time'] = $row['pending_eod_gate_time'] ?? null;
+                    $gyms[$idx]['eod_gate_effective_date'] = $row['eod_gate_effective_date'] ?? null;
+                }
             }
         }
     } catch (Throwable) {}
@@ -1564,12 +1570,7 @@ if (!function_exists('is_gym_paused')) {
         if ($gymId <= 0) {
             return false;
         }
-        try {
-            $val = scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_paused_' . $gymId]);
-            return (string) $val === '1';
-        } catch (Throwable) {
-            return false;
-        }
+        return get_setting('gym_paused_' . $gymId, '0') === '1';
     }
 }
 
@@ -1579,13 +1580,9 @@ if (!function_exists('get_gym_pause_notice')) {
         if ($gymId <= 0) {
             return '';
         }
-        try {
-            $val = (string) scalar('SELECT setting_value FROM system_settings WHERE setting_key = ?', ['gym_pause_notice_' . $gymId]);
-            if (trim($val) !== '') {
-                return trim($val);
-            }
-        } catch (Throwable) {
-            // fallback
+        $val = trim(get_setting('gym_pause_notice_' . $gymId, ''));
+        if ($val !== '') {
+            return $val;
         }
         return 'Our public listings and new sign-ups are temporarily paused for maintenance/holiday mode. Your active member access remains normal. See you at your workout!';
     }

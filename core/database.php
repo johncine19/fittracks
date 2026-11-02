@@ -14,7 +14,7 @@ function db(): PDO
     $options = [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+        PDO::MYSQL_ATTR_INIT_COMMAND => "SET character_set_client = utf8mb4, character_set_results = utf8mb4, character_set_connection = utf8mb4, collation_connection = utf8mb4_0900_ai_ci, time_zone = '+08:00'",
     ];
     if ($useSSL) {
         // TiDB Cloud Serverless requires SSL — use system CA bundle
@@ -24,23 +24,19 @@ function db(): PDO
         }
         $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
     }
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
     try {
-        // Enforce utf8mb4_0900_ai_ci across TiDB Cloud and MySQL 8.0.
-        // Overrides PHP mysqlnd's utf8mb4_general_ci default and prevents TiDB's utf8mb4_bin database default from breaking auth/queries.
-        $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+        $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
     } catch (Throwable) {
+        // Safe fallback for older MariaDB engines without utf8mb4_0900_ai_ci
+        $options[PDO::MYSQL_ATTR_INIT_COMMAND] = "SET NAMES utf8mb4";
+        $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         try {
             $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
-        } catch (Throwable) {
-            try {
-                $pdo->exec("SET NAMES utf8mb4");
-            } catch (Throwable) {}
-        }
+        } catch (Throwable) {}
+        try {
+            $pdo->exec("SET time_zone = '+08:00'");
+        } catch (Throwable) {}
     }
-    try {
-        $pdo->exec("SET time_zone = '+08:00'");
-    } catch (Throwable) {}
 
     return $pdo;
 }

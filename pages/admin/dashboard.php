@@ -6,32 +6,42 @@ function calc_revenue_trend(PDO $pdo, ?int $gymId = null): string
 {
     $cacheKey = 'dashboard_revenue_trend' . ($gymId ? '_' . $gymId : '_platform');
     return Cache::remember($cacheKey, 300, function () use ($pdo, $gymId) {
+        $thisMonthStart = date('Y-m-01');
+        $lastMonthStart = (new DateTime('first day of last month'))->format('Y-m-01');
         if ($gymId === null) {
             // Platform Admin: revenue is from gym owner subscription payments
-            $thisMonth = (float) $pdo->query(
-                "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m')"
-            )->fetchColumn();
-            $lastMonth = (float) $pdo->query(
-                "SELECT COALESCE(SUM(amount), 0) FROM gym_subscription_payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m')"
-            )->fetchColumn();
+            $stmt = $pdo->prepare("
+                SELECT
+                    COALESCE(SUM(CASE WHEN payment_date >= ? THEN amount ELSE 0 END), 0) AS this_month,
+                    COALESCE(SUM(CASE WHEN payment_date >= ? AND payment_date < ? THEN amount ELSE 0 END), 0) AS last_month
+                FROM gym_subscription_payments
+                WHERE status = 'paid' AND payment_date >= ?
+            ");
+            $stmt->execute([$thisMonthStart, $lastMonthStart, $thisMonthStart, $lastMonthStart]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $thisMonth = (float) ($row['this_month'] ?? 0);
+            $lastMonth = (float) ($row['last_month'] ?? 0);
         } else {
-            $gymFilterPay = " AND membership_id IN (SELECT membership_id FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = $gymId)";
-            $gymFilterWalk = " AND gym_id = $gymId";
-            
-            $thisMonth = (float) $pdo->query(
-                "SELECT SUM(revenue) FROM (
-                    SELECT amount AS revenue FROM payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m') $gymFilterPay
+            $stmt = $pdo->prepare("
+                SELECT
+                    COALESCE(SUM(CASE WHEN rev_date >= ? THEN revenue ELSE 0 END), 0) AS this_month,
+                    COALESCE(SUM(CASE WHEN rev_date >= ? AND rev_date < ? THEN revenue ELSE 0 END), 0) AS last_month
+                FROM (
+                    SELECT p.amount AS revenue, p.payment_date AS rev_date
+                    FROM payments p
+                    JOIN memberships m ON m.membership_id = p.membership_id
+                    JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                    WHERE p.status = 'paid' AND mp.gym_id = ? AND p.payment_date >= ?
                     UNION ALL
-                    SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m') $gymFilterWalk
-                ) AS combined"
-            )->fetchColumn();
-            $lastMonth = (float) $pdo->query(
-                "SELECT SUM(revenue) FROM (
-                    SELECT amount AS revenue FROM payments WHERE status='paid' AND DATE_FORMAT(payment_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m') $gymFilterPay
-                    UNION ALL
-                    SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m') $gymFilterWalk
-                ) AS combined"
-            )->fetchColumn();
+                    SELECT amount_paid AS revenue, visit_date AS rev_date
+                    FROM walk_in_transactions
+                    WHERE gym_id = ? AND visit_date >= ?
+                ) AS combined
+            ");
+            $stmt->execute([$thisMonthStart, $lastMonthStart, $thisMonthStart, $gymId, $lastMonthStart, $gymId, $lastMonthStart]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $thisMonth = (float) ($row['this_month'] ?? 0);
+            $lastMonth = (float) ($row['last_month'] ?? 0);
         }
         if ($lastMonth == 0) return $thisMonth > 0 ? money($thisMonth) . ' this month' : 'No data last month';
         $pct = round((($thisMonth - $lastMonth) / $lastMonth) * 100, 1);
@@ -43,15 +53,21 @@ function calc_member_trend(PDO $pdo, ?int $gymId = null): string
 {
     $cacheKey = 'dashboard_member_trend' . ($gymId ? '_' . $gymId : '');
     return Cache::remember($cacheKey, 300, function () use ($pdo, $gymId) {
-        $gymJoin = $gymId ? " JOIN gym_members gm ON gm.user_id = u.user_id AND gm.gym_id = $gymId" : "";
-        $thisMonth = (int) $pdo->query(
-            "SELECT COUNT(DISTINCT u.user_id) FROM users u $gymJoin WHERE u.role='member' AND u.status='active'
-             AND DATE_FORMAT(u.created_at,'%Y-%m')=DATE_FORMAT(CURDATE(),'%Y-%m')"
-        )->fetchColumn();
-        $lastMonth = (int) $pdo->query(
-            "SELECT COUNT(DISTINCT u.user_id) FROM users u $gymJoin WHERE u.role='member' AND u.status='active'
-             AND DATE_FORMAT(u.created_at,'%Y-%m')=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),'%Y-%m')"
-        )->fetchColumn();
+        $thisMonthStart = date('Y-m-01');
+        $lastMonthStart = (new DateTime('first day of last month'))->format('Y-m-01');
+        $gymJoin = $gymId ? " JOIN gym_members gm ON gm.user_id = u.user_id AND gm.gym_id = " . (int)$gymId : "";
+        $stmt = $pdo->prepare("
+            SELECT
+                COUNT(DISTINCT CASE WHEN u.created_at >= ? THEN u.user_id END) AS this_month,
+                COUNT(DISTINCT CASE WHEN u.created_at >= ? AND u.created_at < ? THEN u.user_id END) AS last_month
+            FROM users u
+            $gymJoin
+            WHERE u.role = 'member' AND u.status = 'active' AND u.created_at >= ?
+        ");
+        $stmt->execute([$thisMonthStart, $lastMonthStart, $thisMonthStart, $lastMonthStart]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $thisMonth = (int) ($row['this_month'] ?? 0);
+        $lastMonth = (int) ($row['last_month'] ?? 0);
         if ($lastMonth == 0) return $thisMonth > 0 ? '+' . $thisMonth . ' new this month' : 'No new signups yet';
         if ($thisMonth == 0) return '0 new this month';
         $pct = round((($thisMonth - $lastMonth) / $lastMonth) * 100, 1);
@@ -63,13 +79,16 @@ function calc_checkin_trend(PDO $pdo, ?int $gymId = null): string
 {
     $cacheKey = 'dashboard_checkin_trend' . ($gymId ? '_' . $gymId : '');
     return Cache::remember($cacheKey, 300, function () use ($pdo, $gymId) {
-        $gymFilter = $gymId ? " AND gym_id = $gymId" : "";
-        $today = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY $gymFilter"
-        )->fetchColumn();
-        $yesterday = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND check_in_time < CURDATE() $gymFilter"
-        )->fetchColumn();
+        $gymFilter = $gymId ? " AND gym_id = " . (int)$gymId : "";
+        $row = $pdo->query("
+            SELECT
+                COALESCE(SUM(CASE WHEN check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY THEN 1 ELSE 0 END), 0) AS today_cnt,
+                COALESCE(SUM(CASE WHEN check_in_time >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND check_in_time < CURDATE() THEN 1 ELSE 0 END), 0) AS yesterday_cnt
+            FROM attendance
+            WHERE check_in_time >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND check_in_time < CURDATE() + INTERVAL 1 DAY $gymFilter
+        ")->fetch(PDO::FETCH_ASSOC) ?: [];
+        $today = (int) ($row['today_cnt'] ?? 0);
+        $yesterday = (int) ($row['yesterday_cnt'] ?? 0);
         if ($yesterday == 0) return 'No data yesterday';
         $pct = round((($today - $yesterday) / $yesterday) * 100, 1);
         return ($pct >= 0 ? '▲ ' : '▼ ') . abs($pct) . '% vs yesterday';

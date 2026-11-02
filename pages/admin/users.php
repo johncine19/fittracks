@@ -1001,20 +1001,28 @@ function users_page(): void
     $countActive = (int)($statsData['count_active'] ?? 0);
     $avgMemberScore = round((float)($statsData['avg_member_score'] ?? 0));
 
-    $total = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
+    if ($searchQuery === '') {
+        $total = match ($tab) {
+            'member'    => $countMember,
+            'trainer'   => $countTrainer,
+            'staff'     => $countStaff,
+            'gym_owner' => $countOwner,
+            default     => $countAll,
+        };
+    } else {
+        $total = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
+    }
     $totalPages = max(1, (int) ceil($total / $limit));
 
     $sql = 'SELECT u.*, tp.specialization, tp.bio, 
+            g_tr.name AS trainer_gym_name,
             (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
             (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
-            (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
             (SELECT g3.name FROM gym_members gm JOIN gyms g3 ON gm.gym_id = g3.gym_id WHERE gm.user_id = u.user_id LIMIT 1) AS member_gym_name,
-            (SELECT g4.name FROM gym_staff gs JOIN gyms g4 ON gs.gym_id = g4.gym_id WHERE gs.user_id = u.user_id LIMIT 1) AS staff_gym_name,
-            (SELECT mp.plan_name FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id ' . ($gymId ? 'AND mp.gym_id = ' . (int)$gymId : '') . ' ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC LIMIT 1) AS membership_plan_name,
-            (SELECT m.status FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id ' . ($gymId ? 'AND mp.gym_id = ' . (int)$gymId : '') . ' ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC LIMIT 1) AS membership_status,
-            (SELECT m.end_date FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id ' . ($gymId ? 'AND mp.gym_id = ' . (int)$gymId : '') . ' ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC LIMIT 1) AS membership_end_date
+            (SELECT g4.name FROM gym_staff gs JOIN gyms g4 ON gs.gym_id = g4.gym_id WHERE gs.user_id = u.user_id LIMIT 1) AS staff_gym_name
             FROM users u 
             LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
+            LEFT JOIN gyms g_tr ON g_tr.gym_id = tp.gym_id
             WHERE ' . $where . ' 
             ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
             LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
@@ -1022,6 +1030,40 @@ function users_page(): void
     $stmt = db()->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
+
+    // Batch-hydrate latest membership details for the current page of users in 1 query (instead of 3 correlated subqueries per row)
+    if (!empty($rows)) {
+        $pageUserIds = array_values(array_unique(array_map(static fn($r) => (int)$r['user_id'], $rows)));
+        $inPlaceholders = implode(',', array_fill(0, count($pageUserIds), '?'));
+        $memSql = "
+            SELECT m.user_id, mp.plan_name, m.status, m.end_date
+            FROM memberships m
+            JOIN membership_plans mp ON mp.plan_id = m.plan_id
+            WHERE m.user_id IN ($inPlaceholders)
+            " . ($gymId ? " AND mp.gym_id = " . (int)$gymId : "") . "
+            ORDER BY (m.status = 'active' AND m.end_date >= CURDATE()) DESC,
+                     (m.status = 'pending') DESC,
+                     m.end_date DESC,
+                     m.membership_id DESC
+        ";
+        $memStmt = db()->prepare($memSql);
+        $memStmt->execute($pageUserIds);
+        $bestMemByUser = [];
+        foreach ($memStmt->fetchAll() as $mRow) {
+            $muid = (int)$mRow['user_id'];
+            if (!isset($bestMemByUser[$muid])) {
+                $bestMemByUser[$muid] = $mRow;
+            }
+        }
+        foreach ($rows as &$r) {
+            $muid = (int)$r['user_id'];
+            $bm = $bestMemByUser[$muid] ?? null;
+            $r['membership_plan_name'] = $bm['plan_name'] ?? null;
+            $r['membership_status'] = $bm['status'] ?? null;
+            $r['membership_end_date'] = $bm['end_date'] ?? null;
+        }
+        unset($r);
+    }
     
     $allGyms = db()->query('SELECT gym_id, name FROM gyms ORDER BY name ASC')->fetchAll();
 

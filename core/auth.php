@@ -49,25 +49,27 @@ function require_login(): array
 
     // Globally enforce physical profile + goal setup for members
     if ($user['role'] === 'member' && !in_array($page, ['setup_profile', 'setup_goal', 'logout'], true)) {
-        $memberProfile = member_profile((int) $user['user_id']);
-        if ($memberProfile === null) {
-            redirect('setup_profile');
-        } elseif (empty($memberProfile['primary_goal'])) {
-            redirect('setup_goal');
+        $setupSessionKey = 'profile_setup_ok_' . (int) $user['user_id'];
+        if (empty($_SESSION[$setupSessionKey])) {
+            $memberProfile = member_profile((int) $user['user_id']);
+            if ($memberProfile === null) {
+                redirect('setup_profile');
+            } elseif (empty($memberProfile['primary_goal'])) {
+                redirect('setup_goal');
+            }
+            $_SESSION[$setupSessionKey] = true;
         }
     }
 
     // Handle Gym Owner onboarding & subscription interception
     if ($user['role'] === 'gym_owner' && !in_array($page, ['gym_onboarding', 'gym_pending', 'gym_rejected', 'gym_subscription', 'logout'], true)) {
+        $gym = get_user_gym($user);
         $lastOwnerExpiryCheck = (int)($_SESSION['last_owner_expiry_check'] ?? 0);
-        if ((time() - $lastOwnerExpiryCheck > 3600 || $page === 'gym_subscription') && function_exists('auto_expire_lapsed_gym_subscriptions')) {
-            $ownerGymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [(int)$user['user_id']]);
-            if ($ownerGymId > 0) {
-                auto_expire_lapsed_gym_subscriptions($ownerGymId);
-            }
+        if ($gym && (time() - $lastOwnerExpiryCheck > 3600 || $page === 'gym_subscription') && function_exists('auto_expire_lapsed_gym_subscriptions')) {
+            auto_expire_lapsed_gym_subscriptions((int) $gym['gym_id']);
             $_SESSION['last_owner_expiry_check'] = time();
+            $gym = get_user_gym($user, true);
         }
-        $gym = db()->query('SELECT gym_id, status, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch();
         
         if (!$gym) {
             redirect('gym_onboarding');

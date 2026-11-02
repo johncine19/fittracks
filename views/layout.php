@@ -219,10 +219,10 @@ function render_header(string $title, ?array $user = null): void
                 document.write('<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"><\/script>');
             }
         </script>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="assets/chart.umd.min.js"></script>
         <script>
             if (typeof Chart === 'undefined') {
-                document.write('<script src="assets/chart.umd.min.js"><\/script>');
+                document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>');
             }
         </script>
         <script>
@@ -2110,7 +2110,7 @@ function render_header(string $title, ?array $user = null): void
                 <!-- Role badge (replaces non-functional role-switch select) -->
                 <div class="role-badge"><?= h(ucfirst($user['role'])) ?></div>
                 <?php 
-                    $unreadNotifsCount = $user ? unread_notification_count((int) $user['user_id']) : 0;
+                    $unreadNotifsCount = 0;
                     $sidebarBadges = [];
                     $unreadMsgsCount = 0;
 
@@ -2121,7 +2121,11 @@ function render_header(string $title, ?array $user = null): void
                         if (isset($_SESSION[$sidebarCacheKey]) && ($_SESSION[$sidebarCacheKey]['expires'] ?? 0) > $now) {
                             $sidebarBadges = $_SESSION[$sidebarCacheKey]['badges'];
                             $unreadMsgsCount = (int)($_SESSION[$sidebarCacheKey]['unread_msgs'] ?? 0);
+                            $unreadNotifsCount = ($page === 'notifications')
+                                ? unread_notification_count($uid)
+                                : (int)($_SESSION[$sidebarCacheKey]['unread_notifs'] ?? unread_notification_count($uid));
                         } else {
+                            $unreadNotifsCount = unread_notification_count($uid);
                             $unreadMsgsCount = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [$uid]);
 
                             if ($role === 'member') {
@@ -2315,7 +2319,8 @@ function render_header(string $title, ?array $user = null): void
                             $_SESSION[$sidebarCacheKey] = [
                                 'expires' => $now + 45,
                                 'badges' => $sidebarBadges,
-                                'unread_msgs' => $unreadMsgsCount
+                                'unread_msgs' => $unreadMsgsCount,
+                                'unread_notifs' => $unreadNotifsCount
                             ];
                         }
 
@@ -2459,57 +2464,66 @@ function render_header(string $title, ?array $user = null): void
                             }
                         } elseif ($role === 'member' && $user) {
                             $activeGymId = (int)($gym['gym_id'] ?? 0);
-                            $membership = null;
-                            if ($activeGymId > 0) {
-                                $membershipStmt = db()->prepare('
-                                    SELECT mp.plan_name, m.status, m.end_date 
-                                    FROM memberships m 
-                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                                    WHERE m.user_id = ? AND mp.gym_id = ? 
-                                    ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC 
-                                    LIMIT 1
-                                ');
-                                $membershipStmt->execute([$user['user_id'], $activeGymId]);
-                                $membership = $membershipStmt->fetch();
+                            $subPillCacheKey = 'member_sub_pill_' . (int)$user['user_id'] . '_' . $activeGymId;
+                            if ($page !== 'memberships' && isset($_SESSION[$subPillCacheKey]) && ($_SESSION[$subPillCacheKey]['expires'] ?? 0) > time()) {
+                                $profileSubPill = $_SESSION[$subPillCacheKey]['pill'];
                             } else {
-                                $membershipStmt = db()->prepare('
-                                    SELECT mp.plan_name, m.status, m.end_date 
-                                    FROM memberships m 
-                                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                                    WHERE m.user_id = ? 
-                                    ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC 
-                                    LIMIT 1
-                                ');
-                                $membershipStmt->execute([$user['user_id']]);
-                                $membership = $membershipStmt->fetch();
-                            }
-                            if ($membership) {
-                                $isMemActive = ($membership['status'] === 'active' && !empty($membership['end_date']) && strtotime((string)$membership['end_date']) >= strtotime('today'));
-                                if ($isMemActive) {
-                                    $profileSubPill = [
-                                        'text'  => strtoupper($membership['plan_name']),
-                                        'title' => 'Active Membership (' . ($gym['name'] ?? 'Current Facility') . '): ' . $membership['plan_name'],
-                                        'type'  => 'active',
-                                    ];
-                                } elseif ($membership['status'] === 'pending') {
-                                    $profileSubPill = [
-                                        'text'  => 'PENDING',
-                                        'title' => 'Membership Pending Approval / Payment (' . ($gym['name'] ?? 'Current Facility') . '): ' . $membership['plan_name'],
-                                        'type'  => 'pending',
-                                    ];
-                                } elseif ($membership['status'] === 'cancelled') {
-                                    $profileSubPill = [
-                                        'text'  => 'CANCELLED',
-                                        'title' => 'Membership Cancelled (' . ($gym['name'] ?? 'Current Facility') . ')',
-                                        'type'  => 'cancelled',
-                                    ];
+                                $membership = null;
+                                if ($activeGymId > 0) {
+                                    $membershipStmt = db()->prepare('
+                                        SELECT mp.plan_name, m.status, m.end_date 
+                                        FROM memberships m 
+                                        JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                        WHERE m.user_id = ? AND mp.gym_id = ? 
+                                        ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC 
+                                        LIMIT 1
+                                    ');
+                                    $membershipStmt->execute([$user['user_id'], $activeGymId]);
+                                    $membership = $membershipStmt->fetch();
                                 } else {
-                                    $profileSubPill = [
-                                        'text'  => 'EXPIRED',
-                                        'title' => 'Membership Expired (' . ($gym['name'] ?? 'Current Facility') . ')',
-                                        'type'  => 'expired',
-                                    ];
+                                    $membershipStmt = db()->prepare('
+                                        SELECT mp.plan_name, m.status, m.end_date 
+                                        FROM memberships m 
+                                        JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                                        WHERE m.user_id = ? 
+                                        ORDER BY (m.status = "active" AND m.end_date >= CURDATE()) DESC, (m.status = "pending") DESC, m.end_date DESC, m.membership_id DESC 
+                                        LIMIT 1
+                                    ');
+                                    $membershipStmt->execute([$user['user_id']]);
+                                    $membership = $membershipStmt->fetch();
                                 }
+                                if ($membership) {
+                                    $isMemActive = ($membership['status'] === 'active' && !empty($membership['end_date']) && strtotime((string)$membership['end_date']) >= strtotime('today'));
+                                    if ($isMemActive) {
+                                        $profileSubPill = [
+                                            'text'  => strtoupper($membership['plan_name']),
+                                            'title' => 'Active Membership (' . ($gym['name'] ?? 'Current Facility') . '): ' . $membership['plan_name'],
+                                            'type'  => 'active',
+                                        ];
+                                    } elseif ($membership['status'] === 'pending') {
+                                        $profileSubPill = [
+                                            'text'  => 'PENDING',
+                                            'title' => 'Membership Pending Approval / Payment (' . ($gym['name'] ?? 'Current Facility') . '): ' . $membership['plan_name'],
+                                            'type'  => 'pending',
+                                        ];
+                                    } elseif ($membership['status'] === 'cancelled') {
+                                        $profileSubPill = [
+                                            'text'  => 'CANCELLED',
+                                            'title' => 'Membership Cancelled (' . ($gym['name'] ?? 'Current Facility') . ')',
+                                            'type'  => 'cancelled',
+                                        ];
+                                    } else {
+                                        $profileSubPill = [
+                                            'text'  => 'EXPIRED',
+                                            'title' => 'Membership Expired (' . ($gym['name'] ?? 'Current Facility') . ')',
+                                            'type'  => 'expired',
+                                        ];
+                                    }
+                                }
+                                $_SESSION[$subPillCacheKey] = [
+                                    'expires' => time() + 45,
+                                    'pill'    => $profileSubPill,
+                                ];
                             }
                         }
                     ?>
@@ -2610,11 +2624,23 @@ function render_header(string $title, ?array $user = null): void
                         <?php endif; ?>
                         <?php if ($user && in_array($user['role'] ?? '', ['member', 'trainer'])): ?>
                             <?php 
-                            auto_checkout_past_attendance((int) $user['user_id']);
-                            $activeCheckinId = scalar('SELECT attendance_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY ORDER BY check_in_time DESC LIMIT 1', [$user['user_id']]); 
+                            $autoCheckoutKey = 'auto_checkout_date_' . (int) $user['user_id'];
+                            if (($_SESSION[$autoCheckoutKey] ?? '') !== date('Y-m-d')) {
+                                auto_checkout_past_attendance((int) $user['user_id']);
+                                $_SESSION[$autoCheckoutKey] = date('Y-m-d');
+                            }
+                            $activeCheckinRow = query_one('
+                                SELECT a.attendance_id, a.gym_id, g.name AS gym_name
+                                FROM attendance a
+                                LEFT JOIN gyms g ON g.gym_id = a.gym_id
+                                WHERE a.user_id = ? AND a.check_out_time IS NULL
+                                  AND a.check_in_time >= CURDATE() AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
+                                ORDER BY a.check_in_time DESC
+                                LIMIT 1
+                            ', [$user['user_id']]);
+                            $activeCheckinId = $activeCheckinRow['attendance_id'] ?? null;
                             ?>
                             <?php if ($activeCheckinId): 
-                                $activeCheckinRow = query_one('SELECT a.gym_id, g.name AS gym_name FROM attendance a LEFT JOIN gyms g ON g.gym_id = a.gym_id WHERE a.attendance_id = ?', [$activeCheckinId]);
                                 $activeGymName = $activeCheckinRow['gym_name'] ?? 'your gym';
                             ?>
                                 <!-- Hidden checkout form — submitted via JS after optional rating -->

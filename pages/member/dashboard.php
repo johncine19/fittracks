@@ -254,20 +254,26 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
 
 function member_dashboard(PDO $pdo, array $user): void
 {
-    // Use cached engagement score if computed within the last hour to prevent redundant query load
-    $scoreStmt = $pdo->prepare('SELECT engagement_score, engagement_computed_at FROM users WHERE user_id = ?');
-    $scoreStmt->execute([(int)$user['user_id']]);
-    $scoreRow = $scoreStmt->fetch(PDO::FETCH_ASSOC);
-    $isRecent = !empty($scoreRow['engagement_computed_at']) && (time() - strtotime((string)$scoreRow['engagement_computed_at']) < 3600);
-    $score = ($isRecent && isset($scoreRow['engagement_score'])) ? (int)$scoreRow['engagement_score'] : calculate_engagement_score((int) $user['user_id']);
+    $uid = (int) $user['user_id'];
+    // Use cached engagement score from $user if computed within the last hour to prevent redundant query load
+    $isRecent = !empty($user['engagement_computed_at']) && (time() - strtotime((string)$user['engagement_computed_at']) < 3600);
+    $score = ($isRecent && isset($user['engagement_score'])) ? (int)$user['engagement_score'] : calculate_engagement_score($uid);
     $category = get_engagement_category($score);
-    $attendance = scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ?', [$user['user_id']]);
-    $progressLogs = scalar('SELECT COUNT(*) FROM progress_logs WHERE user_id = ?', [$user['user_id']]);
-    $classBookings = scalar('SELECT COUNT(*) FROM class_bookings WHERE user_id = ?', [$user['user_id']]);
 
-    $stmt = db()->prepare('SELECT fitness_tier FROM member_profiles WHERE user_id = ?');
-    $stmt->execute([$user['user_id']]);
-    $tier = (int) ($stmt->fetchColumn() ?: 1);
+    $dashCounts = query_one('
+        SELECT
+            (SELECT COUNT(*) FROM attendance WHERE user_id = ?) AS attendance_cnt,
+            (SELECT COUNT(*) FROM progress_logs WHERE user_id = ?) AS progress_cnt,
+            (SELECT COUNT(*) FROM class_bookings WHERE user_id = ?) AS bookings_cnt,
+            (SELECT fitness_tier FROM member_profiles WHERE user_id = ? LIMIT 1) AS fitness_tier,
+            (SELECT gym_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY attendance_id DESC LIMIT 1) AS active_checkin_gym_id,
+            (SELECT 1 FROM attendance WHERE user_id = ? AND check_out_time IS NULL LIMIT 1) AS is_checked_in
+    ', [$uid, $uid, $uid, $uid, $uid, $uid]) ?: [];
+
+    $attendance = (int) ($dashCounts['attendance_cnt'] ?? 0);
+    $progressLogs = (int) ($dashCounts['progress_cnt'] ?? 0);
+    $classBookings = (int) ($dashCounts['bookings_cnt'] ?? 0);
+    $tier = (int) (($dashCounts['fitness_tier'] ?? 0) ?: 1);
     $tierName = get_fitness_tier_name($tier);
 
     $today = date('Y-m-d');
@@ -278,17 +284,17 @@ function member_dashboard(PDO $pdo, array $user): void
     $dashboardGymId = !empty($userGym['gym_id']) ? (int) $userGym['gym_id'] : 0;
     $isGymPaused = $dashboardGymId > 0 && is_gym_paused($dashboardGymId);
     $gymPauseNotice = $isGymPaused ? get_gym_pause_notice($dashboardGymId) : '';
-    $userIsCheckedIn = (int) scalar('SELECT COUNT(*) FROM attendance WHERE user_id = ? AND check_out_time IS NULL', [(int)$user['user_id']]) > 0;
+    $userIsCheckedIn = !empty($dashCounts['is_checked_in']);
     require_once __DIR__ . '/../../core/attendance_geofence_service.php';
     $graceStatus = null;
     if ($userIsCheckedIn) {
-        $graceStatus = get_attendance_exit_grace_status((int)$user['user_id']);
+        $graceStatus = get_attendance_exit_grace_status($uid);
     }
 
     // For checked-in grace period tracking, always track the actual facility checked into
     if ($userIsCheckedIn) {
-        $checkedInGymId = (int) scalar('SELECT gym_id FROM attendance WHERE user_id = ? AND check_out_time IS NULL ORDER BY attendance_id DESC LIMIT 1', [(int)$user['user_id']]);
-        if ($checkedInGymId > 0) {
+        $checkedInGymId = (int) ($dashCounts['active_checkin_gym_id'] ?? 0);
+        if ($checkedInGymId > 0 && $checkedInGymId !== $dashboardGymId) {
             $cgRow = query_one('SELECT * FROM gyms WHERE gym_id = ?', [$checkedInGymId]);
             if ($cgRow) {
                 $userGym = $cgRow;

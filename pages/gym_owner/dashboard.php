@@ -11,7 +11,7 @@ function admin_dashboard(PDO $pdo, array $user): void
     $gymPayoutAccount = null;
     $hasOnlinePayments = false;
     if (!$isPlatformAdmin) {
-        $gymRow = $pdo->query('SELECT gym_id, subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE owner_user_id = ' . (int)$user['user_id'])->fetch(PDO::FETCH_ASSOC);
+        $gymRow = get_user_gym($user);
         if ($gymRow) {
             $gymId = (int) $gymRow['gym_id'];
             $subPlan = $gymRow['subscription_plan'] ?: 'No Active Plan';
@@ -21,40 +21,36 @@ function admin_dashboard(PDO $pdo, array $user): void
             }
             $subRenewal = !empty($gymRow['subscription_renewal_date']) ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
 
-            $payoutStmt = $pdo->prepare('SELECT xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
-            $payoutStmt->execute([$gymId]);
-            $gymPayoutAccount = $payoutStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            if (!empty($gymRow['xendit_subaccount_id']) || !empty($gymRow['payout_account_number'])) {
+                $gymPayoutAccount = [
+                    'xendit_subaccount_id'  => $gymRow['xendit_subaccount_id'] ?? null,
+                    'payout_channel'        => $gymRow['payout_channel'] ?? 'gcash',
+                    'payout_account_number' => $gymRow['payout_account_number'] ?? null,
+                    'payout_account_name'   => $gymRow['payout_account_name'] ?? null,
+                ];
+            }
             $hasOnlinePayments = !empty($gymPayoutAccount['xendit_subaccount_id']);
         }
     }
 
     if ($isPlatformAdmin) {
-        $members      = (int) $pdo->query('SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active"')->fetchColumn();
+        $kpiRow = query_one('
+            SELECT
+                (SELECT COUNT(*) FROM users WHERE role = "member" AND status = "active") AS members_cnt,
+                (SELECT COUNT(*) FROM class_schedules WHERE start_datetime >= CURDATE() AND start_datetime < CURDATE() + INTERVAL 1 DAY) AS classes_today,
+                (SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY) AS checkins_today
+        ') ?: [];
     } else {
-        $members      = (int) $pdo->query('SELECT COUNT(DISTINCT m.user_id) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND m.status = "active" AND m.end_date >= CURDATE()')->fetchColumn();
+        $kpiRow = query_one('
+            SELECT
+                (SELECT COUNT(DISTINCT m.user_id) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()) AS members_cnt,
+                (SELECT COUNT(*) FROM class_schedules cs JOIN classes c ON c.class_id = cs.class_id WHERE c.gym_id = ? AND cs.start_datetime >= CURDATE() AND cs.start_datetime < CURDATE() + INTERVAL 1 DAY) AS classes_today,
+                (SELECT COUNT(*) FROM attendance WHERE gym_id = ? AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY) AS checkins_today
+        ', [(int)$gymId, (int)$gymId, (int)$gymId]) ?: [];
     }
-    if ($isPlatformAdmin) {
-        $revenue = (float) $pdo->query(
-            'SELECT SUM(revenue) FROM (
-                SELECT amount AS revenue FROM payments WHERE status = "paid" AND payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-                UNION ALL
-                SELECT amount_paid AS revenue FROM walk_in_transactions WHERE visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-            ) AS combined'
-        )->fetchColumn();
-        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules WHERE start_datetime >= CURDATE() AND start_datetime < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
-        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
-    } else {
-        // Gym Owner stats
-        $revenue = (float) $pdo->query(
-            'SELECT SUM(revenue) FROM (
-                SELECT p.amount AS revenue FROM payments p JOIN memberships m ON m.membership_id = p.membership_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . $gymId . ' AND p.status = "paid" AND p.payment_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-                UNION ALL
-                SELECT amount_paid AS revenue FROM walk_in_transactions WHERE gym_id = ' . $gymId . ' AND visit_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")
-            ) AS combined'
-        )->fetchColumn();
-        $classesToday = (int) $pdo->query('SELECT COUNT(*) FROM class_schedules cs JOIN classes c ON c.class_id = cs.class_id WHERE c.gym_id = ' . $gymId . ' AND cs.start_datetime >= CURDATE() AND cs.start_datetime < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
-        $checkinsToday = (int) $pdo->query('SELECT COUNT(*) FROM attendance WHERE gym_id = ' . $gymId . ' AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY')->fetchColumn();
-    }
+    $members = (int) ($kpiRow['members_cnt'] ?? 0);
+    $classesToday = (int) ($kpiRow['classes_today'] ?? 0);
+    $checkinsToday = (int) ($kpiRow['checkins_today'] ?? 0);
 
     $revenueTrend = calc_revenue_trend($pdo, $gymId);
     $memberTrend  = calc_member_trend($pdo, $gymId);
@@ -85,6 +81,8 @@ function admin_dashboard(PDO $pdo, array $user): void
     foreach ($monthlyRows as $row) {
         $monthlyTotals[$row['month_key']] = (float) $row['total'];
     }
+    $revenue = (float) ($monthlyTotals[date('Y-m')] ?? 0.0);
+    $lastMonthRevenue = (float) ($monthlyTotals[(new DateTime('first day of last month'))->format('Y-m')] ?? 0.0);
     $monthLabels = $monthlyValues = [];
     for ($i = 0; $i < 6; $i++) {
         $month = (clone $monthStart)->modify('+' . $i . ' months');
@@ -111,14 +109,7 @@ function admin_dashboard(PDO $pdo, array $user): void
     $todayClasses = $pdo->query('SELECT c.class_name, c.capacity, s.start_datetime, COALESCE(CONCAT(u.first_name, " ", u.last_name), "Open trainer") AS trainer, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE ' . ($isPlatformAdmin ? '' : 'c.gym_id = ' . $gymId . ' AND ') . 's.start_datetime >= CURDATE() AND s.start_datetime < CURDATE() + INTERVAL 1 DAY ORDER BY s.start_datetime LIMIT 15')->fetchAll();
     $recent = $pdo->query('SELECT a.check_in_time, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture FROM attendance a JOIN users u ON u.user_id = a.user_id ' . ($isPlatformAdmin ? '' : 'WHERE a.gym_id = ' . $gymId . ' ') . 'ORDER BY a.check_in_time DESC LIMIT 15')->fetchAll();
 
-    // Revenue trend % for chart panel label
-    $lastMonthRevenue = (float) $pdo->query(
-        'SELECT SUM(revenue) FROM (
-            SELECT amount AS revenue FROM payments WHERE status="paid" AND DATE_FORMAT(payment_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
-            UNION ALL
-            SELECT amount_paid AS revenue FROM walk_in_transactions WHERE DATE_FORMAT(visit_date,"%Y-%m")=DATE_FORMAT(DATE_SUB(CURDATE(),INTERVAL 1 MONTH),"%Y-%m")
-        ) AS combined'
-    )->fetchColumn();
+    // Revenue trend % for chart panel label (reusing $revenue and $lastMonthRevenue from $monthlyTotals)
     $revPct = $lastMonthRevenue > 0
         ? round((($revenue - $lastMonthRevenue) / $lastMonthRevenue) * 100, 1)
         : null;
