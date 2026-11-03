@@ -374,99 +374,10 @@ function handle_xendit_subscription_webhook(): void
             throw new RuntimeException('Xendit did not include a completed payment ID.');
         }
 
-        $pdo->beginTransaction();
-        $lockStmt = $pdo->prepare('SELECT * FROM gym_subscription_payments WHERE id = ? FOR UPDATE');
-        $lockStmt->execute([(int) $payment['id']]);
-        $lockedPayment = $lockStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$lockedPayment || $lockedPayment['status'] !== 'pending') {
-            $pdo->commit();
-            http_response_code(200);
-            echo json_encode(['success' => true, 'duplicate' => true]);
-            return;
-        }
-
-        $gymStmt = $pdo->prepare('SELECT subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE gym_id = ? FOR UPDATE');
-        $gymStmt->execute([(int) $lockedPayment['gym_id']]);
-        $gym = $gymStmt->fetch(PDO::FETCH_ASSOC);
-        if (!$gym) {
-            throw new RuntimeException('Subscription gym no longer exists.');
-        }
-
-        $today = new DateTimeImmutable(date('Y-m-d'));
-        $start = $today;
-        $currentPlan = strtolower(trim((string)($gym['subscription_plan'] ?? '')));
-        $newPlan = strtolower(trim((string)$lockedPayment['plan_name']));
-        $billingCycle = (string)$lockedPayment['billing_cycle'];
-
-        // Only extend from existing renewal date if renewing the exact same plan AND within a reasonable upcoming window (not a dummy far-future test date)
-        if (($gym['subscription_status'] ?? '') === 'active' && !empty($gym['subscription_renewal_date']) && $currentPlan === $newPlan) {
-            $renewal = new DateTimeImmutable((string) $gym['subscription_renewal_date']);
-            $maxReasonableWindow = $today->modify($billingCycle === 'yearly' ? '+366 days' : '+35 days');
-            if ($renewal > $start && $renewal <= $maxReasonableWindow) {
-                $start = $renewal;
-            }
-        }
-        $end = xendit_add_billing_period($start, $billingCycle);
-        $startDate = $start->format('Y-m-d');
-        $endDate = $end->format('Y-m-d');
-        $receiptNumber = 'SUB-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
-
-        $resolvedPlanId = function_exists('resolve_platform_subscription_plan_id')
-            ? resolve_platform_subscription_plan_id((string)$lockedPayment['plan_name'])
-            : null;
-        $pdo->prepare('UPDATE gym_subscription_payments SET status = "paid", payment_method = "online", payment_date = NOW(), receipt_number = ?, xendit_payment_id = ?, start_date = ?, end_date = ?, plan_id = COALESCE(plan_id, ?) WHERE id = ? AND status = "pending"')
-            ->execute([$receiptNumber, $paymentId, $startDate, $endDate, $resolvedPlanId, (int) $lockedPayment['id']]);
-        $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_plan_id = ?, subscription_status = "active", subscription_renewal_date = ? WHERE gym_id = ?')
-            ->execute([$lockedPayment['plan_name'], $resolvedPlanId, $endDate, (int) $lockedPayment['gym_id']]);
-        $pdo->commit();
-
-        audit_log(
-            (int) $lockedPayment['owner_user_id'],
-            'subscribe_plan',
-            'gym_subscription',
-            (string) $lockedPayment['gym_id'],
-            json_encode([
-                'plan' => $lockedPayment['plan_name'],
-                'billing_cycle' => $lockedPayment['billing_cycle'],
-                'amount' => (float) $lockedPayment['amount'],
-                'receipt' => $receiptNumber,
-                'provider' => 'xendit',
-            ])
-        );
-        notify_admins(
-            'system',
-            'New Subscription Payment',
-            "A gym subscribed to the {$lockedPayment['plan_name']} Plan (" . money((float) $lockedPayment['amount']) . ' / ' . ($lockedPayment['billing_cycle'] === 'yearly' ? 'Yearly' : 'Monthly') . ') via XENDIT.'
-        );
-        notify_user(
-            (int) $lockedPayment['owner_user_id'],
-            'system',
-            'Subscription Activated',
-            "Your {$lockedPayment['plan_name']} plan (" . ($lockedPayment['billing_cycle'] === 'yearly' ? 'Annual' : 'Monthly') . ") is active until " . date('M j, Y', strtotime($endDate)) . ". Receipt: {$receiptNumber}."
-        );
-
-        try {
-            $emailSent = Emails::sendGymSubscriptionReceipt(
-                (string)$payment['owner_email'],
-                trim((string)$payment['owner_first_name'] . ' ' . (string)$payment['owner_last_name']),
-                (string)$payment['gym_name'],
-                (string)$lockedPayment['plan_name'],
-                (string)$lockedPayment['billing_cycle'],
-                (float)$lockedPayment['amount'],
-                $receiptNumber,
-                $paymentId,
-                $startDate,
-                $endDate
-            );
-            if (!$emailSent) {
-                error_log('Xendit subscription receipt email could not be sent.');
-            }
-        } catch (Throwable $emailError) {
-            error_log('Could not queue Xendit subscription receipt email: ' . $emailError->getMessage());
-        }
-
+        $receiptNumber = xendit_activate_gym_subscription($pdo, $payment, $paymentId, $payment);
         http_response_code(200);
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'receipt' => $receiptNumber]);
+        return;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -520,37 +431,202 @@ function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, stri
         throw new RuntimeException('Xendit did not include a completed membership payment ID.');
     }
 
-    $pdo->beginTransaction();
-    $lockPayment = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ? FOR UPDATE');
-    $lockPayment->execute([(int)$payment['payment_id']]);
-    $lockedPayment = $lockPayment->fetch(PDO::FETCH_ASSOC);
-    if (!$lockedPayment || $lockedPayment['status'] !== 'pending') {
-        $pdo->commit();
-        http_response_code(200);
-        echo json_encode(['success' => true, 'duplicate' => true]);
-        return;
+    $receiptNumber = xendit_activate_membership_payment($pdo, $payment, $xenditPaymentId, $payment);
+    http_response_code(200);
+    echo json_encode(['success' => true, 'receipt' => $receiptNumber]);
+}
+
+function xendit_activate_gym_subscription(PDO $pdo, array $payment, string $paymentId, ?array $context = null): string
+{
+    $ownsTransaction = false;
+    if (!$pdo->inTransaction()) {
+        $pdo->beginTransaction();
+        $ownsTransaction = true;
     }
 
-    $membershipStmt = $pdo->prepare('SELECT * FROM memberships WHERE membership_id = ? FOR UPDATE');
-    $membershipStmt->execute([(int)$lockedPayment['membership_id']]);
-    $membership = $membershipStmt->fetch(PDO::FETCH_ASSOC);
-    if (!$membership) {
-        throw new RuntimeException('The pending membership no longer exists.');
+    $lockedPayment = null;
+    $startDate = null;
+    $endDate = null;
+    $receiptNumber = null;
+
+    try {
+        $lockStmt = $pdo->prepare('SELECT * FROM gym_subscription_payments WHERE id = ? FOR UPDATE');
+        $lockStmt->execute([(int)$payment['id']]);
+        $lockedPayment = $lockStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$lockedPayment) {
+            throw new RuntimeException('Gym subscription payment not found.');
+        }
+        if ($lockedPayment['status'] !== 'pending') {
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+            return (string)($lockedPayment['receipt_number'] ?? '');
+        }
+
+        $gymStmt = $pdo->prepare('SELECT subscription_plan, subscription_status, subscription_renewal_date FROM gyms WHERE gym_id = ? FOR UPDATE');
+        $gymStmt->execute([(int)$lockedPayment['gym_id']]);
+        $gym = $gymStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$gym) {
+            throw new RuntimeException('Subscription gym no longer exists.');
+        }
+
+        $today = new DateTimeImmutable(date('Y-m-d'));
+        $start = $today;
+        $currentPlan = strtolower(trim((string)($gym['subscription_plan'] ?? '')));
+        $newPlan = strtolower(trim((string)$lockedPayment['plan_name']));
+        $billingCycle = (string)$lockedPayment['billing_cycle'];
+
+        // Only extend from existing renewal date if renewing the exact same plan AND within a reasonable upcoming window
+        if (($gym['subscription_status'] ?? '') === 'active' && !empty($gym['subscription_renewal_date']) && $currentPlan === $newPlan) {
+            $renewal = new DateTimeImmutable((string)$gym['subscription_renewal_date']);
+            $maxReasonableWindow = $today->modify($billingCycle === 'yearly' ? '+366 days' : '+35 days');
+            if ($renewal > $start && $renewal <= $maxReasonableWindow) {
+                $start = $renewal;
+            }
+        }
+        $end = xendit_add_billing_period($start, $billingCycle);
+        $startDate = $start->format('Y-m-d');
+        $endDate = $end->format('Y-m-d');
+        $receiptNumber = 'SUB-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+
+        $resolvedPlanId = function_exists('resolve_platform_subscription_plan_id')
+            ? resolve_platform_subscription_plan_id((string)$lockedPayment['plan_name'])
+            : null;
+        $pdo->prepare('UPDATE gym_subscription_payments SET status = "paid", payment_method = "online", payment_date = NOW(), receipt_number = ?, xendit_payment_id = ?, start_date = ?, end_date = ?, plan_id = COALESCE(plan_id, ?) WHERE id = ? AND status = "pending"')
+            ->execute([$receiptNumber, $paymentId, $startDate, $endDate, $resolvedPlanId, (int)$lockedPayment['id']]);
+        $pdo->prepare('UPDATE gyms SET subscription_plan = ?, subscription_plan_id = ?, subscription_status = "active", subscription_renewal_date = ? WHERE gym_id = ?')
+            ->execute([$lockedPayment['plan_name'], $resolvedPlanId, $endDate, (int)$lockedPayment['gym_id']]);
+
+        if ($ownsTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
 
-    if ($membership['status'] === 'pending') {
-        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE user_id = ? AND membership_id <> ? AND status = "active" AND plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ?)')
-            ->execute([(int)$payment['member_user_id'], (int)$membership['membership_id'], (int)$payment['gym_id']]);
-        $pdo->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ?')
-            ->execute([(int)$membership['membership_id']]);
+    if ($context === null) {
+        $infoStmt = $pdo->prepare('SELECT u.email AS owner_email, u.first_name AS owner_first_name, u.last_name AS owner_last_name, g.name AS gym_name
+            FROM users u
+            JOIN gyms g ON g.gym_id = ?
+            WHERE u.user_id = ?');
+        $infoStmt->execute([(int)$lockedPayment['gym_id'], (int)$lockedPayment['owner_user_id']]);
+        $context = $infoStmt->fetch(PDO::FETCH_ASSOC) ?: [];
     }
-    $pdo->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')
-        ->execute([(int)$payment['gym_id'], (int)$payment['member_user_id']]);
 
-    $receiptNumber = 'MEM-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
-    $pdo->prepare('UPDATE payments SET status = "paid", payment_method = "online", payment_date = CURDATE(), receipt_number = ?, xendit_payment_id = ? WHERE payment_id = ? AND status = "pending"')
-        ->execute([$receiptNumber, $xenditPaymentId, (int)$lockedPayment['payment_id']]);
-    $pdo->commit();
+    try {
+        audit_log(
+            (int)$lockedPayment['owner_user_id'],
+            'subscribe_plan',
+            'gym_subscription',
+            (string)$lockedPayment['gym_id'],
+            json_encode([
+                'plan' => $lockedPayment['plan_name'],
+                'billing_cycle' => $lockedPayment['billing_cycle'],
+                'amount' => (float)$lockedPayment['amount'],
+                'receipt' => $receiptNumber,
+                'provider' => 'xendit',
+            ])
+        );
+    } catch (Throwable $e) {
+        error_log('Could not audit gym subscription activation: ' . $e->getMessage());
+    }
+
+    try {
+        notify_admins(
+            'system',
+            'New Subscription Payment',
+            "A gym subscribed to the {$lockedPayment['plan_name']} Plan (" . money((float)$lockedPayment['amount']) . ' / ' . ($lockedPayment['billing_cycle'] === 'yearly' ? 'Yearly' : 'Monthly') . ') via XENDIT.'
+        );
+        notify_user(
+            (int)$lockedPayment['owner_user_id'],
+            'system',
+            'Subscription Activated',
+            "Your {$lockedPayment['plan_name']} plan (" . ($lockedPayment['billing_cycle'] === 'yearly' ? 'Annual' : 'Monthly') . ") is active until " . date('M j, Y', strtotime($endDate)) . ". Receipt: {$receiptNumber}."
+        );
+    } catch (Throwable $e) {
+        error_log('Could not notify user of gym subscription activation: ' . $e->getMessage());
+    }
+
+    try {
+        $ownerEmail = (string)($context['owner_email'] ?? '');
+        if ($ownerEmail !== '') {
+            Emails::sendGymSubscriptionReceipt(
+                $ownerEmail,
+                trim((string)($context['owner_first_name'] ?? '') . ' ' . (string)($context['owner_last_name'] ?? '')),
+                (string)($context['gym_name'] ?? 'Your Gym'),
+                (string)$lockedPayment['plan_name'],
+                (string)$lockedPayment['billing_cycle'],
+                (float)$lockedPayment['amount'],
+                $receiptNumber,
+                $paymentId,
+                $startDate,
+                $endDate
+            );
+        }
+    } catch (Throwable $emailError) {
+        error_log('Could not queue Xendit subscription receipt email: ' . $emailError->getMessage());
+    }
+
+    return $receiptNumber;
+}
+
+function xendit_activate_membership_payment(PDO $pdo, array $payment, string $xenditPaymentId, ?array $context = null): string
+{
+    $ownsTransaction = false;
+    if (!$pdo->inTransaction()) {
+        $pdo->beginTransaction();
+        $ownsTransaction = true;
+    }
+
+    $lockedPayment = null;
+    $receiptNumber = null;
+
+    try {
+        $lockPayment = $pdo->prepare('SELECT * FROM payments WHERE payment_id = ? FOR UPDATE');
+        $lockPayment->execute([(int)$payment['payment_id']]);
+        $lockedPayment = $lockPayment->fetch(PDO::FETCH_ASSOC);
+        if (!$lockedPayment) {
+            throw new RuntimeException('Membership payment not found.');
+        }
+        if ($lockedPayment['status'] !== 'pending') {
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
+            return (string)($lockedPayment['receipt_number'] ?? '');
+        }
+
+        $membershipStmt = $pdo->prepare('SELECT * FROM memberships WHERE membership_id = ? FOR UPDATE');
+        $membershipStmt->execute([(int)$lockedPayment['membership_id']]);
+        $membership = $membershipStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$membership) {
+            throw new RuntimeException('The pending membership no longer exists.');
+        }
+
+        if ($membership['status'] === 'pending') {
+            $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE user_id = ? AND membership_id <> ? AND status = "active" AND plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ?)')
+                ->execute([(int)$payment['member_user_id'], (int)$membership['membership_id'], (int)$payment['gym_id']]);
+            $pdo->prepare('UPDATE memberships SET status = "active" WHERE membership_id = ?')
+                ->execute([(int)$membership['membership_id']]);
+        }
+        $pdo->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')
+            ->execute([(int)$payment['gym_id'], (int)$payment['member_user_id']]);
+
+        $receiptNumber = 'MEM-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 6));
+        $pdo->prepare('UPDATE payments SET status = "paid", payment_method = "online", payment_date = CURDATE(), receipt_number = ?, xendit_payment_id = ? WHERE payment_id = ? AND status = "pending"')
+            ->execute([$receiptNumber, $xenditPaymentId, (int)$lockedPayment['payment_id']]);
+
+        if ($ownsTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 
     try {
         process_trainer_commission((int)$lockedPayment['payment_id'], (float)$lockedPayment['amount']);
@@ -605,8 +681,225 @@ function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, stri
         error_log('Could not audit Xendit membership payment: ' . $auditError->getMessage());
     }
 
-    http_response_code(200);
-    echo json_encode(['success' => true]);
+    return $receiptNumber;
+}
+
+/**
+ * Synchronously checks Xendit session status and activates gym subscription if paid.
+ *
+ * @param string|null $referenceId The reference ID passed in return redirect
+ * @param int|null $gymId The gym ID
+ * @param int|null $ownerUserId The gym owner user ID
+ * @param int|null $paymentId Specific payment record ID
+ * @return array|null ['status' => 'paid'|'pending'|'failed', 'plan_name' => ..., 'receipt_number' => ...]
+ */
+function xendit_sync_gym_subscription_payment(?string $referenceId = null, ?int $gymId = null, ?int $ownerUserId = null, ?int $paymentId = null): ?array
+{
+    $pdo = db();
+    $sql = 'SELECT p.*, u.email AS owner_email, u.first_name AS owner_first_name, u.last_name AS owner_last_name, g.name AS gym_name
+        FROM gym_subscription_payments p
+        JOIN users u ON u.user_id = p.owner_user_id
+        JOIN gyms g ON g.gym_id = p.gym_id
+        WHERE 1=1';
+    $params = [];
+    if (!empty($referenceId)) {
+        $sql .= ' AND p.xendit_reference_id = ?';
+        $params[] = $referenceId;
+    } elseif (!empty($paymentId)) {
+        $sql .= ' AND p.id = ?';
+        $params[] = $paymentId;
+    } elseif (!empty($gymId)) {
+        $sql .= ' AND p.gym_id = ? AND p.status = "pending"';
+        $params[] = $gymId;
+    } else {
+        return null;
+    }
+    if (!empty($ownerUserId)) {
+        $sql .= ' AND p.owner_user_id = ?';
+        $params[] = $ownerUserId;
+    }
+    $sql .= ' ORDER BY p.id DESC LIMIT 1';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $payment = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$payment) {
+        return null;
+    }
+
+    if ($payment['status'] === 'paid') {
+        return [
+            'status' => 'paid',
+            'plan_name' => $payment['plan_name'],
+            'receipt_number' => $payment['receipt_number'] ?? '',
+            'id' => (int)$payment['id'],
+        ];
+    }
+
+    if ($payment['status'] !== 'pending') {
+        return [
+            'status' => $payment['status'],
+            'plan_name' => $payment['plan_name'],
+            'id' => (int)$payment['id'],
+        ];
+    }
+
+    $sessionId = trim((string)($payment['xendit_session_id'] ?? ''));
+    if ($sessionId === '') {
+        return ['status' => 'pending', 'id' => (int)$payment['id']];
+    }
+
+    try {
+        $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId));
+    } catch (Throwable $e) {
+        error_log('xendit_sync_gym_subscription_payment: API query failed: ' . $e->getMessage());
+        return ['status' => 'pending', 'error' => $e->getMessage(), 'id' => (int)$payment['id']];
+    }
+
+    $status = strtoupper((string)($session['status'] ?? ''));
+    $paymentStatus = strtoupper((string)($session['payment_status'] ?? ''));
+    $isPaid = ($status === 'COMPLETED' || $paymentStatus === 'PAID' || $paymentStatus === 'SUCCEEDED');
+
+    if ($isPaid) {
+        $xenditPaymentId = trim((string)($session['payment_id'] ?? $session['latest_payment_id'] ?? ''));
+        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['latest_payment_id'])) {
+            $xenditPaymentId = trim((string)$session['payment_requests'][0]['latest_payment_id']);
+        }
+        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['payment_id'])) {
+            $xenditPaymentId = trim((string)$session['payment_requests'][0]['payment_id']);
+        }
+        $paymentRequestId = trim((string)($session['payment_request_id'] ?? $session['payment_requests'][0]['id'] ?? ''));
+        if ($xenditPaymentId === '' && $paymentRequestId !== '') {
+            try {
+                $reqData = xendit_api_request('GET', '/v3/payment_requests/' . rawurlencode($paymentRequestId), null, ['api-version: 2024-11-11']);
+                $xenditPaymentId = trim((string)($reqData['latest_payment_id'] ?? $reqData['payment_id'] ?? ''));
+            } catch (Throwable) {
+            }
+        }
+        if ($xenditPaymentId === '') {
+            $xenditPaymentId = 'SES-' . $sessionId;
+        }
+
+        $receipt = xendit_activate_gym_subscription($pdo, $payment, $xenditPaymentId, $payment);
+        return [
+            'status' => 'paid',
+            'plan_name' => $payment['plan_name'],
+            'receipt_number' => $receipt,
+            'id' => (int)$payment['id'],
+        ];
+    } elseif ($status === 'EXPIRED') {
+        $pdo->prepare('UPDATE gym_subscription_payments SET status = "failed" WHERE id = ? AND status = "pending"')->execute([(int)$payment['id']]);
+        return ['status' => 'failed', 'id' => (int)$payment['id']];
+    }
+
+    return ['status' => 'pending', 'id' => (int)$payment['id']];
+}
+
+/**
+ * Synchronously checks Xendit session status and activates membership payment if paid.
+ *
+ * @param string|null $referenceId The reference ID passed in return redirect
+ * @param int|null $userId Member user ID
+ * @param int|null $paymentId Specific payment record ID
+ * @return array|null ['status' => 'paid'|'pending'|'overdue', 'plan_name' => ..., 'receipt_number' => ...]
+ */
+function xendit_sync_membership_payment(?string $referenceId = null, ?int $userId = null, ?int $paymentId = null): ?array
+{
+    $pdo = db();
+    $sql = 'SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, gpa.xendit_subaccount_id
+        FROM payments p
+        JOIN memberships m ON m.membership_id = p.membership_id
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        JOIN users u ON u.user_id = m.user_id
+        JOIN gyms g ON g.gym_id = mp.gym_id
+        LEFT JOIN gym_payout_accounts gpa ON gpa.gym_id = g.gym_id
+        JOIN users owner ON owner.user_id = g.owner_user_id
+        WHERE 1=1';
+    $params = [];
+    if (!empty($referenceId)) {
+        $sql .= ' AND p.xendit_reference_id = ?';
+        $params[] = $referenceId;
+    } elseif (!empty($paymentId)) {
+        $sql .= ' AND p.payment_id = ?';
+        $params[] = $paymentId;
+    } else {
+        return null;
+    }
+    if (!empty($userId)) {
+        $sql .= ' AND m.user_id = ?';
+        $params[] = $userId;
+    }
+    $sql .= ' ORDER BY p.payment_id DESC LIMIT 1';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $payment = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$payment) {
+        return null;
+    }
+
+    if ($payment['status'] === 'paid') {
+        return [
+            'status' => 'paid',
+            'plan_name' => $payment['plan_name'],
+            'receipt_number' => $payment['receipt_number'] ?? '',
+            'id' => (int)$payment['payment_id'],
+        ];
+    }
+
+    if ($payment['status'] !== 'pending') {
+        return [
+            'status' => $payment['status'],
+            'plan_name' => $payment['plan_name'],
+            'id' => (int)$payment['payment_id'],
+        ];
+    }
+
+    $sessionId = trim((string)($payment['xendit_session_id'] ?? ''));
+    if ($sessionId === '') {
+        return ['status' => 'pending', 'id' => (int)$payment['payment_id']];
+    }
+
+    $subaccountId = trim((string)($payment['xendit_subaccount_id'] ?? ''));
+    $headers = $subaccountId !== '' ? ['for-user-id: ' . $subaccountId] : [];
+
+    try {
+        $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId), null, $headers);
+    } catch (Throwable $e) {
+        error_log('xendit_sync_membership_payment: API query failed: ' . $e->getMessage());
+        return ['status' => 'pending', 'error' => $e->getMessage(), 'id' => (int)$payment['payment_id']];
+    }
+
+    $status = strtoupper((string)($session['status'] ?? ''));
+    $paymentStatus = strtoupper((string)($session['payment_status'] ?? ''));
+    $isPaid = ($status === 'COMPLETED' || $paymentStatus === 'PAID' || $paymentStatus === 'SUCCEEDED');
+
+    if ($isPaid) {
+        $xenditPaymentId = trim((string)($session['payment_id'] ?? $session['latest_payment_id'] ?? ''));
+        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['latest_payment_id'])) {
+            $xenditPaymentId = trim((string)$session['payment_requests'][0]['latest_payment_id']);
+        }
+        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['payment_id'])) {
+            $xenditPaymentId = trim((string)$session['payment_requests'][0]['payment_id']);
+        }
+        if ($xenditPaymentId === '') {
+            $xenditPaymentId = 'SES-' . $sessionId;
+        }
+
+        $receipt = xendit_activate_membership_payment($pdo, $payment, $xenditPaymentId, $payment);
+        return [
+            'status' => 'paid',
+            'plan_name' => $payment['plan_name'],
+            'receipt_number' => $receipt,
+            'id' => (int)$payment['payment_id'],
+        ];
+    } elseif ($status === 'EXPIRED') {
+        $pdo->prepare('UPDATE payments SET status = "overdue" WHERE payment_id = ? AND status = "pending"')->execute([(int)$payment['payment_id']]);
+        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([(int)$payment['membership_id']]);
+        return ['status' => 'overdue', 'id' => (int)$payment['payment_id']];
+    }
+
+    return ['status' => 'pending', 'id' => (int)$payment['payment_id']];
 }
 
 function xendit_add_billing_period(DateTimeImmutable $start, string $billingCycle): DateTimeImmutable

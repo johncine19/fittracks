@@ -19,17 +19,17 @@ function memberships_page(): void
     }
 
     if ($user['role'] === 'member' && isset($_GET['checkout'], $_GET['ref']) && in_array($_GET['checkout'], ['returned', 'cancelled'], true)) {
-        $checkoutStmt = db()->prepare('SELECT p.status FROM payments p JOIN memberships m ON m.membership_id = p.membership_id WHERE p.xendit_reference_id = ? AND m.user_id = ? LIMIT 1');
-        $checkoutStmt->execute([(string)$_GET['ref'], (int)$user['user_id']]);
-        $checkoutStatus = $checkoutStmt->fetchColumn();
-        if ($checkoutStatus === 'paid') {
-            flash('Payment confirmed. Your membership is active.', 'success');
+        if ($_GET['checkout'] === 'returned') {
+            $syncResult = xendit_sync_membership_payment((string)$_GET['ref'], (int)$user['user_id']);
+            if ($syncResult && ($syncResult['status'] ?? '') === 'paid') {
+                flash('Payment confirmed! Your ' . htmlspecialchars($syncResult['plan_name'] ?? 'membership') . ' is active.', 'success');
+            } elseif ($syncResult && ($syncResult['status'] ?? '') === 'overdue') {
+                flash('That checkout has expired. You can start a new payment from your membership plans.', 'warning');
+            } else {
+                flash('We are waiting for Xendit to confirm your payment. Your membership activates after confirmation.', 'info');
+            }
         } elseif ($_GET['checkout'] === 'cancelled') {
             flash('Checkout was cancelled. Your membership was not activated.', 'warning');
-        } elseif ($checkoutStatus === 'pending') {
-            flash('We are waiting for Xendit to confirm your payment. Your membership activates after confirmation.', 'info');
-        } elseif ($checkoutStatus === 'overdue') {
-            flash('That checkout has expired. You can start a new payment from your membership plans.', 'warning');
         }
     }
 

@@ -52,6 +52,23 @@ function gym_subscription_page(): void
 
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         verify_csrf();
+
+        $action = trim((string) post('action'));
+        if ($action === 'verify_payment_status') {
+            $paymentIdToVerify = (int) post('payment_id');
+            $syncResult = xendit_sync_gym_subscription_payment(null, (int)$gym['gym_id'], (int)$user['user_id'], $paymentIdToVerify > 0 ? $paymentIdToVerify : null);
+            if ($syncResult && ($syncResult['status'] ?? '') === 'paid') {
+                flash('Payment verified and confirmed! Your ' . htmlspecialchars($syncResult['plan_name'] ?? 'subscription') . ' plan is active.', 'success');
+                redirect('gym_subscription');
+            } elseif ($syncResult && ($syncResult['status'] ?? '') === 'failed') {
+                flash('Xendit reports that the checkout session expired or was unsuccessful. Please select a plan to try again.', 'warning');
+                redirect('gym_subscription');
+            } else {
+                flash('Payment is still showing as pending with Xendit. If your money was already deducted, please wait a moment and click verify again, or contact support with reference: ' . htmlspecialchars($syncResult['xendit_reference_id'] ?? 'pending'), 'info');
+                redirect('gym_subscription');
+            }
+        }
+
         $selectedKey = strtolower(trim((string) post('plan_key')));
         $billingCycle = strtolower(trim((string) post('billing_cycle')));
         if ($billingCycle !== 'yearly') {
@@ -139,15 +156,32 @@ function gym_subscription_page(): void
     }
 
     if (isset($_GET['checkout'], $_GET['ref']) && in_array($_GET['checkout'], ['returned', 'cancelled'], true)) {
-        $statusStmt = $pdo->prepare('SELECT status FROM gym_subscription_payments WHERE xendit_reference_id = ? AND gym_id = ? AND owner_user_id = ? LIMIT 1');
-        $statusStmt->execute([(string)$_GET['ref'], (int)$gym['gym_id'], (int)$user['user_id']]);
-        $checkoutStatus = $statusStmt->fetchColumn();
-        if ($checkoutStatus === 'paid') {
-            flash('Payment confirmed. Your subscription is active.', 'success');
-        } elseif ($checkoutStatus === 'pending') {
-            flash('Checkout returned. We are waiting for Xendit to confirm your payment; this page will not activate the plan until confirmation arrives.', 'info');
+        $ref = (string)$_GET['ref'];
+        if ($_GET['checkout'] === 'returned') {
+            $syncResult = xendit_sync_gym_subscription_payment($ref, (int)$gym['gym_id'], (int)$user['user_id']);
+            if ($syncResult && ($syncResult['status'] ?? '') === 'paid') {
+                flash('Payment confirmed! Your ' . htmlspecialchars($syncResult['plan_name'] ?? 'subscription') . ' plan is now active.', 'success');
+                redirect('gym_subscription');
+            } elseif ($syncResult && ($syncResult['status'] ?? '') === 'failed') {
+                flash('Checkout expired or was unsuccessful. Your plan was not changed.', 'warning');
+            } else {
+                flash('Checkout returned. We are waiting for Xendit to report payment completion. If your payment was deducted, click "Verify & Activate Plan" below.', 'info');
+            }
         } elseif ($_GET['checkout'] === 'cancelled') {
             flash('Checkout was cancelled. Your plan was not changed.', 'warning');
+        }
+    }
+
+    $recentPendingStmt = $pdo->prepare('SELECT id, plan_name, billing_cycle, amount, created_at, xendit_reference_id FROM gym_subscription_payments WHERE gym_id = ? AND status = "pending" AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR) ORDER BY id DESC LIMIT 1');
+    $recentPendingStmt->execute([(int)$gym['gym_id']]);
+    $pendingPayment = $recentPendingStmt->fetch(PDO::FETCH_ASSOC);
+
+    // Auto-sync in background if pending payment exists and user didn't explicitly cancel
+    if ($pendingPayment && (!isset($_GET['checkout']) || $_GET['checkout'] !== 'cancelled')) {
+        $autoSync = xendit_sync_gym_subscription_payment((string)$pendingPayment['xendit_reference_id'], (int)$gym['gym_id'], (int)$user['user_id'], (int)$pendingPayment['id']);
+        if ($autoSync && ($autoSync['status'] ?? '') === 'paid') {
+            flash('Payment verified and confirmed! Your ' . htmlspecialchars($autoSync['plan_name'] ?? 'subscription') . ' plan is active.', 'success');
+            redirect('gym_subscription');
         }
     }
 
@@ -172,6 +206,28 @@ function gym_subscription_page(): void
                     Select the plan that fits your gym operations. You can upgrade, downgrade, or renew at any time.
                 </p>
             </div>
+
+            <?php if (!empty($pendingPayment)): ?>
+                <div style="background: rgba(14, 165, 233, 0.12); border: 1px solid rgba(14, 165, 233, 0.4); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <div style="width: 40px; height: 40px; background: rgba(14, 165, 233, 0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #38bdf8; font-size: 20px; flex-shrink: 0;">💳</div>
+                        <div>
+                            <div style="font-weight: 700; color: #ffffff; font-size: 0.95rem;">Pending Checkout Detected: <?= htmlspecialchars($pendingPayment['plan_name']) ?> Plan (<?= money((float)$pendingPayment['amount']) ?>)</div>
+                            <div style="color: rgba(226, 232, 240, 0.75); font-size: 0.85rem; margin-top: 2px;">
+                                Money already deducted? Click <strong>Verify & Activate Plan</strong> to immediately check Xendit and activate your subscription.
+                            </div>
+                        </div>
+                    </div>
+                    <form method="POST" action="index.php?page=gym_subscription" style="margin: 0;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="verify_payment_status">
+                        <input type="hidden" name="payment_id" value="<?= (int)$pendingPayment['id'] ?>">
+                        <button type="submit" class="btn btn-sm" style="background: #0284c7; color: #ffffff; border: none; font-weight: 700; padding: 8px 16px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                            <span>🔄</span> Verify & Activate Plan
+                        </button>
+                    </form>
+                </div>
+            <?php endif; ?>
 
             <?php if ($trialInfo['is_trial_active']): ?>
                 <div style="background: linear-gradient(135deg, rgba(132, 204, 22, 0.15), rgba(16, 185, 129, 0.08)); border: 1px solid rgba(132, 204, 22, 0.4); border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
