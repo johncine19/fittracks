@@ -745,39 +745,65 @@ function xendit_sync_gym_subscription_payment(?string $referenceId = null, ?int 
     }
 
     $sessionId = trim((string)($payment['xendit_session_id'] ?? ''));
-    if ($sessionId === '') {
-        return ['status' => 'pending', 'id' => (int)$payment['id']];
+    $refId = trim((string)($payment['xendit_reference_id'] ?? ''));
+    $apiErrors = [];
+    $isPaid = false;
+    $xenditPaymentId = '';
+
+    // Step 1: Query Checkout Session if session ID is present
+    if ($sessionId !== '') {
+        try {
+            $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId));
+            $sessStatus = strtoupper((string)($session['status'] ?? ''));
+            $sessPayStatus = strtoupper((string)($session['payment_status'] ?? ''));
+            if ($sessStatus === 'COMPLETED' || $sessPayStatus === 'PAID' || $sessPayStatus === 'SUCCEEDED') {
+                $isPaid = true;
+                $xenditPaymentId = trim((string)($session['payment_id'] ?? $session['latest_payment_id'] ?? ''));
+                if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['latest_payment_id'])) {
+                    $xenditPaymentId = trim((string)$session['payment_requests'][0]['latest_payment_id']);
+                }
+                if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['payment_id'])) {
+                    $xenditPaymentId = trim((string)$session['payment_requests'][0]['payment_id']);
+                }
+            } elseif ($sessStatus === 'EXPIRED') {
+                $sessionExpired = true;
+            }
+        } catch (Throwable $e) {
+            $apiErrors[] = 'Session API: ' . $e->getMessage();
+            error_log('xendit_sync_gym_subscription_payment session check: ' . $e->getMessage());
+        }
     }
 
-    try {
-        $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId));
-    } catch (Throwable $e) {
-        error_log('xendit_sync_gym_subscription_payment: API query failed: ' . $e->getMessage());
-        return ['status' => 'pending', 'error' => $e->getMessage(), 'id' => (int)$payment['id']];
+    // Step 2: Fallback query directly to Payment Requests API by reference_id
+    if (!$isPaid && $refId !== '') {
+        try {
+            $prRes = xendit_api_request(
+                'GET',
+                '/v3/payment_requests?reference_id=' . rawurlencode($refId),
+                null,
+                ['api-version: 2024-11-11']
+            );
+            $prList = $prRes['data'] ?? $prRes;
+            if (is_array($prList)) {
+                foreach ($prList as $prItem) {
+                    if (!is_array($prItem)) continue;
+                    $prStatus = strtoupper((string)($prItem['status'] ?? ''));
+                    if ($prStatus === 'SUCCEEDED' || $prStatus === 'PAID') {
+                        $isPaid = true;
+                        $xenditPaymentId = trim((string)($prItem['latest_payment_id'] ?? $prItem['payment_id'] ?? $prItem['id'] ?? ''));
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            $apiErrors[] = 'Payment Request API: ' . $e->getMessage();
+            error_log('xendit_sync_gym_subscription_payment payment request check: ' . $e->getMessage());
+        }
     }
-
-    $status = strtoupper((string)($session['status'] ?? ''));
-    $paymentStatus = strtoupper((string)($session['payment_status'] ?? ''));
-    $isPaid = ($status === 'COMPLETED' || $paymentStatus === 'PAID' || $paymentStatus === 'SUCCEEDED');
 
     if ($isPaid) {
-        $xenditPaymentId = trim((string)($session['payment_id'] ?? $session['latest_payment_id'] ?? ''));
-        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['latest_payment_id'])) {
-            $xenditPaymentId = trim((string)$session['payment_requests'][0]['latest_payment_id']);
-        }
-        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['payment_id'])) {
-            $xenditPaymentId = trim((string)$session['payment_requests'][0]['payment_id']);
-        }
-        $paymentRequestId = trim((string)($session['payment_request_id'] ?? $session['payment_requests'][0]['id'] ?? ''));
-        if ($xenditPaymentId === '' && $paymentRequestId !== '') {
-            try {
-                $reqData = xendit_api_request('GET', '/v3/payment_requests/' . rawurlencode($paymentRequestId), null, ['api-version: 2024-11-11']);
-                $xenditPaymentId = trim((string)($reqData['latest_payment_id'] ?? $reqData['payment_id'] ?? ''));
-            } catch (Throwable) {
-            }
-        }
         if ($xenditPaymentId === '') {
-            $xenditPaymentId = 'SES-' . $sessionId;
+            $xenditPaymentId = $sessionId !== '' ? 'SES-' . $sessionId : 'REF-' . $refId;
         }
 
         $receipt = xendit_activate_gym_subscription($pdo, $payment, $xenditPaymentId, $payment);
@@ -786,13 +812,21 @@ function xendit_sync_gym_subscription_payment(?string $referenceId = null, ?int 
             'plan_name' => $payment['plan_name'],
             'receipt_number' => $receipt,
             'id' => (int)$payment['id'],
+            'xendit_reference_id' => $refId,
         ];
-    } elseif ($status === 'EXPIRED') {
-        $pdo->prepare('UPDATE gym_subscription_payments SET status = "failed" WHERE id = ? AND status = "pending"')->execute([(int)$payment['id']]);
-        return ['status' => 'failed', 'id' => (int)$payment['id']];
     }
 
-    return ['status' => 'pending', 'id' => (int)$payment['id']];
+    if (!empty($sessionExpired)) {
+        $pdo->prepare('UPDATE gym_subscription_payments SET status = "failed" WHERE id = ? AND status = "pending"')->execute([(int)$payment['id']]);
+        return ['status' => 'failed', 'id' => (int)$payment['id'], 'xendit_reference_id' => $refId];
+    }
+
+    return [
+        'status' => 'pending',
+        'id' => (int)$payment['id'],
+        'xendit_reference_id' => $refId,
+        'error' => !empty($apiErrors) ? implode('; ', $apiErrors) : null,
+    ];
 }
 
 /**
@@ -856,34 +890,67 @@ function xendit_sync_membership_payment(?string $referenceId = null, ?int $userI
     }
 
     $sessionId = trim((string)($payment['xendit_session_id'] ?? ''));
-    if ($sessionId === '') {
-        return ['status' => 'pending', 'id' => (int)$payment['payment_id']];
-    }
-
+    $refId = trim((string)($payment['xendit_reference_id'] ?? ''));
     $subaccountId = trim((string)($payment['xendit_subaccount_id'] ?? ''));
     $headers = $subaccountId !== '' ? ['for-user-id: ' . $subaccountId] : [];
+    $apiErrors = [];
+    $isPaid = false;
+    $xenditPaymentId = '';
 
-    try {
-        $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId), null, $headers);
-    } catch (Throwable $e) {
-        error_log('xendit_sync_membership_payment: API query failed: ' . $e->getMessage());
-        return ['status' => 'pending', 'error' => $e->getMessage(), 'id' => (int)$payment['payment_id']];
+    // Step 1: Query Checkout Session
+    if ($sessionId !== '') {
+        try {
+            $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId), null, $headers);
+            $sessStatus = strtoupper((string)($session['status'] ?? ''));
+            $sessPayStatus = strtoupper((string)($session['payment_status'] ?? ''));
+            if ($sessStatus === 'COMPLETED' || $sessPayStatus === 'PAID' || $sessPayStatus === 'SUCCEEDED') {
+                $isPaid = true;
+                $xenditPaymentId = trim((string)($session['payment_id'] ?? $session['latest_payment_id'] ?? ''));
+                if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['latest_payment_id'])) {
+                    $xenditPaymentId = trim((string)$session['payment_requests'][0]['latest_payment_id']);
+                }
+                if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['payment_id'])) {
+                    $xenditPaymentId = trim((string)$session['payment_requests'][0]['payment_id']);
+                }
+            } elseif ($sessStatus === 'EXPIRED') {
+                $sessionExpired = true;
+            }
+        } catch (Throwable $e) {
+            $apiErrors[] = 'Session API: ' . $e->getMessage();
+            error_log('xendit_sync_membership_payment session check: ' . $e->getMessage());
+        }
     }
 
-    $status = strtoupper((string)($session['status'] ?? ''));
-    $paymentStatus = strtoupper((string)($session['payment_status'] ?? ''));
-    $isPaid = ($status === 'COMPLETED' || $paymentStatus === 'PAID' || $paymentStatus === 'SUCCEEDED');
+    // Step 2: Fallback query directly to Payment Requests API by reference_id
+    if (!$isPaid && $refId !== '') {
+        try {
+            $prRes = xendit_api_request(
+                'GET',
+                '/v3/payment_requests?reference_id=' . rawurlencode($refId),
+                null,
+                array_merge(['api-version: 2024-11-11'], $headers)
+            );
+            $prList = $prRes['data'] ?? $prRes;
+            if (is_array($prList)) {
+                foreach ($prList as $prItem) {
+                    if (!is_array($prItem)) continue;
+                    $prStatus = strtoupper((string)($prItem['status'] ?? ''));
+                    if ($prStatus === 'SUCCEEDED' || $prStatus === 'PAID') {
+                        $isPaid = true;
+                        $xenditPaymentId = trim((string)($prItem['latest_payment_id'] ?? $prItem['payment_id'] ?? $prItem['id'] ?? ''));
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            $apiErrors[] = 'Payment Request API: ' . $e->getMessage();
+            error_log('xendit_sync_membership_payment payment request check: ' . $e->getMessage());
+        }
+    }
 
     if ($isPaid) {
-        $xenditPaymentId = trim((string)($session['payment_id'] ?? $session['latest_payment_id'] ?? ''));
-        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['latest_payment_id'])) {
-            $xenditPaymentId = trim((string)$session['payment_requests'][0]['latest_payment_id']);
-        }
-        if ($xenditPaymentId === '' && !empty($session['payment_requests'][0]['payment_id'])) {
-            $xenditPaymentId = trim((string)$session['payment_requests'][0]['payment_id']);
-        }
         if ($xenditPaymentId === '') {
-            $xenditPaymentId = 'SES-' . $sessionId;
+            $xenditPaymentId = $sessionId !== '' ? 'SES-' . $sessionId : 'REF-' . $refId;
         }
 
         $receipt = xendit_activate_membership_payment($pdo, $payment, $xenditPaymentId, $payment);
@@ -892,14 +959,22 @@ function xendit_sync_membership_payment(?string $referenceId = null, ?int $userI
             'plan_name' => $payment['plan_name'],
             'receipt_number' => $receipt,
             'id' => (int)$payment['payment_id'],
+            'xendit_reference_id' => $refId,
         ];
-    } elseif ($status === 'EXPIRED') {
-        $pdo->prepare('UPDATE payments SET status = "overdue" WHERE payment_id = ? AND status = "pending"')->execute([(int)$payment['payment_id']]);
-        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([(int)$payment['membership_id']]);
-        return ['status' => 'overdue', 'id' => (int)$payment['payment_id']];
     }
 
-    return ['status' => 'pending', 'id' => (int)$payment['payment_id']];
+    if (!empty($sessionExpired)) {
+        $pdo->prepare('UPDATE payments SET status = "overdue" WHERE payment_id = ? AND status = "pending"')->execute([(int)$payment['payment_id']]);
+        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE membership_id = ? AND status = "pending"')->execute([(int)$payment['membership_id']]);
+        return ['status' => 'overdue', 'id' => (int)$payment['payment_id'], 'xendit_reference_id' => $refId];
+    }
+
+    return [
+        'status' => 'pending',
+        'id' => (int)$payment['payment_id'],
+        'xendit_reference_id' => $refId,
+        'error' => !empty($apiErrors) ? implode('; ', $apiErrors) : null,
+    ];
 }
 
 function xendit_add_billing_period(DateTimeImmutable $start, string $billingCycle): DateTimeImmutable

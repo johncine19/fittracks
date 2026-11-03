@@ -64,7 +64,9 @@ function gym_subscription_page(): void
                 flash('Xendit reports that the checkout session expired or was unsuccessful. Please select a plan to try again.', 'warning');
                 redirect('gym_subscription');
             } else {
-                flash('Payment is still showing as pending with Xendit. If your money was already deducted, please wait a moment and click verify again, or contact support with reference: ' . htmlspecialchars($syncResult['xendit_reference_id'] ?? 'pending'), 'info');
+                $refDisplay = htmlspecialchars($syncResult['xendit_reference_id'] ?? 'pending');
+                $errMsg = !empty($syncResult['error']) ? ' (' . htmlspecialchars($syncResult['error']) . ')' : '';
+                flash("Payment is still showing as pending with Xendit{$errMsg}. If your money was already deducted, please wait a moment and click verify again, or contact support with reference: {$refDisplay}", 'info');
                 redirect('gym_subscription');
             }
         }
