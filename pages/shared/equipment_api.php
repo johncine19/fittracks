@@ -831,19 +831,6 @@ function handle_log_progress(PDO $pdo, int $gymId, array $user): void
         member_profile($userId, true);
     }
 
-    $workoutHelper = __DIR__ . '/workouts.php';
-    if (file_exists($workoutHelper)) {
-        require_once $workoutHelper;
-    }
-    if (function_exists('can_recalculate_workout') && can_recalculate_workout($userId)) {
-        if (function_exists('generate_workout_plan')) {
-            generate_workout_plan($userId);
-        }
-        if (function_exists('notify_user')) {
-            notify_user($userId, 'system', 'Workout plan updated', 'Your workout plan was refreshed after logging new progress.');
-        }
-    }
-
     if (function_exists('notify_user')) {
         notify_user($userId, 'milestone', 'Progress logged', 'Nice work — your latest measurements and workout progress were saved.');
     }

@@ -84,6 +84,8 @@ try {
 // Gym Pause Database & In-App Notification Tests
 require_once __DIR__ . '/gym_pause_notification_test.php';
 require_once __DIR__ . '/staff_reports_test.php';
+require_once __DIR__ . '/staff_memberships_test.php';
+require_once __DIR__ . '/self_guided_plan_review_test.php';
 
 // Queue Worker Atomic Locking, Retry Backoff & Poison Purge Tests
 require_once __DIR__ . '/queue_worker_test.php';

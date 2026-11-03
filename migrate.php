@@ -230,7 +230,11 @@ try {
         "ALTER TABLE dietary_plans MODIFY COLUMN status ENUM('active','completed','cancelled','draft','upcoming','paused','archived') NOT NULL DEFAULT 'draft'",
         // ── Archive Orphan / Defunct Plans from Deleted Owners/Trainers or Rejected Gyms ──
         "UPDATE training_plans SET status = 'archived' WHERE status IN ('active', 'paused', 'upcoming') AND (gym_id IN (SELECT g.gym_id FROM gyms g LEFT JOIN users u_ow ON u_ow.user_id = g.owner_user_id WHERE g.status IN ('rejected', 'suspended') OR u_ow.status = 'inactive' OR u_ow.email LIKE 'deleted_%') OR trainer_id IN (SELECT tpr.trainer_id FROM trainer_profiles tpr JOIN users u_tr ON u_tr.user_id = tpr.user_id WHERE u_tr.status = 'inactive' OR u_tr.email LIKE 'deleted_%'))",
-        "UPDATE dietary_plans SET status = 'archived', is_preferred = 0 WHERE status IN ('active', 'paused', 'upcoming') AND (gym_id IN (SELECT g.gym_id FROM gyms g LEFT JOIN users u_ow ON u_ow.user_id = g.owner_user_id WHERE g.status IN ('rejected', 'suspended') OR u_ow.status = 'inactive' OR u_ow.email LIKE 'deleted_%') OR trainer_id IN (SELECT tpr.trainer_id FROM trainer_profiles tpr JOIN users u_tr ON u_tr.user_id = tpr.user_id WHERE u_tr.status = 'inactive' OR u_tr.email LIKE 'deleted_%'))"
+        "UPDATE dietary_plans SET status = 'archived', is_preferred = 0 WHERE status IN ('active', 'paused', 'upcoming') AND (gym_id IN (SELECT g.gym_id FROM gyms g LEFT JOIN users u_ow ON u_ow.user_id = g.owner_user_id WHERE g.status IN ('rejected', 'suspended') OR u_ow.status = 'inactive' OR u_ow.email LIKE 'deleted_%') OR trainer_id IN (SELECT tpr.trainer_id FROM trainer_profiles tpr JOIN users u_tr ON u_tr.user_id = tpr.user_id WHERE u_tr.status = 'inactive' OR u_tr.email LIKE 'deleted_%'))",
+        // ── Self-Guided Workout Plan Review & Version History Optimizations ──
+        "ALTER TABLE training_plans MODIFY COLUMN status ENUM('active','completed','archived','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
+        "CREATE INDEX idx_tp_member_status_end ON training_plans (member_user_id, status, end_date)",
+        "CREATE INDEX idx_ex_comp_user_plan ON exercise_completions (user_id, plan_id, completed_date)"
     ];
 
     foreach ($migrations as $sql) {

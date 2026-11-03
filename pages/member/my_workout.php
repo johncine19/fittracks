@@ -9,12 +9,26 @@ function my_workout_page(): void
     $userId = (int) $user['user_id'];
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+        verify_csrf();
+        $action = post('action') ?: 'regenerate_plan';
+
         if (!is_member_self_guided($userId)) {
             flash('Your workout program is customized and managed by your trainer/coach. Please contact your coach for routine adjustments.', 'warning');
+        } elseif ($action === 'extend_cycle') {
+            $planId = (int) post('plan_id');
+            if ($planId > 0) {
+                $pdo->prepare('UPDATE training_plans SET end_date = DATE_ADD(GREATEST(COALESCE(end_date, CURDATE()), CURDATE()), INTERVAL 4 WEEK) WHERE plan_id = ? AND member_user_id = ?')
+                    ->execute([$planId, $userId]);
+                flash('Workout routine extended for another 4 weeks! Keep crushing your goals.', 'success');
+            }
+        } elseif ($action === 'dismiss_progression_tip') {
+            $_SESSION['dismiss_progression_tip_' . $userId] = 1;
+            echo json_encode(['success' => true]);
+            exit;
         } else {
             generate_workout_plan($userId);
-            notify_user($userId, 'system', 'Workout Plan Generated', 'Your weekly exercise schedule has been refreshed based on your current profile.');
-            flash('Workout plan generated successfully!', 'success');
+            notify_user($userId, 'system', 'New Workout Plan Phase Created', 'Your new 4-week workout routine has been generated and activated.');
+            flash('New workout plan generated successfully! Your previous routine has been archived.', 'success');
         }
         redirect('my_workout');
     }
@@ -101,7 +115,22 @@ function my_workout_page(): void
     $planStartDate = !empty($plan['start_date'])
         ? substr((string) $plan['start_date'], 0, 10)
         : $accountCreatedDate;
+    $planEndDate = !empty($plan['end_date'])
+        ? substr((string) $plan['end_date'], 0, 10)
+        : null;
     $workoutStartDate = max($accountCreatedDate, $planStartDate);
+
+    // 4-Week Mesocycle Review Detection (Self-Guided Members)
+    $isReviewDue = false;
+    $daysRemainingInCycle = null;
+    if ($planEndDate && $isSelfGuided && !$hasTrainerPlan) {
+        $daysUntilReview = (int) ceil((strtotime($planEndDate) - strtotime($today)) / 86400);
+        $daysRemainingInCycle = max(0, $daysUntilReview);
+        $isReviewDue = ($daysUntilReview <= 0);
+    }
+
+    $archivedPlanCount = (int) scalar('SELECT COUNT(*) FROM training_plans WHERE member_user_id = ? AND status = "archived"', [$userId]);
+    $currentPlanVersion = $archivedPlanCount + 1;
 
     $monthParam = (string) ($_GET['month'] ?? $currentMonthStr);
     if (!preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
@@ -371,6 +400,20 @@ function my_workout_page(): void
                     </span>
                 <?php endif; ?>
 
+                <?php if ($archivedPlanCount > 0): ?>
+                    <span class="workout-goal-pill" title="Plan Cycle Version" style="border-color: rgba(255,255,255,0.12);">
+                        <span style="color: var(--muted); font-weight: 500;">Version:</span>
+                        <strong style="color: var(--ink); font-weight: 600;">Phase <?= $currentPlanVersion ?></strong>
+                    </span>
+                <?php endif; ?>
+
+                <?php if ($daysRemainingInCycle !== null && !$isReviewDue): ?>
+                    <span class="workout-goal-pill" title="4-week mesocycle duration" style="border-color: rgba(255,255,255,0.12);">
+                        <span style="color: var(--muted); font-weight: 500;">Cycle:</span>
+                        <strong style="color: var(--ink); font-weight: 600;"><?= $daysRemainingInCycle ?>d to review</strong>
+                    </span>
+                <?php endif; ?>
+
                 <span class="workout-assigned-pill">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     <span style="color: var(--muted); font-weight: 500;"><?= !$isSelfGuided ? 'Assigned by:' : 'Mode:' ?></span>
@@ -379,13 +422,12 @@ function my_workout_page(): void
             </div>
 
             <?php if ($isSelfGuided): ?>
-                <form id="regenerate-plan-form" class="workout-action-form" method="post">
-                    <?= csrf_field() ?>
-                    <button type="submit" data-confirm="<?= $plan ? 'This will archive your current plan and generate a new one based on your profile. Continue?' : 'Generate a new system-recommended workout plan?' ?>" data-confirm-btn="<?= $plan ? 'Yes, Regenerate Plan' : 'Yes, Generate Plan' ?>" class="btn btn-workout-action">
+                <div class="workout-action-form">
+                    <button type="button" onclick="openRegenModal()" class="btn btn-workout-action" title="Review summary and regenerate workout routine">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
                         <span><?= $plan ? 'Regenerate Plan' : 'Generate Plan' ?></span>
                     </button>
-                </form>
+                </div>
             <?php else: ?>
                 <div class="workout-action-form" title="Your workout routine is managed by your assigned coach (<?= $trainerName ?>). Contact your coach for plan adjustments.">
                     <button type="button" class="btn btn-workout-action is-disabled" disabled style="opacity: 0.65; cursor: not-allowed; border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.03);">
@@ -395,6 +437,59 @@ function my_workout_page(): void
                 </div>
             <?php endif; ?>
         </div>
+
+        <?php if ($isReviewDue): ?>
+            <!-- 4-Week Scheduled Review Banner -->
+            <div class="workout-review-banner animate-fade-in" style="background: linear-gradient(135deg, rgba(199, 255, 34, 0.12), rgba(30, 41, 59, 0.85)); border: 1px solid rgba(199, 255, 34, 0.4); border-radius: 14px; padding: 18px 22px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div style="display: flex; align-items: flex-start; gap: 14px; max-width: 700px;">
+                    <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(199, 255, 34, 0.2); color: var(--lime); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    </div>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                            <strong style="color: var(--ink); font-size: 15.5px;">4-Week Workout Cycle Complete</strong>
+                            <span style="font-size: 11px; font-weight: 700; background: var(--lime); color: #080b0d; padding: 2px 7px; border-radius: 6px; text-transform: uppercase;">Review Due</span>
+                            <?php if ($currentPlanVersion > 1): ?>
+                                <span style="font-size: 11px; color: var(--muted);">(Phase <?= $currentPlanVersion ?>)</span>
+                            <?php endif; ?>
+                        </div>
+                        <p style="margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.45;">
+                            You have completed this 4-week training cycle. Your current routine stays fully usable and active. You can keep running it for another 4 weeks, or generate your next training phase based on your updated fitness stats.
+                        </p>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <form method="post" style="margin: 0;">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="extend_cycle">
+                        <input type="hidden" name="plan_id" value="<?= (int)($plan['plan_id'] ?? 0) ?>">
+                        <button type="submit" class="btn" style="background: rgba(255,255,255,0.08); color: var(--ink); font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer;">
+                            Keep Current Routine (+4 Wks)
+                        </button>
+                    </form>
+                    <button type="button" onclick="openRegenModal()" class="btn" style="background: var(--lime); color: #080b0d; font-weight: 700; padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        <span>Update to Next Phase</span>
+                    </button>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($completionRate >= 80 && $monthCompletedPastCount >= 5 && empty($_SESSION['dismiss_progression_tip_' . $userId])): ?>
+            <!-- Performance Progression Suggestion -->
+            <div id="progression-suggestion-card" class="animate-fade-in" style="background: color-mix(in srgb, #38bdf8 8%, var(--panel)); border: 1px solid rgba(56, 189, 248, 0.28); border-radius: 12px; padding: 12px 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56, 189, 248, 0.16); color: #38bdf8; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    </div>
+                    <div>
+                        <strong style="color: var(--ink); font-size: 13.5px; display: block;">Workout Progression Suggestion (<?= $completionRate ?>% Consistency)</strong>
+                        <span style="color: var(--muted); font-size: 12.5px;">Great consistency this month! As exercises feel easier, consider progressively adding +2.5 kg or 1-2 reps per set to maintain progressive overload stimulus.</span>
+                    </div>
+                </div>
+                <button type="button" onclick="document.getElementById('progression-suggestion-card').style.display='none'; fetch('index.php?page=my_workout', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'csrf_token=<?= csrf_token() ?>&action=dismiss_progression_tip'});" style="background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px;" title="Dismiss">&times;</button>
+            </div>
+        <?php endif; ?>
 
         <?php if ($isSelfGuided && !$hasTrainerPlan): ?>
             <!-- Self-Guided Recommendation Notice -->
@@ -773,6 +868,78 @@ function my_workout_page(): void
                     </button>
                 </form>
             </div>
+        <?php endif; ?>
+
+        <?php if ($isSelfGuided): ?>
+            <!-- Workout Plan Regeneration Confirmation Modal -->
+            <div id="regenPlanModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 99999; align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true" aria-labelledby="regenModalTitle">
+                <div style="background: var(--panel, #161e27); border: 1px solid var(--line, rgba(255,255,255,0.12)); border-radius: 16px; max-width: 540px; width: 100%; padding: 26px; box-shadow: 0 24px 48px rgba(0,0,0,0.65); animation: fadeIn 0.2s ease-out;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(199, 255, 34, 0.16); color: var(--lime); display: flex; align-items: center; justify-content: center;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            </div>
+                            <h3 id="regenModalTitle" style="margin: 0; font-size: 18px; font-weight: 700; color: var(--ink);">Review &amp; Regenerate Workout Routine</h3>
+                        </div>
+                        <button type="button" onclick="closeRegenModal()" style="background: none; border: none; font-size: 24px; color: var(--muted); cursor: pointer; line-height: 1;" aria-label="Close modal">&times;</button>
+                    </div>
+
+                    <p style="color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 18px;">
+                        Generating a new routine creates an updated 4-week training cycle. Your current workout plan will be <strong>safely archived</strong> into your version history, and all past workout completion logs remain intact.
+                    </p>
+
+                    <!-- Summary of Current Profile, Goal & Recent Progress -->
+                    <div style="background: var(--bg, #0d1217); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
+                        <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted); margin-bottom: 10px; letter-spacing: 0.5px;">Current Training Profile &amp; Stats</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                            <div>
+                                <span style="color: var(--muted); font-size: 12px; display: block;">Primary Goal:</span>
+                                <strong style="color: var(--ink); font-size: 13.5px;"><?= h(ucwords(str_replace('_', ' ', $memberProfile['primary_goal'] ?? ($plan['goal'] ?? 'General Fitness')))) ?></strong>
+                            </div>
+                            <div>
+                                <span style="color: var(--muted); font-size: 12px; display: block;">Experience Level:</span>
+                                <strong style="color: var(--ink); font-size: 13.5px;"><?= h(ucwords((string)($memberProfile['experience_level'] ?? 'Intermediate'))) ?></strong>
+                            </div>
+                            <div>
+                                <span style="color: var(--muted); font-size: 12px; display: block;">Training Frequency:</span>
+                                <strong style="color: var(--ink); font-size: 13.5px;"><?= (int)($memberProfile['workout_days_per_week'] ?? 3) ?> Days / Week</strong>
+                            </div>
+                            <div>
+                                <span style="color: var(--muted); font-size: 12px; display: block;">Recent Consistency:</span>
+                                <strong style="color: var(--lime); font-size: 13.5px;"><?= $completionRate ?>% (<?= $monthCompletedPastCount ?> Done)</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                        <button type="button" onclick="closeRegenModal()" class="btn" style="background: rgba(255,255,255,0.08); color: var(--ink); border: 1px solid var(--line); padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                            Keep Current Plan
+                        </button>
+                        <form method="post" style="margin: 0;">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="regenerate_plan">
+                            <button type="submit" class="btn" style="background: var(--lime); color: #080b0d; font-weight: 700; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                <span>Confirm &amp; Generate Phase <?= $currentPlanVersion + 1 ?></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+            function openRegenModal() {
+                var m = document.getElementById('regenPlanModal');
+                if (m) m.style.display = 'flex';
+            }
+            function closeRegenModal() {
+                var m = document.getElementById('regenPlanModal');
+                if (m) m.style.display = 'none';
+            }
+            window.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeRegenModal();
+            });
+            </script>
         <?php endif; ?>
     </div>
 

@@ -191,11 +191,7 @@ function progress_page(): void
         // Refresh static profile cache so callers see updated measurements from progress_logs
         member_profile($memberId, true);
 
-        if (can_recalculate_workout($memberId)) {
-            generate_workout_plan($memberId);
-            notify_user($memberId, 'system', 'Workout plan updated', 'Your self-guided workout plan was refreshed after logging new progress.');
-            $flashMsg = 'Progress logged and workout plan updated.';
-        } else {
+        if (!is_member_self_guided($memberId)) {
             // Coached member: retain trainer's custom routine and notify assigned trainer
             $trainerUserId = get_member_active_trainer_user_id($memberId);
             if ($trainerUserId) {
@@ -208,8 +204,8 @@ function progress_page(): void
                     $memberId
                 );
             }
-            $flashMsg = 'Progress logged successfully.';
         }
+        $flashMsg = 'Progress logged successfully.';
         
         notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
         flash($flashMsg, 'success');

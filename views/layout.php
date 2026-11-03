@@ -84,6 +84,7 @@ function render_header(string $title, ?array $user = null): void
                 'notifications' => 'Notifications',
                 'scanner' => 'Scan QR',
                 'attendance' => 'Attendance',
+                'memberships' => 'Memberships',
                 'walk_ins' => 'Walk-ins',
                 'users' => 'Member Lookup',
                 'gym_equipment' => 'Equipment',
@@ -2244,16 +2245,18 @@ function render_header(string $title, ?array $user = null): void
                                         }
                                     }
                                 }
-                            } elseif ($role === 'gym_owner' && $gym) {
+                            } elseif (($role === 'gym_owner' || $role === 'staff') && $gym) {
                                 $gymId = (int)$gym['gym_id'];
 
-                                $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [$gymId]);
-                                if ($pendingGymTrainers > 0) {
-                                    $sidebarBadges['trainer_assignments'] = [
-                                        'text' => (string) $pendingGymTrainers,
-                                        'class' => 'sidebar-nav-badge sidebar-badge-alert',
-                                        'title' => $pendingGymTrainers . ' pending trainer assignment requests'
-                                    ];
+                                if ($role === 'gym_owner') {
+                                    $pendingGymTrainers = (int) scalar('SELECT COUNT(*) FROM trainer_assignments ta JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id WHERE tp.gym_id = ? AND ta.status = "pending_admin"', [$gymId]);
+                                    if ($pendingGymTrainers > 0) {
+                                        $sidebarBadges['trainer_assignments'] = [
+                                            'text' => (string) $pendingGymTrainers,
+                                            'class' => 'sidebar-nav-badge sidebar-badge-alert',
+                                            'title' => $pendingGymTrainers . ' pending trainer assignment requests'
+                                        ];
+                                    }
                                 }
 
                                 // Memberships number badge for Gym Owner

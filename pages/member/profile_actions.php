@@ -156,10 +156,19 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             save_member_profile((int) $user['user_id']);
             
             $memberUserId = (int) $user['user_id'];
-            if (can_recalculate_workout($memberUserId)) {
-                generate_workout_plan($memberUserId);
-                notify_user($memberUserId, 'system', 'Workout plan updated', 'Your self-guided workout plan was recalculated from your updated physical profile.');
-                flash('Physical profile and workout plan updated.', 'success');
+            if (is_member_self_guided($memberUserId)) {
+                if ($oldGoal !== $newGoal && !empty($newGoal)) {
+                    $goalFormatted = ucwords(str_replace('_', ' ', (string) $newGoal));
+                    notify_user(
+                        $memberUserId,
+                        'system',
+                        'Fitness Goal Updated',
+                        'You updated your fitness goal to "' . $goalFormatted . '". Your existing workout plan is preserved. You can review and regenerate an updated routine anytime in My Workout.'
+                    );
+                    flash('Physical profile updated. Your current workout routine has been preserved. You can refresh your workout plan in My Workout whenever you are ready.', 'success');
+                } else {
+                    flash('Physical profile updated.', 'success');
+                }
             } else {
                 // Member is under coach guidance: keep custom plan intact and notify trainer if goal changed
                 if ($oldGoal !== $newGoal && $newGoal) {

@@ -417,11 +417,11 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gy
 
     $goal = $profile['primary_goal'];
 
-    // Delete or archive existing system_generated plans for THIS gym only (never touch other gyms' plans)
+    // Archive existing active system-generated plans for THIS gym only (preserves version history and logs)
     if ($scopedGymId !== null) {
-        $pdo->prepare('DELETE FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL AND gym_id = ?')->execute([$memberUserId, $scopedGymId]);
+        $pdo->prepare('UPDATE training_plans SET status = "archived" WHERE member_user_id = ? AND trainer_id IS NULL AND gym_id = ? AND status = "active"')->execute([$memberUserId, $scopedGymId]);
     } else {
-        $pdo->prepare('DELETE FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL AND (gym_id IS NULL OR gym_id = 0)')->execute([$memberUserId]);
+        $pdo->prepare('UPDATE training_plans SET status = "archived" WHERE member_user_id = ? AND trainer_id IS NULL AND (gym_id IS NULL OR gym_id = 0) AND status = "active"')->execute([$memberUserId]);
     }
 
     // Get member name for title

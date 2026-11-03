@@ -61,8 +61,9 @@ function memberships_page(): void
         header('Content-Type: application/json');
 
         $gymId = 0;
-        if ($user['role'] === 'gym_owner') {
-            $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
+        if ($user['role'] === 'gym_owner' || $user['role'] === 'staff') {
+            $gym = get_user_gym($user);
+            $gymId = $gym ? (int)$gym['gym_id'] : 0;
         }
 
         $q = trim((string)($_GET['q'] ?? post('q') ?? ''));
@@ -105,7 +106,7 @@ function memberships_page(): void
         exit;
     }
 
-    if ($user['role'] === 'gym_owner' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_status_id'])) {
             $membershipId = (int) post('update_status_id');
             $status = post('status');
@@ -218,7 +219,7 @@ function memberships_page(): void
             $receiptNumber = trim((string) post('receipt_number'));
             $paymentDate = post('payment_date') ?: date('Y-m-d');
 
-            $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
+            $gym = get_user_gym($user);
             $gymId = $gym ? (int) $gym['gym_id'] : 0;
 
             $payment = db()->query("
@@ -304,7 +305,7 @@ function memberships_page(): void
             $amount = (float) post('amount');
             $paymentMethod = post('payment_method') ?: 'cash';
 
-            $gym = db()->query('SELECT gym_id FROM gyms WHERE owner_user_id = ' . (int) $user['user_id'])->fetch();
+            $gym = get_user_gym($user);
             $gymId = $gym ? (int) $gym['gym_id'] : 0;
 
             // If no pre-existing membership_id, but plan_id and user_id are supplied:
@@ -732,9 +733,10 @@ function memberships_page(): void
 
     $gymId = null;
     $gymName = '';
-    if ($user['role'] === 'gym_owner') {
-        $gymId = (int) scalar('SELECT gym_id FROM gyms WHERE owner_user_id = ?', [$user['user_id']]);
-        $gymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]);
+    if ($user['role'] === 'gym_owner' || $user['role'] === 'staff') {
+        $gym = get_user_gym($user);
+        $gymId = $gym ? (int) $gym['gym_id'] : 0;
+        $gymName = $gym ? (string) ($gym['name'] ?? '') : '';
         $where = 'WHERE m.plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ' . $gymId . ')';
         $plans = db()->query('SELECT * FROM membership_plans WHERE is_active = 1 AND gym_id = ' . $gymId . ' ORDER BY price')->fetchAll();
     } elseif ($user['role'] === 'member') {
@@ -777,7 +779,7 @@ function memberships_page(): void
     $memberSql = 'SELECT u.user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name 
                   FROM users u 
                   WHERE u.role = "member" AND u.status = "active"';
-    if ($user['role'] === 'gym_owner' && $gymId) {
+    if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $gymId) {
         $memberSql .= ' AND EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ' . (int)$gymId . ')';
     }
     $memberSql .= ' ORDER BY u.first_name';
@@ -812,7 +814,7 @@ function memberships_page(): void
     $searchQuery = trim((string)($_GET['q'] ?? ''));
 
     $statusCounts = ['all' => 0, 'active' => 0, 'pending' => 0, 'expired' => 0];
-    if ($user['role'] === 'gym_owner' && $gymId) {
+    if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $gymId) {
         $countBase = 'FROM memberships m JOIN users u ON u.user_id = m.user_id JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE mp.gym_id = ' . (int)$gymId;
         if ($planFilter > 0) {
             $countBase .= ' AND m.plan_id = ' . (int)$planFilter;
@@ -838,7 +840,7 @@ function memberships_page(): void
     }
 
     $filteredWhere = $where;
-    if ($user['role'] === 'gym_owner') {
+    if ($user['role'] === 'gym_owner' || $user['role'] === 'staff') {
         if ($planFilter > 0) {
             $filteredWhere .= ' AND m.plan_id = ' . (int)$planFilter;
         }
@@ -880,7 +882,7 @@ function memberships_page(): void
     $paymentRows = [];
     $totalCollected = 0.0;
     $totalPending = 0;
-    if ($user['role'] === 'gym_owner' && $gymId) {
+    if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $gymId) {
         $paymentRows = db()->query('
             SELECT pay.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, p.plan_name 
             FROM payments pay 
@@ -961,7 +963,7 @@ function memberships_page(): void
 
     $expiring = [];
     if ($user['role'] !== 'member') {
-        $gymFilter = ($user['role'] === 'gym_owner' && !empty($gymId)) ? ' AND mp.gym_id = ' . (int)$gymId : '';
+        $gymFilter = (in_array($user['role'], ['gym_owner', 'staff'], true) && !empty($gymId)) ? ' AND mp.gym_id = ' . (int)$gymId : '';
         $expiring = db()->query('SELECT m.end_date, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.profile_picture, mp.plan_name 
             FROM memberships m 
             JOIN users u ON u.user_id = m.user_id 
@@ -1017,7 +1019,7 @@ function memberships_page(): void
         }
     }
 
-    render_header($user['role'] === 'gym_owner' ? 'Memberships & Payments' : 'Memberships', $user);
+    render_header(in_array($user['role'], ['gym_owner', 'staff'], true) ? 'Memberships & Payments' : 'Memberships', $user);
     ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/memberships.css')) ?>">
     <style>
@@ -1182,12 +1184,12 @@ function memberships_page(): void
                     <div class="sk sk-title" style="width:180px;margin-bottom:8px"></div>
                     <div class="sk sk-text" style="width:280px;height:12px"></div>
                 </div>
-                <?php if ($user['role'] === 'gym_owner'): ?>
+                <?php if ($user['role'] === 'gym_owner' || $user['role'] === 'staff'): ?>
                     <div class="sk sk-rect" style="width:140px;height:36px;border-radius:18px"></div>
                 <?php endif; ?>
             </div>
 
-            <?php if ($user['role'] === 'gym_owner'): ?>
+            <?php if ($user['role'] === 'gym_owner' || $user['role'] === 'staff'): ?>
                 <div style="display:flex;gap:8px;max-width:440px;margin-bottom:24px">
                     <div class="sk sk-rect" style="flex:1;height:42px;border-radius:10px"></div>
                     <div class="sk sk-rect" style="flex:1;height:42px;border-radius:10px"></div>
@@ -1224,7 +1226,7 @@ function memberships_page(): void
         </section>
     </div>
     <section class="panel skeleton-content sk-display-block <?= $user['role'] === 'member' ? 'member-membership-panel' : '' ?>">
-        <?php if ($user['role'] === 'gym_owner'): ?>
+        <?php if ($user['role'] === 'gym_owner' || $user['role'] === 'staff'): ?>
             <div class="memberships-top-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
                 <!-- Gym Owner Top View Switcher -->
                 <div class="member-membership-nav admin-membership-nav" style="margin-bottom:0; max-width:440px;">
@@ -1715,7 +1717,7 @@ function memberships_page(): void
             </div>
 
         <?php else: ?>
-            <?php if ($user['role'] === 'gym_owner'): ?>
+            <?php if ($user['role'] === 'gym_owner' || $user['role'] === 'staff'): ?>
                 <!-- PANE 1: MEMBERSHIPS -->
                 <div id="admin-pane-memberships" class="membership-view-pane" style="display: <?= $adminView === 'memberships' ? 'block' : 'none' ?>;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -2127,7 +2129,7 @@ function memberships_page(): void
         <?php endif; ?>
     </section>
 
-    <?php if ($user['role'] === 'gym_owner'): ?>
+    <?php if ($user['role'] === 'gym_owner' || $user['role'] === 'staff'): ?>
         <!-- Mobile Floating Action Button (FAB Speed Dial) -->
         <div class="hub-fab-backdrop" id="membershipsFabBackdrop" onclick="toggleMembershipsFab(false)"></div>
         <div class="hub-fab-container memberships-fab" id="membershipsFabContainer">
