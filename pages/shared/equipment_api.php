@@ -1125,6 +1125,8 @@ function parse_equipment_return_date(?string $raw): ?string
         return null;
     }
 
+    $currentYear = (int)date('Y');
+
     // 1. mm/dd/yy or mm/dd/yyyy
     if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/', $raw, $m)) {
         $month = (int)$m[1];
@@ -1133,7 +1135,7 @@ function parse_equipment_return_date(?string $raw): ?string
         if ($year < 100) {
             $year += 2000;
         }
-        if ($year >= 2000 && $year <= 2099 && checkdate($month, $day, $year)) {
+        if ($year >= $currentYear && $year <= 2099 && checkdate($month, $day, $year)) {
             return sprintf('%04d-%02d-%02d', $year, $month, $day);
         }
         return null;
@@ -1144,7 +1146,7 @@ function parse_equipment_return_date(?string $raw): ?string
         $year = (int)$m[1];
         $month = (int)$m[2];
         $day = (int)$m[3];
-        if ($year >= 2000 && $year <= 2099 && checkdate($month, $day, $year)) {
+        if ($year >= $currentYear && $year <= 2099 && checkdate($month, $day, $year)) {
             return sprintf('%04d-%02d-%02d', $year, $month, $day);
         }
         return null;
@@ -1164,7 +1166,7 @@ function handle_admin_set_maintenance(PDO $pdo, int $gymId, array $user): void
     if ($expectedReturnRaw !== '') {
         $parsedDate = parse_equipment_return_date($expectedReturnRaw);
         if ($parsedDate === null) {
-            echo json_encode(['success' => false, 'message' => 'Please enter a valid return date in mm/dd/yy format (e.g. 11/27/26).']);
+            echo json_encode(['success' => false, 'message' => "Expected return date must match the current year (" . date('Y') . ") or future, in mm/dd/yyyy format."]);
             return;
         }
         $today = date('Y-m-d');

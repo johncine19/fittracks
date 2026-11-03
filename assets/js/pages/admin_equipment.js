@@ -471,9 +471,76 @@
         // MAINTENANCE MODAL & DATEPICKER
         let maintDatePicker = null;
         const maintDateInput = document.getElementById('maint-return-date');
+
+        function validateAndEnforceReturnDate(input) {
+            if (!input) return true;
+            const val = input.value.trim();
+            if (!val) return true;
+
+            const currentYear = new Date().getFullYear();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const m = val.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+            if (!m) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Invalid Date Format',
+                    text: `Please enter date in mm/dd/yyyy format (e.g. 11/04/${currentYear}).`
+                });
+                input.value = '';
+                if (maintDatePicker) maintDatePicker.clear();
+                return false;
+            }
+
+            const month = parseInt(m[1], 10);
+            const day = parseInt(m[2], 10);
+            let year = parseInt(m[3], 10);
+            if (year < 100) year += 2000;
+
+            if (month < 1 || month > 12 || day < 1 || day > 31 || year > 2099) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Invalid Date',
+                    text: 'Please enter a valid calendar date.'
+                });
+                input.value = '';
+                if (maintDatePicker) maintDatePicker.clear();
+                return false;
+            }
+
+            if (year < currentYear) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Past Year Not Allowed',
+                    text: `You cannot schedule a return date in a past year (${year}). Expected return year must be ${currentYear} or later.`
+                });
+                const corrected = `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${currentYear}`;
+                input.value = corrected;
+                if (maintDatePicker) maintDatePicker.setDate(corrected, false);
+                return false;
+            }
+
+            const parsedDate = new Date(year, month - 1, day);
+            if (parsedDate < today) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Past Date Not Allowed',
+                    text: 'You cannot schedule the expected return date to a past day.'
+                });
+                input.value = '';
+                if (maintDatePicker) maintDatePicker.clear();
+                return false;
+            }
+
+            const formatted = `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+            input.value = formatted;
+            return true;
+        }
+
         if (maintDateInput && typeof flatpickr !== 'undefined') {
             maintDatePicker = flatpickr(maintDateInput, {
-                dateFormat: 'm/d/y',
+                dateFormat: 'm/d/Y',
                 minDate: 'today',
                 maxDate: new Date().fp_incr(3650),
                 allowInput: true,
@@ -487,7 +554,17 @@
                     if (instance.calendarContainer) {
                         instance.calendarContainer.style.zIndex = '100010';
                     }
+                },
+                onChange: function(selectedDates, dateStr, instance) {
+                    validateAndEnforceReturnDate(maintDateInput);
                 }
+            });
+
+            maintDateInput.addEventListener('change', function() {
+                validateAndEnforceReturnDate(this);
+            });
+            maintDateInput.addEventListener('blur', function() {
+                validateAndEnforceReturnDate(this);
             });
         }
 
@@ -518,43 +595,8 @@
 
             // Client-side validation for expected return date
             const returnDateInput = document.getElementById('maint-return-date');
-            const returnDateVal = returnDateInput ? returnDateInput.value.trim() : '';
-
-            if (returnDateVal) {
-                let isValid = false;
-                let parsedDate = null;
-                const m = returnDateVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-                if (m) {
-                    const month = parseInt(m[1], 10);
-                    const day = parseInt(m[2], 10);
-                    let year = parseInt(m[3], 10);
-                    if (year < 100) year += 2000;
-                    if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 2000 && year <= 2099) {
-                        const testDate = new Date(year, month - 1, day);
-                        if (testDate.getFullYear() === year && testDate.getMonth() === month - 1 && testDate.getDate() === day) {
-                            parsedDate = testDate;
-                            isValid = true;
-                        }
-                    }
-                }
-
-                if (!isValid) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Invalid Return Date',
-                        text: 'Please enter a valid return date in mm/dd/yy format (e.g. 11/27/26).'
-                    });
-                    return;
-                }
-
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                if (parsedDate < today) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Past Date Not Allowed',
-                        text: 'You cannot schedule the expected return date to a past day.'
-                    });
+            if (returnDateInput && returnDateInput.value.trim()) {
+                if (!validateAndEnforceReturnDate(returnDateInput)) {
                     return;
                 }
             }

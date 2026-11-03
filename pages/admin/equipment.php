@@ -519,12 +519,12 @@ function gym_equipment_page(): void
                     <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Expected Return Date</label>
                     <div style="position: relative;">
                         <input type="text" name="expected_return_date" id="maint-return-date"
-                               placeholder="mm/dd/yy"
+                               placeholder="mm/dd/<?= date('Y') ?>"
                                autocomplete="off"
                                style="width: 100%; padding: 10px 12px 10px 38px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
                         <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 14px;">📅</span>
                     </div>
-                    <span style="font-size: 11px; color: var(--muted); margin-top: 4px; display: block;">Format: mm/dd/yy (cannot be scheduled to a past day)</span>
+                    <span style="font-size: 11px; color: var(--muted); margin-top: 4px; display: block;">Format: mm/dd/yyyy (must match <?= date('Y') ?> or future)</span>
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
