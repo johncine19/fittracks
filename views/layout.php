@@ -703,6 +703,11 @@ function render_header(string $title, ?array $user = null): void
             color: #475569 !important;
         }
 
+        /* Ensure SweetAlert dialogs always render on top of all modal overlays */
+        .swal2-container {
+            z-index: 100050 !important;
+        }
+
         /* Mobile-optimized SweetAlert Modal Popups */
         @media (max-width: 640px) {
             .swal2-container {

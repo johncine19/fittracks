@@ -468,7 +468,29 @@
             }
         });
 
-        // MAINTENANCE MODAL
+        // MAINTENANCE MODAL & DATEPICKER
+        let maintDatePicker = null;
+        const maintDateInput = document.getElementById('maint-return-date');
+        if (maintDateInput && typeof flatpickr !== 'undefined') {
+            maintDatePicker = flatpickr(maintDateInput, {
+                dateFormat: 'm/d/y',
+                minDate: 'today',
+                maxDate: new Date().fp_incr(3650),
+                allowInput: true,
+                disableMobile: true,
+                onReady: function(selectedDates, dateStr, instance) {
+                    if (instance.calendarContainer) {
+                        instance.calendarContainer.style.zIndex = '100010';
+                    }
+                },
+                onOpen: function(selectedDates, dateStr, instance) {
+                    if (instance.calendarContainer) {
+                        instance.calendarContainer.style.zIndex = '100010';
+                    }
+                }
+            });
+        }
+
         window.openMaintModal = function(equipmentId, fullName) {
             if (!fullName && Array.isArray(equipmentData)) {
                 const found = equipmentData.find(e => parseInt(e.equipment_id, 10) === parseInt(equipmentId, 10));
@@ -480,6 +502,10 @@
             document.getElementById('maint-status').value = 'maintenance';
             document.getElementById('maint-reason').value = '';
             document.getElementById('maint-return-date').value = '';
+            if (maintDatePicker) {
+                maintDatePicker.clear();
+                maintDatePicker.set('minDate', 'today');
+            }
             document.getElementById('maint-modal').style.display = 'flex';
         };
 
@@ -489,6 +515,50 @@
 
         document.getElementById('maint-form').addEventListener('submit', async function(e) {
             e.preventDefault();
+
+            // Client-side validation for expected return date
+            const returnDateInput = document.getElementById('maint-return-date');
+            const returnDateVal = returnDateInput ? returnDateInput.value.trim() : '';
+
+            if (returnDateVal) {
+                let isValid = false;
+                let parsedDate = null;
+                const m = returnDateVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+                if (m) {
+                    const month = parseInt(m[1], 10);
+                    const day = parseInt(m[2], 10);
+                    let year = parseInt(m[3], 10);
+                    if (year < 100) year += 2000;
+                    if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 2000 && year <= 2099) {
+                        const testDate = new Date(year, month - 1, day);
+                        if (testDate.getFullYear() === year && testDate.getMonth() === month - 1 && testDate.getDate() === day) {
+                            parsedDate = testDate;
+                            isValid = true;
+                        }
+                    }
+                }
+
+                if (!isValid) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Invalid Return Date',
+                        text: 'Please enter a valid return date in mm/dd/yy format (e.g. 11/27/26).'
+                    });
+                    return;
+                }
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (parsedDate < today) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Past Date Not Allowed',
+                        text: 'You cannot schedule the expected return date to a past day.'
+                    });
+                    return;
+                }
+            }
+
             const formData = new FormData(this);
 
             try {

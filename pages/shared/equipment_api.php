@@ -1115,12 +1115,65 @@ function handle_admin_save(PDO $pdo, int $gymId, array $user): void
     echo json_encode(['success' => true, 'message' => "Equipment registered successfully ({$quantity} unit(s)).", 'image_url' => $imageUrl]);
 }
 
+function parse_equipment_return_date(?string $raw): ?string
+{
+    if ($raw === null) {
+        return null;
+    }
+    $raw = trim($raw);
+    if ($raw === '') {
+        return null;
+    }
+
+    // 1. mm/dd/yy or mm/dd/yyyy
+    if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/', $raw, $m)) {
+        $month = (int)$m[1];
+        $day = (int)$m[2];
+        $year = (int)$m[3];
+        if ($year < 100) {
+            $year += 2000;
+        }
+        if ($year >= 2000 && $year <= 2099 && checkdate($month, $day, $year)) {
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+        return null;
+    }
+
+    // 2. yyyy-mm-dd (standard ISO)
+    if (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/', $raw, $m)) {
+        $year = (int)$m[1];
+        $month = (int)$m[2];
+        $day = (int)$m[3];
+        if ($year >= 2000 && $year <= 2099 && checkdate($month, $day, $year)) {
+            return sprintf('%04d-%02d-%02d', $year, $month, $day);
+        }
+        return null;
+    }
+
+    return null;
+}
+
 function handle_admin_set_maintenance(PDO $pdo, int $gymId, array $user): void
 {
     $equipmentId = (int)($_POST['equipment_id'] ?? 0);
     $status = trim((string)($_POST['status'] ?? 'maintenance'));
     $reason = trim((string)($_POST['reason'] ?? 'Routine maintenance'));
-    $expectedReturn = !empty($_POST['expected_return_date']) ? $_POST['expected_return_date'] : null;
+    $expectedReturnRaw = trim((string)($_POST['expected_return_date'] ?? ''));
+
+    $expectedReturn = null;
+    if ($expectedReturnRaw !== '') {
+        $parsedDate = parse_equipment_return_date($expectedReturnRaw);
+        if ($parsedDate === null) {
+            echo json_encode(['success' => false, 'message' => 'Please enter a valid return date in mm/dd/yy format (e.g. 11/27/26).']);
+            return;
+        }
+        $today = date('Y-m-d');
+        if ($parsedDate < $today) {
+            echo json_encode(['success' => false, 'message' => 'You cannot schedule the expected return date to a past day.']);
+            return;
+        }
+        $expectedReturn = $parsedDate;
+    }
 
     if (!in_array($status, ['maintenance', 'out_of_service'], true)) {
         $status = 'maintenance';

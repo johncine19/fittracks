@@ -554,6 +554,15 @@
             justify-content: center;
             padding: 20px;
         }
+
+        /* Ensure SweetAlert dialogs and Flatpickr appear strictly above modal overlays */
+        .swal2-container {
+            z-index: 100050 !important;
+        }
+        .flatpickr-calendar {
+            z-index: 100010 !important;
+            font-family: inherit !important;
+        }
         .modal-box {
             background: var(--panel);
             border: 1px solid var(--line);

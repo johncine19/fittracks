@@ -68,6 +68,8 @@ function gym_equipment_page(): void
     $allGyms = ($user['role'] === 'platform_admin') ? $pdo->query("SELECT gym_id, name FROM gyms ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC) : [];
     ?>
 
+    <link rel="stylesheet" href="<?= h(asset_url('css/flatpickr.min.css')) ?>">
+    <link rel="stylesheet" href="<?= h(asset_url('css/flatpickr-dark.min.css')) ?>">
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/admin_equipment.css')) ?>">
 
     <div class="equipment-admin-container">
@@ -515,8 +517,14 @@ function gym_equipment_page(): void
 
                 <div style="margin-bottom: 20px;">
                     <label style="display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600;">Expected Return Date</label>
-                    <input type="date" name="expected_return_date" id="maint-return-date"
-                           style="width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
+                    <div style="position: relative;">
+                        <input type="text" name="expected_return_date" id="maint-return-date"
+                               placeholder="mm/dd/yy"
+                               autocomplete="off"
+                               style="width: 100%; padding: 10px 12px 10px 38px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--ink); font-size: 13px; box-sizing: border-box;">
+                        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 14px;">📅</span>
+                    </div>
+                    <span style="font-size: 11px; color: var(--muted); margin-top: 4px; display: block;">Format: mm/dd/yy (cannot be scheduled to a past day)</span>
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px;">
@@ -575,6 +583,7 @@ function gym_equipment_page(): void
         csrfToken: <?= json_encode(csrf_token()) ?>
     };
     </script>
+    <script src="<?= h(asset_url('js/flatpickr.min.js')) ?>"></script>
     <script src="<?= h(asset_url('js/pages/admin_equipment.js')) ?>"></script>
     <?php
     render_footer();
