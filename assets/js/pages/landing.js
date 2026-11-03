@@ -508,7 +508,7 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
 
                 submitBtn.disabled = true;
                 submitBtn.innerText = 'Submitting...';
-                alertBox.style.display = 'none';
+                if (alertBox) alertBox.style.display = 'none';
 
                 try {
                     const formData = new FormData(form);
@@ -520,34 +520,71 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                     const result = await response.json();
 
                     if (result.success) {
-                        alertBox.style.display = 'block';
-                        alertBox.style.background = 'rgba(132, 204, 22, 0.15)';
-                        alertBox.style.border = '1px solid #84cc16';
-                        alertBox.style.color = '#a3e635';
-                        alertBox.innerText = '✓ Thank you! Your demo request has been received. Our team will contact you shortly.';
                         form.reset();
-                        setTimeout(() => {
-                            closeDemoModal();
-                            alertBox.style.display = 'none';
-                        }, 3500);
+                        closeDemoModal();
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Thank you!',
+                                text: result.message || 'Your demo request has been received. Our team will contact you shortly.',
+                                confirmButtonColor: '#84cc16',
+                                confirmButtonText: 'Awesome',
+                                background: '#11141d',
+                                color: '#f8fafc'
+                            });
+                        } else if (alertBox) {
+                            alertBox.style.display = 'block';
+                            alertBox.style.background = 'rgba(132, 204, 22, 0.15)';
+                            alertBox.style.border = '1px solid #84cc16';
+                            alertBox.style.color = '#a3e635';
+                            alertBox.innerText = '✓ Thank you! Your demo request has been received. Our team will contact you shortly.';
+                            setTimeout(() => {
+                                closeDemoModal();
+                                alertBox.style.display = 'none';
+                            }, 3500);
+                        }
                     } else {
+                        const errMsg = (result.errors && result.errors.length) ? result.errors.join('<br>') : 'Failed to submit request. Please try again.';
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Submission Issue',
+                                html: errMsg,
+                                confirmButtonColor: '#ef4444',
+                                background: '#11141d',
+                                color: '#f8fafc'
+                            });
+                        } else if (alertBox) {
+                            alertBox.style.display = 'block';
+                            alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
+                            alertBox.style.border = '1px solid #ef4444';
+                            alertBox.style.color = '#f87171';
+                            alertBox.innerText = (result.errors && result.errors.length) ? result.errors.join(', ') : 'Failed to submit request. Please try again.';
+                        }
+                    }
+                } catch (err) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Network Error',
+                            text: 'Network error. Please try again.',
+                            confirmButtonColor: '#ef4444',
+                            background: '#11141d',
+                            color: '#f8fafc'
+                        });
+                    } else if (alertBox) {
                         alertBox.style.display = 'block';
                         alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
                         alertBox.style.border = '1px solid #ef4444';
                         alertBox.style.color = '#f87171';
-                        alertBox.innerText = (result.errors && result.errors.length) ? result.errors.join(', ') : 'Failed to submit request. Please try again.';
+                        alertBox.innerText = 'Network error. Please try again.';
                     }
-                } catch (err) {
-                    alertBox.style.display = 'block';
-                    alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
-                    alertBox.style.border = '1px solid #ef4444';
-                    alertBox.style.color = '#f87171';
-                    alertBox.innerText = 'Network error. Please try again.';
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.innerText = 'Submit Demo Request';
                 }
             }
+            window.submitDemoForm = submitDemoForm;
 
             // 7.5 FAQ Accordion Toggle
             function toggleFaq(btn) {

@@ -3781,6 +3781,11 @@ video {
     -webkit-overflow-scrolling: touch;
 }
 
+/* Ensure SweetAlert dialogs always render on top of modal overlays */
+.swal2-container {
+    z-index: 100050 !important;
+}
+
 .modal-backdrop.open {
     opacity: 1;
     visibility: visible;

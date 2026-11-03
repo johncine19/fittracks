@@ -425,17 +425,24 @@ function platform_demo_requests_page(): void
                 </a>
             </nav>
 
-            <form method="get" action="index.php" class="demo-search-wrap">
-                <input type="hidden" name="page" value="demo_requests">
-                <?php if ($currentStatus !== 'all'): ?>
-                    <input type="hidden" name="status" value="<?= h($currentStatus) ?>">
-                <?php endif; ?>
-                <svg class="demo-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" name="q" class="demo-search-input" placeholder="Search name, gym, email, phone..." value="<?= h($q) ?>">
-                <?php if ($q !== ''): ?>
-                    <a href="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--muted); text-decoration:none; font-size:16px;">×</a>
-                <?php endif; ?>
-            </form>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <button type="button" onclick="openEmailSettingsModal()" class="btn btn-sm btn-ghost" title="Email Settings (Choose default: Gmail / Outlook in current browser)" style="height:40px; padding:0 12px; gap:6px; display:inline-flex; align-items:center; white-space:nowrap; border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted); background:var(--panel);">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span id="emailPrefBadge">Email: Webmail</span>
+                </button>
+
+                <form method="get" action="index.php" class="demo-search-wrap">
+                    <input type="hidden" name="page" value="demo_requests">
+                    <?php if ($currentStatus !== 'all'): ?>
+                        <input type="hidden" name="status" value="<?= h($currentStatus) ?>">
+                    <?php endif; ?>
+                    <svg class="demo-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" name="q" class="demo-search-input" placeholder="Search name, gym, email, phone..." value="<?= h($q) ?>">
+                    <?php if ($q !== ''): ?>
+                        <a href="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--muted); text-decoration:none; font-size:16px;">×</a>
+                    <?php endif; ?>
+                </form>
+            </div>
         </div>
 
         <!-- 4. DESKTOP TABLE VIEW -->
@@ -483,7 +490,7 @@ function platform_demo_requests_page(): void
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <div><a href="mailto:<?= h($req['work_email']) ?>" style="color:var(--lime); text-decoration:none; font-weight:500;"><?= h($req['work_email']) ?></a></div>
+                                        <div><a href="javascript:void(0)" onclick="handleEmailClick(<?= htmlspecialchars(json_encode($req['work_email']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['gym_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>, event)" style="color:var(--lime); text-decoration:none; font-weight:500;" title="Send Email (Current Browser)"><?= h($req['work_email']) ?></a></div>
                                         <?php if (!empty($req['phone'])): ?>
                                             <div style="font-size:12px; color:var(--muted);"><a href="tel:<?= h($req['phone']) ?>" style="color:inherit; text-decoration:none;"><?= h($req['phone']) ?></a></div>
                                         <?php endif; ?>
@@ -528,20 +535,15 @@ function platform_demo_requests_page(): void
                                     </td>
                                     <td style="text-align:right; white-space:nowrap;">
                                         <div style="display:inline-flex; align-items:center; gap:6px;">
-                                            <a href="mailto:<?= h($req['work_email']) ?>?subject=FitTracks%20Live%20Demo%20Walkthrough&body=Hi%20<?= urlencode($req['full_name']) ?>," class="btn btn-sm btn-ghost" title="Send Email" style="padding:6px 10px;">
+                                            <button type="button" class="btn btn-sm btn-ghost" title="Send Email (Current Browser)" onclick="handleEmailClick(<?= htmlspecialchars(json_encode($req['work_email']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['gym_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>, event)" style="padding:6px 10px;">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                            </a>
+                                            </button>
                                             <button type="button" class="btn btn-sm btn-ghost" title="Edit Admin Notes" onclick="openNotesModal(<?= (int)$req['id'] ?>, <?= htmlspecialchars(json_encode($req['admin_notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>)" style="padding:6px 10px;">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                             </button>
-                                            <form method="post" action="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" onsubmit="return confirm('Delete this demo request?');" style="margin:0; display:inline;">
-                                                <?= csrf_field() ?>
-                                                <input type="hidden" name="action" value="delete">
-                                                <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
-                                                <button type="submit" class="btn btn-sm btn-ghost" title="Delete" style="padding:6px 10px; color:#ef4444;">
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                                </button>
-                                            </form>
+                                            <button type="button" class="btn btn-sm btn-ghost" title="Delete" onclick="confirmDeleteDemoRequest(<?= (int)$req['id'] ?>, <?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>)" style="padding:6px 10px; color:#ef4444;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -573,7 +575,7 @@ function platform_demo_requests_page(): void
                         </div>
 
                         <div style="display:flex; flex-direction:column; gap:4px; font-size:13px;">
-                            <div><strong>Email:</strong> <a href="mailto:<?= h($req['work_email']) ?>" style="color:var(--lime); text-decoration:none;"><?= h($req['work_email']) ?></a></div>
+                            <div><strong>Email:</strong> <a href="javascript:void(0)" onclick="handleEmailClick(<?= htmlspecialchars(json_encode($req['work_email']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['gym_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>, event)" style="color:var(--lime); text-decoration:none;" title="Send Email (Current Browser)"><?= h($req['work_email']) ?></a></div>
                             <?php if (!empty($req['phone'])): ?>
                                 <div><strong>Phone:</strong> <a href="tel:<?= h($req['phone']) ?>" style="color:inherit; text-decoration:none;"><?= h($req['phone']) ?></a></div>
                             <?php endif; ?>
@@ -625,9 +627,12 @@ function platform_demo_requests_page(): void
                             <button type="button" class="btn btn-sm btn-ghost" onclick="openNotesModal(<?= (int)$req['id'] ?>, <?= htmlspecialchars(json_encode($req['admin_notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>)" style="padding:6px 10px; font-size:12px;">
                                 Note
                             </button>
-                            <a href="mailto:<?= h($req['work_email']) ?>" class="btn btn-sm btn-lime" style="padding:6px 12px; font-size:12px;">
+                            <button type="button" onclick="handleEmailClick(<?= htmlspecialchars(json_encode($req['work_email']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($req['gym_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>, event)" class="btn btn-sm btn-lime" style="padding:6px 12px; font-size:12px;">
                                 Email
-                            </a>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-ghost" title="Delete" onclick="confirmDeleteDemoRequest(<?= (int)$req['id'] ?>, <?= htmlspecialchars(json_encode($req['full_name']), ENT_QUOTES, 'UTF-8') ?>)" style="padding:6px 10px; color:#ef4444; font-size:12px;">
+                                Delete
+                            </button>
                         </div>
                     </article>
                 <?php endforeach; ?>
@@ -669,11 +674,92 @@ function platform_demo_requests_page(): void
             <div id="inquiryModalBody" style="background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; font-size:13.5px; line-height:1.6; color:var(--ink); white-space:pre-wrap; word-break:break-word; max-height:360px; overflow-y:auto; margin-bottom:16px;"></div>
             
             <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px;">
-                <a id="inquiryModalEmailBtn" href="#" class="btn btn-sm btn-lime" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                <button id="inquiryModalEmailBtn" type="button" class="btn btn-sm btn-lime" style="display:inline-flex; align-items:center; gap:6px;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     Reply via Email
-                </a>
+                </button>
                 <button type="button" class="btn btn-sm btn-ghost" onclick="closeInquiryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Options Modal -->
+    <div id="emailModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:16px;">
+        <div style="background:var(--panel); border:1px solid var(--line); border-radius:14px; max-width:480px; width:100%; padding:22px; box-shadow:0 20px 40px rgba(0,0,0,0.5);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:12px;">
+                <div>
+                    <h3 style="margin:0 0 4px 0; font-size:16px; color:var(--ink); display:flex; align-items:center; gap:8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Send Email to Prospect
+                    </h3>
+                    <div id="emailModalSubtitle" style="font-size:12px; color:var(--muted);"></div>
+                </div>
+                <button type="button" onclick="closeEmailModal()" style="background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; padding:2px 6px;">&times;</button>
+            </div>
+
+            <!-- Recipient & Subject Summary Box -->
+            <div id="emailModalRecipientBox" style="background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:12.5px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="color:var(--muted);">To:</span>
+                    <span id="emailModalTo" style="font-weight:600; color:var(--lime); word-break:break-all;"></span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:var(--muted);">Subject:</span>
+                    <span style="color:var(--ink); font-weight:500;">FitTracks Live Demo Walkthrough</span>
+                </div>
+            </div>
+
+            <div style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
+                Choose How to Open (Current Browser)
+            </div>
+
+            <!-- Action Options -->
+            <div style="display:flex; flex-direction:column; gap:9px; margin-bottom:16px;">
+                <!-- Gmail Option (Recommended) -->
+                <button type="button" onclick="selectEmailProvider('gmail')" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:10px; color:var(--ink); cursor:pointer; text-align:left; transition:all 0.15s ease;" onmouseover="this.style.borderColor='var(--lime)'; this.style.background='rgba(190,242,100,0.06)'" onmouseout="this.style.borderColor='var(--line)'; this.style.background='rgba(255,255,255,0.03)'">
+                    <div style="width:36px; height:36px; border-radius:8px; background:rgba(234, 67, 53, 0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#EA4335" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:13.5px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px;">
+                            Compose in Gmail
+                            <span style="font-size:10px; background:var(--lime); color:#000; font-weight:700; padding:1px 6px; border-radius:4px;">In this browser</span>
+                        </div>
+                        <div style="font-size:11.5px; color:var(--muted);">Opens mail.google.com in a new tab without leaving this browser</div>
+                    </div>
+                </button>
+
+                <!-- Outlook Web Option -->
+                <button type="button" onclick="selectEmailProvider('outlook')" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:10px; color:var(--ink); cursor:pointer; text-align:left; transition:all 0.15s ease;" onmouseover="this.style.borderColor='#38bdf8'; this.style.background='rgba(56,189,248,0.06)'" onmouseout="this.style.borderColor='var(--line)'; this.style.background='rgba(255,255,255,0.03)'">
+                    <div style="width:36px; height:36px; border-radius:8px; background:rgba(0, 120, 212, 0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="#0078D4"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="#0078D4" stroke-width="2"/><path d="M3 7l9 6 9-6" stroke="#0078D4" stroke-width="2" fill="none"/></svg>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:13.5px; font-weight:600; color:var(--ink);">Compose in Outlook Web</div>
+                        <div style="font-size:11.5px; color:var(--muted);">Opens Outlook in a new tab in this browser</div>
+                    </div>
+                </button>
+
+                <!-- Copy Email & System Mail Row -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:9px;">
+                    <button type="button" id="copyEmailBtn" onclick="copyCurrentEmail(this)" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:10px; color:var(--ink); cursor:pointer; font-size:12.5px; font-weight:500; transition:all 0.15s ease;" onmouseover="this.style.borderColor='var(--lime)'" onmouseout="this.style.borderColor='var(--line)'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>Copy Email</span>
+                    </button>
+                    <button type="button" onclick="selectEmailProvider('system')" style="display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; background:rgba(255,255,255,0.03); border:1px solid var(--line); border-radius:10px; color:var(--muted); cursor:pointer; font-size:12.5px; font-weight:500; transition:all 0.15s ease;" onmouseover="this.style.borderColor='var(--muted)'; this.style.color='var(--ink)'" onmouseout="this.style.borderColor='var(--line)'; this.style.color='var(--muted)'" title="Opens the default app set in Windows (e.g. Edge or Outlook)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        <span>System App</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Footer: Remember preference -->
+            <div style="border-top:1px solid var(--line); padding-top:12px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted);">
+                <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none;">
+                    <input type="checkbox" id="rememberEmailPref" checked style="accent-color:var(--lime); cursor:pointer;">
+                    <span>Remember choice & open directly next time</span>
+                </label>
+                <button type="button" id="resetEmailPrefBtn" onclick="resetEmailPref()" style="display:none; background:none; border:none; color:var(--lime); cursor:pointer; font-size:11.5px; text-decoration:underline;">Reset saved</button>
             </div>
         </div>
     </div>
@@ -690,13 +776,160 @@ function platform_demo_requests_page(): void
             modal.style.display = 'none';
         }
 
+        let currentEmailData = { email: '', name: '', gym: '' };
+
+        function updateEmailPrefBadge() {
+            const badge = document.getElementById('emailPrefBadge');
+            if (!badge) return;
+            const pref = localStorage.getItem('fittracks_email_provider');
+            if (pref === 'gmail') {
+                badge.innerHTML = 'Email: <strong style="color:var(--lime);">Gmail</strong>';
+            } else if (pref === 'outlook') {
+                badge.innerHTML = 'Email: <strong style="color:#38bdf8;">Outlook</strong>';
+            } else if (pref === 'system') {
+                badge.innerHTML = 'Email: <strong style="color:var(--ink);">System</strong>';
+            } else {
+                badge.innerHTML = 'Email: <strong>Webmail</strong>';
+            }
+        }
+
+        function openEmailSettingsModal() {
+            openEmailModal('', '', '');
+        }
+
+        function handleEmailClick(email, name, gym, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const savedPref = localStorage.getItem('fittracks_email_provider');
+            // If Shift key is pressed, always open the chooser to allow changing settings
+            if (savedPref && (!event || !event.shiftKey)) {
+                launchEmailProvider(savedPref, email, name, gym);
+                return;
+            }
+            openEmailModal(email, name, gym);
+        }
+
+        function openEmailModal(email, name, gym) {
+            currentEmailData = { email: email || '', name: name || '', gym: gym || '' };
+            const toEl = document.getElementById('emailModalTo');
+            const subEl = document.getElementById('emailModalSubtitle');
+            const boxEl = document.getElementById('emailModalRecipientBox');
+            
+            if (currentEmailData.email) {
+                if (toEl) toEl.textContent = currentEmailData.email;
+                if (subEl) subEl.textContent = (currentEmailData.name || 'Prospect') + (currentEmailData.gym ? (' • ' + currentEmailData.gym) : '');
+                if (boxEl) boxEl.style.display = 'block';
+            } else {
+                if (boxEl) boxEl.style.display = 'none';
+                if (subEl) subEl.textContent = 'Configure preferred email provider';
+            }
+
+            const saved = localStorage.getItem('fittracks_email_provider');
+            const resetBtn = document.getElementById('resetEmailPrefBtn');
+            if (resetBtn) {
+                resetBtn.style.display = saved ? 'inline-block' : 'none';
+            }
+            const remBox = document.getElementById('rememberEmailPref');
+            if (remBox) {
+                remBox.checked = true;
+            }
+
+            const modal = document.getElementById('emailModal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closeEmailModal() {
+            const modal = document.getElementById('emailModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function selectEmailProvider(provider) {
+            const remember = document.getElementById('rememberEmailPref')?.checked;
+            if (remember) {
+                localStorage.setItem('fittracks_email_provider', provider);
+                updateEmailPrefBadge();
+            }
+            const targetData = { ...currentEmailData };
+            closeEmailModal();
+            if (targetData.email) {
+                launchEmailProvider(provider, targetData.email, targetData.name, targetData.gym);
+            }
+        }
+
+        function resetEmailPref() {
+            localStorage.removeItem('fittracks_email_provider');
+            updateEmailPrefBadge();
+            const resetBtn = document.getElementById('resetEmailPrefBtn');
+            if (resetBtn) resetBtn.style.display = 'none';
+        }
+
+        function launchEmailProvider(provider, email, name, gym) {
+            if (!email) return;
+            const subject = 'FitTracks Live Demo Walkthrough';
+            let body = 'Hi ' + (name ? name : '') + ',\n\n';
+            if (gym) {
+                body += 'Thank you for reaching out regarding FitTracks for ' + gym + '.\n\n';
+            }
+
+            if (provider === 'gmail') {
+                const url = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(email) + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+                window.open(url, '_blank', 'noopener,noreferrer');
+            } else if (provider === 'outlook') {
+                const url = 'https://outlook.live.com/mail/0/deeplink/compose?to=' + encodeURIComponent(email) + '&subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+                window.open(url, '_blank', 'noopener,noreferrer');
+            } else {
+                window.location.href = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+            }
+        }
+
+        function copyCurrentEmail(btn) {
+            if (!currentEmailData.email) return;
+            const text = currentEmailData.email;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopySuccess(btn);
+                }).catch(() => {
+                    fallbackCopy(text, btn);
+                });
+            } else {
+                fallbackCopy(text, btn);
+            }
+        }
+
+        function fallbackCopy(text, btn) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showCopySuccess(btn);
+            } catch (e) {}
+            document.body.removeChild(ta);
+        }
+
+        function showCopySuccess(btn) {
+            if (!btn) return;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span style="color:var(--lime); font-weight:600;">✓ Copied!</span>';
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+            }, 2000);
+        }
+
         function openInquiryModal(name, gym, dateStr, message, email) {
             document.getElementById('inquiryModalSubtitle').textContent = (name || 'Prospect') + (gym ? (' • ' + gym) : '') + (dateStr ? (' • ' + dateStr) : '');
             document.getElementById('inquiryModalBody').textContent = message || '';
             const emailBtn = document.getElementById('inquiryModalEmailBtn');
             if (email) {
-                emailBtn.href = 'mailto:' + encodeURIComponent(email) + '?subject=FitTracks%20Live%20Demo%20Walkthrough&body=Hi%20' + encodeURIComponent(name || '') + ',';
                 emailBtn.style.display = 'inline-flex';
+                emailBtn.onclick = function(e) {
+                    handleEmailClick(email, name, gym, e);
+                };
             } else {
                 emailBtn.style.display = 'none';
             }
@@ -714,12 +947,80 @@ function platform_demo_requests_page(): void
         document.getElementById('notesModal')?.addEventListener('click', function(e) {
             if (e.target === this) closeNotesModal();
         });
+        document.getElementById('emailModal')?.addEventListener('click', function(e) {
+            if (e.target === this) closeEmailModal();
+        });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') {
                 closeInquiryModal();
                 closeNotesModal();
+                closeEmailModal();
             }
         });
+
+        function confirmDeleteDemoRequest(id, name) {
+            const prospectName = name ? ' for <strong>' + escapeHtml(name) + '</strong>' : '';
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'Delete Demo Request?',
+                    html: 'Are you sure you want to delete this demo request' + prospectName + '?<br><span style="font-size:12px; color:var(--muted); margin-top:4px; display:inline-block;">This lead cannot be recovered once deleted.</span>',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Delete',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: 'rgba(255, 255, 255, 0.1)',
+                    background: '#11141d',
+                    color: '#f8fafc',
+                    focusCancel: true
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        submitDeleteDemoRequest(id);
+                    }
+                });
+            } else {
+                if (confirm('Delete this demo request?')) {
+                    submitDeleteDemoRequest(id);
+                }
+            }
+        }
+
+        function submitDeleteDemoRequest(id) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>';
+            
+            const csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = 'csrf_token';
+            csrf.value = '<?= csrf_token() ?>';
+            form.appendChild(csrf);
+
+            const action = document.createElement('input');
+            action.type = 'hidden';
+            action.name = 'action';
+            action.value = 'delete';
+            form.appendChild(action);
+
+            const idInput = document.createElement('input');
+            idInput.type = 'hidden';
+            idInput.name = 'id';
+            idInput.value = id;
+            form.appendChild(idInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize email preference badge on load
+        updateEmailPrefBadge();
     </script>
 
     <?php

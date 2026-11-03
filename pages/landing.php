@@ -79,7 +79,16 @@ function landing_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demo_request'])) {
         try {
             verify_csrf();
-            if (RateLimiter::tooManyAttempts('demo_request_ip', 3, 600)) {
+
+            // 1. Invisible Honeypot check (silently drop bot submissions)
+            if (!empty($_POST['website_url_hp'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true]);
+                exit;
+            }
+
+            // 2. Per-IP Rate Limiting (5 requests per 10 minutes)
+            if (RateLimiter::tooManyAttempts('demo_request_ip', 5, 600)) {
                 header('Content-Type: application/json');
                 http_response_code(429);
                 echo json_encode(['success' => false, 'errors' => ['Too many demo requests submitted. Please wait a few minutes and try again.']]);
@@ -141,6 +150,25 @@ function landing_page(): void
                         db()->exec("ALTER TABLE demo_requests ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at");
                     }
                 } catch (\Throwable $e) {
+                }
+
+                // 3. Prevent duplicate lead spamming (check if active demo request exists for this email within 24 hours)
+                $checkStmt = db()->prepare("SELECT id FROM demo_requests WHERE (work_email = ? OR phone = ?) AND status IN ('new', 'contacted') AND created_at >= NOW() - INTERVAL 24 HOUR ORDER BY id DESC LIMIT 1");
+                $checkStmt->execute([$email, $phone]);
+                $existingLead = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($existingLead) {
+                    // Lead is already pending! Append follow-up note if new message was sent, without creating duplicate rows
+                    if (!empty($message)) {
+                        $upStmt = db()->prepare("UPDATE demo_requests SET message = CONCAT(COALESCE(message, ''), '\n[Follow-up]: ', ?), updated_at = NOW() WHERE id = ?");
+                        $upStmt->execute([$message, (int)$existingLead['id']]);
+                    }
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Your demo request is already registered! Our team is reviewing it and will reach out to you shortly.'
+                    ]);
+                    exit;
                 }
 
                 // Insert
@@ -368,6 +396,43 @@ function landing_page(): void
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
         <link rel="stylesheet" href="assets/splash.css?v=<?= file_exists(__DIR__ . '/../assets/splash.css') ? filemtime(__DIR__ . '/../assets/splash.css') : 1 ?>">
         <script src="assets/splash.js?v=<?= file_exists(__DIR__ . '/../assets/splash.js') ? filemtime(__DIR__ . '/../assets/splash.js') : 1 ?>"></script>
+
+        <!-- SweetAlert2 Modal Theming for Landing Page -->
+        <style>
+            .swal2-container {
+                z-index: 100050 !important;
+            }
+            .swal2-popup:not(.swal2-toast) {
+                background: #11141d !important;
+                color: #f8fafc !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                border-radius: 16px !important;
+                box-shadow: 0 24px 48px rgba(0, 0, 0, 0.8) !important;
+                font-family: inherit !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-title {
+                color: #f8fafc !important;
+                font-size: 1.35rem !important;
+                font-weight: 700 !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-html-container {
+                color: #94a3b8 !important;
+                font-size: 0.95rem !important;
+                line-height: 1.5 !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-confirm {
+                background-color: #84cc16 !important;
+                color: #0c0f17 !important;
+                font-weight: 700 !important;
+                font-size: 14px !important;
+                border-radius: 8px !important;
+                padding: 10px 24px !important;
+                box-shadow: none !important;
+            }
+            .swal2-popup:not(.swal2-toast) .swal2-confirm:hover {
+                background-color: #a3e635 !important;
+            }
+        </style>
     </head>
 
     <body>
@@ -2696,6 +2761,11 @@ function landing_page(): void
                         <?= csrf_field() ?>
                         <input type="hidden" name="demo_request" value="1">
 
+                        <!-- Honeypot anti-spam field (hidden from real users, caught by bots) -->
+                        <div style="display:none !important; position:absolute; left:-9999px;" aria-hidden="true">
+                            <input type="text" name="website_url_hp" tabindex="-1" autocomplete="off">
+                        </div>
+
                         <div id="modalAlert"
                             style="display: none; padding: 0.75rem; border-radius: 6px; font-size: 0.875rem; margin-bottom: 1rem;">
                         </div>
@@ -2771,6 +2841,13 @@ function landing_page(): void
         window.LANDING_CONFIG = {
             plansData: <?= json_encode($platformPlans, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
         };
+        </script>
+        <!-- SweetAlert2 Library -->
+        <script src="<?= h(asset_url('sweetalert2.all.min.js')) ?>"></script>
+        <script>
+            if (typeof Swal === 'undefined') {
+                document.write('<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"><\/script>');
+            }
         </script>
         <script src="<?= h(asset_url('js/pages/landing.js')) ?>"></script>
         <script src="<?= h(asset_url('js/pages/landing-hero.js')) ?>"></script>
