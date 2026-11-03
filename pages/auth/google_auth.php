@@ -118,6 +118,12 @@ function handle_google_auth(?string $requiredRole = null): void
 
     // 3. If account does not exist, create the account type required by this signup route.
     if (!$user) {
+        if (get_setting('registration_enabled', '1') === '0') {
+            flash('New account registration is currently paused. Please check back later.', 'warning');
+            redirect('login');
+            return;
+        }
+
         $newUserRole = $requiredRole === 'gym_owner' ? 'gym_owner' : 'member';
         $insert = db()->prepare('
             INSERT INTO users (google_id, role, first_name, last_name, email, password_hash, status, email_verified_at, created_at)

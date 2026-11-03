@@ -848,6 +848,8 @@ function users_page(): void
             elseif ($row['role'] === 'member') $associatedGym = $row['member_gym_name'];
             elseif ($row['role'] === 'staff') $associatedGym = $row['staff_gym_name'] ?? null;
 
+            $isInactiveOrDeleted = ($row['status'] === 'inactive' || str_starts_with((string)$row['email'], 'deleted_'));
+
             $outputUsers[] = [
                 'user_id'              => (int) $row['user_id'],
                 'first_name'           => $row['first_name'],
@@ -868,12 +870,14 @@ function users_page(): void
                 'membership_status'    => $row['membership_status'] ?? null,
                 'membership_end_date'  => !empty($row['membership_end_date']) ? date('M j, Y', strtotime($row['membership_end_date'])) : null,
                 'joined_formatted'     => date('M j, Y', strtotime($row['created_at'])),
-                'can_delete'           => (int) $row['user_id'] !== (int) $user['user_id'],
+                'is_deleted'           => $isInactiveOrDeleted,
+                'can_delete'           => !$isInactiveOrDeleted && (int) $row['user_id'] !== (int) $user['user_id'],
+                'can_edit'             => !$isInactiveOrDeleted,
                 'is_member'            => $row['role'] === 'member',
                 'is_trainer'           => $row['role'] === 'trainer',
                 'is_gym_owner'         => $row['role'] === 'gym_owner',
                 'is_staff'             => $row['role'] === 'staff',
-                'can_view_progress'    => $user['role'] === 'gym_owner' && $row['role'] === 'member',
+                'can_view_progress'    => !$isInactiveOrDeleted && $user['role'] === 'gym_owner' && $row['role'] === 'member',
                 'raw_user'             => $row
             ];
         }
@@ -2024,6 +2028,7 @@ function users_page(): void
         currentTab: <?= json_encode($tab) ?>,
         gymFilter: <?= json_encode($gymFilter) ?>,
         isAdmin: <?= $isAdmin ? 'true' : 'false' ?>,
+        isStaff: <?= $isStaff ? 'true' : 'false' ?>,
         hasOldUser: <?= json_encode(!empty($oldUser)) ?>,
         initialRole: <?= json_encode($oldUser['role'] ?? ($isAdmin ? 'gym_owner' : 'trainer')) ?>,
         oldUserStaffRole: <?= json_encode($oldUser['staff_role'] ?? 'front_desk') ?>

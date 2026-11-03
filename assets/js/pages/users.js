@@ -7,6 +7,7 @@ const FT_USERS_CONFIG = window.USERS_CONFIG || {};
 let CURRENT_TAB = FT_USERS_CONFIG.currentTab || 'all';
 const GYM_FILTER = FT_USERS_CONFIG.gymFilter || '';
 const IS_ADMIN = Boolean(FT_USERS_CONFIG.isAdmin);
+const IS_STAFF = Boolean(FT_USERS_CONFIG.isStaff);
 let CURRENT_CSRF_TOKEN = FT_USERS_CONFIG.csrfToken || (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
 const initialRole = FT_USERS_CONFIG.initialRole || (IS_ADMIN ? 'gym_owner' : 'trainer');
 
@@ -151,6 +152,14 @@ if (FT_USERS_CONFIG.hasOldUser) {
         if (editBtn) {
             try {
                 const userData = JSON.parse(editBtn.getAttribute('data-user') || '{}');
+                if (userData.status === 'inactive' || (userData.email && userData.email.startsWith('deleted_')) || userData.is_deleted) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Account Deleted',
+                        text: 'This account is permanently deleted and anonymized. Actions are locked to preserve audit history.'
+                    });
+                    return;
+                }
                 editUser(userData);
             } catch (err) {
                 console.error('Invalid user data', err);
@@ -269,6 +278,14 @@ if (FT_USERS_CONFIG.hasOldUser) {
     };
 
     function editUser(u) {
+        if (!u || u.status === 'inactive' || (u.email && u.email.startsWith('deleted_')) || u.is_deleted) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Account Deleted',
+                text: 'This account is permanently deleted and anonymized. Actions are locked to preserve audit history.'
+            });
+            return;
+        }
         Swal.fire({
             title: 'Edit User',
             customClass: {
@@ -545,7 +562,8 @@ if (FT_USERS_CONFIG.hasOldUser) {
     }
 
     function renderDesktopRow(u, csrfToken) {
-        const statusClass = 'badge badge-' + u.status;
+        const isDeleted = Boolean(u.is_deleted || u.status === 'inactive' || (u.email && u.email.startsWith('deleted_')));
+        const statusClass = 'badge badge-' + (isDeleted ? 'inactive' : u.status);
         const roleDisplayName = escapeUserHtml(u.role_display);
 
         let gymMarkHtml = '';
@@ -558,9 +576,12 @@ if (FT_USERS_CONFIG.hasOldUser) {
             }
         }
 
-        const associatedGymHtml = u.associated_gym 
-            ? `<div class="user-gym-cell"><span class="user-gym-name" title="${escapeUserHtml(u.associated_gym)}">${escapeUserHtml(u.associated_gym)}</span>${gymMarkHtml}</div>`
-            : (u.is_gym_owner ? `<div class="user-gym-cell"><span class="muted">—</span>${gymMarkHtml}</div>` : `<span class="muted">—</span>`);
+        let associatedGymHtml = '<span class="muted">—</span>';
+        if (u.associated_gym) {
+            associatedGymHtml = `<div class="user-gym-cell"><span class="user-gym-name" title="${escapeUserHtml(u.associated_gym)}">${escapeUserHtml(u.associated_gym)}</span>${isDeleted ? `<span class="user-status-pill is-inactive" style="font-size: 10px; padding: 1px 6px; margin-left: 4px;" title="Facility closed due to owner deletion">Closed</span>` : (u.is_gym_owner ? gymMarkHtml : '')}</div>`;
+        } else if (u.is_gym_owner) {
+            associatedGymHtml = `<div class="user-gym-cell"><span class="muted">—</span>${gymMarkHtml}</div>`;
+        }
         const specHtml = u.is_trainer
             ? `<span style="color:var(--ink);">${escapeUserHtml(u.specialization)}</span>`
             : `<span class="muted">—</span>`;
@@ -633,9 +654,9 @@ if (FT_USERS_CONFIG.hasOldUser) {
             <td class="col-membership" style="${CURRENT_TAB === 'member' ? '' : 'display: none;'}">${membershipHtml}</td>
             <td class="col-score" style="${CURRENT_TAB === 'member' ? '' : 'display: none;'}">${scoreHtml}</td>
             <td>
-                <span class="user-status-pill is-${escapeUserHtml(u.status)}">
+                <span class="user-status-pill is-${isDeleted ? 'inactive' : escapeUserHtml(u.status)}">
                     <span class="status-dot"></span>
-                    ${escapeUserHtml(u.status.charAt(0).toUpperCase() + u.status.slice(1))}
+                    ${isDeleted ? 'Deleted' : escapeUserHtml(u.status.charAt(0).toUpperCase() + u.status.slice(1))}
                 </span>
             </td>
             <td>
@@ -643,59 +664,68 @@ if (FT_USERS_CONFIG.hasOldUser) {
             </td>
             <td style="text-align: right;">
                 <div class="user-actions-cluster">
-                    <form method="post" class="user-quick-status-form">
-                        <input type="hidden" name="csrf_token" value="${csrfToken}">
-                        <input type="hidden" name="action" value="status">
-                        <input type="hidden" name="user_id" value="${u.user_id}">
-                        <select name="status" class="user-status-select-sm" onchange="this.form.submit()" title="Change Account Status">
-                            <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option>
-                            <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option>
-                        </select>
-                    </form>
-                    <div class="action-kebab-dropdown">
-                        <button type="button" 
-                                class="action-kebab-btn" 
-                                onclick="toggleUserActionDropdown(this, event)" 
-                                title="More actions"
-                                aria-label="More actions">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="12" cy="5" r="2"></circle>
-                                <circle cx="12" cy="12" r="2"></circle>
-                                <circle cx="12" cy="19" r="2"></circle>
-                            </svg>
-                        </button>
-                        <div class="action-kebab-menu">
-                            <button type="button" class="action-kebab-item btn-edit-user" data-user="${rawUserJson}" onclick="closeAllUserActionDropdowns()">
-                                <span class="action-item-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                </span>
-                                <span class="action-item-text">Edit</span>
+                    ${isDeleted ? `
+                        <span class="user-status-pill is-inactive" style="font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; cursor: default;" title="Permanently deleted account. Actions locked to preserve audit history.">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            <span>Account Deleted</span>
+                        </span>
+                    ` : `
+                        ${!IS_STAFF ? `
+                        <form method="post" class="user-quick-status-form">
+                            <input type="hidden" name="csrf_token" value="${csrfToken}">
+                            <input type="hidden" name="action" value="status">
+                            <input type="hidden" name="user_id" value="${u.user_id}">
+                            <select name="status" class="user-status-select-sm" onchange="this.form.submit()" title="Change Account Status">
+                                <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option>
+                                <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option>
+                            </select>
+                        </form>
+                        ` : ''}
+                        <div class="action-kebab-dropdown">
+                            <button type="button" 
+                                    class="action-kebab-btn" 
+                                    onclick="toggleUserActionDropdown(this, event)" 
+                                    title="More actions"
+                                    aria-label="More actions">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="12" cy="5" r="2"></circle>
+                                    <circle cx="12" cy="12" r="2"></circle>
+                                    <circle cx="12" cy="19" r="2"></circle>
+                                </svg>
                             </button>
-                            ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
-                                <button type="button" class="action-kebab-item btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" onclick="closeAllUserActionDropdowns()" title="View Member Progress">
-                                    <span class="action-item-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                                    </span>
-                                    <span class="action-item-text">Progress</span>
-                                </button>
-                                <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="action-kebab-item" onclick="closeAllUserActionDropdowns()" title="Manage Diet Plan">
+                            <div class="action-kebab-menu">
+                                <button type="button" class="action-kebab-item btn-edit-user" data-user="${rawUserJson}" onclick="closeAllUserActionDropdowns()">
                                     <span class="action-item-icon">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                     </span>
-                                    <span class="action-item-text">Diet</span>
-                                </a>
-                            ` : ''}
-                            ${u.can_delete ? `
-                                <div class="action-kebab-divider"></div>
-                                <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
-                                    <span class="action-item-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    </span>
-                                    <span class="action-item-text">Delete</span>
+                                    <span class="action-item-text">Edit</span>
                                 </button>
-                            ` : ''}
+                                ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
+                                    <button type="button" class="action-kebab-item btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" onclick="closeAllUserActionDropdowns()" title="View Member Progress">
+                                        <span class="action-item-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                        </span>
+                                        <span class="action-item-text">Progress</span>
+                                    </button>
+                                    <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="action-kebab-item" onclick="closeAllUserActionDropdowns()" title="Manage Diet Plan">
+                                        <span class="action-item-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        </span>
+                                        <span class="action-item-text">Diet</span>
+                                    </a>
+                                ` : ''}
+                                ${u.can_delete ? `
+                                    <div class="action-kebab-divider"></div>
+                                    <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
+                                        <span class="action-item-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </span>
+                                        <span class="action-item-text">Delete</span>
+                                    </button>
+                                ` : ''}
+                            </div>
                         </div>
-                    </div>
+                    `}
                 </div>
             </td>
         </tr>
@@ -703,6 +733,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
     }
 
     function renderMobileCard(u, csrfToken) {
+        const isDeleted = Boolean(u.is_deleted || u.status === 'inactive' || (u.email && u.email.startsWith('deleted_')));
         const roleDisplayName = escapeUserHtml(u.role_display);
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
 
@@ -734,9 +765,9 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 <div class="user-card-badges">
                     <span class="badge-role badge-role-${escapeUserHtml(u.role)}">${roleDisplayName}</span>
                     ${u.role === 'staff' ? `<span class="badge-staff-subrole">${u.staff_role === 'manager' ? 'Manager' : 'Front Desk'}</span>` : ''}
-                    <span class="user-status-pill is-${escapeUserHtml(u.status)}">
+                    <span class="user-status-pill is-${isDeleted ? 'inactive' : escapeUserHtml(u.status)}">
                         <span class="status-dot"></span>
-                        ${escapeUserHtml(u.status.charAt(0).toUpperCase() + u.status.slice(1))}
+                        ${isDeleted ? 'Deleted' : escapeUserHtml(u.status.charAt(0).toUpperCase() + u.status.slice(1))}
                     </span>
                 </div>
             </div>
@@ -794,63 +825,70 @@ if (FT_USERS_CONFIG.hasOldUser) {
             </div>
 
             <div class="user-card-actions">
-                <form method="post" class="user-card-status-form">
-                    <input type="hidden" name="csrf_token" value="${csrfToken}">
-                    <input type="hidden" name="action" value="status">
-                    <input type="hidden" name="user_id" value="${u.user_id}">
-                    <span class="user-card-status-label">Status:</span>
-                    <select name="status" class="user-card-status-select" onchange="this.form.submit()">
-                        <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option>
-                        <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option>
-                    </select>
-                </form>
-                
-                <div class="user-card-btn-group">
-                    <div class="action-kebab-dropdown">
-                        <button type="button" 
-                                class="action-kebab-btn" 
-                                onclick="toggleUserActionDropdown(this, event)" 
-                                title="More actions"
-                                aria-label="More actions">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="12" cy="5" r="2"></circle>
-                                <circle cx="12" cy="12" r="2"></circle>
-                                <circle cx="12" cy="19" r="2"></circle>
-                            </svg>
-                        </button>
-                        <div class="action-kebab-menu">
-                            <button type="button" class="action-kebab-item btn-edit-user" data-user="${rawUserJson}" onclick="closeAllUserActionDropdowns()">
-                                <span class="action-item-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                                </span>
-                                <span class="action-item-text">Edit</span>
+                ${isDeleted ? `
+                    <span class="user-status-pill is-inactive" style="font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; cursor: default;" title="Permanently deleted account. Actions locked to preserve audit history.">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        <span>Account Deleted</span>
+                    </span>
+                ` : `
+                    <form method="post" class="user-card-status-form">
+                        <input type="hidden" name="csrf_token" value="${csrfToken}">
+                        <input type="hidden" name="action" value="status">
+                        <input type="hidden" name="user_id" value="${u.user_id}">
+                        <span class="user-card-status-label">Status:</span>
+                        <select name="status" class="user-card-status-select" onchange="this.form.submit()">
+                            <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option>
+                            <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option>
+                        </select>
+                    </form>
+                    
+                    <div class="user-card-btn-group">
+                        <div class="action-kebab-dropdown">
+                            <button type="button" 
+                                    class="action-kebab-btn" 
+                                    onclick="toggleUserActionDropdown(this, event)" 
+                                    title="More actions"
+                                    aria-label="More actions">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                    <circle cx="12" cy="5" r="2"></circle>
+                                    <circle cx="12" cy="12" r="2"></circle>
+                                    <circle cx="12" cy="19" r="2"></circle>
+                                </svg>
                             </button>
-                            ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
-                                <button type="button" class="action-kebab-item btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" onclick="closeAllUserActionDropdowns()" title="View Member Progress">
-                                    <span class="action-item-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                                    </span>
-                                    <span class="action-item-text">Progress</span>
-                                </button>
-                                <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="action-kebab-item" onclick="closeAllUserActionDropdowns()" title="Manage Diet Plan">
+                            <div class="action-kebab-menu">
+                                <button type="button" class="action-kebab-item btn-edit-user" data-user="${rawUserJson}" onclick="closeAllUserActionDropdowns()">
                                     <span class="action-item-icon">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                                     </span>
-                                    <span class="action-item-text">Diet</span>
-                                </a>
-                            ` : ''}
-                            ${u.can_delete ? `
-                                <div class="action-kebab-divider"></div>
-                                <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
-                                    <span class="action-item-icon">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    </span>
-                                    <span class="action-item-text">Delete</span>
+                                    <span class="action-item-text">Edit</span>
                                 </button>
-                            ` : ''}
+                                ${!IS_ADMIN && (u.is_member || u.can_view_progress) ? `
+                                    <button type="button" class="action-kebab-item btn-member-progress" data-member-id="${u.user_id}" data-member-name="${escapeUserHtml(u.full_name)}" onclick="closeAllUserActionDropdowns()" title="View Member Progress">
+                                        <span class="action-item-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                                        </span>
+                                        <span class="action-item-text">Progress</span>
+                                    </button>
+                                    <a href="index.php?page=diet_builder&member_user_id=${u.user_id}&ref=users" class="action-kebab-item" onclick="closeAllUserActionDropdowns()" title="Manage Diet Plan">
+                                        <span class="action-item-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                        </span>
+                                        <span class="action-item-text">Diet</span>
+                                    </a>
+                                ` : ''}
+                                ${u.can_delete ? `
+                                    <div class="action-kebab-divider"></div>
+                                    <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
+                                        <span class="action-item-icon">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        </span>
+                                        <span class="action-item-text">Delete</span>
+                                    </button>
+                                ` : ''}
+                            </div>
                         </div>
                     </div>
-                </div>
+                `}
             </div>
         </div>
         `;

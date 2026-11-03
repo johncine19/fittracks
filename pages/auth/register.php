@@ -4,6 +4,12 @@ declare(strict_types=1);
 function handle_register(): void
 {
     if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
+
+    if (get_setting('registration_enabled', '1') === '0') {
+        flash('New account registration is currently paused. Please check back later.', 'warning');
+        redirect('login');
+        return;
+    }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (RateLimiter::tooManyAttempts('register_ip', 5, 600)) {
             flash('Too many registration attempts from your network. Please wait a few minutes and try again.', 'danger');
