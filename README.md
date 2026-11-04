@@ -210,6 +210,14 @@ Comprehensive renewal window restrictions and anti-spam measures across gym SaaS
   - **Admin Manual Recording Safeguard**: Added validation in `payments.php` blocking manual membership stacking beyond 365 days in advance.
 - Full architectural and workflow documentation available in 🛡️ **[SUBSCRIPTION_GUARDRAILS.md](docs/SUBSCRIPTION_GUARDRAILS.md)**.
 
+### 8. Self-Guided Workout Plan Adjustment & Review System
+Separates body measurement and progress logging from workout plan recalculation to preserve progressive overload across 4-week mesocycles:
+- **Decoupled Progress Logging**: Logging daily weight or body measurements populates progress charts without altering active workout routines.
+- **Scheduled 4-Week Mesocycle Review**: Active plans are never automatically expired or deleted; an interactive review banner offers a +4 week cycle extension or guided phase update.
+- **Non-Destructive Version Archiving**: Manual plan regeneration safely archives previous plan versions (`status = 'archived'`), preserving exercise completion logs and historical performance trends.
+- **Coach Protection**: System recalculations never overwrite coach-managed regimens.
+- Full details documented in 🏋️ **[SELF_GUIDED_WORKOUT_UPDATES.md](docs/SELF_GUIDED_WORKOUT_UPDATES.md)**.
+
 ---
 
 

@@ -47,9 +47,11 @@ Derived from *FitTrack: A Data-Driven Web Application for Gym Operations and Mem
 - `walkins` table: name/contact, transaction details, `converted_to_member_id` (nullable FK).
 - Conversion flow: create member account, copy relevant walk-in history forward, keep original walk-in row for audit trail.
 
-### 3.6 Fitness Progress Tracking
+### 3.6 Fitness Progress Tracking & Workout Plan Lifecycle
 - `progress_logs`: member_id, date, metrics (weight, measurements, notes) — manually entered, not device-verified (explicitly out of scope per the document).
 - Feed this into engagement scoring (see 3.7) and into Chart.js line charts.
+- **Decoupled Routine Preservation**: Progress logging is decoupled from workout plan regeneration. Logging weight/measurements never overwrites active plans.
+- **4-Week Mesocycle Review & Archiving**: Self-guided plans follow 4-week review cycles without destructive auto-expiry. Plan adjustments require explicit confirmation and archive previous versions (`status = 'archived'`). See full specification in 🏋️ **[SELF_GUIDED_WORKOUT_UPDATES.md](SELF_GUIDED_WORKOUT_UPDATES.md)**.
 
 ### 3.7 Member Engagement Score
 Per the document, this is computed from three inputs:
