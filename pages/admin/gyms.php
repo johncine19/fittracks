@@ -6,6 +6,9 @@ function gyms_page(): void
     $user = require_roles(['platform_admin']);
     $pdo = db();
 
+    require_once __DIR__ . '/../../core/file_handler.php';
+    FileUpload::ensureDatabaseAssetsSynced($pdo);
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $gymId = (int) post('gym_id');
         $action = post('action');

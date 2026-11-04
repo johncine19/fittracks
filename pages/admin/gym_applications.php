@@ -7,10 +7,21 @@ function gym_applications_page(): void
     $user = require_roles(['platform_admin']);
     $pdo = db();
 
+    require_once __DIR__ . '/../../core/file_handler.php';
+    FileUpload::ensureDatabaseAssetsSynced($pdo);
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');
 
-        if ($action === 'update_id_policy') {
+        if ($action === 'sync_cloudinary_folders') {
+            verify_csrf();
+            $res = FileUpload::syncDatabaseAssetsToCloudinary($pdo);
+            if (function_exists('set_platform_setting')) {
+                set_platform_setting('cloudinary_folders_synced_v1', '1');
+            }
+            flash("Synced {$res['updated']} Cloudinary assets into organized folders.", 'success');
+            redirect('gym_applications');
+        } elseif ($action === 'update_id_policy') {
             verify_csrf();
             $idTypeId = (int) post('id_type_id');
             $category = post('category') === 'secondary' ? 'secondary' : 'primary';

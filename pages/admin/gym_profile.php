@@ -139,7 +139,11 @@ function gym_profile_page(): void
         $permitUrl = $gym['business_permit_url'];
         if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
             try {
-                $permitUrl = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$gym['gym_id']);
+                $uploadedPermit = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$gym['gym_id']);
+                if ($permitUrl && $permitUrl !== $uploadedPermit) {
+                    FileUpload::deleteGymGalleryImage($permitUrl);
+                }
+                $permitUrl = $uploadedPermit;
             } catch (RuntimeException $e) {
                 flash('Permit upload failed: ' . $e->getMessage(), 'danger');
             }
@@ -149,7 +153,11 @@ function gym_profile_page(): void
         $brgyUrl = $gym['barangay_clearance_url'] ?? null;
         if (isset($_FILES['barangay_clearance']) && $_FILES['barangay_clearance']['error'] === UPLOAD_ERR_OK) {
             try {
-                $brgyUrl = FileUpload::storeBarangayClearance($_FILES['barangay_clearance'], (int)$gym['gym_id']);
+                $uploadedBrgy = FileUpload::storeBarangayClearance($_FILES['barangay_clearance'], (int)$gym['gym_id']);
+                if ($brgyUrl && $brgyUrl !== $uploadedBrgy) {
+                    FileUpload::deleteGymGalleryImage($brgyUrl);
+                }
+                $brgyUrl = $uploadedBrgy;
             } catch (RuntimeException $e) {
                 flash('Barangay Clearance upload failed: ' . $e->getMessage(), 'danger');
             }
@@ -159,7 +167,11 @@ function gym_profile_page(): void
         $fireSafetyUrl = $gym['fire_safety_cert_url'] ?? null;
         if (isset($_FILES['fire_safety_cert']) && $_FILES['fire_safety_cert']['error'] === UPLOAD_ERR_OK) {
             try {
-                $fireSafetyUrl = FileUpload::storeFireSafetyCert($_FILES['fire_safety_cert'], (int)$gym['gym_id']);
+                $uploadedFireSafety = FileUpload::storeFireSafetyCert($_FILES['fire_safety_cert'], (int)$gym['gym_id']);
+                if ($fireSafetyUrl && $fireSafetyUrl !== $uploadedFireSafety) {
+                    FileUpload::deleteGymGalleryImage($fireSafetyUrl);
+                }
+                $fireSafetyUrl = $uploadedFireSafety;
             } catch (RuntimeException $e) {
                 flash('Fire Safety Certificate upload failed: ' . $e->getMessage(), 'danger');
             }
@@ -170,8 +182,8 @@ function gym_profile_page(): void
         if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
             try {
                 $uploadedLogo = FileUpload::storeGymLogo($_FILES['logo'], (int) $gym['gym_id']);
-                if ($logoUrl && file_exists(__DIR__ . '/../../assets/uploads/' . $logoUrl)) {
-                    @unlink(__DIR__ . '/../../assets/uploads/' . $logoUrl);
+                if ($logoUrl && $logoUrl !== $uploadedLogo) {
+                    FileUpload::deleteGymGalleryImage($logoUrl);
                 }
                 $logoUrl = $uploadedLogo;
             } catch (RuntimeException $e) {

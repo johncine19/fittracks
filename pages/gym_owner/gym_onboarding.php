@@ -118,7 +118,7 @@ function gym_onboarding_page(): void
                 $secondaryValidIdFilename = null;
                 if ($isSecondary) {
                     if (isset($_FILES['secondary_valid_id']) && $_FILES['secondary_valid_id']['error'] === UPLOAD_ERR_OK) {
-                        $secondaryValidIdFilename = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$user['user_id']);
+                        $secondaryValidIdFilename = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$user['user_id'], 'supporting');
                     } else {
                         throw new Exception('Supporting Government ID upload is required when using a Secondary ID.');
                     }
@@ -231,6 +231,7 @@ function gym_onboarding_page(): void
                         'fire_safety_cert_url'   => $fireSafetyFilename,
                     ]);
                 }
+                FileUpload::syncSingleGymAssetsToCloudinary($newGymId, $pdo);
                 if (function_exists('save_gym_payout_account')) {
                     save_gym_payout_account($newGymId, [
                         'payout_channel'        => $payoutChannel,
