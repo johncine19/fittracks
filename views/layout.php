@@ -2227,6 +2227,34 @@ function render_header(string $title, ?array $user = null): void
                                         'title' => 'Active plans across ' . $activeGymPlansCount . ' facilities'
                                     ];
                                 }
+
+                                // Smart Badge for Member Classes (book_classes)
+                                $hasUnreadClassNotif = (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (type = "class_reminder" OR title LIKE "%Class%" OR message LIKE "%class%") LIMIT 1', [$uid]);
+                                if ($hasUnreadClassNotif) {
+                                    $sidebarBadges['book_classes'] = [
+                                        'text' => 'New',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                        'title' => 'New class updates or upcoming sessions!'
+                                    ];
+                                } else {
+                                    $hasTodayClassBooking = (bool) scalar('SELECT 1 FROM class_bookings b JOIN class_schedules s ON s.schedule_id = b.schedule_id WHERE b.user_id = ? AND b.booking_status = "booked" AND DATE(s.start_datetime) = CURDATE() AND s.end_datetime >= NOW() LIMIT 1', [$uid]);
+                                    if ($hasTodayClassBooking) {
+                                        $sidebarBadges['book_classes'] = [
+                                            'text' => 'Today',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                            'title' => 'You have a booked class session today'
+                                        ];
+                                    } else {
+                                        $upcomingBookedCount = (int) scalar('SELECT COUNT(*) FROM class_bookings b JOIN class_schedules s ON s.schedule_id = b.schedule_id WHERE b.user_id = ? AND b.booking_status = "booked" AND s.start_datetime >= NOW()', [$uid]);
+                                        if ($upcomingBookedCount > 0) {
+                                            $sidebarBadges['book_classes'] = [
+                                                'text' => $upcomingBookedCount > 99 ? '99+' : (string) $upcomingBookedCount,
+                                                'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                                'title' => $upcomingBookedCount . ' upcoming booked class session' . ($upcomingBookedCount > 1 ? 's' : '')
+                                            ];
+                                        }
+                                    }
+                                }
                             } elseif ($role === 'trainer') {
                                 $coachId = ensure_coach_profile($uid);
                                 if ($coachId) {
@@ -2248,6 +2276,34 @@ function render_header(string $title, ?array $user = null): void
                                         }
                                     }
                                 }
+
+                                // Smart Badge for Trainer My Classes
+                                $hasTrainerClassNotif = (bool) scalar('SELECT 1 FROM notifications WHERE user_id = ? AND is_read = 0 AND (type = "class_reminder" OR title LIKE "%Class%" OR message LIKE "%class%") LIMIT 1', [$uid]);
+                                if ($hasTrainerClassNotif) {
+                                    $sidebarBadges['classes'] = [
+                                        'text' => 'New',
+                                        'class' => 'sidebar-nav-badge sidebar-badge-new',
+                                        'title' => 'New class updates or schedule assigned!'
+                                    ];
+                                } else {
+                                    $trainerSessionsToday = (int) scalar('SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.instructor_id = ? AND DATE(s.start_datetime) = CURDATE() AND s.end_datetime >= NOW()', [$uid]);
+                                    if ($trainerSessionsToday > 0) {
+                                        $sidebarBadges['classes'] = [
+                                            'text' => 'Today',
+                                            'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                            'title' => $trainerSessionsToday . ' class session' . ($trainerSessionsToday > 1 ? 's' : '') . ' scheduled for today'
+                                        ];
+                                    } else {
+                                        $trainerUpcoming = (int) scalar('SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.instructor_id = ? AND s.start_datetime >= NOW()', [$uid]);
+                                        if ($trainerUpcoming > 0) {
+                                            $sidebarBadges['classes'] = [
+                                                'text' => $trainerUpcoming > 99 ? '99+' : (string) $trainerUpcoming,
+                                                'class' => 'sidebar-nav-badge',
+                                                'title' => $trainerUpcoming . ' upcoming class session' . ($trainerUpcoming > 1 ? 's' : '')
+                                            ];
+                                        }
+                                    }
+                                }
                             } elseif (($role === 'gym_owner' || $role === 'staff') && $gym) {
                                 $gymId = (int)$gym['gym_id'];
 
@@ -2258,6 +2314,25 @@ function render_header(string $title, ?array $user = null): void
                                             'text' => (string) $pendingGymTrainers,
                                             'class' => 'sidebar-nav-badge sidebar-badge-alert',
                                             'title' => $pendingGymTrainers . ' pending trainer assignment requests'
+                                        ];
+                                    }
+                                }
+
+                                // Smart Badge for Gym Owner / Staff Classes
+                                $gymSessionsToday = (int) scalar('SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? AND DATE(s.start_datetime) = CURDATE() AND s.end_datetime >= NOW()', [$gymId]);
+                                if ($gymSessionsToday > 0) {
+                                    $sidebarBadges['classes'] = [
+                                        'text' => $gymSessionsToday > 99 ? '99+' : (string) $gymSessionsToday,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                        'title' => $gymSessionsToday . ' class session' . ($gymSessionsToday > 1 ? 's' : '') . ' scheduled today'
+                                    ];
+                                } else {
+                                    $upcomingGymSessions = (int) scalar('SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? AND s.start_datetime >= NOW()', [$gymId]);
+                                    if ($upcomingGymSessions > 0) {
+                                        $sidebarBadges['classes'] = [
+                                            'text' => $upcomingGymSessions > 99 ? '99+' : (string) $upcomingGymSessions,
+                                            'class' => 'sidebar-nav-badge',
+                                            'title' => $upcomingGymSessions . ' upcoming class session' . ($upcomingGymSessions > 1 ? 's' : '')
                                         ];
                                     }
                                 }
@@ -2359,6 +2434,50 @@ function render_header(string $title, ?array $user = null): void
                                 ];
                             } else {
                                 unset($sidebarBadges['my_workout']);
+                            }
+                        }
+
+                        // Contextual page overrides for Classes:
+                        if ($page === 'book_classes' && isset($sidebarBadges['book_classes']) && $sidebarBadges['book_classes']['text'] === 'New') {
+                            $hasToday = (bool) scalar('SELECT 1 FROM class_bookings b JOIN class_schedules s ON s.schedule_id = b.schedule_id WHERE b.user_id = ? AND b.booking_status = "booked" AND DATE(s.start_datetime) = CURDATE() AND s.end_datetime >= NOW() LIMIT 1', [$uid]);
+                            if ($hasToday) {
+                                $sidebarBadges['book_classes'] = [
+                                    'text' => 'Today',
+                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                    'title' => 'You have a booked class session today'
+                                ];
+                            } else {
+                                $cnt = (int) scalar('SELECT COUNT(*) FROM class_bookings b JOIN class_schedules s ON s.schedule_id = b.schedule_id WHERE b.user_id = ? AND b.booking_status = "booked" AND s.start_datetime >= NOW()', [$uid]);
+                                if ($cnt > 0) {
+                                    $sidebarBadges['book_classes'] = [
+                                        'text' => $cnt > 99 ? '99+' : (string) $cnt,
+                                        'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                        'title' => $cnt . ' upcoming booked class session' . ($cnt > 1 ? 's' : '')
+                                    ];
+                                } else {
+                                    unset($sidebarBadges['book_classes']);
+                                }
+                            }
+                        }
+                        if ($page === 'classes' && isset($sidebarBadges['classes']) && $sidebarBadges['classes']['text'] === 'New') {
+                            $cntToday = (int) scalar('SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE (c.instructor_id = ? OR c.gym_id = ?) AND DATE(s.start_datetime) = CURDATE() AND s.end_datetime >= NOW()', [$uid, (int)($gym['gym_id'] ?? 0)]);
+                            if ($cntToday > 0) {
+                                $sidebarBadges['classes'] = [
+                                    'text' => ($role === 'trainer') ? 'Today' : (string) $cntToday,
+                                    'class' => 'sidebar-nav-badge sidebar-badge-active',
+                                    'title' => $cntToday . ' class session' . ($cntToday > 1 ? 's' : '') . ' scheduled today'
+                                ];
+                            } else {
+                                $cntUp = (int) scalar('SELECT COUNT(*) FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE (c.instructor_id = ? OR c.gym_id = ?) AND s.start_datetime >= NOW()', [$uid, (int)($gym['gym_id'] ?? 0)]);
+                                if ($cntUp > 0) {
+                                    $sidebarBadges['classes'] = [
+                                        'text' => $cntUp > 99 ? '99+' : (string) $cntUp,
+                                        'class' => 'sidebar-nav-badge',
+                                        'title' => $cntUp . ' upcoming class session' . ($cntUp > 1 ? 's' : '')
+                                    ];
+                                } else {
+                                    unset($sidebarBadges['classes']);
+                                }
                             }
                         }
                     }
