@@ -234,7 +234,12 @@ try {
         // ── Self-Guided Workout Plan Review & Version History Optimizations ──
         "ALTER TABLE training_plans MODIFY COLUMN status ENUM('active','completed','archived','draft','upcoming','paused') NOT NULL DEFAULT 'draft'",
         "CREATE INDEX idx_tp_member_status_end ON training_plans (member_user_id, status, end_date)",
-        "CREATE INDEX idx_ex_comp_user_plan ON exercise_completions (user_id, plan_id, completed_date)"
+        "CREATE INDEX idx_ex_comp_user_plan ON exercise_completions (user_id, plan_id, completed_date)",
+        // ── Remove Unused RFID from Attendance Check-In Methods ──
+        "UPDATE attendance SET check_in_method = 'manual' WHERE check_in_method = 'rfid'",
+        "ALTER TABLE attendance MODIFY COLUMN check_in_method ENUM('qr_code', 'manual') NOT NULL DEFAULT 'manual'",
+        // ── Concurrency & Performance: Class Bookings Schedule Status Index ──
+        "CREATE INDEX idx_cb_schedule_status ON class_bookings (schedule_id, booking_status)"
     ];
 
     foreach ($migrations as $sql) {

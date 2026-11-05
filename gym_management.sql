@@ -93,7 +93,7 @@ CREATE TABLE `attendance` (
   `schedule_id` int UNSIGNED DEFAULT NULL,
   `check_in_time` datetime NOT NULL,
   `check_out_time` datetime DEFAULT NULL,
-  `check_in_method` enum('qr_code','rfid','manual') NOT NULL,
+  `check_in_method` enum('qr_code','manual') NOT NULL DEFAULT 'manual',
   `recorded_by` int UNSIGNED DEFAULT NULL,
   `gym_id` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -1014,7 +1014,8 @@ ALTER TABLE `classes`
 --
 ALTER TABLE `class_bookings`
   ADD UNIQUE KEY `uq_booking_unique` (`schedule_id`,`user_id`),
-  ADD KEY `fk_booking_user` (`user_id`);
+  ADD KEY `fk_booking_user` (`user_id`),
+  ADD KEY `idx_cb_schedule_status` (`schedule_id`,`booking_status`);
 
 --
 -- Indexes for table `class_schedules`

@@ -55,69 +55,118 @@ function book_classes_page(): void
             redirect('book_classes');
         }
         
-        $existing = db()->prepare('SELECT booking_status FROM class_bookings WHERE schedule_id = ? AND user_id = ?');
-        $existing->execute([$scheduleId, $user['user_id']]);
-        if ($existing->fetchColumn() === 'booked') {
-            flash('You have already booked this class!', 'danger');
-            redirect('book_classes');
-        }
+        $pdo = db();
+        $pdo->beginTransaction();
+        $assignedTrainerId = null;
 
-        // Check class capacity
-        $currentBookings = (int) scalar(
-            'SELECT COUNT(*) FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"',
-            [$scheduleId]
-        );
-        $maxCapacity = (int) ($class['capacity'] ?? 0);
-        if ($maxCapacity > 0 && $currentBookings >= $maxCapacity) {
-            flash("Sorry, this class is full ($currentBookings / $maxCapacity capacity reached).", 'danger');
-            redirect('book_classes');
-        }
+        try {
+            // Concurrency lock: Acquire row-level lock on the schedule session
+            $lockStmt = $pdo->prepare('
+                SELECT s.schedule_id, s.start_datetime, s.end_datetime, s.room_location,
+                       c.class_name, c.capacity, c.instructor_id
+                FROM class_schedules s
+                JOIN classes c ON c.class_id = s.class_id
+                WHERE s.schedule_id = ?
+                FOR UPDATE
+            ');
+            $lockStmt->execute([$scheduleId]);
+            $lockedClass = $lockStmt->fetch(PDO::FETCH_ASSOC);
 
-        // Check for overlaps
-        $overlap = scalar('
-            SELECT s2.schedule_id
-            FROM class_bookings b
-            JOIN class_schedules s2 ON b.schedule_id = s2.schedule_id
-            WHERE b.user_id = ? AND b.booking_status = "booked"
-              AND s2.start_datetime < ?
-              AND s2.end_datetime > ?
-        ', [
-            $user['user_id'],
-            $class['end_datetime'],
-            $class['start_datetime']
-        ]);
+            if (!$lockedClass) {
+                $pdo->rollBack();
+                flash('This class session could not be found.', 'danger');
+                redirect('book_classes');
+            }
 
-        if ($overlap) {
-            flash('You already have another class booked that overlaps with this time.', 'danger');
-            redirect('book_classes');
-        }
+            // Check if member already booked
+            $existing = $pdo->prepare('SELECT booking_status FROM class_bookings WHERE schedule_id = ? AND user_id = ? FOR UPDATE');
+            $existing->execute([$scheduleId, $user['user_id']]);
+            if ($existing->fetchColumn() === 'booked') {
+                $pdo->rollBack();
+                flash('You have already booked this class!', 'danger');
+                redirect('book_classes');
+            }
 
-        db()->prepare('INSERT INTO class_bookings (schedule_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE booking_status = "booked"')->execute([$scheduleId, $user['user_id']]);
+            // Atomic capacity check under lock: guarantees only the first-arriving request gets the slot
+            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"');
+            $countStmt->execute([$scheduleId]);
+            $currentBookings = (int) $countStmt->fetchColumn();
 
-        // Auto-assign member to the trainer if an instructor exists
-        if ($class['instructor_id']) {
-            $trainerProfile = db()->prepare('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?');
-            $trainerProfile->execute([$class['instructor_id']]);
-            $trainerId = $trainerProfile->fetchColumn();
-            
-            if ($trainerId) {
-                $existingAssignment = db()->prepare('SELECT assignment_id FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"');
-                $existingAssignment->execute([$trainerId, $user['user_id']]);
-                if (!$existingAssignment->fetch()) {
-                    db()->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status, assigned_by) VALUES (?, ?, CURDATE(), "active", ?)')
-                        ->execute([$trainerId, $user['user_id'], $user['user_id']]);
-                    grant_retroactive_commission((int)$user['user_id']);
+            $maxCapacity = (int) ($lockedClass['capacity'] ?? 0);
+            if ($maxCapacity > 0 && $currentBookings >= $maxCapacity) {
+                $pdo->rollBack();
+                flash("Sorry, this class is full ($currentBookings / $maxCapacity capacity reached).", 'danger');
+                redirect('book_classes');
+            }
+
+            // Check for overlaps with member's other booked sessions
+            $overlapStmt = $pdo->prepare('
+                SELECT s2.schedule_id
+                FROM class_bookings b
+                JOIN class_schedules s2 ON b.schedule_id = s2.schedule_id
+                WHERE b.user_id = ? AND b.booking_status = "booked"
+                  AND s2.start_datetime < ?
+                  AND s2.end_datetime > ?
+                LIMIT 1
+            ');
+            $overlapStmt->execute([
+                $user['user_id'],
+                $lockedClass['end_datetime'],
+                $lockedClass['start_datetime']
+            ]);
+
+            if ($overlapStmt->fetchColumn()) {
+                $pdo->rollBack();
+                flash('You already have another class booked that overlaps with this time.', 'danger');
+                redirect('book_classes');
+            }
+
+            // Claim the booking slot atomically
+            $pdo->prepare('
+                INSERT INTO class_bookings (schedule_id, user_id, booking_status) 
+                VALUES (?, ?, "booked") 
+                ON DUPLICATE KEY UPDATE booking_status = "booked", booked_at = CURRENT_TIMESTAMP
+            ')->execute([$scheduleId, $user['user_id']]);
+
+            // Auto-assign member to the trainer if an instructor exists
+            if (!empty($lockedClass['instructor_id'])) {
+                $trainerProfile = $pdo->prepare('SELECT trainer_id FROM trainer_profiles WHERE user_id = ?');
+                $trainerProfile->execute([$lockedClass['instructor_id']]);
+                $trainerId = (int) $trainerProfile->fetchColumn();
+                
+                if ($trainerId > 0) {
+                    $existingAssignment = $pdo->prepare('SELECT assignment_id FROM trainer_assignments WHERE trainer_id = ? AND member_user_id = ? AND status = "active"');
+                    $existingAssignment->execute([$trainerId, $user['user_id']]);
+                    if (!$existingAssignment->fetch()) {
+                        $pdo->prepare('INSERT INTO trainer_assignments (trainer_id, member_user_id, assigned_date, status, assigned_by) VALUES (?, ?, CURDATE(), "active", ?)')
+                            ->execute([$trainerId, $user['user_id'], $user['user_id']]);
+                        $assignedTrainerId = $trainerId;
+                    }
                 }
             }
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log('Class booking error: ' . $e->getMessage());
+            flash('An error occurred while booking this class. Please try again.', 'danger');
+            redirect('book_classes');
+        }
+
+        // Post-commit side-effects
+        if ($assignedTrainerId !== null) {
+            grant_retroactive_commission((int)$user['user_id'], $assignedTrainerId);
         }
         
-        $when = date('D, M j \a\t g:i A', strtotime($class['start_datetime']));
-        $location = $class['room_location'] ? ' in ' . $class['room_location'] : '';
+        $when = date('D, M j \a\t g:i A', strtotime($lockedClass['start_datetime']));
+        $location = !empty($lockedClass['room_location']) ? ' in ' . $lockedClass['room_location'] : '';
         notify_user(
             (int) $user['user_id'],
             'class_reminder',
             'Class booked',
-            $class['class_name'] . ' on ' . $when . $location . '.'
+            $lockedClass['class_name'] . ' on ' . $when . $location . '.'
         );
 
         flash('Class booked successfully!', 'success');
