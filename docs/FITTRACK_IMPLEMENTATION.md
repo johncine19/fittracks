@@ -42,7 +42,8 @@ Derived from *FitTrack: A Data-Driven Web Application for Gym Operations and Mem
 - `classes` (trainer_id, schedule, capacity), `class_bookings` (member_id, class_id, status).
 - Enforce capacity limits and prevent double-booking at the DB layer (unique constraint on member_id+class_id) not just in JS.
 - **Pessimistic Concurrency & Overbooking Prevention**: Row-level locking (`SELECT ... FOR UPDATE`) in an ACID transaction serializes concurrent booking requests down to the millisecond, completely preventing overbooking (race conditions). Fast covering index `idx_cb_schedule_status ON class_bookings (schedule_id, booking_status)` ensures sub-millisecond evaluation. See 📋 **[CLASS_BOOKING_CONCURRENCY.md](CLASS_BOOKING_CONCURRENCY.md)** for full technical details and the panelist defense guide.
-- Trainer view: roster per class session, mark attendance for the session.
+- **Schedule Conflict Prevention & Same-Day Guardrails**: Multi-session scheduling on the same day is supported (e.g. morning, afternoon, evening), but sessions must start and end on the same calendar day (no overnight multi-day classes, 15m–240m duration). Server-side validation strictly prevents room double-booking, trainer double-booking, and overlapping sessions of the same class. Client-side inputs automatically cap `endInput.max` to `23:59` of the selected start day.
+- Trainer/Owner view: interactive roster modal per class session with live member counts, badges, and detailed member profile access. In-app notifications are dispatched when a member books a class and when an instructor is assigned.
 
 ### 3.5 Walk-in Transactions
 - `walkins` table: name/contact, transaction details, `converted_to_member_id` (nullable FK).

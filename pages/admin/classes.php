@@ -1,6 +1,117 @@
 <?php
 declare(strict_types=1);
 
+function check_schedule_conflicts(PDO $pdo, int $classId, string $startDatetime, string $endDatetime, ?string $roomLocation, ?int $ignoreScheduleId, ?int $facilityGymId): ?string
+{
+    // 1. Same-Day Constraint & Duration Guardrails
+    $startTs = strtotime($startDatetime);
+    $endTs = strtotime($endDatetime);
+    if (date('Y-m-d', $startTs) !== date('Y-m-d', $endTs)) {
+        return 'Class sessions must start and end on the same calendar day. Overnight multi-day sessions are not allowed.';
+    }
+
+    $durationMinutes = ($endTs - $startTs) / 60;
+    if ($durationMinutes < 15) {
+        return 'Class duration must be at least 15 minutes.';
+    }
+    if ($durationMinutes > 240) {
+        return 'Class session exceeds the maximum allowed duration of 4 hours.';
+    }
+
+    // Get class info
+    $classStmt = $pdo->prepare('SELECT class_name, instructor_id, gym_id FROM classes WHERE class_id = ?');
+    $classStmt->execute([$classId]);
+    $classInfo = $classStmt->fetch(PDO::FETCH_ASSOC);
+    if (!$classInfo) {
+        return 'Selected class type could not be found.';
+    }
+
+    $className = $classInfo['class_name'];
+    $instructorId = $classInfo['instructor_id'] ? (int) $classInfo['instructor_id'] : null;
+    $gymId = $classInfo['gym_id'] ? (int) $classInfo['gym_id'] : $facilityGymId;
+
+    // 2. Room / Location Conflict
+    $cleanRoom = trim((string) $roomLocation);
+    if ($cleanRoom !== '' && $cleanRoom !== '—') {
+        $roomSql = "
+            SELECT s.schedule_id, c.class_name, s.start_datetime, s.end_datetime, s.room_location
+            FROM class_schedules s
+            JOIN classes c ON c.class_id = s.class_id
+            WHERE s.start_datetime < ? AND s.end_datetime > ?
+              AND LOWER(TRIM(s.room_location)) = LOWER(TRIM(?))
+              AND (c.gym_id <=> ? OR ? IS NULL)
+        ";
+        $params = [$endDatetime, $startDatetime, $cleanRoom, $gymId, $gymId];
+        if ($ignoreScheduleId) {
+            $roomSql .= " AND s.schedule_id != ?";
+            $params[] = $ignoreScheduleId;
+        }
+        $roomSql .= " LIMIT 1";
+
+        $stmt = $pdo->prepare($roomSql);
+        $stmt->execute($params);
+        $roomConflict = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($roomConflict) {
+            $cStart = date('g:i A', strtotime($roomConflict['start_datetime']));
+            $cEnd = date('g:i A', strtotime($roomConflict['end_datetime']));
+            return "Room Conflict: Studio \"{$cleanRoom}\" is already booked for \"{$roomConflict['class_name']}\" ({$cStart} – {$cEnd}). Please select a different room or time.";
+        }
+    }
+
+    // 3. Instructor Conflict
+    if ($instructorId !== null && $instructorId > 0) {
+        $instSql = "
+            SELECT s.schedule_id, c.class_name, s.start_datetime, s.end_datetime
+            FROM class_schedules s
+            JOIN classes c ON c.class_id = s.class_id
+            WHERE s.start_datetime < ? AND s.end_datetime > ?
+              AND c.instructor_id = ?
+        ";
+        $params = [$endDatetime, $startDatetime, $instructorId];
+        if ($ignoreScheduleId) {
+            $instSql .= " AND s.schedule_id != ?";
+            $params[] = $ignoreScheduleId;
+        }
+        $instSql .= " LIMIT 1";
+
+        $stmt = $pdo->prepare($instSql);
+        $stmt->execute($params);
+        $instConflict = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($instConflict) {
+            $trainerName = scalar('SELECT CONCAT(first_name, " ", last_name) FROM users WHERE user_id = ?', [$instructorId]) ?: 'The assigned instructor';
+            $cStart = date('g:i A', strtotime($instConflict['start_datetime']));
+            $cEnd = date('g:i A', strtotime($instConflict['end_datetime']));
+            return "Instructor Conflict: {$trainerName} is already scheduled to instruct \"{$instConflict['class_name']}\" ({$cStart} – {$cEnd}). A trainer cannot instruct two sessions simultaneously.";
+        }
+    }
+
+    // 4. Same Class Type Overlap
+    $sameClassSql = "
+        SELECT s.schedule_id, c.class_name, s.start_datetime, s.end_datetime
+        FROM class_schedules s
+        JOIN classes c ON c.class_id = s.class_id
+        WHERE s.start_datetime < ? AND s.end_datetime > ?
+          AND s.class_id = ?
+    ";
+    $params = [$endDatetime, $startDatetime, $classId];
+    if ($ignoreScheduleId) {
+        $sameClassSql .= " AND s.schedule_id != ?";
+        $params[] = $ignoreScheduleId;
+    }
+    $sameClassSql .= " LIMIT 1";
+
+    $stmt = $pdo->prepare($sameClassSql);
+    $stmt->execute($params);
+    $sameConflict = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($sameConflict) {
+        $cStart = date('g:i A', strtotime($sameConflict['start_datetime']));
+        $cEnd = date('g:i A', strtotime($sameConflict['end_datetime']));
+        return "Schedule Overlap: A session of \"{$className}\" is already scheduled from {$cStart} to {$cEnd}. Sessions of the same class cannot overlap.";
+    }
+
+    return null;
+}
+
 function classes_page(): void
 {
     $user = require_roles(['platform_admin', 'gym_owner', 'trainer']);
@@ -75,6 +186,13 @@ function classes_page(): void
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
                 if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
+
+            $conflictErr = check_schedule_conflicts(db(), (int) $class_id, $startDatetime, $endDatetime, post('room_location'), null, $gymId);
+            if ($conflictErr !== null) {
+                flash($conflictErr, 'danger');
+                redirect('classes&tab=schedules');
+            }
+
             db()->prepare('INSERT INTO class_schedules (class_id, room_location, start_datetime, end_datetime) VALUES (?, ?, ?, ?)')
                 ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime]);
             
@@ -167,6 +285,13 @@ function classes_page(): void
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
                 if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
+
+            $conflictErr = check_schedule_conflicts(db(), (int) $class_id, $startDatetime, $endDatetime, post('room_location'), (int) $schedule_id, $gymId);
+            if ($conflictErr !== null) {
+                flash($conflictErr, 'danger');
+                redirect('classes&tab=schedules');
+            }
+
             db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')
                 ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime, $schedule_id]);
             audit_log($user['user_id'], 'edit', 'class_schedule', (string) $schedule_id, json_encode(['class_id' => $class_id]));
@@ -1670,10 +1795,10 @@ function classes_page(): void
             if (startInput.value) {
                 const newStartDate = startInput.value.split('T')[0];
                 endInput.setAttribute('min', startInput.value);
-                endInput.removeAttribute('max'); // Allow selecting any valid upcoming date
+                endInput.setAttribute('max', `${newStartDate}T23:59`); // Restrict end to the same calendar day
 
                 // If end is blank, or earlier than start, or start date just changed:
-                // Auto-sync end date to match start date with +1 hour default
+                // Auto-sync end date to match start date with +1 hour default (capped at 23:59)
                 if (!endInput.value || endInput.value <= startInput.value || (prevStartDate && prevStartDate !== newStartDate)) {
                     const startDateObj = new Date(startInput.value);
                     if (!isNaN(startDateObj.getTime())) {
@@ -1683,7 +1808,11 @@ function classes_page(): void
                         const sd = String(startDateObj.getDate()).padStart(2, '0');
                         const sh = String(startDateObj.getHours()).padStart(2, '0');
                         const smin = String(startDateObj.getMinutes()).padStart(2, '0');
-                        endInput.value = `${sy}-${sm}-${sd}T${sh}:${smin}`;
+                        let calculatedEnd = `${sy}-${sm}-${sd}T${sh}:${smin}`;
+                        if (calculatedEnd.split('T')[0] !== newStartDate) {
+                            calculatedEnd = `${newStartDate}T23:59`;
+                        }
+                        endInput.value = calculatedEnd;
                     }
                 }
                 prevStartDate = newStartDate;
@@ -1694,6 +1823,8 @@ function classes_page(): void
             if (!startInput.value || !endInput.value) return;
             if (endInput.value <= startInput.value) {
                 showWarning('End Date/Time must be after the Start Date/Time.');
+            } else if (startInput.value.split('T')[0] !== endInput.value.split('T')[0]) {
+                showWarning('Sessions must start and end on the same calendar day.');
             } else {
                 clearWarning();
             }
@@ -1715,6 +1846,25 @@ function classes_page(): void
                     endInput.focus();
                     return false;
                 }
+                if (startInput.value && endInput.value && startInput.value.split('T')[0] !== endInput.value.split('T')[0]) {
+                    e.preventDefault();
+                    showWarning('Sessions must start and end on the same calendar day.');
+                    endInput.focus();
+                    return false;
+                }
+                const diffMin = (new Date(endInput.value) - new Date(startInput.value)) / 60000;
+                if (diffMin < 15) {
+                    e.preventDefault();
+                    showWarning('Class duration must be at least 15 minutes.');
+                    endInput.focus();
+                    return false;
+                }
+                if (diffMin > 240) {
+                    e.preventDefault();
+                    showWarning('Class duration cannot exceed 4 hours.');
+                    endInput.focus();
+                    return false;
+                }
             });
         }
     }
@@ -1733,10 +1883,11 @@ function classes_page(): void
         }
         if (endInput) {
             const startVal = (startInput && startInput.value) ? startInput.value : nowIso;
+            const startDate = startVal.split('T')[0];
             endInput.setAttribute('min', startVal);
-            endInput.removeAttribute('max');
+            endInput.setAttribute('max', `${startDate}T23:59`);
 
-            // Default end to 1 hour after start
+            // Default end to 1 hour after start (clamped to same day)
             const d = new Date(startVal);
             d.setHours(d.getHours() + 1);
             const ey = d.getFullYear();
@@ -1744,7 +1895,11 @@ function classes_page(): void
             const ed = String(d.getDate()).padStart(2, '0');
             const eh = String(d.getHours()).padStart(2, '0');
             const emin = String(d.getMinutes()).padStart(2, '0');
-            endInput.value = `${ey}-${em}-${ed}T${eh}:${emin}`;
+            let defaultEnd = `${ey}-${em}-${ed}T${eh}:${emin}`;
+            if (defaultEnd.split('T')[0] !== startDate) {
+                defaultEnd = `${startDate}T23:59`;
+            }
+            endInput.value = defaultEnd;
         }
         modal.showModal();
     }
@@ -1784,13 +1939,17 @@ function classes_page(): void
                 esEnd.value = s.end_datetime.substring(0,16);
                 esStart.setAttribute('min', nowIso);
                 esEnd.setAttribute('min', esStart.value || nowIso);
-                esEnd.removeAttribute('max');
+                const initDate = esStart.value ? esStart.value.split('T')[0] : '';
+                if (initDate) {
+                    esEnd.setAttribute('max', `${initDate}T23:59`);
+                }
 
-                let prevEsStart = esStart.value ? esStart.value.split('T')[0] : '';
+                let prevEsStart = initDate;
                 esStart.addEventListener('input', () => {
                     if (esStart.value) {
                         esEnd.setAttribute('min', esStart.value);
                         const newDate = esStart.value.split('T')[0];
+                        esEnd.setAttribute('max', `${newDate}T23:59`);
                         if (prevEsStart && prevEsStart !== newDate) {
                             // Automatically sync the date portion to match new start date
                             const eTime = esEnd.value ? esEnd.value.split('T')[1] : '12:00';
@@ -1819,6 +1978,19 @@ function classes_page(): void
                 }
                 if (form.end_datetime.value <= form.start_datetime.value) {
                     Swal.showValidationMessage('End Date/Time must be after Start Date/Time');
+                    return false;
+                }
+                if (form.start_datetime.value.split('T')[0] !== form.end_datetime.value.split('T')[0]) {
+                    Swal.showValidationMessage('Class sessions must start and end on the same calendar day.');
+                    return false;
+                }
+                const diffMin = (new Date(form.end_datetime.value) - new Date(form.start_datetime.value)) / 60000;
+                if (diffMin < 15) {
+                    Swal.showValidationMessage('Class duration must be at least 15 minutes.');
+                    return false;
+                }
+                if (diffMin > 240) {
+                    Swal.showValidationMessage('Class duration cannot exceed 4 hours.');
                     return false;
                 }
                 form.submit();

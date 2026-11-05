@@ -149,3 +149,81 @@ CREATE INDEX idx_cb_schedule_status ON class_bookings (schedule_id, booking_stat
 * **Q: Why are notifications outside the transaction?**
   * *Answer:* "Sending notifications and dispatching emails involves external I/O. If placed inside the transaction, any network latency would keep the database row locked unnecessarily. Side effects are executed only **after** `$pdo->commit()` succeeds."
 
+---
+
+## 7. Class Scheduling Standards & Conflict Prevention (Same-Day Guardrails)
+
+### 7.1 Business Standard: "Do we prevent scheduling a class on the same day?"
+
+In professional gym management systems (Mindbody, Glofox, Mariana Tek):
+1. **Multiple sessions of the same class type on the same calendar day ARE permitted and standard.**
+   - Example: A gym runs **HIIT at 7:00 AM**, **HIIT at 12:00 PM**, and **HIIT at 6:00 PM** on the same Thursday. This accommodates members with morning, lunchtime, or evening schedules.
+2. **However, overlapping sessions, double-booking, and multi-day spans MUST be strictly prevented:**
+   - **No overnight/multi-day sessions:** A fitness class session must begin and end on the **same calendar day** (e.g., start 9:00 AM Nov 5, end 10:00 AM Nov 5; NOT end Nov 6).
+   - **Reasonable duration:** A session must be between **15 minutes** and **4 hours** (240 minutes).
+   - **No room double-booking:** Studio A cannot host two sessions at the same overlapping time.
+   - **No trainer double-booking:** Coach John cannot instruct Yoga in Studio A and HIIT in Studio B at the same time.
+   - **No duplicate simultaneous session:** The gym cannot run two identical sessions of the same class at the exact same overlapping time.
+
+---
+
+### 7.2 The 4 Conflict Guardrails Implemented in FitTrack
+
+When creating (`action=schedule`) or updating (`action=edit_schedule`) a class schedule, [`check_schedule_conflicts()`](file:///c:/xampp/htdocs/Fittracks_before_test/pages/admin/classes.php) executes the following 4 rules before committing:
+
+```mermaid
+flowchart TD
+    A["New or Edited Session Request"] --> B{"Rule 1: Same Calendar Day & Duration?<br/>(Start Day == End Day, 15m <= duration <= 4h)"}
+    B -- "No" --> Err1["❌ Reject: 'Class sessions must start and end on the same calendar day.'"]
+    B -- "Yes" --> C{"Rule 2: Room Conflict?<br/>(s.start < new_end AND s.end > new_start AND room == new_room)"}
+    C -- "Yes" --> Err2["❌ Reject: 'Room Conflict: Studio X is already booked for Class Y'"]
+    C -- "No" --> D{"Rule 3: Instructor Conflict?<br/>(s.start < new_end AND s.end > new_start AND instructor == new_instructor)"}
+    D -- "Yes" --> Err3["❌ Reject: 'Instructor Conflict: Trainer X is already teaching Class Y'"]
+    D -- "No" --> E{"Rule 4: Same Class Type Overlap?<br/>(s.start < new_end AND s.end > new_start AND class_id == new_class_id)"}
+    E -- "Yes" --> Err4["❌ Reject: 'Schedule Overlap: A session of X is already scheduled'"]
+    E -- "No" --> F["✅ Approved: Save to Database & Audit Log"]
+```
+
+#### Detailed Rule Breakdown:
+1. **Rule 1: Same-Day Calendar Constraint & Duration Limit**
+   ```php
+   if (date('Y-m-d', $startTs) !== date('Y-m-d', $endTs)) {
+       return 'Class sessions must start and end on the same calendar day. Overnight multi-day sessions are not allowed.';
+   }
+   $durationMinutes = ($endTs - $startTs) / 60;
+   if ($durationMinutes < 15) return 'Class duration must be at least 15 minutes.';
+   if ($durationMinutes > 240) return 'Class session exceeds the maximum allowed duration of 4 hours.';
+   ```
+
+2. **Rule 2: Studio / Room Double-Booking Prevention**
+   Overlapping interval formula: `existing.start < new.end AND existing.end > new.start`
+   ```sql
+   SELECT s.schedule_id, c.class_name, s.start_datetime, s.end_datetime
+   FROM class_schedules s
+   JOIN classes c ON c.class_id = s.class_id
+   WHERE s.start_datetime < ? AND s.end_datetime > ?
+     AND LOWER(TRIM(s.room_location)) = LOWER(TRIM(?))
+     AND (c.gym_id <=> ? OR ? IS NULL)
+   ```
+
+3. **Rule 3: Instructor Double-Booking Prevention**
+   Verifies whether the trainer assigned to this class already has an overlapping commitment in any room:
+   ```sql
+   SELECT s.schedule_id, c.class_name, s.start_datetime, s.end_datetime
+   FROM class_schedules s
+   JOIN classes c ON c.class_id = s.class_id
+   WHERE s.start_datetime < ? AND s.end_datetime > ?
+     AND c.instructor_id = ?
+   ```
+
+4. **Rule 4: Same Class Type Overlap Prevention**
+   Guarantees that a gym does not schedule two parallel instances of the exact same class type at once.
+
+---
+
+### 7.3 Frontend Guardrails
+
+In [`pages/admin/classes.php`](file:///c:/xampp/htdocs/Fittracks_before_test/pages/admin/classes.php):
+- **Dynamic Capping (`endInput.max`):** Whenever the `start_datetime` input changes, `endInput.max` is dynamically set to `${startDate}T23:59`. The browser's native datetime picker prevents selecting dates on subsequent days.
+- **Client-Side Pre-Submission Validation:** JavaScript validates in real time that `startDate === endDate`, that the start is not in the past, and that the duration is within 15–240 minutes before sending the payload to the server.
+
