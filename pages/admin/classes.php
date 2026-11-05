@@ -197,8 +197,112 @@ function classes_page(): void
         .class-tab-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .class-card { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 16px; padding: 20px; transition: all 0.2s ease; display: flex; flex-direction: column; gap: 12px; position: relative; overflow: hidden; }
-        .class-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+        .class-card {
+            background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--card-accent, #c7ff22) 14%, transparent) 0%, transparent 60%),
+                        linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.22) 100%),
+                        var(--panel-soft);
+            border: 1px solid color-mix(in srgb, var(--card-accent, #c7ff22) 22%, var(--line));
+            border-radius: 16px;
+            padding: 22px;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+        }
+        .class-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--card-accent, var(--lime));
+            opacity: 0.9;
+            transition: opacity 0.2s ease, height 0.2s ease;
+        }
+        .class-card:hover {
+            border-color: color-mix(in srgb, var(--card-accent, var(--lime)) 45%, rgba(255, 255, 255, 0.2));
+            transform: translateY(-3px);
+            box-shadow: 0 10px 28px rgba(0,0,0,0.25), 0 0 24px color-mix(in srgb, var(--card-accent, var(--lime)) 15%, transparent);
+        }
+        .class-card:hover::before {
+            height: 4px;
+            opacity: 1;
+        }
+        .class-card-watermark {
+            position: absolute;
+            right: -12px;
+            bottom: -12px;
+            width: 115px;
+            height: 115px;
+            color: var(--card-accent, var(--ink));
+            opacity: 0.05;
+            pointer-events: none;
+            user-select: none;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .class-card:hover .class-card-watermark {
+            opacity: 0.11;
+            transform: scale(1.08) rotate(4deg);
+        }
+        .class-card-icon-pill {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--card-accent, var(--lime)) 14%, var(--panel));
+            border: 1px solid color-mix(in srgb, var(--card-accent, var(--lime)) 30%, transparent);
+            color: var(--card-accent, var(--lime));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--card-accent, var(--lime)) 15%, transparent);
+        }
+        .class-card-tag {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--card-accent, var(--lime));
+            opacity: 0.88;
+            display: block;
+            margin-bottom: 2px;
+        }
+        .class-card-btn-action {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.18s ease;
+        }
+        .class-card-btn-action:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--ink);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .class-card-btn-action.btn-del:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.35);
+        }
+        [data-theme="light"] .class-card {
+            background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--card-accent, #16a34a) 12%, transparent) 0%, transparent 60%),
+                        linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+            border-color: color-mix(in srgb, var(--card-accent, #16a34a) 25%, #e2e8f0);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+        [data-theme="light"] .class-card-btn-action {
+            background: #f1f5f9;
+            border-color: #e2e8f0;
+        }
         .cc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
         .classes-banner {
             background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
@@ -670,22 +774,79 @@ function classes_page(): void
                 </div>
             <?php else: ?>
                 <div class="cc-grid">
-                    <?php foreach ($classes as $c): $safeJson = htmlspecialchars(json_encode($c)); ?>
-                        <div class="class-card">
-                            <div style="display:flex; justify-content: space-between; align-items: flex-start;">
-                                <h3 style="margin:0; font-size:18px; color:var(--ink)"><?= h($c['class_name']) ?></h3>
-                                <div style="display:flex; gap:6px;">
-                                    <button onclick="editClass(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                                    <button type="button" onclick="confirmDeleteClass(<?= (int)$c['class_id'] ?>, <?= htmlspecialchars(json_encode($c['class_name'])) ?>)" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                    <?php 
+                    $accentPalette = ['#c7ff22', '#38bdf8', '#ff9548', '#a78bfa', '#f472b6', '#34d399', '#facc15', '#fb7185'];
+                    $ci = 0;
+                    foreach ($classes as $c): 
+                        $safeJson = htmlspecialchars(json_encode($c));
+                        $cardAccent = $accentPalette[$ci % count($accentPalette)];
+                        $nameLower = strtolower((string)($c['class_name'] ?? ''));
+
+                        if (str_contains($nameLower, 'hiit') || str_contains($nameLower, 'tabata') || str_contains($nameLower, 'crossfit') || str_contains($nameLower, 'circuit')) {
+                            $categoryLabel = 'HIIT & Circuit';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+                        } elseif (str_contains($nameLower, 'yoga') || str_contains($nameLower, 'stretch') || str_contains($nameLower, 'pilates') || str_contains($nameLower, 'flex')) {
+                            $categoryLabel = 'Mind & Body';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M4 17l4-2 4 4 4-4 4 2"/><path d="M12 6v8"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="4" r="2"/><path d="M4 17l4-2 4 4 4-4 4 2"/><path d="M12 6v8"/></svg>';
+                        } elseif (str_contains($nameLower, 'spin') || str_contains($nameLower, 'cycle') || str_contains($nameLower, 'bike') || str_contains($nameLower, 'ride')) {
+                            $categoryLabel = 'Indoor Cycling';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5L9 11l3-3 3 3-1.5 3.5"/><path d="M9 11h6"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M12 17.5L9 11l3-3 3 3-1.5 3.5"/><path d="M9 11h6"/></svg>';
+                        } elseif (str_contains($nameLower, 'box') || str_contains($nameLower, 'combat') || str_contains($nameLower, 'muay') || str_contains($nameLower, 'mma') || str_contains($nameLower, 'kick')) {
+                            $categoryLabel = 'Combat Sports';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h12a2 2 0 0 1 2 2v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6a2 2 0 0 1 2-2z"/><path d="M9 9V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 9h12a2 2 0 0 1 2 2v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-6a2 2 0 0 1 2-2z"/><path d="M9 9V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"/></svg>';
+                        } elseif (str_contains($nameLower, 'strength') || str_contains($nameLower, 'lift') || str_contains($nameLower, 'iron') || str_contains($nameLower, 'pump') || str_contains($nameLower, 'weight')) {
+                            $categoryLabel = 'Strength & Conditioning';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M18 5v14M2 9v6M22 9v6M6 12h12"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5v14M18 5v14M2 9v6M22 9v6M6 12h12"/></svg>';
+                        } elseif (str_contains($nameLower, 'cardio') || str_contains($nameLower, 'aerobic') || str_contains($nameLower, 'step') || str_contains($nameLower, 'burn')) {
+                            $categoryLabel = 'Cardio Endurance';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>';
+                        } else {
+                            $categoryLabel = 'Studio Class';
+                            $iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+                            $watermarkSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+                        }
+                        $ci++;
+                    ?>
+                        <div class="class-card" style="--card-accent: <?= $cardAccent ?>;">
+                            <div class="class-card-watermark" aria-hidden="true">
+                                <?= $watermarkSvg ?>
+                            </div>
+                            <div style="display:flex; justify-content: space-between; align-items: flex-start; gap: 12px; position: relative; z-index: 1;">
+                                <div style="display:flex; align-items:center; gap: 10px; min-width: 0;">
+                                    <div class="class-card-icon-pill">
+                                        <?= $iconSvg ?>
+                                    </div>
+                                    <div style="min-width: 0;">
+                                        <span class="class-card-tag"><?= h($categoryLabel) ?></span>
+                                        <h3 style="margin:0; font-size:17px; font-weight:700; color:var(--ink); line-height: 1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><?= h($c['class_name']) ?></h3>
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:6px; flex-shrink:0;">
+                                    <button type="button" class="class-card-btn-action" onclick="editClass(<?= $safeJson ?>)" title="Edit Class">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
+                                    <button type="button" class="class-card-btn-action btn-del" onclick="confirmDeleteClass(<?= (int)$c['class_id'] ?>, <?= htmlspecialchars(json_encode($c['class_name'])) ?>)" title="Delete Class">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
                                 </div>
                             </div>
-                            <p style="margin:0; font-size:14px; color:var(--muted); flex-grow:1;"><?= h($c['description'] ?: 'No description provided.') ?></p>
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.05);">
+                            <p style="margin:0; font-size:13.5px; color:var(--muted); line-height:1.5; flex-grow:1; position: relative; z-index: 1;">
+                                <?= h($c['description'] ?: 'No description provided.') ?>
+                            </p>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.06); position: relative; z-index: 1;">
                                 <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                    <?= h($c['instructor'] ?: 'No instructor') ?>
+                                    <span style="font-weight: 500;"><?= h($c['instructor'] ?: 'No instructor') ?></span>
                                 </div>
-                                <span style="background:rgba(255,255,255,0.05); padding:4px 8px; border-radius:12px; font-size:12px; color:var(--ink);">Capacity: <?= (int)$c['capacity'] ?></span>
+                                <span style="background:color-mix(in srgb, var(--card-accent) 12%, rgba(255,255,255,0.04)); border: 1px solid color-mix(in srgb, var(--card-accent) 24%, rgba(255,255,255,0.08)); padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600; color:var(--ink);">
+                                    Capacity: <?= (int)$c['capacity'] ?>
+                                </span>
                             </div>
                         </div>
                     <?php endforeach; ?>

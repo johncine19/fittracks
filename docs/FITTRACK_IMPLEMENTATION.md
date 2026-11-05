@@ -41,6 +41,7 @@ Derived from *FitTrack: A Data-Driven Web Application for Gym Operations and Mem
 ### 3.4 Class Booking & Trainer Scheduling
 - `classes` (trainer_id, schedule, capacity), `class_bookings` (member_id, class_id, status).
 - Enforce capacity limits and prevent double-booking at the DB layer (unique constraint on member_id+class_id) not just in JS.
+- **Pessimistic Concurrency & Overbooking Prevention**: Row-level locking (`SELECT ... FOR UPDATE`) in an ACID transaction serializes concurrent booking requests down to the millisecond, completely preventing overbooking (race conditions). Fast covering index `idx_cb_schedule_status ON class_bookings (schedule_id, booking_status)` ensures sub-millisecond evaluation. See 📋 **[CLASS_BOOKING_CONCURRENCY.md](CLASS_BOOKING_CONCURRENCY.md)** for full technical details and the panelist defense guide.
 - Trainer view: roster per class session, mark attendance for the session.
 
 ### 3.5 Walk-in Transactions
