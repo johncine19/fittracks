@@ -52,9 +52,12 @@ function check_schedule_conflicts(PDO $pdo, int $classId, string $startDatetime,
         $stmt->execute($params);
         $roomConflict = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($roomConflict) {
-            $cStart = date('g:i A', strtotime($roomConflict['start_datetime']));
-            $cEnd = date('g:i A', strtotime($roomConflict['end_datetime']));
-            return "Room Conflict: Studio \"{$cleanRoom}\" is already booked for \"{$roomConflict['class_name']}\" ({$cStart} – {$cEnd}). Please select a different room or time.";
+            $sTs = strtotime($roomConflict['start_datetime']);
+            $eTs = strtotime($roomConflict['end_datetime']);
+            $rangeStr = (date('Y-m-d', $sTs) === date('Y-m-d', $eTs))
+                ? date('g:i A', $sTs) . ' – ' . date('g:i A', $eTs)
+                : date('M j, g:i A', $sTs) . ' – ' . date('M j, g:i A', $eTs);
+            return "Room Conflict: Studio \"{$cleanRoom}\" is already booked for \"{$roomConflict['class_name']}\" ({$rangeStr}). Please select a different room or time.";
         }
     }
 
@@ -79,9 +82,12 @@ function check_schedule_conflicts(PDO $pdo, int $classId, string $startDatetime,
         $instConflict = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($instConflict) {
             $trainerName = scalar('SELECT CONCAT(first_name, " ", last_name) FROM users WHERE user_id = ?', [$instructorId]) ?: 'The assigned instructor';
-            $cStart = date('g:i A', strtotime($instConflict['start_datetime']));
-            $cEnd = date('g:i A', strtotime($instConflict['end_datetime']));
-            return "Instructor Conflict: {$trainerName} is already scheduled to instruct \"{$instConflict['class_name']}\" ({$cStart} – {$cEnd}). A trainer cannot instruct two sessions simultaneously.";
+            $sTs = strtotime($instConflict['start_datetime']);
+            $eTs = strtotime($instConflict['end_datetime']);
+            $rangeStr = (date('Y-m-d', $sTs) === date('Y-m-d', $eTs))
+                ? date('g:i A', $sTs) . ' – ' . date('g:i A', $eTs)
+                : date('M j, g:i A', $sTs) . ' – ' . date('M j, g:i A', $eTs);
+            return "Instructor Conflict: {$trainerName} is already scheduled to instruct \"{$instConflict['class_name']}\" ({$rangeStr}). A trainer cannot instruct two sessions simultaneously.";
         }
     }
 
@@ -104,9 +110,12 @@ function check_schedule_conflicts(PDO $pdo, int $classId, string $startDatetime,
     $stmt->execute($params);
     $sameConflict = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($sameConflict) {
-        $cStart = date('g:i A', strtotime($sameConflict['start_datetime']));
-        $cEnd = date('g:i A', strtotime($sameConflict['end_datetime']));
-        return "Schedule Overlap: A session of \"{$className}\" is already scheduled from {$cStart} to {$cEnd}. Sessions of the same class cannot overlap.";
+        $sTs = strtotime($sameConflict['start_datetime']);
+        $eTs = strtotime($sameConflict['end_datetime']);
+        $rangeStr = (date('Y-m-d', $sTs) === date('Y-m-d', $eTs))
+            ? date('g:i A', $sTs) . ' – ' . date('g:i A', $eTs)
+            : date('M j, g:i A', $sTs) . ' – ' . date('M j, g:i A', $eTs);
+        return "Schedule Overlap: A session of \"{$className}\" is already scheduled from {$rangeStr}. Sessions of the same class cannot overlap.";
     }
 
     return null;

@@ -2128,9 +2128,7 @@ function render_header(string $title, ?array $user = null): void
                         if (isset($_SESSION[$sidebarCacheKey]) && ($_SESSION[$sidebarCacheKey]['expires'] ?? 0) > $now) {
                             $sidebarBadges = $_SESSION[$sidebarCacheKey]['badges'];
                             $unreadMsgsCount = (int)($_SESSION[$sidebarCacheKey]['unread_msgs'] ?? 0);
-                            $unreadNotifsCount = ($page === 'notifications')
-                                ? unread_notification_count($uid)
-                                : (int)($_SESSION[$sidebarCacheKey]['unread_notifs'] ?? unread_notification_count($uid));
+                            $unreadNotifsCount = unread_notification_count($uid);
                         } else {
                             $unreadNotifsCount = unread_notification_count($uid);
                             $unreadMsgsCount = (int) scalar('SELECT COUNT(*) FROM trainer_messages WHERE recipient_id = ? AND is_read = 0', [$uid]);

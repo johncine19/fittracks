@@ -176,10 +176,12 @@ function notify_admins_email(string $subject, string $body): void
     }
 }
 
-function unread_notification_count(int $userId): int
+function unread_notification_count(int $userId, bool $force = false): int
 {
     static $memo = [];
-    if (isset($memo[$userId])) {
+    if ($force) {
+        unset($memo[$userId]);
+    } elseif (isset($memo[$userId])) {
         return $memo[$userId];
     }
     try {
@@ -225,12 +227,31 @@ function mark_notification_read(int $notificationId, int $userId): void
 {
     db()->prepare('UPDATE notifications SET is_read = 1 WHERE notification_id = ? AND user_id = ?')
         ->execute([$notificationId, $userId]);
+    unread_notification_count($userId, true);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        foreach (array_keys($_SESSION) as $k) {
+            if (str_starts_with((string)$k, 'sidebar_badges_' . $userId)) {
+                if (isset($_SESSION[$k]['unread_notifs'])) {
+                    $_SESSION[$k]['unread_notifs'] = max(0, ((int)$_SESSION[$k]['unread_notifs']) - 1);
+                }
+                unset($_SESSION[$k]);
+            }
+        }
+    }
 }
 
 function mark_all_notifications_read(int $userId): void
 {
     db()->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0')
         ->execute([$userId]);
+    unread_notification_count($userId, true);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        foreach (array_keys($_SESSION) as $k) {
+            if (str_starts_with((string)$k, 'sidebar_badges_' . $userId)) {
+                unset($_SESSION[$k]);
+            }
+        }
+    }
 }
 
 function notification_type_label(string $type): string
