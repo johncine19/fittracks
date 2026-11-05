@@ -18,10 +18,24 @@ function classes_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = post('action');
         if ($action === 'class') {
-            $instructor_id = ($user['role'] === 'trainer') ? $user['user_id'] : (post('instructor_id') ?: null);
+            $instructor_id = ($user['role'] === 'trainer') ? (int) $user['user_id'] : (post('instructor_id') ? (int) post('instructor_id') : null);
+            $className = trim((string) post('class_name'));
             db()->prepare('INSERT INTO classes (class_name, description, instructor_id, capacity, gym_id, created_by) VALUES (?, ?, ?, ?, ?, ?)')
-                ->execute([post('class_name'), post('description'), $instructor_id, post('capacity'), $gymId, $user['user_id']]);
-            audit_log($user['user_id'], 'create', 'class', (string) db()->lastInsertId(), json_encode(['class_name' => post('class_name')]));
+                ->execute([$className, post('description'), $instructor_id, post('capacity'), $gymId, $user['user_id']]);
+            $newClassId = (int) db()->lastInsertId();
+            audit_log($user['user_id'], 'create', 'class', (string) $newClassId, json_encode(['class_name' => $className]));
+
+            // In-app notification to the trainer when assigned to this class
+            if (!empty($instructor_id) && $instructor_id !== (int) $user['user_id']) {
+                notify_user(
+                    $instructor_id,
+                    'class_reminder',
+                    'Class Assignment',
+                    'You have been assigned as the instructor for class "' . $className . '".',
+                    $newClassId
+                );
+            }
+
             flash('Class created.');
             redirect('classes&tab=types');
         } elseif ($action === 'schedule') {
@@ -74,18 +88,35 @@ function classes_page(): void
             flash('Schedule created.');
             redirect('classes&tab=schedules');
         } elseif ($action === 'edit_class') {
+            $classId = (int) post('class_id');
+            $prevInstructorId = (int) scalar('SELECT instructor_id FROM classes WHERE class_id = ?', [$classId]);
+            $className = trim((string) post('class_name'));
+            $newInstructorId = ($user['role'] === 'trainer') ? (int) $user['user_id'] : (post('instructor_id') ? (int) post('instructor_id') : null);
+
             if ($isAdmin) {
                 db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=?')
-                    ->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id')]);
+                    ->execute([$className, post('description'), $newInstructorId, post('capacity'), $classId]);
             } elseif ($user['role'] === 'gym_owner') {
                 db()->prepare('UPDATE classes SET class_name=?, description=?, instructor_id=?, capacity=? WHERE class_id=? AND gym_id=?')
-                    ->execute([post('class_name'), post('description'), post('instructor_id') ?: null, post('capacity'), post('class_id'), $gymId]);
+                    ->execute([$className, post('description'), $newInstructorId, post('capacity'), $classId, $gymId]);
             } else {
                 db()->prepare('UPDATE classes SET class_name=?, description=?, capacity=? WHERE class_id=? AND instructor_id=?')
-                    ->execute([post('class_name'), post('description'), post('capacity'), post('class_id'), $user['user_id']]);
+                    ->execute([$className, post('description'), post('capacity'), $classId, $user['user_id']]);
             }
+
+            // In-app notification to the trainer if newly assigned or changed
+            if (!empty($newInstructorId) && $newInstructorId !== $prevInstructorId && $newInstructorId !== (int) $user['user_id']) {
+                notify_user(
+                    $newInstructorId,
+                    'class_reminder',
+                    'Class Assignment',
+                    'You have been assigned as the instructor for class "' . $className . '".',
+                    $classId
+                );
+            }
+
             flash('Class updated.');
-            audit_log($user['user_id'], 'edit', 'class', (string) post('class_id'), json_encode(['class_name' => post('class_name')]));
+            audit_log($user['user_id'], 'edit', 'class', (string) $classId, json_encode(['class_name' => $className]));
             redirect('classes&tab=types');
         } elseif ($action === 'delete_class') {
             if ($isAdmin) {
@@ -164,7 +195,7 @@ function classes_page(): void
     if ($isAdmin) {
         $coaches = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "trainer" AND status = "active"')->fetchAll();
         $classes = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
-        $schedules = db()->query('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
+        $schedules = db()->query('SELECT s.*, c.class_name, c.capacity, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
     } else {
         $coaches = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u JOIN trainer_profiles tp ON u.user_id = tp.user_id WHERE u.role = "trainer" AND u.status = "active" AND tp.gym_id = ' . (int)$gymId)->fetchAll();
         
@@ -172,9 +203,29 @@ function classes_page(): void
         $stmt->execute([$gymId]);
         $classes = $stmt->fetchAll();
         
-        $stmt2 = db()->prepare('SELECT s.*, c.class_name, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
+        $stmt2 = db()->prepare('SELECT s.*, c.class_name, c.capacity, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
         $stmt2->execute([$gymId]);
         $schedules = $stmt2->fetchAll();
+    }
+
+    // Pre-fetch all enrolled/booked members for each displayed schedule
+    $scheduleIds = array_column($schedules, 'schedule_id');
+    $bookedMembersBySchedule = [];
+    if (!empty($scheduleIds)) {
+        $placeholders = implode(',', array_fill(0, count($scheduleIds), '?'));
+        $stmtBooked = db()->prepare("
+            SELECT b.schedule_id, b.booking_id, b.user_id, b.booking_status, b.booked_at,
+                   u.first_name, u.last_name, u.email, u.phone, u.profile_picture
+            FROM class_bookings b
+            JOIN users u ON u.user_id = b.user_id
+            WHERE b.schedule_id IN ($placeholders) AND b.booking_status = 'booked'
+            ORDER BY b.booked_at ASC
+        ");
+        $stmtBooked->execute($scheduleIds);
+        $allBookedRows = $stmtBooked->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($allBookedRows as $bRow) {
+            $bookedMembersBySchedule[(int)$bRow['schedule_id']][] = $bRow;
+        }
     }
     
     $activeTab = ($_GET['tab'] ?? '') === 'schedules' ? 'schedules' : 'types';
@@ -302,6 +353,82 @@ function classes_page(): void
         [data-theme="light"] .class-card-btn-action {
             background: #f1f5f9;
             border-color: #e2e8f0;
+        }
+        .member-pill-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 3px 8px 3px 4px;
+            font-size: 12px;
+            color: var(--ink);
+            max-width: 150px;
+            box-sizing: border-box;
+        }
+        .member-pill-avatar {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--orange, #ea580c) 25%, var(--panel));
+            color: var(--orange, #ea580c);
+            font-weight: 700;
+            font-size: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .member-pill-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .btn-see-more-members {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(234, 88, 12, 0.12);
+            border: 1px solid rgba(234, 88, 12, 0.28);
+            color: var(--orange, #ea580c);
+            border-radius: 14px;
+            padding: 3px 9px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: fit-content;
+        }
+        .btn-see-more-members:hover {
+            background: rgba(234, 88, 12, 0.22);
+            border-color: rgba(234, 88, 12, 0.5);
+            transform: translateY(-1px);
+        }
+        .btn-view-all-members-link {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 0;
+            text-align: left;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            transition: color 0.15s ease;
+            width: fit-content;
+        }
+        .btn-view-all-members-link:hover {
+            color: var(--ink);
+        }
+        [data-theme="light"] .member-pill-tag {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        [data-theme="light"] .member-pill-avatar {
+            background: #ffedd5;
+            color: #c2410c;
         }
         .cc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
         .classes-banner {
@@ -864,7 +991,14 @@ function classes_page(): void
                     <div class="table-wrap">
                         <table style="margin:0; width:100%;">
                             <thead>
-                                <tr><th>Class Session</th><th>Location</th><th>Date & Time</th><th>Booked</th><th>Actions</th></tr>
+                                <tr>
+                                    <th>Class Session</th>
+                                    <th>Location</th>
+                                    <th>Date &amp; Time</th>
+                                    <th>Booked</th>
+                                    <th>Enrolled Members</th>
+                                    <th>Actions</th>
+                                </tr>
                             </thead>
                             <tbody>
                             <?php foreach ($schedules as $s): 
@@ -875,6 +1009,17 @@ function classes_page(): void
                                 $startTime = date('g:i A', $startTs);
                                 $endTime = date('g:i A', $endTs);
                                 $scheduleTimeStr = $startDate . ' ' . $startTime . ' – ' . ($startDate !== $endDate ? $endDate . ' ' : '') . $endTime;
+                                $sMembers = $bookedMembersBySchedule[(int)$s['schedule_id']] ?? [];
+                                $sMemCount = count($sMembers);
+                                $shownMembers = array_slice($sMembers, 0, 2);
+                                $remainingCount = $sMemCount - count($shownMembers);
+                                $modalPayload = htmlspecialchars(json_encode([
+                                    'class_name' => $s['class_name'],
+                                    'time' => $scheduleTimeStr,
+                                    'location' => $s['room_location'] ?: 'Main Studio',
+                                    'capacity' => (int)($s['capacity'] ?? 0),
+                                    'members' => $sMembers
+                                ]), ENT_QUOTES, 'UTF-8');
                             ?>
                                 <tr>
                                     <td><strong><?= h($s['class_name']) ?></strong></td>
@@ -893,7 +1038,40 @@ function classes_page(): void
                                             </div>
                                         </div>
                                     </td>
-                                    <td><span style="background:rgba(234,88,12,0.12); color:var(--orange, #ea580c); padding:4px 10px; border-radius:12px; font-weight:700; font-size:13px;"><?= (int) $s['booked'] ?></span></td>
+                                    <td>
+                                        <span style="background:rgba(234,88,12,0.12); color:var(--orange, #ea580c); padding:4px 10px; border-radius:12px; font-weight:700; font-size:13px;">
+                                            <?= (int) $s['booked'] ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php if ($sMemCount === 0): ?>
+                                            <span style="color:var(--muted); font-size:12px; font-style:italic;">No members joined yet</span>
+                                        <?php else: ?>
+                                            <div style="display:flex; flex-direction:column; gap:4px; max-width:240px;">
+                                                <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                                                    <?php foreach ($shownMembers as $m): 
+                                                        $initials = strtoupper(substr($m['first_name'] ?? 'M', 0, 1) . substr($m['last_name'] ?? '', 0, 1));
+                                                        $fullName = trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
+                                                    ?>
+                                                        <span class="member-pill-tag" title="<?= h($fullName) . (!empty($m['email']) ? ' (' . h($m['email']) . ')' : '') ?>">
+                                                            <span class="member-pill-avatar"><?= h($initials) ?></span>
+                                                            <span class="member-pill-name"><?= h($fullName) ?></span>
+                                                        </span>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                                <?php if ($remainingCount > 0): ?>
+                                                    <button type="button" class="btn-see-more-members" onclick="openClassMembersModal(<?= $modalPayload ?>)">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                                        <span>+<?= $remainingCount ?> more</span>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <button type="button" class="btn-view-all-members-link" onclick="openClassMembersModal(<?= $modalPayload ?>)">
+                                                        View details
+                                                    </button>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
                                         <button type="button" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger); cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
@@ -913,6 +1091,17 @@ function classes_page(): void
                         $startTime = date('g:i A', $startTs);
                         $endTime = date('g:i A', $endTs);
                         $scheduleTimeStr = $startDate . ' ' . $startTime . ' – ' . ($startDate !== $endDate ? $endDate . ' ' : '') . $endTime;
+                        $sMembers = $bookedMembersBySchedule[(int)$s['schedule_id']] ?? [];
+                        $sMemCount = count($sMembers);
+                        $shownMembers = array_slice($sMembers, 0, 2);
+                        $remainingCount = $sMemCount - count($shownMembers);
+                        $modalPayload = htmlspecialchars(json_encode([
+                            'class_name' => $s['class_name'],
+                            'time' => $scheduleTimeStr,
+                            'location' => $s['room_location'] ?: 'Main Studio',
+                            'capacity' => (int)($s['capacity'] ?? 0),
+                            'members' => $sMembers
+                        ]), ENT_QUOTES, 'UTF-8');
                     ?>
                         <article class="schedule-mobile-card">
                             <h3 class="schedule-mobile-card-title"><?= h($s['class_name']) ?></h3>
@@ -938,7 +1127,30 @@ function classes_page(): void
                                 </div>
                                 <div>
                                     <span class="schedule-mobile-detail-label">Booked</span>
-                                    <div class="schedule-mobile-detail-value"><?= (int) $s['booked'] ?> member<?= (int) $s['booked'] === 1 ? '' : 's' ?></div>
+                                    <div class="schedule-mobile-detail-value"><?= (int) $s['booked'] ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?> member<?= (int) $s['booked'] === 1 ? '' : 's' ?></div>
+                                </div>
+                                <div style="grid-column: 1 / -1;">
+                                    <span class="schedule-mobile-detail-label">Enrolled Members (<?= $sMemCount ?>)</span>
+                                    <div class="schedule-mobile-detail-value" style="margin-top:4px;">
+                                        <?php if ($sMemCount === 0): ?>
+                                            <span style="color:var(--muted); font-size:12px; font-style:italic;">No members joined yet</span>
+                                        <?php else: ?>
+                                            <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
+                                                <?php foreach ($shownMembers as $m): 
+                                                    $initials = strtoupper(substr($m['first_name'] ?? 'M', 0, 1) . substr($m['last_name'] ?? '', 0, 1));
+                                                    $fullName = trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
+                                                ?>
+                                                    <span class="member-pill-tag">
+                                                        <span class="member-pill-avatar"><?= h($initials) ?></span>
+                                                        <span class="member-pill-name"><?= h($fullName) ?></span>
+                                                    </span>
+                                                <?php endforeach; ?>
+                                                <button type="button" class="btn-see-more-members" onclick="openClassMembersModal(<?= $modalPayload ?>)">
+                                                    <?= $remainingCount > 0 ? "+{$remainingCount} more" : "View roster" ?>
+                                                </button>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                             <div class="schedule-mobile-actions">
@@ -1012,7 +1224,115 @@ function classes_page(): void
         </div>
     </dialog>
 
+    <!-- Modal: View Enrolled Members for a Class Session -->
+    <dialog id="classMembersModal" class="modal" style="max-width: 580px; width: 95%;">
+        <div class="modal-header">
+            <div>
+                <h3 class="classes-modal-title" id="cmm_class_name">Enrolled Members</h3>
+                <p id="cmm_subtitle" style="margin: 4px 0 0; font-size: 13px; color: var(--muted);"></p>
+            </div>
+            <button type="button" class="modal-close" onclick="document.getElementById('classMembersModal').close()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="modal-body" style="padding: 16px 20px;">
+            <div style="margin-bottom: 14px;">
+                <input type="text" id="cmm_search_input" class="form-control" placeholder="Search enrolled member by name, email, or phone..." oninput="filterClassMembersModal(this.value)" style="width: 100%; box-sizing: border-box; font-size: 13px; padding: 9px 12px;">
+            </div>
+            <div id="cmm_members_container" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+                <!-- Populated via JavaScript -->
+            </div>
+        </div>
+        <div style="padding: 12px 20px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.06);">
+            <span id="cmm_count_summary" style="font-size: 13px; color: var(--muted); font-weight: 500;"></span>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('classMembersModal').close()" style="padding: 8px 18px; font-size: 13px; cursor: pointer;">Close</button>
+        </div>
+    </dialog>
+
     <script>
+    let currentClassMembersData = [];
+
+    function openClassMembersModal(data) {
+        const modal = document.getElementById('classMembersModal');
+        if (!modal) return;
+        
+        document.getElementById('cmm_class_name').textContent = data.class_name ? `Enrolled Members: ${data.class_name}` : 'Enrolled Members';
+        const capText = data.capacity > 0 ? ` • Capacity: ${data.capacity}` : '';
+        document.getElementById('cmm_subtitle').textContent = `${data.time} • ${data.location}${capText}`;
+        
+        currentClassMembersData = data.members || [];
+        const searchInput = document.getElementById('cmm_search_input');
+        if (searchInput) searchInput.value = '';
+        
+        renderClassMembersList(currentClassMembersData);
+        modal.showModal();
+    }
+
+    function renderClassMembersList(members) {
+        const container = document.getElementById('cmm_members_container');
+        const summary = document.getElementById('cmm_count_summary');
+        if (!container) return;
+        
+        if (summary) {
+            summary.textContent = `Total Enrolled: ${members.length}`;
+        }
+        
+        if (members.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 32px 16px; color: var(--muted); font-size: 14px;">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 8px; opacity: 0.5;"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                    <p style="margin: 0;">No members found matching your search.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = members.map((m, idx) => {
+            const fName = (m.first_name || '').trim();
+            const lName = (m.last_name || '').trim();
+            const initials = ((fName[0] || 'M') + (lName[0] || '')).toUpperCase();
+            const fullName = `${fName} ${lName}`.trim() || 'Member';
+            const email = m.email || '—';
+            const phone = m.phone ? ` • ${m.phone}` : '';
+            const bookedDate = m.booked_at ? new Date(m.booked_at.replace(/-/g, '/')) : null;
+            const bookedAt = bookedDate && !isNaN(bookedDate.getTime()) 
+                ? bookedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) 
+                : '';
+            
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: color-mix(in srgb, var(--orange, #ea580c) 20%, var(--panel)); color: var(--orange, #ea580c); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid color-mix(in srgb, var(--orange, #ea580c) 35%, transparent);">
+                            ${initials}
+                        </div>
+                        <div style="min-width: 0;">
+                            <strong style="display: block; font-size: 14px; color: var(--ink); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${fullName}</strong>
+                            <span style="font-size: 12px; color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${email}${phone}</span>
+                        </div>
+                    </div>
+                    <div style="text-align: right; flex-shrink: 0;">
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; background: rgba(34,197,94,0.15); color: #22c55e;">Booked</span>
+                        ${bookedAt ? `<span style="display: block; font-size: 11px; color: var(--muted); margin-top: 2px;">${bookedAt}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function filterClassMembersModal(query) {
+        const q = (query || '').toLowerCase().trim();
+        if (!q) {
+            renderClassMembersList(currentClassMembersData);
+            return;
+        }
+        const filtered = currentClassMembersData.filter(m => {
+            const name = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
+            const email = (m.email || '').toLowerCase();
+            const phone = (m.phone || '').toLowerCase();
+            return name.includes(q) || email.includes(q) || phone.includes(q);
+        });
+        renderClassMembersList(filtered);
+    }
     function enhanceScheduleSelect(select) {
         if (!select || select.dataset.enhanced === 'true') return;
         select.dataset.enhanced = 'true';

@@ -41,7 +41,7 @@ function broadcast_class_schedule_job(array $payload): void
         return;
     }
 
-    $classStmt = db()->prepare('SELECT class_name, gym_id FROM classes WHERE class_id = ?');
+    $classStmt = db()->prepare('SELECT class_name, gym_id, instructor_id FROM classes WHERE class_id = ?');
     $classStmt->execute([$classId]);
     $classData = $classStmt->fetch();
     if (!$classData) {
@@ -50,6 +50,18 @@ function broadcast_class_schedule_job(array $payload): void
 
     $className = $classData['class_name'];
     $gymId = $classData['gym_id'] ? (int) $classData['gym_id'] : null;
+    $instructorId = $classData['instructor_id'] ? (int) $classData['instructor_id'] : null;
+
+    // Notify the assigned trainer when a new session for their class is scheduled
+    if ($instructorId !== null && $instructorId > 0) {
+        notify_user(
+            $instructorId,
+            'class_reminder',
+            'Class Session Scheduled',
+            "You are scheduled to instruct a session of {$className} on {$startTime}.",
+            $classId
+        );
+    }
 
     if ($gymId !== null) {
         $stmt = db()->prepare('SELECT u.user_id FROM users u JOIN gym_members gm ON gm.user_id = u.user_id WHERE gm.gym_id = ? AND u.role = "member" AND u.status = "active"');

@@ -162,12 +162,27 @@ function book_classes_page(): void
         
         $when = date('D, M j \a\t g:i A', strtotime($lockedClass['start_datetime']));
         $location = !empty($lockedClass['room_location']) ? ' in ' . $lockedClass['room_location'] : '';
+        
+        // 1. In-app notification to member confirming their booking
         notify_user(
             (int) $user['user_id'],
             'class_reminder',
-            'Class booked',
-            $lockedClass['class_name'] . ' on ' . $when . $location . '.'
+            'Class Booked',
+            'You are confirmed for ' . $lockedClass['class_name'] . ' on ' . $when . $location . '.',
+            (int) $scheduleId
         );
+
+        // 2. In-app notification to the class trainer/instructor
+        if (!empty($lockedClass['instructor_id'])) {
+            $memberName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'A member';
+            notify_user(
+                (int) $lockedClass['instructor_id'],
+                'class_reminder',
+                'New Class Booking',
+                $memberName . ' booked a slot for your ' . $lockedClass['class_name'] . ' session on ' . $when . $location . '.',
+                (int) $scheduleId
+            );
+        }
 
         flash('Class booked successfully!', 'success');
         redirect('book_classes');
