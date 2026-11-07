@@ -76,6 +76,149 @@ function broadcast_class_schedule_job(array $payload): void
     }
 }
 
+/**
+ * Sweeps upcoming class sessions starting within the next 15 to 75 minutes
+ * and sends an in-app 1-hour pre-class reminder to booked members and instructors.
+ * Idempotent: checks notifications table to prevent duplicate reminders per session.
+ */
+function send_upcoming_class_reminders(?PDO $pdo = null): array
+{
+    $pdo = $pdo ?? db();
+    $remindedCount = 0;
+    $instructorRemindedCount = 0;
+
+    try {
+        // Query booked sessions starting within the next 75 minutes (and strictly in the future)
+        $stmt = $pdo->prepare('
+            SELECT b.booking_id, b.user_id, s.schedule_id, s.start_datetime, s.room_location,
+                   c.class_name, c.instructor_id
+            FROM class_bookings b
+            JOIN class_schedules s ON b.schedule_id = s.schedule_id
+            JOIN classes c ON s.class_id = c.class_id
+            WHERE b.booking_status = "booked"
+              AND s.start_datetime > NOW()
+              AND s.start_datetime <= DATE_ADD(NOW(), INTERVAL 75 MINUTE)
+        ');
+        $stmt->execute();
+        $upcoming = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $checkExisting = $pdo->prepare('
+            SELECT 1 FROM notifications 
+            WHERE user_id = ? 
+              AND type = "class_reminder" 
+              AND reference_id = ? 
+              AND title LIKE "Class Reminder:%"
+            LIMIT 1
+        ');
+
+        foreach ($upcoming as $row) {
+            $memberUid = (int) $row['user_id'];
+            $scheduleId = (int) $row['schedule_id'];
+            $className = (string) $row['class_name'];
+            $formattedTime = date('g:i A', strtotime($row['start_datetime']));
+            $loc = trim((string) $row['room_location']);
+            $locStr = $loc !== '' ? " in {$loc}" : "";
+
+            // Check if member was already reminded for this session
+            $checkExisting->execute([$memberUid, $scheduleId]);
+            if (!$checkExisting->fetchColumn()) {
+                notify_user(
+                    $memberUid,
+                    'class_reminder',
+                    'Class Reminder: ' . $className,
+                    "Reminder: Your class \"{$className}\" starts in 1 hour at {$formattedTime}{$locStr}. Get ready!",
+                    $scheduleId
+                );
+                $remindedCount++;
+            }
+
+            // Remind the instructor as well
+            $instructorId = (int) ($row['instructor_id'] ?? 0);
+            if ($instructorId > 0) {
+                $checkExisting->execute([$instructorId, $scheduleId]);
+                if (!$checkExisting->fetchColumn()) {
+                    notify_user(
+                        $instructorId,
+                        'class_reminder',
+                        'Class Reminder: ' . $className,
+                        "Reminder: You are scheduled to instruct \"{$className}\" in 1 hour at {$formattedTime}{$locStr}.",
+                        $scheduleId
+                    );
+                    $instructorRemindedCount++;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('send_upcoming_class_reminders error: ' . $e->getMessage());
+    }
+
+    return ['members_reminded' => $remindedCount, 'instructors_reminded' => $instructorRemindedCount];
+}
+
+/**
+ * Auto-send post-class completion celebrations to attended members once their session has concluded.
+ * Runs on cron sweeps. Safe & idempotent: checks if completion notification already exists for schedule.
+ */
+function send_completed_class_notifications(?PDO $pdo = null): array
+{
+    $pdo = $pdo ?? db();
+    $notifiedCount = 0;
+
+    try {
+        // Find sessions that ended within the past 4 hours and are strictly in the past
+        $stmt = $pdo->prepare('
+            SELECT b.booking_id, b.user_id, s.schedule_id, s.start_datetime, s.end_datetime,
+                   c.class_name, c.instructor_id,
+                   u.first_name AS coach_first, u.last_name AS coach_last
+            FROM class_bookings b
+            JOIN class_schedules s ON b.schedule_id = s.schedule_id
+            JOIN classes c ON s.class_id = c.class_id
+            LEFT JOIN users u ON u.user_id = c.instructor_id
+            WHERE b.booking_status = "attended"
+              AND s.end_datetime <= NOW()
+              AND s.end_datetime >= DATE_SUB(NOW(), INTERVAL 4 HOUR)
+        ');
+        $stmt->execute();
+        $attendedRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($attendedRows)) {
+            return ['completed_notified' => 0];
+        }
+
+        $checkExisting = $pdo->prepare('
+            SELECT 1 FROM notifications 
+            WHERE user_id = ? 
+              AND type = "class_reminder" 
+              AND reference_id = ? 
+              AND title LIKE "Class Completed%"
+            LIMIT 1
+        ');
+
+        foreach ($attendedRows as $row) {
+            $checkExisting->execute([(int) $row['user_id'], (int) $row['schedule_id']]);
+            if ($checkExisting->fetchColumn()) {
+                continue; // Already received completion notification
+            }
+
+            $coachName = trim(($row['coach_first'] ?? '') . ' ' . ($row['coach_last'] ?? ''));
+            if ($coachName === '') $coachName = 'your trainer';
+
+            notify_user(
+                (int) $row['user_id'],
+                'class_reminder',
+                'Class Completed: ' . $row['class_name'],
+                "Great workout in \"{$row['class_name']}\" with Coach {$coachName}! Keep up the momentum.",
+                (int) $row['schedule_id']
+            );
+            $notifiedCount++;
+        }
+    } catch (Throwable $e) {
+        error_log('send_completed_class_notifications error: ' . $e->getMessage());
+    }
+
+    return ['completed_notified' => $notifiedCount];
+}
+
 
 function send_email_job(array $payload): bool
 {

@@ -2419,10 +2419,19 @@ dialog.modal .modal-body {
     gap: 4px;
 }
 
-.cc-badge-status.status-booked {
+.cc-badge-status.status-booked,
+.cc-badge-status.status-attended {
     background: rgba(34, 197, 94, 0.15);
     color: #22c55e;
     border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.cc-btn-attended-pill {
+    background: rgba(34, 197, 94, 0.14) !important;
+    color: #22c55e !important;
+    border: 1px solid rgba(34, 197, 94, 0.32) !important;
+    opacity: 0.95;
+    cursor: default !important;
 }
 
 .cc-badge-status.status-full {
@@ -2627,6 +2636,19 @@ html[data-theme="light"] .cc-card:hover,
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08) !important;
 }
 
+html[data-theme="light"] .cc-category-badge,
+[data-theme="light"] .cc-category-badge {
+    color: var(--card-accent-light, #15803d) !important;
+    background: color-mix(in srgb, var(--card-accent-light, #15803d) 12%, #ffffff) !important;
+    border: 1px solid color-mix(in srgb, var(--card-accent-light, #15803d) 32%, transparent) !important;
+    font-weight: 800 !important;
+}
+
+html[data-theme="light"] .cc-category-dot,
+[data-theme="light"] .cc-category-dot {
+    background: var(--card-accent-light, #16a34a) !important;
+}
+
 html[data-theme="light"] .cc-meta-grid,
 [data-theme="light"] .cc-meta-grid {
     background: #f8fafc !important;
@@ -2635,7 +2657,9 @@ html[data-theme="light"] .cc-meta-grid,
 
 html[data-theme="light"] .cc-meta-icon,
 [data-theme="light"] .cc-meta-icon {
-    background: #e2e8f0 !important;
+    background: #f1f5f9 !important;
+    border: 1px solid #e2e8f0 !important;
+    color: var(--card-accent-light, #15803d) !important;
 }
 
 html[data-theme="light"] .cc-bar-track,
@@ -2643,18 +2667,43 @@ html[data-theme="light"] .cc-bar-track,
     background: #e2e8f0 !important;
 }
 
+html[data-theme="light"] .cc-bar-fill,
+[data-theme="light"] .cc-bar-fill {
+    background: var(--card-accent-light, #16a34a) !important;
+}
+
+html[data-theme="light"] .cc-card.cc-is-full .cc-bar-fill {
+    background: #ef4444 !important;
+}
+
+html[data-theme="light"] .cc-badge-status.status-booked,
+[data-theme="light"] .cc-badge-status.status-booked,
+html[data-theme="light"] .cc-badge-status.status-attended,
+[data-theme="light"] .cc-badge-status.status-attended {
+    background: #f0fdf4 !important;
+    color: #15803d !important;
+    border: 1px solid #86efac !important;
+}
+
+html[data-theme="light"] .cc-btn-attended-pill,
+[data-theme="light"] .cc-btn-attended-pill {
+    background: #f0fdf4 !important;
+    color: #15803d !important;
+    border: 1px solid #bbf7d0 !important;
+}
+
 html[data-theme="light"] .cc-btn-book,
 [data-theme="light"] .cc-btn-book {
-    background: #84cc16 !important;
-    color: #0f172a !important;
-    box-shadow: 0 2px 8px rgba(132, 204, 22, 0.25) !important;
+    background: #16a34a !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25) !important;
 }
 
 html[data-theme="light"] .cc-btn-book:hover:not(:disabled),
 [data-theme="light"] .cc-btn-book:hover:not(:disabled) {
-    background: #65a30d !important;
+    background: #15803d !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 14px rgba(101, 163, 13, 0.3) !important;
+    box-shadow: 0 4px 14px rgba(21, 128, 61, 0.3) !important;
 }
 
 @media (max-width: 420px) {

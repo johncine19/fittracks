@@ -442,8 +442,8 @@
             justify-content: space-between;
             gap: 12px;
         }
-        .desktop-only { display: block; }
-        .mobile-only { display: none; }
+        .desktop-only { display: block !important; }
+        .mobile-only { display: none !important; }
         .modal-select-btn-sm {
             background: var(--lime, #c7ff22) !important;
             color: #0b0d0d !important;

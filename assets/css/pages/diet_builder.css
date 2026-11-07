@@ -142,6 +142,18 @@
 }
 
 /* Light Theme Overrides */
+[data-theme="light"] .diet-btn-food-diary {
+    background: #ffffff;
+    color: #b45309;
+    border-color: #fcd34d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .diet-btn-food-diary:hover {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.18);
+}
 [data-theme="light"] .diet-btn-back {
     background: #ffffff;
     color: #1e293b;
@@ -770,4 +782,71 @@
     color: var(--diet-accent);
     background: var(--diet-accent-tint);
     transform: translateY(-1px);
+}
+
+/* Calorie Target Warning Badges & Alert Banners */
+.diet-cal-warning-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.diet-cal-warning-excess {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+[data-theme="light"] .diet-cal-warning-excess {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
+}
+.diet-cal-warning-low {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+}
+[data-theme="light"] .diet-cal-warning-low {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
+}
+.diet-day-alert-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+.diet-day-alert-warning {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    color: var(--ink);
+}
+.diet-day-alert-warning svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.diet-day-alert-low {
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    color: var(--ink);
+}
+.diet-day-alert-low svg {
+    color: #38bdf8;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.day-tab-warning-dot {
+    font-size: 11px;
+    display: inline-block;
+    line-height: 1;
 }

@@ -240,27 +240,81 @@ function classes_page(): void
                     'You have been assigned as the instructor for class "' . $className . '".',
                     $classId
                 );
+
+                // In-app notification to enrolled members with upcoming sessions about the instructor change
+                try {
+                    $coachName = (string) scalar('SELECT CONCAT(first_name, " ", last_name) FROM users WHERE user_id = ?', [$newInstructorId]);
+                    $upcomingStmt = db()->prepare('
+                        SELECT DISTINCT b.user_id, s.schedule_id, s.start_datetime
+                        FROM class_bookings b
+                        JOIN class_schedules s ON b.schedule_id = s.schedule_id
+                        WHERE s.class_id = ? AND b.booking_status = "booked" AND s.start_datetime >= NOW()
+                    ');
+                    $upcomingStmt->execute([$classId]);
+                    $bookedMembers = $upcomingStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($bookedMembers as $bm) {
+                        $whenStr = date('D, M j \a\t g:i A', strtotime($bm['start_datetime']));
+                        notify_user(
+                            (int) $bm['user_id'],
+                            'class_reminder',
+                            'Instructor Update: ' . $className,
+                            "Notice: Coach {$coachName} will now be instructing your session for \"{$className}\" on {$whenStr}.",
+                            (int) $bm['schedule_id']
+                        );
+                    }
+                } catch (Throwable) {}
             }
 
             flash('Class updated.');
             audit_log($user['user_id'], 'edit', 'class', (string) $classId, json_encode(['class_name' => $className]));
             redirect('classes&tab=types');
         } elseif ($action === 'delete_class') {
+            $classId = (int) post('class_id');
+            if ($classId > 0) {
+                // In-app notification to members with upcoming booked sessions before deleting
+                try {
+                    $delUpcomingStmt = db()->prepare('
+                        SELECT b.user_id, c.class_name, s.start_datetime, s.schedule_id
+                        FROM class_bookings b
+                        JOIN class_schedules s ON b.schedule_id = s.schedule_id
+                        JOIN classes c ON s.class_id = c.class_id
+                        WHERE c.class_id = ? 
+                          AND b.booking_status = "booked"
+                          AND s.start_datetime >= NOW()
+                    ');
+                    $delUpcomingStmt->execute([$classId]);
+                    $affectedBookings = $delUpcomingStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    foreach ($affectedBookings as $ab) {
+                        $whenStr = date('D, M j \a\t g:i A', strtotime($ab['start_datetime']));
+                        notify_user(
+                            (int) $ab['user_id'],
+                            'class_reminder',
+                            'Class Cancelled: ' . $ab['class_name'],
+                            "Notice: The class \"{$ab['class_name']}\" (session on {$whenStr}) has been cancelled by the gym. We apologize for any inconvenience.",
+                            (int) $ab['schedule_id']
+                        );
+                    }
+                } catch (Throwable) {}
+            }
+
             if ($isAdmin) {
-                db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([post('class_id')]);
+                db()->prepare('DELETE FROM classes WHERE class_id=?')->execute([$classId]);
             } elseif ($user['role'] === 'gym_owner') {
-                db()->prepare('DELETE FROM classes WHERE class_id=? AND gym_id=?')->execute([post('class_id'), $gymId]);
+                db()->prepare('DELETE FROM classes WHERE class_id=? AND gym_id=?')->execute([$classId, $gymId]);
             } else {
-                db()->prepare('DELETE FROM classes WHERE class_id=? AND instructor_id=?')->execute([post('class_id'), $user['user_id']]);
+                db()->prepare('DELETE FROM classes WHERE class_id=? AND instructor_id=?')->execute([$classId, $user['user_id']]);
             }
             flash('Class deleted.');
-            audit_log($user['user_id'], 'delete', 'class', (string) post('class_id'));
+            audit_log($user['user_id'], 'delete', 'class', (string) $classId);
             redirect('classes&tab=types');
         } elseif ($action === 'edit_schedule') {
-            $schedule_id = post('schedule_id');
-            $class_id = post('class_id');
+            $schedule_id = (int) post('schedule_id');
+            $class_id = (int) post('class_id');
             $startDatetime = post('start_datetime');
             $endDatetime = post('end_datetime');
+            $newRoom = trim((string) post('room_location'));
 
             if (!$schedule_id || !$class_id || !$startDatetime || !$endDatetime) {
                 flash('Please complete all required fields.', 'danger');
@@ -285,51 +339,322 @@ function classes_page(): void
                 redirect('classes&tab=schedules');
             }
 
+            // Fetch current schedule details before update to verify permissions and detect reschedules
+            $currStmt = db()->prepare('
+                SELECT s.schedule_id, s.class_id, s.start_datetime, s.end_datetime, s.room_location,
+                       c.class_name, c.instructor_id, c.gym_id
+                FROM class_schedules s
+                JOIN classes c ON c.class_id = s.class_id
+                WHERE s.schedule_id = ?
+            ');
+            $currStmt->execute([$schedule_id]);
+            $cls = $currStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$cls) redirect('classes&tab=schedules');
+
             if (!$isAdmin) {
-                $c = db()->prepare('SELECT c.instructor_id, c.gym_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
-                $c->execute([$schedule_id]);
-                $cls = $c->fetch();
-                if (!$cls) redirect('classes&tab=schedules');
-                
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
                 if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
 
-            $conflictErr = check_schedule_conflicts(db(), (int) $class_id, $startDatetime, $endDatetime, post('room_location'), (int) $schedule_id, $gymId);
+            $conflictErr = check_schedule_conflicts(db(), (int) $class_id, $startDatetime, $endDatetime, $newRoom, (int) $schedule_id, $gymId);
             if ($conflictErr !== null) {
                 flash($conflictErr, 'danger');
                 redirect('classes&tab=schedules');
             }
 
+            // Detect if date/time or room changed
+            $timeChanged = (date('Y-m-d H:i', strtotime($cls['start_datetime'])) !== date('Y-m-d H:i', $startTimestamp));
+            $roomChanged = (trim((string)$cls['room_location']) !== $newRoom);
+
             db()->prepare('UPDATE class_schedules SET class_id=?, room_location=?, start_datetime=?, end_datetime=? WHERE schedule_id=?')
-                ->execute([$class_id, post('room_location'), $startDatetime, $endDatetime, $schedule_id]);
+                ->execute([$class_id, $newRoom, $startDatetime, $endDatetime, $schedule_id]);
             audit_log($user['user_id'], 'edit', 'class_schedule', (string) $schedule_id, json_encode(['class_id' => $class_id]));
+
+            // Notify enrolled members if time or location changed
+            if ($timeChanged || $roomChanged) {
+                try {
+                    $enrolledStmt = db()->prepare('SELECT user_id FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"');
+                    $enrolledStmt->execute([$schedule_id]);
+                    $enrolledUserIds = $enrolledStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                    if (!empty($enrolledUserIds)) {
+                        $formattedWhen = date('D, M j \a\t g:i A', $startTimestamp);
+                        $changeDetails = [];
+                        if ($timeChanged) $changeDetails[] = "New Time: {$formattedWhen}";
+                        if ($roomChanged) $changeDetails[] = "Location: " . ($newRoom !== '' ? $newRoom : 'TBD');
+                        $changeStr = implode(' · ', $changeDetails);
+
+                        foreach ($enrolledUserIds as $mUserId) {
+                            notify_user(
+                                (int) $mUserId,
+                                'class_reminder',
+                                'Class Rescheduled: ' . $cls['class_name'],
+                                "Notice: Your session of \"{$cls['class_name']}\" has been rescheduled ({$changeStr}). Please check your schedule.",
+                                (int) $schedule_id
+                            );
+                        }
+                    }
+                } catch (Throwable) {}
+            }
+
             flash('Schedule updated.');
             redirect('classes&tab=schedules');
         } elseif ($action === 'delete_schedule') {
-            $schedule_id = post('schedule_id');
+            $schedule_id = (int) post('schedule_id');
+            
+            // Fetch schedule details and enrolled members before deletion
+            $schedStmt = db()->prepare('
+                SELECT s.schedule_id, s.start_datetime, s.room_location, c.class_name, c.instructor_id, c.gym_id
+                FROM class_schedules s
+                JOIN classes c ON c.class_id = s.class_id
+                WHERE s.schedule_id = ?
+            ');
+            $schedStmt->execute([$schedule_id]);
+            $cls = $schedStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$cls) redirect('classes&tab=schedules');
+
             if (!$isAdmin) {
-                $c = db()->prepare('SELECT c.instructor_id, c.gym_id FROM classes c JOIN class_schedules s ON c.class_id = s.class_id WHERE s.schedule_id=?');
-                $c->execute([$schedule_id]);
-                $cls = $c->fetch();
-                if (!$cls) redirect('classes&tab=schedules');
-                
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
                 if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
             }
+
+            // Find all booked members before deleting schedule
+            try {
+                $enrolledStmt = db()->prepare('SELECT user_id FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"');
+                $enrolledStmt->execute([$schedule_id]);
+                $enrolledUserIds = $enrolledStmt->fetchAll(PDO::FETCH_COLUMN);
+
+                if (!empty($enrolledUserIds)) {
+                    $whenStr = date('D, M j \a\t g:i A', strtotime($cls['start_datetime']));
+                    foreach ($enrolledUserIds as $mUserId) {
+                        notify_user(
+                            (int) $mUserId,
+                            'class_reminder',
+                            'Class Cancelled: ' . $cls['class_name'],
+                            "Notice: Your scheduled session for \"{$cls['class_name']}\" on {$whenStr} has been cancelled by the gym. We apologize for the inconvenience.",
+                            (int) $schedule_id
+                        );
+                    }
+                }
+
+                // Update bookings to cancelled
+                db()->prepare('UPDATE class_bookings SET booking_status = "cancelled" WHERE schedule_id = ? AND booking_status = "booked"')->execute([$schedule_id]);
+            } catch (Throwable) {}
+
             db()->prepare('DELETE FROM class_schedules WHERE schedule_id=?')->execute([$schedule_id]);
             audit_log($user['user_id'], 'delete', 'class_schedule', (string) $schedule_id);
             flash('Schedule deleted.');
             redirect('classes&tab=schedules');
+        } elseif ($action === 'update_attendance') {
+            $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || post('ajax') === '1';
+            $bookingId = (int) post('booking_id');
+            $newStatus = trim((string) post('status')); // 'attended', 'no_show', 'booked'
+
+            if (!in_array($newStatus, ['attended', 'no_show', 'booked'], true)) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'error' => 'Invalid status']);
+                    exit;
+                }
+                flash('Invalid status.', 'danger');
+                redirect('classes&tab=schedules');
+            }
+
+            $bStmt = db()->prepare('
+                SELECT b.booking_id, b.schedule_id, b.user_id, b.booking_status,
+                       c.class_name, c.instructor_id, c.gym_id,
+                       u.first_name, u.last_name,
+                       s.start_datetime, s.end_datetime
+                FROM class_bookings b
+                JOIN class_schedules s ON s.schedule_id = b.schedule_id
+                JOIN classes c ON c.class_id = s.class_id
+                LEFT JOIN users u ON u.user_id = c.instructor_id
+                WHERE b.booking_id = ?
+            ');
+            $bStmt->execute([$bookingId]);
+            $booking = $bStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$booking) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'error' => 'Booking not found']);
+                    exit;
+                }
+                flash('Booking not found.', 'danger');
+                redirect('classes&tab=schedules');
+            }
+
+            if (!$isAdmin) {
+                if ($user['role'] === 'gym_owner' && $booking['gym_id'] != $gymId) {
+                    if ($isAjax) {
+                        http_response_code(403);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+                        exit;
+                    }
+                    redirect('classes&tab=schedules');
+                }
+                if ($user['role'] === 'trainer' && $booking['instructor_id'] != $user['user_id']) {
+                    if ($isAjax) {
+                        http_response_code(403);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+                        exit;
+                    }
+                    redirect('classes&tab=schedules');
+                }
+            }
+
+            db()->prepare('UPDATE class_bookings SET booking_status = ? WHERE booking_id = ?')->execute([$newStatus, $bookingId]);
+            audit_log($user['user_id'], 'update_attendance', 'class_booking', (string) $bookingId, json_encode(['status' => $newStatus]));
+
+            // If marked attended and previously wasn't attended, send notification to member
+            if ($newStatus === 'attended' && $booking['booking_status'] !== 'attended') {
+                $coachName = trim(($booking['first_name'] ?? '') . ' ' . ($booking['last_name'] ?? ''));
+                if ($coachName === '') $coachName = 'your trainer';
+                $endTs = !empty($booking['end_datetime']) ? strtotime($booking['end_datetime']) : (strtotime($booking['start_datetime']) + 3600);
+                $isEnded = (time() >= $endTs);
+
+                if ($isEnded) {
+                    notify_user(
+                        (int) $booking['user_id'],
+                        'class_reminder',
+                        'Class Completed: ' . $booking['class_name'],
+                        "Great workout in \"{$booking['class_name']}\" with Coach {$coachName}! Keep up the momentum.",
+                        (int) $booking['schedule_id']
+                    );
+                } else {
+                    notify_user(
+                        (int) $booking['user_id'],
+                        'class_reminder',
+                        'Checked In: ' . $booking['class_name'],
+                        "You are checked in for \"{$booking['class_name']}\" with Coach {$coachName}. Enjoy your session!",
+                        (int) $booking['schedule_id']
+                    );
+                }
+            }
+
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true,
+                    'booking_id' => $bookingId,
+                    'schedule_id' => (int) $booking['schedule_id'],
+                    'booking_status' => $newStatus,
+                    'message' => 'Attendance updated.'
+                ]);
+                exit;
+            }
+
+            flash('Attendance updated.');
+            redirect('classes&tab=schedules');
+        } elseif ($action === 'mark_all_attendance') {
+            $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') || post('ajax') === '1';
+            $scheduleId = (int) post('schedule_id');
+            $targetStatus = trim((string) post('status'));
+            if (!in_array($targetStatus, ['attended', 'no_show'], true)) {
+                $targetStatus = 'attended';
+            }
+
+            $sStmt = db()->prepare('
+                SELECT s.schedule_id, s.start_datetime, s.end_datetime, c.class_name, c.instructor_id, c.gym_id,
+                       u.first_name, u.last_name
+                FROM class_schedules s
+                JOIN classes c ON c.class_id = s.class_id
+                LEFT JOIN users u ON u.user_id = c.instructor_id
+                WHERE s.schedule_id = ?
+            ');
+            $sStmt->execute([$scheduleId]);
+            $sched = $sStmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$sched) {
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'error' => 'Schedule not found']);
+                    exit;
+                }
+                flash('Schedule not found.', 'danger');
+                redirect('classes&tab=schedules');
+            }
+
+            if (!$isAdmin) {
+                if ($user['role'] === 'gym_owner' && $sched['gym_id'] != $gymId) {
+                    if ($isAjax) {
+                        http_response_code(403);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+                        exit;
+                    }
+                    redirect('classes&tab=schedules');
+                }
+                if ($user['role'] === 'trainer' && $sched['instructor_id'] != $user['user_id']) {
+                    if ($isAjax) {
+                        http_response_code(403);
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+                        exit;
+                    }
+                    redirect('classes&tab=schedules');
+                }
+            }
+
+            // Single query to find who is currently booked
+            $fetchStmt = db()->prepare('SELECT user_id FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"');
+            $fetchStmt->execute([$scheduleId]);
+            $toNotifyUserIds = $fetchStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            // 1 single batch UPDATE query (avoiding N+1 loop)
+            $upStmt = db()->prepare('UPDATE class_bookings SET booking_status = ? WHERE schedule_id = ? AND booking_status = "booked"');
+            $upStmt->execute([$targetStatus, $scheduleId]);
+            $affectedCount = $upStmt->rowCount();
+
+            audit_log($user['user_id'], 'mark_all_attendance', 'class_schedule', (string) $scheduleId, json_encode(['status' => $targetStatus, 'count' => $affectedCount]));
+
+            if ($targetStatus === 'attended' && !empty($toNotifyUserIds)) {
+                $coachName = trim(($sched['first_name'] ?? '') . ' ' . ($sched['last_name'] ?? ''));
+                if ($coachName === '') $coachName = 'your trainer';
+                $endTs = !empty($sched['end_datetime']) ? strtotime($sched['end_datetime']) : (strtotime($sched['start_datetime']) + 3600);
+                $isEnded = (time() >= $endTs);
+
+                $notifTitle = $isEnded ? ('Class Completed: ' . $sched['class_name']) : ('Checked In: ' . $sched['class_name']);
+                $notifBody = $isEnded
+                    ? "Great workout in \"{$sched['class_name']}\" with Coach {$coachName}! Keep up the momentum."
+                    : "You are checked in for \"{$sched['class_name']}\" with Coach {$coachName}. Enjoy your session!";
+
+                foreach ($toNotifyUserIds as $mUid) {
+                    notify_user(
+                        (int) $mUid,
+                        'class_reminder',
+                        $notifTitle,
+                        $notifBody,
+                        (int) $scheduleId
+                    );
+                }
+            }
+
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => true,
+                    'schedule_id' => $scheduleId,
+                    'booking_status' => $targetStatus,
+                    'affected' => $affectedCount,
+                    'message' => "Marked {$affectedCount} member(s) as {$targetStatus}."
+                ]);
+                exit;
+            }
+
+            flash("Marked {$affectedCount} member(s) as {$targetStatus}.");
+            redirect('classes&tab=schedules');
         }
-        $tabFallback = in_array($action, ['schedule', 'edit_schedule', 'delete_schedule'], true) ? 'schedules' : 'types';
+        $tabFallback = in_array($action, ['schedule', 'edit_schedule', 'delete_schedule', 'update_attendance', 'mark_all_attendance'], true) ? 'schedules' : 'types';
         redirect('classes&tab=' . $tabFallback);
     }
 
     if ($isAdmin) {
         $coaches = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "trainer" AND status = "active"')->fetchAll();
         $classes = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
-        $schedules = db()->query('SELECT s.*, c.class_name, c.capacity, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
+        $schedules = db()->query('SELECT s.*, c.class_name, c.capacity FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
     } else {
         $coaches = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u JOIN trainer_profiles tp ON u.user_id = tp.user_id WHERE u.role = "trainer" AND u.status = "active" AND tp.gym_id = ' . (int)$gymId)->fetchAll();
         
@@ -337,12 +662,12 @@ function classes_page(): void
         $stmt->execute([$gymId]);
         $classes = $stmt->fetchAll();
         
-        $stmt2 = db()->prepare('SELECT s.*, c.class_name, c.capacity, (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = "booked") AS booked FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
+        $stmt2 = db()->prepare('SELECT s.*, c.class_name, c.capacity FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
         $stmt2->execute([$gymId]);
         $schedules = $stmt2->fetchAll();
     }
 
-    // Pre-fetch all enrolled/booked members for each displayed schedule
+    // Pre-fetch all enrolled members for each displayed schedule in ONE batch query (O(1) eager loading, zero N+1)
     $scheduleIds = array_column($schedules, 'schedule_id');
     $bookedMembersBySchedule = [];
     if (!empty($scheduleIds)) {
@@ -352,7 +677,7 @@ function classes_page(): void
                    u.first_name, u.last_name, u.email, u.phone, u.profile_picture
             FROM class_bookings b
             JOIN users u ON u.user_id = b.user_id
-            WHERE b.schedule_id IN ($placeholders) AND b.booking_status = 'booked'
+            WHERE b.schedule_id IN ($placeholders) AND b.booking_status != 'cancelled'
             ORDER BY b.booked_at ASC
         ");
         $stmtBooked->execute($scheduleIds);
@@ -479,10 +804,18 @@ function classes_page(): void
             border-color: rgba(239, 68, 68, 0.35);
         }
         [data-theme="light"] .class-card {
-            background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--card-accent, #16a34a) 12%, transparent) 0%, transparent 60%),
+            background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--card-accent-light, #16a34a) 12%, transparent) 0%, transparent 60%),
                         linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-            border-color: color-mix(in srgb, var(--card-accent, #16a34a) 25%, #e2e8f0);
+            border-color: color-mix(in srgb, var(--card-accent-light, #16a34a) 25%, #e2e8f0);
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+        [data-theme="light"] .class-card-icon-pill {
+            background: color-mix(in srgb, var(--card-accent-light, #16a34a) 12%, #f1f5f9);
+            border-color: color-mix(in srgb, var(--card-accent-light, #16a34a) 30%, #e2e8f0);
+            color: var(--card-accent-light, #16a34a);
+        }
+        [data-theme="light"] .class-card-tag {
+            color: var(--card-accent-light, #15803d);
         }
         [data-theme="light"] .class-card-btn-action {
             background: #f1f5f9;
@@ -996,6 +1329,194 @@ function classes_page(): void
                 margin-top: 4px !important;
             }
         }
+
+        /* Schedule Subfilter Tabs */
+        .schedule-filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .sched-subfilter-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            transition: all 0.2s ease;
+        }
+        .sched-subfilter-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--ink);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .sched-subfilter-btn.active {
+            background: color-mix(in srgb, var(--orange, #ea580c) 15%, var(--panel));
+            border-color: color-mix(in srgb, var(--orange, #ea580c) 40%, transparent);
+            color: var(--orange, #ea580c);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        [data-theme="light"] .sched-subfilter-btn {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+            color: #64748b;
+        }
+        [data-theme="light"] .sched-subfilter-btn:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+        [data-theme="light"] .sched-subfilter-btn.active {
+            background: #fff7ed;
+            border-color: #fdba74;
+            color: #ea580c;
+        }
+        .subfilter-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-upcoming { background: #22c55e; }
+        .dot-completed { background: #94a3b8; }
+
+        /* Schedule Status Badges */
+        .sched-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+        .sched-status-upcoming {
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+        .sched-status-live {
+            background: rgba(234, 88, 12, 0.15);
+            border: 1px solid rgba(234, 88, 12, 0.4);
+            color: #ea580c;
+        }
+        .sched-status-completed {
+            background: rgba(148, 163, 184, 0.12);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            color: var(--muted);
+        }
+        .sched-dot-pulse {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .sched-dot-live {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ea580c;
+            box-shadow: 0 0 6px #ea580c;
+            animation: livePulse 1.4s infinite;
+        }
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        .sched-dot-completed {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #94a3b8;
+        }
+
+        /* Modal Attendance Styles */
+        .btn-mark-all-att {
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-mark-all-att:hover {
+            background: rgba(34, 197, 94, 0.22);
+            border-color: #22c55e;
+            transform: translateY(-1px);
+        }
+        .badge-att-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .badge-att-attended {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.28);
+        }
+        .badge-att-noshow {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.28);
+        }
+        .badge-att-booked {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.28);
+        }
+        .btn-att-action {
+            border: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .btn-att-attend {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+        .btn-att-attend:hover {
+            background: #22c55e;
+            color: #ffffff;
+        }
+        .btn-att-noshow {
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+        }
+        .btn-att-noshow:hover {
+            background: #ef4444;
+            color: #ffffff;
+        }
+        .btn-att-link {
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-size: 10.5px;
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 2px 4px;
+        }
+        .btn-att-link:hover {
+            color: var(--ink);
+        }
     </style>
 
     <div>
@@ -1121,6 +1642,17 @@ function classes_page(): void
                     <p>No schedules yet. Create one using the button above.</p>
                 </div>
             <?php else: ?>
+                <div class="schedule-filter-bar">
+                    <button type="button" class="sched-subfilter-btn active" data-filter="upcoming" onclick="filterScheduleRows('upcoming')">
+                        <span class="subfilter-dot dot-upcoming"></span> Upcoming &amp; Today (<span id="count-upcoming">0</span>)
+                    </button>
+                    <button type="button" class="sched-subfilter-btn" data-filter="completed" onclick="filterScheduleRows('completed')">
+                        <span class="subfilter-dot dot-completed"></span> Past / Completed (<span id="count-completed">0</span>)
+                    </button>
+                    <button type="button" class="sched-subfilter-btn" data-filter="all" onclick="filterScheduleRows('all')">
+                        All Sessions (<span id="count-all">0</span>)
+                    </button>
+                </div>
                 <div class="panel schedule-table-panel" style="padding:0; overflow:hidden;">
                     <div class="table-wrap">
                         <table style="margin:0; width:100%;">
@@ -1135,28 +1667,61 @@ function classes_page(): void
                                 </tr>
                             </thead>
                             <tbody>
+                            <tr id="sched-filter-empty-row" style="display:none;">
+                                <td colspan="6" style="text-align:center; padding:32px 16px; color:var(--muted); font-size:13.5px;">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="margin-bottom:6px; opacity:0.6;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    <p style="margin:0;">No sessions match the selected filter.</p>
+                                </td>
+                            </tr>
                             <?php foreach ($schedules as $s): 
                                 $startTs = strtotime($s['start_datetime']);
                                 $endTs = strtotime($s['end_datetime']);
+                                $nowTs = time();
                                 $startDate = date('M j, Y', $startTs);
                                 $endDate = date('M j, Y', $endTs);
                                 $startTime = date('g:i A', $startTs);
                                 $endTime = date('g:i A', $endTs);
                                 $scheduleTimeStr = $startDate . ' ' . $startTime . ' – ' . ($startDate !== $endDate ? $endDate . ' ' : '') . $endTime;
+
+                                if ($nowTs < $startTs) {
+                                    $sessionStatus = 'upcoming';
+                                    $statusBadge = '<span class="sched-status-pill sched-status-upcoming"><span class="sched-dot-pulse"></span>Upcoming</span>';
+                                } elseif ($nowTs >= $startTs && $nowTs <= $endTs) {
+                                    $sessionStatus = 'in_progress';
+                                    $statusBadge = '<span class="sched-status-pill sched-status-live"><span class="sched-dot-live"></span>In Progress</span>';
+                                } else {
+                                    $sessionStatus = 'completed';
+                                    $statusBadge = '<span class="sched-status-pill sched-status-completed"><span class="sched-dot-completed"></span>Ended</span>';
+                                }
+
                                 $sMembers = $bookedMembersBySchedule[(int)$s['schedule_id']] ?? [];
                                 $sMemCount = count($sMembers);
+                                $attendedCount = 0;
+                                $noShowCount = 0;
+                                foreach ($sMembers as $sm) {
+                                    if (($sm['booking_status'] ?? '') === 'attended') $attendedCount++;
+                                    elseif (($sm['booking_status'] ?? '') === 'no_show') $noShowCount++;
+                                }
+
                                 $shownMembers = array_slice($sMembers, 0, 2);
                                 $remainingCount = $sMemCount - count($shownMembers);
                                 $modalPayload = htmlspecialchars(json_encode([
+                                    'schedule_id' => (int)$s['schedule_id'],
                                     'class_name' => $s['class_name'],
                                     'time' => $scheduleTimeStr,
                                     'location' => $s['room_location'] ?: 'Main Studio',
                                     'capacity' => (int)($s['capacity'] ?? 0),
+                                    'status' => $sessionStatus,
                                     'members' => $sMembers
                                 ]), ENT_QUOTES, 'UTF-8');
                             ?>
-                                <tr>
-                                    <td><strong><?= h($s['class_name']) ?></strong></td>
+                                <tr class="sched-table-row" data-status="<?= $sessionStatus ?>">
+                                    <td>
+                                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                            <strong><?= h($s['class_name']) ?></strong>
+                                            <?= $statusBadge ?>
+                                        </div>
+                                    </td>
                                     <td><span style="display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><?= h($s['room_location'] ?: '—') ?></span></td>
                                     <td>
                                         <div style="display:flex; flex-direction:column; gap:4px; font-size:13px;">
@@ -1174,8 +1739,21 @@ function classes_page(): void
                                     </td>
                                     <td>
                                         <span style="background:rgba(234,88,12,0.12); color:var(--orange, #ea580c); padding:4px 10px; border-radius:12px; font-weight:700; font-size:13px;">
-                                            <?= (int) $s['booked'] ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?>
+                                            <?= $sMemCount ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?>
                                         </span>
+                                        <?php if ($sessionStatus === 'completed'): ?>
+                                            <?php if ($attendedCount > 0): ?>
+                                                <div style="font-size:11px; color:#22c55e; margin-top:3px; font-weight:600; display:flex; align-items:center; gap:3px;">
+                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                    <?= $attendedCount ?> attended
+                                                </div>
+                                            <?php endif; ?>
+                                            <?php if ($noShowCount > 0): ?>
+                                                <div style="font-size:11px; color:#ef4444; font-weight:600;">
+                                                    <?= $noShowCount ?> no-show
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if ($sMemCount === 0): ?>
@@ -1207,8 +1785,15 @@ function classes_page(): void
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
-                                        <button type="button" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger); cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
+                                        <?php if ($sessionStatus === 'completed'): ?>
+                                            <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:6px 10px; font-size:12px; border:none; background:rgba(34,197,94,0.14); color:#22c55e; cursor:pointer; font-weight:600; border-radius:6px;">Attendance</button>
+                                        <?php elseif ($sessionStatus === 'in_progress'): ?>
+                                            <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:6px 10px; font-size:12px; border:none; background:rgba(234,88,12,0.14); color:var(--orange, #ea580c); cursor:pointer; font-weight:600; border-radius:6px;">Check-in</button>
+                                            <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                        <?php else: ?>
+                                            <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                        <?php endif; ?>
+                                        <button type="button" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger); cursor:pointer; border-radius:6px;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1220,25 +1805,43 @@ function classes_page(): void
                     <?php foreach ($schedules as $s): 
                         $startTs = strtotime($s['start_datetime']);
                         $endTs = strtotime($s['end_datetime']);
+                        $nowTs = time();
                         $startDate = date('M j, Y', $startTs);
                         $endDate = date('M j, Y', $endTs);
                         $startTime = date('g:i A', $startTs);
                         $endTime = date('g:i A', $endTs);
                         $scheduleTimeStr = $startDate . ' ' . $startTime . ' – ' . ($startDate !== $endDate ? $endDate . ' ' : '') . $endTime;
+
+                        if ($nowTs < $startTs) {
+                            $sessionStatus = 'upcoming';
+                            $statusBadge = '<span class="sched-status-pill sched-status-upcoming"><span class="sched-dot-pulse"></span>Upcoming</span>';
+                        } elseif ($nowTs >= $startTs && $nowTs <= $endTs) {
+                            $sessionStatus = 'in_progress';
+                            $statusBadge = '<span class="sched-status-pill sched-status-live"><span class="sched-dot-live"></span>In Progress</span>';
+                        } else {
+                            $sessionStatus = 'completed';
+                            $statusBadge = '<span class="sched-status-pill sched-status-completed"><span class="sched-dot-completed"></span>Ended</span>';
+                        }
+
                         $sMembers = $bookedMembersBySchedule[(int)$s['schedule_id']] ?? [];
                         $sMemCount = count($sMembers);
                         $shownMembers = array_slice($sMembers, 0, 2);
                         $remainingCount = $sMemCount - count($shownMembers);
                         $modalPayload = htmlspecialchars(json_encode([
+                            'schedule_id' => (int)$s['schedule_id'],
                             'class_name' => $s['class_name'],
                             'time' => $scheduleTimeStr,
                             'location' => $s['room_location'] ?: 'Main Studio',
                             'capacity' => (int)($s['capacity'] ?? 0),
+                            'status' => $sessionStatus,
                             'members' => $sMembers
                         ]), ENT_QUOTES, 'UTF-8');
                     ?>
-                        <article class="schedule-mobile-card">
-                            <h3 class="schedule-mobile-card-title"><?= h($s['class_name']) ?></h3>
+                        <article class="schedule-mobile-card sched-mobile-item" data-status="<?= $sessionStatus ?>">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+                                <h3 class="schedule-mobile-card-title" style="margin:0;"><?= h($s['class_name']) ?></h3>
+                                <?= $statusBadge ?>
+                            </div>
                             <div class="schedule-mobile-details">
                                 <div>
                                     <span class="schedule-mobile-detail-label">Location</span>
@@ -1261,7 +1864,7 @@ function classes_page(): void
                                 </div>
                                 <div>
                                     <span class="schedule-mobile-detail-label">Booked</span>
-                                    <div class="schedule-mobile-detail-value"><?= (int) $s['booked'] ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?> member<?= (int) $s['booked'] === 1 ? '' : 's' ?></div>
+                                    <div class="schedule-mobile-detail-value"><?= $sMemCount ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?> member<?= $sMemCount === 1 ? '' : 's' ?></div>
                                 </div>
                                 <div style="grid-column: 1 / -1;">
                                     <span class="schedule-mobile-detail-label">Enrolled Members (<?= $sMemCount ?>)</span>
@@ -1288,7 +1891,14 @@ function classes_page(): void
                                 </div>
                             </div>
                             <div class="schedule-mobile-actions">
-                                <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                <?php if ($sessionStatus === 'completed'): ?>
+                                    <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:8px 10px; font-size:12px; cursor:pointer; background:rgba(34,197,94,0.14); color:#22c55e; font-weight:600;">Attendance</button>
+                                <?php elseif ($sessionStatus === 'in_progress'): ?>
+                                    <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:8px 10px; font-size:12px; cursor:pointer; background:rgba(234,88,12,0.14); color:var(--orange, #ea580c); font-weight:600;">Check-in</button>
+                                    <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                <?php else: ?>
+                                    <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                <?php endif; ?>
                                 <button type="button" class="btn btn-danger" style="padding:8px 10px; font-size:12px; cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                             </div>
                         </article>
@@ -1362,8 +1972,15 @@ function classes_page(): void
     <dialog id="classMembersModal" class="modal" style="max-width: 580px; width: 95%;">
         <div class="modal-header">
             <div>
-                <h3 class="classes-modal-title" id="cmm_class_name">Enrolled Members</h3>
+                <h3 class="classes-modal-title" id="cmm_class_name">Class Roster</h3>
                 <p id="cmm_subtitle" style="margin: 4px 0 0; font-size: 13px; color: var(--muted);"></p>
+                <div id="cmm_header_actions" style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                    <div id="cmm_status_breakdown" style="font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center;"></div>
+                    <button type="button" id="cmm_btn_mark_all" class="btn-mark-all-att" onclick="markAllAttendance()" style="display: none;">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Mark All Attended</span>
+                    </button>
+                </div>
             </div>
             <button type="button" class="modal-close" onclick="document.getElementById('classMembersModal').close()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -1385,16 +2002,18 @@ function classes_page(): void
 
     <script>
     let currentClassMembersData = [];
+    let currentScheduleMeta = null;
 
     function openClassMembersModal(data) {
         const modal = document.getElementById('classMembersModal');
         if (!modal) return;
         
-        document.getElementById('cmm_class_name').textContent = data.class_name ? `Enrolled Members: ${data.class_name}` : 'Enrolled Members';
+        currentScheduleMeta = data;
+        document.getElementById('cmm_class_name').textContent = data.class_name ? `Class Roster: ${data.class_name}` : 'Class Roster';
         const capText = data.capacity > 0 ? ` • Capacity: ${data.capacity}` : '';
         document.getElementById('cmm_subtitle').textContent = `${data.time} • ${data.location}${capText}`;
         
-        currentClassMembersData = data.members || [];
+        currentClassMembersData = (data.members || []).map(m => ({ ...m }));
         const searchInput = document.getElementById('cmm_search_input');
         if (searchInput) searchInput.value = '';
         
@@ -1407,8 +2026,35 @@ function classes_page(): void
         const summary = document.getElementById('cmm_count_summary');
         if (!container) return;
         
+        const total = currentClassMembersData.length;
+        const attCount = currentClassMembersData.filter(m => (m.booking_status || '') === 'attended').length;
+        const nsCount = currentClassMembersData.filter(m => (m.booking_status || '') === 'no_show').length;
+        const bookedCount = currentClassMembersData.filter(m => (m.booking_status || 'booked') === 'booked').length;
+        const isPast = (currentScheduleMeta && currentScheduleMeta.status === 'completed');
+        const attendedLabel = isPast ? 'Attended' : 'Checked In';
+
+        const breakdown = document.getElementById('cmm_status_breakdown');
+        if (breakdown) {
+            breakdown.innerHTML = `
+                <span><strong style="color:var(--ink);">${total}</strong> Enrolled</span>
+                <span>•</span>
+                <span style="color:#22c55e;"><strong style="font-weight:700;">${attCount}</strong> ${attendedLabel}</span>
+                <span>•</span>
+                <span style="color:#ef4444;"><strong style="font-weight:700;">${nsCount}</strong> No-Show</span>
+            `;
+        }
+
+        const markAllBtn = document.getElementById('cmm_btn_mark_all');
+        if (markAllBtn) {
+            markAllBtn.innerHTML = `
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>${isPast ? 'Mark All Attended' : 'Check In All'}</span>
+            `;
+            markAllBtn.style.display = (bookedCount > 0) ? 'inline-flex' : 'none';
+        }
+
         if (summary) {
-            summary.textContent = `Total Enrolled: ${members.length}`;
+            summary.textContent = `Total: ${total} member${total === 1 ? '' : 's'}`;
         }
         
         if (members.length === 0) {
@@ -1421,17 +2067,41 @@ function classes_page(): void
             return;
         }
         
-        container.innerHTML = members.map((m, idx) => {
+        container.innerHTML = members.map((m) => {
             const fName = (m.first_name || '').trim();
             const lName = (m.last_name || '').trim();
             const initials = ((fName[0] || 'M') + (lName[0] || '')).toUpperCase();
             const fullName = `${fName} ${lName}`.trim() || 'Member';
             const email = m.email || '—';
             const phone = m.phone ? ` • ${m.phone}` : '';
-            const bookedDate = m.booked_at ? new Date(m.booked_at.replace(/-/g, '/')) : null;
-            const bookedAt = bookedDate && !isNaN(bookedDate.getTime()) 
-                ? bookedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) 
-                : '';
+            const bStatus = m.booking_status || 'booked';
+
+            let actionHtml = '';
+            if (bStatus === 'attended') {
+                actionHtml = `
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                        <span class="badge-att-status badge-att-attended">✓ ${attendedLabel}</span>
+                        <button type="button" class="btn-att-link" onclick="updateMemberAttendance(${m.booking_id}, 'no_show')">Mark No-Show</button>
+                    </div>
+                `;
+            } else if (bStatus === 'no_show') {
+                actionHtml = `
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                        <span class="badge-att-status badge-att-noshow">✕ No-Show</span>
+                        <button type="button" class="btn-att-link" onclick="updateMemberAttendance(${m.booking_id}, 'attended')">${isPast ? 'Mark Attended' : 'Check In'}</button>
+                    </div>
+                `;
+            } else {
+                actionHtml = `
+                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                        <span class="badge-att-status badge-att-booked">Booked</span>
+                        <div style="display:flex; gap:4px;">
+                            <button type="button" class="btn-att-action btn-att-attend" onclick="updateMemberAttendance(${m.booking_id}, 'attended')" title="${isPast ? 'Mark Attended' : 'Check In'}">✓ ${isPast ? 'Attend' : 'Check In'}</button>
+                            <button type="button" class="btn-att-action btn-att-noshow" onclick="updateMemberAttendance(${m.booking_id}, 'no_show')" title="Mark as No-Show">✕ No-Show</button>
+                        </div>
+                    </div>
+                `;
+            }
             
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; gap: 12px;">
@@ -1445,12 +2115,95 @@ function classes_page(): void
                         </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0;">
-                        <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; background: rgba(34,197,94,0.15); color: #22c55e;">Booked</span>
-                        ${bookedAt ? `<span style="display: block; font-size: 11px; color: var(--muted); margin-top: 2px;">${bookedAt}</span>` : ''}
+                        ${actionHtml}
                     </div>
                 </div>
             `;
         }).join('');
+    }
+
+    async function updateMemberAttendance(bookingId, newStatus) {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'update_attendance');
+            formData.append('booking_id', bookingId);
+            formData.append('status', newStatus);
+            formData.append('csrf_token', '<?= csrf_token() ?>');
+            formData.append('ajax', '1');
+
+            const res = await fetch('index.php?page=classes', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                const mem = currentClassMembersData.find(m => parseInt(m.booking_id) === parseInt(bookingId));
+                if (mem) {
+                    mem.booking_status = newStatus;
+                }
+                const searchInput = document.getElementById('cmm_search_input');
+                filterClassMembersModal(searchInput ? searchInput.value : '');
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update attendance', background: 'var(--bg)', color: 'var(--ink)' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to server', background: 'var(--bg)', color: 'var(--ink)' });
+        }
+    }
+
+    async function markAllAttendance() {
+        if (!currentScheduleMeta || !currentScheduleMeta.schedule_id) return;
+        const schedId = currentScheduleMeta.schedule_id;
+
+        const result = await Swal.fire({
+            title: 'Mark All as Attended?',
+            text: 'This will record attendance and send class completion notifications to all enrolled members.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Mark All Attended',
+            confirmButtonColor: '#22c55e',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)'
+        });
+        if (!result.isConfirmed) return;
+
+        try {
+            const formData = new FormData();
+            formData.append('action', 'mark_all_attendance');
+            formData.append('schedule_id', schedId);
+            formData.append('status', 'attended');
+            formData.append('csrf_token', '<?= csrf_token() ?>');
+            formData.append('ajax', '1');
+
+            const res = await fetch('index.php?page=classes', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                currentClassMembersData.forEach(m => {
+                    if ((m.booking_status || 'booked') === 'booked') m.booking_status = 'attended';
+                });
+                const searchInput = document.getElementById('cmm_search_input');
+                filterClassMembersModal(searchInput ? searchInput.value : '');
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Attendance Saved',
+                    text: data.message || 'All members marked as attended.',
+                    timer: 1800,
+                    showConfirmButton: false,
+                    background: 'var(--bg)',
+                    color: 'var(--ink)'
+                });
+            } else {
+                Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to update attendance', background: 'var(--bg)', color: 'var(--ink)' });
+            }
+        } catch (err) {
+            Swal.fire({ icon: 'error', title: 'Network Error', text: 'Could not connect to server', background: 'var(--bg)', color: 'var(--ink)' });
+        }
     }
 
     function filterClassMembersModal(query) {
@@ -1466,6 +2219,40 @@ function classes_page(): void
             return name.includes(q) || email.includes(q) || phone.includes(q);
         });
         renderClassMembersList(filtered);
+    }
+
+    function filterScheduleRows(filter) {
+        document.querySelectorAll('.sched-subfilter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+
+        const rows = document.querySelectorAll('.sched-table-row');
+        const cards = document.querySelectorAll('.sched-mobile-item');
+        let visibleCount = 0;
+
+        const matches = (st) => {
+            if (filter === 'all') return true;
+            if (filter === 'upcoming') return st === 'upcoming' || st === 'in_progress';
+            if (filter === 'completed') return st === 'completed';
+            return true;
+        };
+
+        rows.forEach(r => {
+            const st = r.dataset.status;
+            const show = matches(st);
+            r.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+        });
+
+        cards.forEach(c => {
+            const st = c.dataset.status;
+            c.style.display = matches(st) ? '' : 'none';
+        });
+
+        const emptyMsg = document.getElementById('sched-filter-empty-row');
+        if (emptyMsg) {
+            emptyMsg.style.display = (visibleCount === 0) ? '' : 'none';
+        }
     }
     function enhanceScheduleSelect(select) {
         if (!select || select.dataset.enhanced === 'true') return;
@@ -1600,6 +2387,30 @@ function classes_page(): void
         const tab = urlParams.get('tab');
         if (tab === 'schedules' || tab === 'types') {
             switchClassTab(tab, false);
+        }
+
+        // Initialize schedule filter counts & default view
+        let upcomingCount = 0;
+        let completedCount = 0;
+        const schedRows = document.querySelectorAll('.sched-table-row');
+        schedRows.forEach(r => {
+            const st = r.dataset.status;
+            if (st === 'upcoming' || st === 'in_progress') upcomingCount++;
+            if (st === 'completed') completedCount++;
+        });
+
+        const cu = document.getElementById('count-upcoming');
+        const cc = document.getElementById('count-completed');
+        const ca = document.getElementById('count-all');
+        if (cu) cu.textContent = upcomingCount;
+        if (cc) cc.textContent = completedCount;
+        if (ca) ca.textContent = schedRows.length;
+
+        // Auto-select filter: If upcoming sessions exist, show 'upcoming'; otherwise show 'all'
+        if (upcomingCount > 0) {
+            filterScheduleRows('upcoming');
+        } else {
+            filterScheduleRows('all');
         }
     });
 

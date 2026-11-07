@@ -187,7 +187,7 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
                         </p>
                     </div>
                     ${gym.is_affiliated ? `
-                        <div class="desktop-only" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 0.88rem; font-weight: 700; flex-shrink: 0;">
+                        <div class="gym-affiliated-pill" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 0.85rem; font-weight: 700; flex-shrink: 0;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                             <span>Affiliated Gym</span>
                         </div>
@@ -206,12 +206,7 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
                         ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(0)}</strong></span>` : ''}
                         <a href="index.php?page=view_gym&gym_id=${gym.gym_id}#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
                     </div>
-                    ${gym.is_affiliated ? `
-                        <div class="mobile-only" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 6px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 0.78rem; font-weight: 700; flex-shrink: 0;">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span>Affiliated</span>
-                        </div>
-                    ` : `
+                    ${gym.is_affiliated ? '' : `
                         <form method="post" action="index.php?page=gym_selection" class="mobile-only" style="margin: 0; flex-shrink: 0;">
                             <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
                             <input type="hidden" name="action" value="select_gym">

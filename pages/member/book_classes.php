@@ -42,6 +42,11 @@ function book_classes_page(): void
         }
 
         if ($action === 'cancel') {
+            $userBooking = scalar('SELECT booking_status FROM class_bookings WHERE schedule_id = ? AND user_id = ?', [$scheduleId, $user['user_id']]);
+            if ($userBooking === 'attended') {
+                flash('You have already checked in for this class session and cannot cancel.', 'danger');
+                redirect('book_classes');
+            }
             $start = strtotime($class['start_datetime']);
             if ($start - time() < 3600) {
                 flash('You cannot cancel a class less than 1 hour before it starts.', 'danger');
@@ -78,17 +83,18 @@ function book_classes_page(): void
                 redirect('book_classes');
             }
 
-            // Check if member already booked
+            // Check if member already booked or attended
             $existing = $pdo->prepare('SELECT booking_status FROM class_bookings WHERE schedule_id = ? AND user_id = ? FOR UPDATE');
             $existing->execute([$scheduleId, $user['user_id']]);
-            if ($existing->fetchColumn() === 'booked') {
+            $existingStatus = $existing->fetchColumn();
+            if (in_array($existingStatus, ['booked', 'attended'], true)) {
                 $pdo->rollBack();
-                flash('You have already booked this class!', 'danger');
+                flash('You are already registered for this class session!', 'danger');
                 redirect('book_classes');
             }
 
             // Atomic capacity check under lock: guarantees only the first-arriving request gets the slot
-            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM class_bookings WHERE schedule_id = ? AND booking_status = "booked"');
+            $countStmt = $pdo->prepare('SELECT COUNT(*) FROM class_bookings WHERE schedule_id = ? AND booking_status IN ("booked", "attended")');
             $countStmt->execute([$scheduleId]);
             $currentBookings = (int) $countStmt->fetchColumn();
 
@@ -104,7 +110,7 @@ function book_classes_page(): void
                 SELECT s2.schedule_id
                 FROM class_bookings b
                 JOIN class_schedules s2 ON b.schedule_id = s2.schedule_id
-                WHERE b.user_id = ? AND b.booking_status = "booked"
+                WHERE b.user_id = ? AND b.booking_status IN ("booked", "attended")
                   AND s2.start_datetime < ?
                   AND s2.end_datetime > ?
                 LIMIT 1
@@ -217,8 +223,8 @@ function book_classes_page(): void
             c.capacity,
             COALESCE(CONCAT(u.first_name, ' ', u.last_name), 'Open trainer') AS instructor,
             1 AS is_scheduled,
-            (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status = 'booked') AS booked,
-            (SELECT COUNT(*) FROM class_bookings b2 WHERE b2.schedule_id = s.schedule_id AND b2.user_id = " . (int)$user['user_id'] . " AND b2.booking_status = 'booked') AS is_booked
+            (SELECT COUNT(*) FROM class_bookings b WHERE b.schedule_id = s.schedule_id AND b.booking_status IN ('booked', 'attended')) AS booked,
+            (SELECT b2.booking_status FROM class_bookings b2 WHERE b2.schedule_id = s.schedule_id AND b2.user_id = " . (int)$user['user_id'] . " AND b2.booking_status IN ('booked', 'attended') LIMIT 1) AS my_booking_status
         FROM class_schedules s
         JOIN classes c ON c.class_id = s.class_id
         LEFT JOIN users u ON u.user_id = c.instructor_id
@@ -239,7 +245,7 @@ function book_classes_page(): void
             COALESCE(CONCAT(u.first_name, ' ', u.last_name), 'Open trainer') AS instructor,
             0 AS is_scheduled,
             0 AS booked,
-            0 AS is_booked
+            NULL AS my_booking_status
         FROM classes c
         LEFT JOIN users u ON u.user_id = c.instructor_id
         WHERE {$whereClassGym}
@@ -359,6 +365,64 @@ function book_classes_page(): void
     .cc-card.cc-unscheduled-card:hover {
         border-color: rgba(255, 255, 255, 0.25);
     }
+    [data-theme="light"] .cc-card {
+        background: #ffffff !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04) !important;
+    }
+    [data-theme="light"] .cc-category-badge {
+        color: var(--card-accent-light, #15803d) !important;
+        background: color-mix(in srgb, var(--card-accent-light, #15803d) 12%, #ffffff) !important;
+        border: 1px solid color-mix(in srgb, var(--card-accent-light, #15803d) 32%, transparent) !important;
+        font-weight: 800 !important;
+    }
+    [data-theme="light"] .cc-category-dot {
+        background: var(--card-accent-light, #16a34a) !important;
+    }
+    [data-theme="light"] .cc-meta-grid {
+        background: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+    [data-theme="light"] .cc-meta-icon {
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+        color: var(--card-accent-light, #15803d) !important;
+    }
+    [data-theme="light"] .cc-bar-track {
+        background: #e2e8f0 !important;
+    }
+    [data-theme="light"] .cc-bar-fill {
+        background: var(--card-accent-light, #16a34a) !important;
+    }
+    [data-theme="light"] .cc-is-full .cc-bar-fill {
+        background: #ef4444 !important;
+    }
+    .cc-badge-status.status-attended {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+    }
+    .cc-btn-attended-pill {
+        background: rgba(34, 197, 94, 0.14) !important;
+        color: #22c55e !important;
+        border: 1px solid rgba(34, 197, 94, 0.32) !important;
+        opacity: 0.95;
+    }
+    [data-theme="light"] .cc-badge-status.status-attended {
+        background: #f0fdf4 !important;
+        color: #15803d !important;
+        border: 1px solid #86efac !important;
+    }
+    [data-theme="light"] .cc-btn-attended-pill {
+        background: #f0fdf4 !important;
+        color: #15803d !important;
+        border: 1px solid #bbf7d0 !important;
+    }
+    [data-theme="light"] .cc-badge-status.status-booked {
+        background: #f0fdf4 !important;
+        color: #15803d !important;
+        border: 1px solid #86efac !important;
+    }
     @media (max-width: 640px) {
         .class-search-box {
             max-width: 100%;
@@ -419,7 +483,8 @@ function book_classes_page(): void
                     <p style="margin: 0; font-size: 14px;">No classes match your selected filter or search.</p>
                 </div>
                 <?php
-                $colors = ['#c7ff22', '#42dba5', '#ff9548', '#38bdf8', '#a78bfa', '#f472b6', '#facc15', '#2dd4bf'];
+                $colorsDark  = ['#c7ff22', '#42dba5', '#ff9548', '#38bdf8', '#a78bfa', '#f472b6', '#facc15', '#2dd4bf'];
+                $colorsLight = ['#15803d', '#059669', '#ea580c', '#0284c7', '#7c3aed', '#db2777', '#d97706', '#0d9488'];
                 $ci = 0;
                 foreach ($rows as $row):
                     $isScheduled = ((int)($row['is_scheduled'] ?? 0) === 1);
@@ -427,8 +492,12 @@ function book_classes_page(): void
                     $capacity = (int) ($row['capacity'] ?? 0);
                     $pct      = ($capacity > 0 && $isScheduled) ? min(100, round($booked / $capacity * 100)) : 0;
                     $full     = $isScheduled && ($capacity > 0) && ($booked >= $capacity);
-                    $barColor = $full ? '#ef4444' : ($pct >= 75 ? '#ff9548' : $colors[$ci % count($colors)]);
-                    $isAlreadyBooked = ($row['is_booked'] ?? 0) > 0;
+                    $accentDark  = $colorsDark[$ci % count($colorsDark)];
+                    $accentLight = $colorsLight[$ci % count($colorsLight)];
+                    $myBookingStatus = $row['my_booking_status'] ?? null;
+                    $isAttended      = ($myBookingStatus === 'attended');
+                    $isAlreadyBooked = ($myBookingStatus === 'booked');
+                    $isEnrolled      = ($isAlreadyBooked || $isAttended);
 
                     if ($isScheduled && !empty($row['start_datetime'])) {
                         $startDt  = new DateTime($row['start_datetime']);
@@ -444,15 +513,19 @@ function book_classes_page(): void
                         $timeVal = $startDt->format('g:i A');
                         $dateVal = $startDt->format('D, M j');
                         $roomLocation = !empty($row['room_location']) ? $row['room_location'] : 'Main Studio';
+                        $isSessionEnded  = ($endDt->getTimestamp() <= time());
+                        $isSessionActive = ($startDt->getTimestamp() <= time() && !$isSessionEnded);
                     } else {
                         $durationFormatted = 'Check back soon';
                         $dateLabel = 'Unscheduled';
                         $timeVal = 'TBA';
                         $dateVal = 'Not Scheduled';
                         $roomLocation = 'To be announced';
+                        $isSessionEnded = false;
+                        $isSessionActive = false;
                     }
                 ?>
-                    <div class="cc-card <?= $isAlreadyBooked ? 'cc-booked' : '' ?> <?= $full ? 'cc-is-full' : '' ?> <?= !$isScheduled ? 'cc-unscheduled-card' : '' ?>" style="--card-accent: <?= $colors[$ci % count($colors)] ?>;" data-class-name="<?= h(strtolower($row['class_name'])) ?>" data-instructor="<?= h(strtolower($row['instructor'])) ?>" data-scheduled="<?= $isScheduled ? '1' : '0' ?>">
+                    <div class="cc-card <?= $isEnrolled ? 'cc-booked' : '' ?> <?= $full ? 'cc-is-full' : '' ?> <?= !$isScheduled ? 'cc-unscheduled-card' : '' ?>" style="--card-accent: <?= $accentDark ?>; --card-accent-light: <?= $accentLight ?>;" data-class-name="<?= h(strtolower($row['class_name'])) ?>" data-instructor="<?= h(strtolower($row['instructor'])) ?>" data-scheduled="<?= $isScheduled ? '1' : '0' ?>">
                         <div class="cc-header">
                             <span class="cc-category-badge">
                                 <span class="cc-category-dot"></span>
@@ -462,6 +535,11 @@ function book_classes_page(): void
                                 <span class="cc-badge-status status-unscheduled" title="This class has no upcoming sessions scheduled yet">
                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                     Not Scheduled Yet
+                                </span>
+                            <?php elseif ($isAttended): ?>
+                                <span class="cc-badge-status status-attended" title="You are checked into this class session">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <?= $isSessionActive ? 'Checked In' : ($isSessionEnded ? 'Attended' : 'Checked In') ?>
                                 </span>
                             <?php elseif ($isAlreadyBooked): ?>
                                 <span class="cc-badge-status status-booked">
@@ -533,7 +611,7 @@ function book_classes_page(): void
                                     <span class="cc-cap-nums"><strong><?= $booked ?></strong> / <?= $capacity ?> booked</span>
                                 </div>
                                 <div class="cc-bar-track">
-                                    <div class="cc-bar-fill" style="width:<?= $pct ?>%;background:<?= $barColor ?>"></div>
+                                    <div class="cc-bar-fill" style="width:<?= $pct ?>%;<?= $full ? 'background:#ef4444;' : ($pct >= 75 ? 'background:#ea580c;' : '') ?>"></div>
                                 </div>
                             </div>
                         <?php else: ?>
@@ -554,6 +632,13 @@ function book_classes_page(): void
                                 <button type="button" class="cc-btn cc-btn-disabled" disabled style="cursor: not-allowed; opacity: 0.7;" title="This class cannot be booked yet because it is not currently scheduled.">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                                     <span>Not Scheduled Yet</span>
+                                </button>
+                            </div>
+                        <?php elseif ($isAttended): ?>
+                            <div class="cc-actions">
+                                <button type="button" class="cc-btn cc-btn-attended-pill" disabled style="cursor: default; font-weight: 700;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <span><?= $isSessionActive ? 'Checked In • In Session' : ($isSessionEnded ? 'Completed' : 'Checked In') ?></span>
                                 </button>
                             </div>
                         <?php else: ?>

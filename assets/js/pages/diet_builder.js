@@ -81,12 +81,36 @@ function confirmPublishPlan(btn, event, mealCount) {
         return false;
     }
 
+    const cfg = window.DIET_BUILDER_CONFIG || {};
+    const exceededDays = Array.isArray(cfg.exceededDays) ? cfg.exceededDays : [];
+    let noticeHtml = '';
+
+    if (exceededDays.length > 0) {
+        const targetCalsStr = cfg.targetCalories ? `${Number(cfg.targetCalories).toLocaleString()} kcal` : 'target';
+        const dayItems = exceededDays.map(d => `<li style="margin-bottom: 2px;"><strong>${escapeHtml(d.day_name)}:</strong> ${Number(d.calories).toLocaleString()} kcal (<span style="color:#f59e0b; font-weight:700;">+${Number(d.diff).toLocaleString()} kcal</span> over target)</li>`).join('');
+        noticeHtml = `
+            <div style="margin-top: 14px; padding: 10px 14px; border-radius: 8px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--ink, #fff); font-size: 12.5px; text-align: left; line-height: 1.45;">
+                <div style="font-weight: 700; color: #f59e0b; display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>Calorie Advisory Notice:</span>
+                </div>
+                <div>The following day(s) exceed the member's daily target (${escapeHtml(targetCalsStr)}):</div>
+                <ul style="margin: 6px 0 6px 18px; padding: 0;">
+                    ${dayItems}
+                </ul>
+                <div style="font-size: 11.5px; color: var(--muted, #94a3b8); margin-top: 4px;">
+                    This is permitted for surplus bulking or high-training days. You can still publish this plan.
+                </div>
+            </div>
+        `;
+    }
+
     if (typeof Swal !== 'undefined') {
         Swal.fire({
             title: 'Publish Diet Plan?',
-            html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">This will publish the diet plan and make it immediately active and visible to the member on their dashboard.</div>',
-            icon: 'question',
-            iconColor: 'var(--diet-accent, #84cc16)',
+            html: '<div style="font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-top: 6px;">This will publish the diet plan and make it immediately active and visible to the member on their dashboard.</div>' + noticeHtml,
+            icon: exceededDays.length > 0 ? 'info' : 'question',
+            iconColor: exceededDays.length > 0 ? '#f59e0b' : 'var(--diet-accent, #84cc16)',
             showCancelButton: true,
             confirmButtonText: 'Yes, Publish Plan',
             cancelButtonText: 'Cancel',
@@ -429,11 +453,19 @@ function updateLocalFoodDropdown() {
     const filterByDiet = !showAllCheck || !showAllCheck.checked;
     const activeRestriction = filterByDiet ? memberRestriction : 'all';
 
-    const matchingFoods = localFoods.filter(f => {
+    const seenNames = new Set();
+    const matchingFoods = [];
+    for (const f of localFoods) {
         const matchesType = !currentMealType || f.meal_type.toLowerCase() === currentMealType.toLowerCase();
         const matchesDiet = isDietaryCompatible(f.dietary_restriction, activeRestriction);
-        return matchesType && matchesDiet;
-    });
+        if (matchesType && matchesDiet) {
+            const normName = (f.name || '').trim().toLowerCase();
+            if (!seenNames.has(normName)) {
+                seenNames.add(normName);
+                matchingFoods.push(f);
+            }
+        }
+    }
 
     if (countBadge) {
         countBadge.textContent = matchingFoods.length;

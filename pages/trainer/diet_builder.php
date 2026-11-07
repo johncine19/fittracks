@@ -289,7 +289,18 @@ function diet_builder_page(): void
 
             $foodStmt = $pdo->prepare($foodQuery);
             $foodStmt->execute($foodParams);
-            $dbFoods = $foodStmt->fetchAll(PDO::FETCH_ASSOC);
+            $rawDbFoods = $foodStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Deduplicate foods by name (preferring gym-specific items)
+            $dbFoods = [];
+            $seenDbNames = [];
+            foreach ($rawDbFoods as $f) {
+                $norm = strtolower(trim((string)$f['name']));
+                if (!isset($seenDbNames[$norm])) {
+                    $seenDbNames[$norm] = true;
+                    $dbFoods[] = $f;
+                }
+            }
 
             $foodsByType = ['Breakfast' => [], 'Lunch' => [], 'Dinner' => [], 'Snack' => []];
             foreach ($dbFoods as $f) {
@@ -547,6 +558,61 @@ function diet_builder_page(): void
         $mealsByDay[(int)$m['day_of_week']][] = $m;
     }
 
+    // Calculate Member BMR, TDEE, and Target Calories for reference & advisory warnings
+    $memberWeight = (float) ($profile['weight_kg'] ?? 0);
+    $memberHeight = (float) ($profile['height_cm'] ?? 0);
+    $memberAge = (int) ($profile['age'] ?? 0);
+    if ($memberAge <= 0) $memberAge = 25;
+    $memberSex = strtolower((string)($profile['biological_sex'] ?? 'male'));
+    $memberActivity = (string)($profile['activity_level'] ?? 'sedentary');
+    $memberGoal = (string)($profile['primary_goal'] ?? 'general_health');
+
+    $memberTdee = null;
+    $memberTargetCals = null;
+
+    if ($memberWeight > 0 && $memberHeight > 0) {
+        $bmrCalc = 10 * $memberWeight + 6.25 * $memberHeight - 5 * $memberAge;
+        $bmrCalc += ($memberSex === 'female') ? -161 : 5;
+        $multipliers = ['sedentary' => 1.2, 'lightly_active' => 1.375, 'moderately_active' => 1.55, 'very_active' => 1.725, 'extra_active' => 1.9];
+        $memberTdee = (int) round($bmrCalc * ($multipliers[$memberActivity] ?? 1.2));
+        
+        $memberTargetCals = $memberTdee;
+        if (in_array($memberGoal, ['fat_loss', 'weight_loss'], true)) {
+            $memberTargetCals -= 500;
+        } elseif (in_array($memberGoal, ['muscle_gain', 'bulking'], true)) {
+            $memberTargetCals += 300;
+        }
+        $memberTargetCals = max(1200, (int) round($memberTargetCals));
+    }
+
+    $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
+    $dayTotals = [];
+    $exceededDays = [];
+
+    foreach ($daysMap as $dNum => $dName) {
+        $dCals = 0; $dPro = 0; $dCarbs = 0; $dFat = 0;
+        foreach ($mealsByDay[$dNum] as $m) {
+            $dCals += (int)($m['calories'] ?? 0);
+            $dPro += (float)($m['protein_g'] ?? 0);
+            $dCarbs += (float)($m['carbs_g'] ?? 0);
+            $dFat += (float)($m['fat_g'] ?? 0);
+        }
+        $dayTotals[$dNum] = [
+            'calories' => $dCals,
+            'protein' => $dPro,
+            'carbs' => $dCarbs,
+            'fat' => $dFat,
+        ];
+        if ($memberTargetCals !== null && $dCals > $memberTargetCals) {
+            $exceededDays[] = [
+                'day_num' => $dNum,
+                'day_name' => $dName,
+                'calories' => $dCals,
+                'diff' => $dCals - $memberTargetCals,
+            ];
+        }
+    }
+
     // Fetch active local food library dishes for the dropdown
     $gymScopeId = (int) ($gymId ?? get_user_gym_id($user));
     if ($gymScopeId > 0) {
@@ -556,7 +622,7 @@ function diet_builder_page(): void
             WHERE is_active = 1 
               AND verification_status = 'verified'
               AND (gym_id = ? OR gym_id IS NULL OR gym_id = 0)
-            ORDER BY name ASC
+            ORDER BY (gym_id IS NOT NULL AND gym_id > 0) DESC, name ASC
         ");
         $libraryFoodsStmt->execute([$gymScopeId]);
     } else {
@@ -570,7 +636,18 @@ function diet_builder_page(): void
         ");
         $libraryFoodsStmt->execute();
     }
-    $allLibraryFoods = $libraryFoodsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $rawLibraryFoods = $libraryFoodsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Deduplicate foods by name (gym-custom dishes take priority over platform defaults)
+    $allLibraryFoods = [];
+    $seenFoodNames = [];
+    foreach ($rawLibraryFoods as $rf) {
+        $normName = strtolower(trim((string)$rf['name']));
+        if (!isset($seenFoodNames[$normName])) {
+            $seenFoodNames[$normName] = true;
+            $allLibraryFoods[] = $rf;
+        }
+    }
 
     render_header('Build Diet Plan', $user);
     $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
@@ -594,6 +671,10 @@ function diet_builder_page(): void
                 <?php if (!empty($profile['secondary_focus'])): ?>
                     <span class="diet-meta-sep">·</span>
                     <span class="diet-meta-item">FOCUS: <strong style="color: var(--ink);"><?= h(ucwords(str_replace('_', ' ', (string)$profile['secondary_focus']))) ?></strong></span>
+                <?php endif; ?>
+                <?php if ($memberTargetCals): ?>
+                    <span class="diet-meta-sep">·</span>
+                    <span class="diet-meta-item">TARGET: <strong style="color: var(--diet-accent);"><?= number_format($memberTargetCals) ?> kcal</strong><?php if ($memberTdee): ?> (TDEE: <?= number_format($memberTdee) ?> kcal)<?php endif; ?></span>
                 <?php endif; ?>
             </div>
             <p style="color: var(--diet-muted, var(--muted)); font-size: 13px; margin: 6px 0 0;">Manage daily meals, nutrition, and macro targets tailored to this member.</p>
@@ -775,7 +856,14 @@ function diet_builder_page(): void
                 
                 <!-- Macro Inputs 2x2 Grid -->
                 <div>
-                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--diet-muted); margin-bottom: 6px;">Nutrition & Macros</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="font-size: 12px; font-weight: 600; color: var(--diet-muted); margin: 0;">Nutrition & Macros</label>
+                        <?php if ($memberTargetCals): ?>
+                            <span style="font-size: 11px; color: var(--diet-muted); font-weight: 600;" title="Member's daily target calories">
+                                Daily Target: <strong style="color: var(--diet-accent);"><?= number_format($memberTargetCals) ?> kcal</strong>
+                            </span>
+                        <?php endif; ?>
+                    </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <div style="background: var(--bg); border: 1px solid var(--diet-border); border-radius: 8px; padding: 8px 10px;">
                             <span style="font-size: 11px; font-weight: 600; color: var(--diet-muted); display: block;">Calories</span>
@@ -810,9 +898,15 @@ function diet_builder_page(): void
         <div class="days-tabs-nav" style="display: flex; gap: 6px; overflow-x: auto; padding: 6px; background: var(--surface); border: 1px solid var(--diet-border); border-radius: 10px;">
             <?php foreach ($daysMap as $dayNum => $dayName): 
                 $dayMealCount = count($mealsByDay[$dayNum] ?? []);
+                $isDayExceeded = ($memberTargetCals !== null && ($dayTotals[$dayNum]['calories'] ?? 0) > $memberTargetCals);
             ?>
                 <button type="button" class="tab-btn" data-day="<?= $dayNum ?>" onclick="switchDay(<?= $dayNum ?>)" style="flex: 1; padding: 10px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--diet-muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; flex-direction: column; align-items: center; gap: 3px;">
-                    <span><?= $dayName ?></span>
+                    <span style="display: inline-flex; align-items: center; gap: 3px;">
+                        <?= $dayName ?>
+                        <?php if ($isDayExceeded): ?>
+                            <span class="day-tab-warning-dot" title="Notice: Exceeds member daily target calories">⚠️</span>
+                        <?php endif; ?>
+                    </span>
                     <span style="font-size: 11px; opacity: 0.75; font-weight: 500;"><?= $dayMealCount ?> <?= $dayMealCount === 1 ? 'meal' : 'meals' ?></span>
                 </button>
             <?php endforeach; ?>
@@ -837,8 +931,14 @@ function diet_builder_page(): void
                     <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                         <span style="background: var(--diet-accent-tint); color: var(--diet-accent); border: 1px solid var(--diet-accent-border); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
-                            <span><?= $dayCals ?> kcal</span>
+                            <span><?= number_format($dayCals) ?> kcal</span>
                         </span>
+                        <?php if ($memberTargetCals !== null && $dayCals > $memberTargetCals): ?>
+                            <span class="diet-cal-warning-pill diet-cal-warning-excess" title="Notice: Exceeds member daily target (<?= number_format($memberTargetCals) ?> kcal)">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                <span>+<?= number_format($dayCals - $memberTargetCals) ?> kcal over target</span>
+                            </span>
+                        <?php endif; ?>
                         <span style="background: var(--bg); border: 1px solid var(--diet-border); padding: 4px 10px; border-radius: 20px; font-size: 12px; color: var(--diet-muted); font-weight: 600;">
                             P: <strong style="color: var(--ink);"><?= round($dayPro, 1) ?>g</strong>
                         </span>
@@ -860,6 +960,15 @@ function diet_builder_page(): void
                         <?php endif; ?>
                     </div>
                 </div>
+
+                <?php if ($memberTargetCals !== null && $dayCals > $memberTargetCals): ?>
+                    <div class="diet-day-alert-banner diet-day-alert-warning">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <div>
+                            <strong>Notice:</strong> This day's total (<strong><?= number_format($dayCals) ?> kcal</strong>) exceeds the member's daily target of <?= number_format($memberTargetCals) ?> kcal<?php if ($memberTdee): ?> (TDEE: <?= number_format($memberTdee) ?> kcal)<?php endif; ?> by <strong>+<?= number_format($dayCals - $memberTargetCals) ?> kcal</strong>. This is allowed for surplus bulking or high-training days, but ensure it aligns with the member's goals.
+                        </div>
+                    </div>
+                <?php endif; ?>
                 
                 <?php if (empty($mealsByDay[$dayNum])): ?>
                     <div style="text-align: center; padding: 40px 20px; background: var(--bg); border: 1px dashed var(--diet-border); border-radius: 10px;">
@@ -933,7 +1042,10 @@ function diet_builder_page(): void
 window.DIET_BUILDER_CONFIG = {
     csrfToken: <?= json_encode(csrf_token()) ?>,
     memberRestriction: <?= json_encode($memberRestriction) ?> || 'none',
-    localFoods: <?= json_encode($allLibraryFoods, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?> || []
+    localFoods: <?= json_encode($allLibraryFoods, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?> || [],
+    targetCalories: <?= json_encode($memberTargetCals) ?>,
+    memberTdee: <?= json_encode($memberTdee) ?>,
+    exceededDays: <?= json_encode($exceededDays) ?>
 };
 </script>
 <script src="<?= h(asset_url('js/pages/diet_builder.js')) ?>"></script>
