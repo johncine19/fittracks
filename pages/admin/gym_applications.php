@@ -788,6 +788,63 @@ function gym_applications_page(): void
         overflow-wrap: break-word;
     }
 
+    [data-theme="light"] .payout-detail-val {
+        color: #0f172a !important;
+    }
+
+    .payout-channel-badge {
+        padding: 2px 7px;
+        font-size: 10.5px;
+        font-weight: 700;
+        background: rgba(132, 204, 22, 0.18);
+        color: var(--accent, #c7ff22);
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    [data-theme="light"] .payout-channel-badge {
+        background: #f0fdf4 !important;
+        color: #15803d !important;
+        border: 1px solid #86efac !important;
+    }
+
+    [data-theme="light"] .payout-detail-item {
+        background: #f8fafc;
+        border-color: #e2e8f0;
+    }
+
+    [data-theme="light"] .payout-detail-icon {
+        background: #f1f5f9;
+        color: #15803d;
+        border: 1px solid #e2e8f0;
+    }
+
+    [data-theme="light"] .payout-detail-label {
+        color: #475569;
+    }
+
+    [data-theme="light"] .payout-copy-btn {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #334155;
+    }
+
+    [data-theme="light"] .payout-copy-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+        border-color: #94a3b8;
+    }
+
+    [data-theme="light"] .payout-pill-trigger {
+        color: #0f172a;
+    }
+
+    [data-theme="light"] .payout-pill-trigger .payout-pill-chan {
+        color: #15803d !important;
+    }
+
     .payout-copy-btn {
         display: inline-flex;
         align-items: center;
@@ -1173,8 +1230,8 @@ function gym_applications_page(): void
                                 <?php if (!empty($app['payout_account_number'])): ?>
                                     <div class="doc-pill-dropdown payout-pill-dropdown" id="payout-dropdown-<?= (int)$app['gym_id'] ?>">
                                         <button type="button" class="doc-pill-trigger payout-pill-trigger" onclick="togglePayoutDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View payout destination details">
-                                            <span style="width: 7px; height: 7px; border-radius: 50%; background: #84cc16; display: inline-block; flex-shrink: 0;"></span>
-                                            <span style="font-weight: 700; color: var(--accent, #c7ff22);"><?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?></span>
+                                            <span style="width: 7px; height: 7px; border-radius: 50%; background: #16a34a; display: inline-block; flex-shrink: 0;"></span>
+                                            <span class="payout-pill-chan" style="font-weight: 700; color: var(--accent, #c7ff22);"><?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?></span>
                                             <span style="font-size: 11.5px; opacity: 0.92; font-family: monospace; letter-spacing: -0.2px;"><?= h($app['payout_account_number']) ?></span>
                                             <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
@@ -1192,7 +1249,7 @@ function gym_applications_page(): void
                                                     <div class="payout-detail-content">
                                                         <div class="payout-detail-label">Payment Channel</div>
                                                         <div class="payout-detail-val">
-                                                            <span class="badge" style="padding: 2px 7px; font-size: 10.5px; font-weight: 700; background: rgba(132, 204, 22, 0.18); color: var(--accent, #c7ff22); border-radius: 4px;">
+                                                            <span class="payout-channel-badge">
                                                                 <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
                                                             </span>
                                                         </div>
@@ -1205,7 +1262,7 @@ function gym_applications_page(): void
                                                     </div>
                                                     <div class="payout-detail-content" style="flex: 1; min-width: 0;">
                                                         <div class="payout-detail-label">Account Number</div>
-                                                        <div class="payout-detail-val" style="font-family: monospace; font-size: 13px; font-weight: 700; color: #ffffff;">
+                                                        <div class="payout-detail-val" style="font-family: monospace; font-size: 13px; font-weight: 700;">
                                                             <?= h($app['payout_account_number']) ?>
                                                         </div>
                                                     </div>
@@ -1222,7 +1279,7 @@ function gym_applications_page(): void
                                                     </div>
                                                     <div class="payout-detail-content">
                                                         <div class="payout-detail-label">Account Holder Name</div>
-                                                        <div class="payout-detail-val" style="font-weight: 600; color: #ffffff;">
+                                                        <div class="payout-detail-val" style="font-weight: 600;">
                                                             <?= h($app['payout_account_name']) ?>
                                                         </div>
                                                     </div>
@@ -1435,10 +1492,10 @@ function gym_applications_page(): void
                                 <span class="app-card-value">
                                     <?php if (!empty($app['payout_account_number'])): ?>
                                         <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
-                                            <span class="badge" style="padding: 2px 6px; font-size: 10px; font-weight: 700; background: rgba(132, 204, 22, 0.18); color: var(--accent, #c7ff22); border-radius: 4px;">
+                                            <span class="payout-channel-badge" style="padding: 2px 6px; font-size: 10px;">
                                                 <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
                                             </span>
-                                            <span style="font-family: monospace; font-size: 12px; font-weight: 600; color: var(--ink, #ffffff);"><?= h($app['payout_account_number']) ?></span>
+                                            <span style="font-family: monospace; font-size: 12px; font-weight: 600; color: var(--ink);"><?= h($app['payout_account_number']) ?></span>
                                             <button type="button" class="payout-copy-btn" style="padding: 2px 7px; font-size: 9.5px;" onclick="copyPayoutText('<?= h($app['payout_account_number']) ?>', this, event)" title="Copy account number">Copy</button>
                                         </div>
                                         <?php if (!empty($app['payout_account_name'])): ?>
