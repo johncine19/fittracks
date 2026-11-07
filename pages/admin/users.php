@@ -83,8 +83,8 @@ function users_page(): void
             }
 
             $phone = preg_replace('/[^0-9]/', '', (string)post('phone'));
-            if (strlen($phone) !== 11) {
-                $sendCreateResponse(false, 'Mobile number is required and must be exactly 11 digits.');
+            if (!preg_match('/^09\d{9}$/', $phone)) {
+                $sendCreateResponse(false, 'Mobile number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
                 return;
             }
 
@@ -411,8 +411,8 @@ function users_page(): void
             
             $newPassword = (string) post('new_password');
             $phone = preg_replace('/[^0-9]/', '', (string)post('phone'));
-            if (strlen($phone) !== 11) {
-                flash('Mobile number is required and must be exactly 11 digits.', 'danger');
+            if (!preg_match('/^09\d{9}$/', $phone)) {
+                flash('Mobile number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).', 'danger');
                 redirect('users');
                 return;
             }
@@ -1220,7 +1220,7 @@ function users_page(): void
                         <input name="email" type="email" value="<?= h($oldUser['email'] ?? '') ?>" placeholder="john@example.com" required style="text-transform: lowercase;" oninput="this.value = this.value.toLowerCase()" onblur="this.value = this.value.trim().toLowerCase()">
                     </label>
                     <label><span class="label-title">Mobile Number <span class="req-star">*</span></span>
-                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" value="<?= h($oldUser['phone'] ?? '') ?>" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                        <input name="phone" type="tel" pattern="09[0-9]{9}" maxlength="11" title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)" placeholder="09123456789" value="<?= h($oldUser['phone'] ?? '') ?>" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                     </label>
                     <label><span class="label-title">Password <span class="req-star">*</span></span>
                         <input name="password" id="new_user_password" type="password" minlength="8" placeholder="Min. 8 characters" required autocomplete="new-password">

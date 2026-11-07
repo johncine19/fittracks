@@ -68,6 +68,10 @@ final class Validator
                     if (!preg_match('/^\d{' . $len . '}$/', (string) $value)) {
                         $this->fail($field, ucfirst(str_replace('_', ' ', $field)) . " must be exactly $len digits.");
                     }
+                } elseif ($rule === 'ph_mobile') {
+                    if (!preg_match('/^09\d{9}$/', (string) $value)) {
+                        $this->fail($field, ucfirst(str_replace('_', ' ', $field)) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
+                    }
                 } elseif ($rule === 'numeric') {
                     if (!is_numeric($value)) {
                         $this->fail($field, ucfirst(str_replace('_', ' ', $field)) . ' must be a number.');

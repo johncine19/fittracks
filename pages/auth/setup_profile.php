@@ -61,7 +61,7 @@ function setup_profile_page(): void
             'height_cm' => 'required|numeric|min_num:100|max_num:250',
             'weight_kg' => 'required|numeric|min_num:20|max_num:300',
             'age'       => 'required|numeric|min_num:16|max_num:120',
-            'neck_cm'   => 'numeric|min_num:20|max_num:100',
+            'neck_cm'   => 'numeric|min_num:20|max_num:60',
             'waist_cm'  => 'numeric|min_num:45|max_num:200',
             'target_weight_kg'        => 'numeric|min_num:20|max_num:300',
             'target_body_fat_percent' => 'numeric|min_num:1|max_num:70',
@@ -854,9 +854,12 @@ function setup_profile_page(): void
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                             <circle cx="12" cy="12" r="8"/>
                                         </svg>
-                                        <input id="field-neck" name="neck_cm" type="number" inputmode="decimal" step="0.1" min="20" max="100" placeholder="e.g. 38" value="<?= h((string)$curNeck) ?>">
+                                        <input id="field-neck" name="neck_cm" type="number" inputmode="decimal" step="0.1" min="20" max="60" placeholder="e.g. 38" value="<?= h((string)$curNeck) ?>">
                                         <span class="metric-unit-tag">cm</span>
                                     </div>
+                                    <span style="font-size: 11px; color: #64748b; display: block; margin-top: 5px; line-height: 1.35;">
+                                        Typical: 28–50 cm. Measure below Adam's apple (must be smaller than waist).
+                                    </span>
                                 </div>
 
                                 <div class="split-form-group">
@@ -868,6 +871,9 @@ function setup_profile_page(): void
                                         <input id="field-waist" name="waist_cm" type="number" inputmode="decimal" step="0.1" min="45" max="200" placeholder="e.g. 82" value="<?= h((string)$curWaist) ?>">
                                         <span class="metric-unit-tag">cm</span>
                                     </div>
+                                    <span style="font-size: 11px; color: #64748b; display: block; margin-top: 5px; line-height: 1.35;">
+                                        Typical: 65–120 cm. Measure horizontally at navel level.
+                                    </span>
                                 </div>
                             </div>
 
@@ -898,6 +904,12 @@ function setup_profile_page(): void
                                     <div class="live-preview-val" id="preview-bmr">—</div>
                                     <div class="live-preview-lbl">Basal Burn (BMR)</div>
                                 </div>
+                            </div>
+
+                            <!-- Real-time Measurement Conflict Warning -->
+                            <div id="measurements-warning" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); color: #dc2626; font-size: 12px; line-height: 1.45; align-items: flex-start; gap: 8px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top: 1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <span id="measurements-warning-text"></span>
                             </div>
 
                             <div class="step-nav-actions">
@@ -1364,8 +1376,8 @@ function setup_profile_page(): void
                 }
 
                 // Validate only if value is provided; allow skipping if left empty
-                if (neck && neck.value && (parseFloat(neck.value) < 20 || parseFloat(neck.value) > 100)) {
-                    return showStepError(neck, 'Neck circumference must be between 20 and 100 cm.');
+                if (neck && neck.value && (parseFloat(neck.value) < 20 || parseFloat(neck.value) > 60)) {
+                    return showStepError(neck, 'Neck circumference must be between 20 and 60 cm (typical adult range is 28–50 cm). Did you measure your chest or shoulders by mistake?');
                 }
                 if (waist && waist.value && (parseFloat(waist.value) < 45 || parseFloat(waist.value) > 200)) {
                     return showStepError(waist, 'Waist circumference must be between 45 and 200 cm (a realistic adult waist is typically 60–100 cm).');
@@ -1447,8 +1459,33 @@ function setup_profile_page(): void
             }
         }
 
-        // Navy Body Fat Formula estimation
+        // Navy Body Fat Formula estimation & Measurement conflict check
         let bfCalculated = false;
+        const warnBox = document.getElementById('measurements-warning');
+        const warnText = document.getElementById('measurements-warning-text');
+        let warningMsg = '';
+
+        if (neck > 0 && waist > 0) {
+            if (!isFemale && neck >= waist) {
+                warningMsg = 'Neck circumference (' + neck + ' cm) cannot be equal to or larger than your waist (' + waist + ' cm). Did you measure your chest or shoulders by mistake?';
+            } else if (isFemale && hip > 0 && neck >= (waist + hip)) {
+                warningMsg = 'Neck circumference (' + neck + ' cm) cannot exceed combined waist and hips. Please verify your tape measurement.';
+            } else if (neck > 60) {
+                warningMsg = 'Neck measurement (' + neck + ' cm) looks unusually high. Typical adult neck circumference is 28–50 cm.';
+            }
+        } else if (neck > 60) {
+            warningMsg = 'Neck measurement (' + neck + ' cm) looks unusually high. Typical adult neck circumference is 28–50 cm.';
+        }
+
+        if (warnBox && warnText) {
+            if (warningMsg) {
+                warnText.textContent = warningMsg;
+                warnBox.style.display = 'flex';
+            } else {
+                warnBox.style.display = 'none';
+            }
+        }
+
         if (height > 0 && waist > 0 && neck > 0) {
             try {
                 let bf = 0;
@@ -1464,7 +1501,11 @@ function setup_profile_page(): void
             } catch (e) {}
         }
         if (!bfCalculated && bfEl) {
-            bfEl.textContent = '—';
+            if (neck > 0 && waist > 0 && (!isFemale && neck >= waist)) {
+                bfEl.innerHTML = '<span style="font-size: 11px; color: #ef4444; font-weight: 700; line-height: 1.2; display: inline-block;">Waist &gt; Neck required</span>';
+            } else {
+                bfEl.textContent = '—';
+            }
         }
     }
 

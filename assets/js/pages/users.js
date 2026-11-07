@@ -317,7 +317,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
                     <label class="eu-field eu-field-phone">
                         <span class="eu-label">Mobile Number <span class="req-star">*</span></span>
-                        <input type="tel" name="phone" id="eu_phone" class="form-control" pattern="[0-9]{11}" maxlength="11" title="Please enter exactly 11 digits" placeholder="09123456789" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                        <input type="tel" name="phone" id="eu_phone" class="form-control" pattern="09[0-9]{9}" maxlength="11" title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)" placeholder="09123456789" required oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                     </label>
 
                     <div class="eu-field eu-field-role">

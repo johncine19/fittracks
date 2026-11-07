@@ -125,11 +125,17 @@ function gyms_page(): void
             $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
             $payoutNumberRaw = trim((string) post('payout_account_number'));
             $payoutNumberDigits = preg_replace('/\D/', '', $payoutNumberRaw);
-            $payoutNumber = $payoutNumberDigits !== '' ? substr($payoutNumberDigits, 0, 11) : null;
-            if ($payoutNumberDigits !== '' && strlen($payoutNumber) !== 11) {
-                flash('Payout account number must be numbers only and exactly 11 digits (e.g. 09171234567).', 'danger');
-                redirect('gyms');
-                return;
+            $payoutNumber = $payoutNumberDigits !== '' ? $payoutNumberDigits : null;
+            if ($payoutNumber !== null) {
+                if (in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutNumber)) {
+                    flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
+                    redirect('gyms');
+                    return;
+                } elseif ($payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutNumber)) {
+                    flash('Bank account number must be between 10 and 18 digits.', 'danger');
+                    redirect('gyms');
+                    return;
+                }
             }
             $payoutName = trim((string) post('payout_account_name')) ?: null;
 
@@ -1963,17 +1969,17 @@ function gyms_page(): void
                                 <option value="bank_transfer" ${safePayoutChannel.toLowerCase() === 'bank_transfer' ? 'selected' : ''}>Bank Transfer</option>
                             </select>
                         </label>
-                        <label style="flex: 1.5; display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Account / GCash #
+                        <label style="flex: 1.5; display:block; font-size: 12px; font-weight: 600; color: var(--muted);"><span id="swal-payout-label">Payout Account / GCash #</span>
                             <input id="swal-payout-number" 
                                    type="tel" 
                                    inputmode="numeric" 
-                                   maxlength="11" 
+                                   maxlength="${safePayoutChannel.toLowerCase() === 'bank_transfer' ? 18 : 11}" 
                                    class="form-control" 
                                    style="width: 100%; box-sizing: border-box; margin-top: 4px;" 
                                    value="${safePayoutNumber}" 
                                    placeholder="09171234567"
-                                   oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 11)">
-                            <small style="display:block; margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: normal;">Numbers only, exactly 11 digits</small>
+                                   oninput="const maxLen = document.getElementById('swal-payout-channel')?.value === 'bank_transfer' ? 18 : 11; this.value = this.value.replace(/\\D/g, '').slice(0, maxLen)">
+                            <small id="swal-payout-hint" style="display:block; margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: normal;">11-digit mobile number starting with 09</small>
                         </label>
                     </div>
 
@@ -1999,14 +2005,44 @@ function gyms_page(): void
             color: 'var(--ink)',
             width: '490px',
             didOpen: () => {
+                const chanSelect = document.getElementById('swal-payout-channel');
                 const pNumInput = document.getElementById('swal-payout-number');
+                const pLabel = document.getElementById('swal-payout-label');
+                const pHint = document.getElementById('swal-payout-hint');
+
+                const syncChan = () => {
+                    const c = chanSelect ? chanSelect.value : 'gcash';
+                    if (c === 'bank_transfer') {
+                        if (pLabel) pLabel.textContent = 'Bank Account Number';
+                        if (pNumInput) {
+                            pNumInput.placeholder = '10 to 18-digit bank account number';
+                            pNumInput.maxLength = 18;
+                        }
+                        if (pHint) pHint.textContent = '10 to 18 digits';
+                    } else {
+                        const name = c === 'maya' ? 'Maya' : 'GCash';
+                        if (pLabel) pLabel.textContent = name + ' Mobile Number';
+                        if (pNumInput) {
+                            pNumInput.placeholder = '09171234567';
+                            pNumInput.maxLength = 11;
+                        }
+                        if (pHint) pHint.textContent = '11-digit ' + name + ' number starting with 09';
+                    }
+                };
+                if (chanSelect) {
+                    chanSelect.addEventListener('change', syncChan);
+                    syncChan();
+                }
+
                 if (pNumInput) {
                     pNumInput.addEventListener('input', function() {
-                        this.value = this.value.replace(/\D/g, '').slice(0, 11);
+                        const maxLen = chanSelect?.value === 'bank_transfer' ? 18 : 11;
+                        this.value = this.value.replace(/\D/g, '').slice(0, maxLen);
                     });
                     pNumInput.addEventListener('paste', function() {
                         setTimeout(() => {
-                            this.value = this.value.replace(/\D/g, '').slice(0, 11);
+                            const maxLen = chanSelect?.value === 'bank_transfer' ? 18 : 11;
+                            this.value = this.value.replace(/\D/g, '').slice(0, maxLen);
                         }, 10);
                     });
                 }
@@ -2014,13 +2050,19 @@ function gyms_page(): void
             preConfirm: () => {
                 const payoutChan = document.getElementById('swal-payout-channel').value;
                 const payoutNumRaw = document.getElementById('swal-payout-number').value.trim();
-                const payoutNum = payoutNumRaw.replace(/\D/g, '').slice(0, 11);
+                const payoutMax = payoutChan === 'bank_transfer' ? 18 : 11;
+                const payoutNum = payoutNumRaw.replace(/\D/g, '').slice(0, payoutMax);
                 const payoutName = document.getElementById('swal-payout-name').value.trim();
                 const xenditAccount = document.getElementById('swal-xendit-account').value.trim();
 
-                if (payoutNumRaw !== '' && payoutNum.length !== 11) {
-                    Swal.showValidationMessage('Payout account number must be numbers only and exactly 11 digits (e.g. 09171234567).');
-                    return false;
+                if (payoutNumRaw !== '') {
+                    if ((payoutChan === 'gcash' || payoutChan === 'maya') && !/^09\d{9}$/.test(payoutNum)) {
+                        Swal.showValidationMessage('GCash and Maya account numbers must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).');
+                        return false;
+                    } else if (payoutChan === 'bank_transfer' && !/^\d{10,18}$/.test(payoutNum)) {
+                        Swal.showValidationMessage('Bank account number must be between 10 and 18 digits.');
+                        return false;
+                    }
                 }
 
                 document.getElementById('modal-payout-gym-id').value = gymId;

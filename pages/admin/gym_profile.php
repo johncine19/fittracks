@@ -85,8 +85,17 @@ function gym_profile_page(): void
 
         $payoutChannel = trim((string) post('payout_channel')) ?: ($gym['payout_channel'] ?? 'gcash');
         $payoutAccountNumberRaw = post('payout_account_number') !== null ? trim((string) post('payout_account_number')) : ($gym['payout_account_number'] ?? null);
-        $payoutAccountNumber = $payoutAccountNumberRaw !== null && $payoutAccountNumberRaw !== '' ? substr(preg_replace('/\D/', '', $payoutAccountNumberRaw), 0, 11) : null;
+        $payoutAccountNumber = $payoutAccountNumberRaw !== null && $payoutAccountNumberRaw !== '' ? preg_replace('/\D/', '', $payoutAccountNumberRaw) : null;
         $payoutAccountNumber = $payoutAccountNumber !== '' ? $payoutAccountNumber : null;
+        if ($payoutAccountNumber !== null) {
+            if (in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutAccountNumber)) {
+                flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
+                $payoutAccountNumber = $gym['payout_account_number'] ?? null;
+            } elseif ($payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutAccountNumber)) {
+                flash('Bank account number must be between 10 and 18 digits.', 'danger');
+                $payoutAccountNumber = $gym['payout_account_number'] ?? null;
+            }
+        }
         $payoutAccountName = post('payout_account_name') !== null ? trim((string) post('payout_account_name')) : ($gym['payout_account_name'] ?? null);
         $payoutAccountName = $payoutAccountName !== '' ? $payoutAccountName : null;
         $xenditSubaccountId = post('xendit_subaccount_id') !== null ? trim((string) post('xendit_subaccount_id')) : ($gym['xendit_subaccount_id'] ?? null);
@@ -1087,7 +1096,7 @@ function gym_profile_page(): void
                                     <span class="input-icon">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                     </span>
-                                    <input type="tel" inputmode="numeric" maxlength="11" name="payout_account_number" id="payout_account_number" class="input-with-icon" value="<?= h($gym['payout_account_number'] ?? '') ?>" placeholder="e.g. 09171234567" oninput="this.value = this.value.replace(/\D/g, '').slice(0, 11)">
+                                    <input type="tel" inputmode="numeric" maxlength="18" name="payout_account_number" id="payout_account_number" class="input-with-icon" value="<?= h($gym['payout_account_number'] ?? '') ?>" placeholder="09171234567" oninput="const chan = document.getElementById('payout_channel')?.value || 'gcash'; const maxLen = chan === 'bank_transfer' ? 18 : 11; this.value = this.value.replace(/\D/g, '').slice(0, maxLen);">
                                 </div>
                                 <span class="field-hint">Your 11-digit GCash mobile number or bank account number.</span>
                             </div>

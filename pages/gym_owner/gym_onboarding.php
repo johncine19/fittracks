@@ -50,8 +50,12 @@ function gym_onboarding_page(): void
 
         if (!$gymName || !$street || !$barangay || !$city || !$province || !$zipcode) {
             flash('Facility name and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
-        } elseif ($gymContact !== '' && strlen($gymContact) !== 11) {
-            flash('Gym contact number must be exactly 11 digits (e.g. 09123456789) if provided.', 'danger');
+        } elseif ($gymContact !== '' && !preg_match('/^09\d{9}$/', $gymContact)) {
+            flash('Gym contact number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789) if provided.', 'danger');
+        } elseif ($payoutAccountNumber !== '' && in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutAccountNumber)) {
+            flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
+        } elseif ($payoutAccountNumber !== '' && $payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutAccountNumber)) {
+            flash('Bank account number must be between 10 and 18 digits.', 'danger');
         } elseif (strlen($zipcode) !== 4) {
             flash('ZIP code must be exactly 4 digits (e.g. 7214).', 'danger');
         } elseif (empty($validIdType)) {
@@ -1186,9 +1190,9 @@ function gym_onboarding_page(): void
                                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
                                         </svg>
                                         <input type="tel" inputmode="numeric" name="gym_contact_info" id="gym_contact_info"
-                                               pattern="[0-9]{11}" maxlength="11" placeholder="09123456789"
+                                               pattern="09[0-9]{9}" maxlength="11" placeholder="09123456789"
                                                value="<?= h(post('gym_contact_info')) ?>"
-                                               title="Please enter an 11-digit mobile number (e.g. 09123456789) if provided"
+                                               title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)"
                                                onkeypress="return event.charCode >= 48 && event.charCode <= 57"
                                                oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                                     </div>
@@ -1614,7 +1618,7 @@ function gym_onboarding_page(): void
                                         <label>Payout Method</label>
                                         <div class="split-input-wrap auth-input-group">
                                             <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                            <select name="payout_channel" id="payout_channel">
+                                            <select name="payout_channel" id="payout_channel" onchange="updatePayoutFields()">
                                                 <option value="gcash" <?= post('payout_channel') === 'gcash' || !post('payout_channel') ? 'selected' : '' ?>>GCash</option>
                                                 <option value="maya" <?= post('payout_channel') === 'maya' ? 'selected' : '' ?>>Maya</option>
                                                 <option value="bank_transfer" <?= post('payout_channel') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
@@ -1623,16 +1627,18 @@ function gym_onboarding_page(): void
                                     </div>
 
                                     <div class="split-form-group">
-                                        <label>Account / GCash No.</label>
+                                        <label id="payout_number_label">Account / GCash No.</label>
                                         <div class="split-input-wrap auth-input-group">
                                             <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                             <input type="tel" name="payout_account_number" id="payout_account_number"
                                                    inputmode="numeric" maxlength="11"
-                                                   placeholder="e.g. 09171234567"
+                                                   pattern="09[0-9]{9}"
+                                                   placeholder="09171234567"
+                                                   title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567)"
                                                    value="<?= h(post('payout_account_number')) ?>"
-                                                   oninput="this.value = this.value.replace(/\D/g, '').slice(0, 11)">
+                                                   oninput="this.value = this.value.replace(/\D/g, '').slice(0, document.getElementById('payout_channel')?.value === 'bank_transfer' ? 18 : 11); this.setCustomValidity('');">
                                         </div>
-                                        <span class="payout-field-hint">11-digit GCash/Maya number</span>
+                                        <span class="payout-field-hint" id="payout_number_hint">11-digit GCash/Maya number starting with 09</span>
                                     </div>
                                 </div>
 
@@ -2491,10 +2497,10 @@ function gym_onboarding_page(): void
             }
             if (gc && gc.value.trim() !== '') {
                 const phoneDigits = gc.value.replace(/[^0-9]/g, '');
-                if (phoneDigits.length !== 11) {
+                if (!/^09\d{9}$/.test(phoneDigits)) {
                     goToStepDirect(1);
                     gc.focus();
-                    gc.setCustomValidity('Please enter an 11-digit mobile number (e.g. 09123456789).');
+                    gc.setCustomValidity('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
                     gc.reportValidity();
                     return;
                 } else {
@@ -2629,6 +2635,28 @@ function gym_onboarding_page(): void
                 brgyFile.focus();
                 brgyFile.reportValidity();
                 return;
+            }
+
+            // Payout account validation if provided
+            const pChanVal = document.getElementById('payout_channel')?.value || 'gcash';
+            const pNumEl = document.getElementById('payout_account_number');
+            const pNumVal = pNumEl ? pNumEl.value.trim().replace(/\D/g, '') : '';
+            if (pNumVal !== '') {
+                if ((pChanVal === 'gcash' || pChanVal === 'maya') && !/^09\d{9}$/.test(pNumVal)) {
+                    goToStepDirect(2);
+                    pNumEl.focus();
+                    pNumEl.setCustomValidity('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).');
+                    pNumEl.reportValidity();
+                    return;
+                } else if (pChanVal === 'bank_transfer' && !/^\d{10,18}$/.test(pNumVal)) {
+                    goToStepDirect(2);
+                    pNumEl.focus();
+                    pNumEl.setCustomValidity('Please enter a valid bank account number (10 to 18 digits).');
+                    pNumEl.reportValidity();
+                    return;
+                } else if (pNumEl) {
+                    pNumEl.setCustomValidity('');
+                }
             }
 
             // Populate Step 3 Review details
@@ -2823,6 +2851,32 @@ function gym_onboarding_page(): void
         }
     }
 
+    function updatePayoutFields() {
+        const chanEl = document.getElementById('payout_channel');
+        const numEl = document.getElementById('payout_account_number');
+        const labelEl = document.getElementById('payout_number_label');
+        const hintEl = document.getElementById('payout_number_hint');
+        if (!chanEl || !numEl) return;
+
+        const chan = chanEl.value;
+        if (chan === 'bank_transfer') {
+            if (labelEl) labelEl.textContent = 'Bank Account Number';
+            numEl.setAttribute('placeholder', '10 to 18-digit bank account number');
+            numEl.setAttribute('pattern', '[0-9]{10,18}');
+            numEl.setAttribute('maxlength', '18');
+            numEl.setAttribute('title', 'Please enter a valid 10 to 18-digit bank account number');
+            if (hintEl) hintEl.textContent = '10–18 digit bank account number';
+        } else {
+            const chanName = chan === 'maya' ? 'Maya' : 'GCash';
+            if (labelEl) labelEl.textContent = chanName + ' Mobile Number';
+            numEl.setAttribute('placeholder', '09171234567');
+            numEl.setAttribute('pattern', '09[0-9]{9}');
+            numEl.setAttribute('maxlength', '11');
+            numEl.setAttribute('title', 'Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567)');
+            if (hintEl) hintEl.textContent = '11-digit ' + chanName + ' number starting with 09';
+        }
+    }
+
     // Auto-save & auto-restore draft across page refreshes
     const onboardingForm = document.getElementById('gymOnboardingForm') || document.querySelector('.split-card-form');
     if (onboardingForm) {
@@ -2830,9 +2884,13 @@ function gym_onboarding_page(): void
         onboardingForm.addEventListener('change', saveDraftText);
     }
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', restoreDraftData);
+        document.addEventListener('DOMContentLoaded', () => {
+            restoreDraftData();
+            updatePayoutFields();
+        });
     } else {
         restoreDraftData();
+        updatePayoutFields();
     }
     </script>
     <?php

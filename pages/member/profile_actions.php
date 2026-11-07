@@ -18,7 +18,7 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 'first_name' => 'required|min:1|max:100',
                 'last_name'  => 'required|min:1|max:100',
                 'email'      => 'required|email|max:255',
-                'phone'      => 'required|digits:11',
+                'phone'      => 'required|ph_mobile',
             ]);
 
             if ($valid && $password !== '' && !is_acceptable_password($password)) {
@@ -94,7 +94,7 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                 'height_cm'                     => 'numeric|min_num:100|max_num:250',
                 'weight_kg'                     => 'numeric|min_num:20|max_num:300',
                 'age'                           => 'numeric|min_num:16|max_num:120',
-                'neck_cm'                       => 'numeric|min_num:20|max_num:100',
+                'neck_cm'                       => 'numeric|min_num:20|max_num:60',
                 'waist_cm'                      => 'numeric|min_num:45|max_num:200',
                 'chest_cm'                      => 'numeric|min_num:30|max_num:200',
                 'arm_cm'                        => 'numeric|min_num:10|max_num:100',

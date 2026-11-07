@@ -1034,10 +1034,10 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     <label class="pm-field">Last name  <input name="last_name"  required value="<?= h($user['last_name']  ?? '') ?>"></label>
                     <label class="pm-field">Email      <input type="email" name="email" required value="<?= h($user['email'] ?? '') ?>"></label>
                     <label class="pm-field">Mobile Number *
-                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required
-                               title="Please enter exactly 11 digits" placeholder="09123456789"
+                        <input name="phone" type="tel" pattern="09[0-9]{9}" maxlength="11" required
+                               title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)" placeholder="09123456789"
                                value="<?= h($user['phone'] ?? '') ?>"
-                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                     </label>
                     <label class="pm-field full-span">Password   <input type="password" name="password" <?= $context === 'register' ? 'required minlength="8"' : '' ?> placeholder="<?= $context === 'register' ? 'Min. 8 characters' : 'Leave blank to keep current' ?>"></label>
                 <?php endif; ?>
@@ -1114,8 +1114,9 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     </div>
                 </div>
                 <label class="pm-field">Neck (cm)
-                    <input name="neck_cm" type="number" step="0.01" min="1"
+                    <input name="neck_cm" type="number" step="0.1" min="20" max="60" placeholder="e.g. 38"
                            value="<?= h($profile['neck_cm'] ?? '') ?>">
+                    <small class="muted" style="display:block; font-size:11px; margin-top:2px;">Typical: 28–50 cm. Measure below Adam's apple.</small>
                 </label>
                 <label class="pm-field">Waist (cm)
                     <input name="waist_cm" type="number" step="0.01" min="1"
@@ -5032,9 +5033,9 @@ function render_registration_form(): void
                 <label>MOBILE NUMBER *</label>
                 <div class="auth-input-group">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                    <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" required placeholder="09123456789"
-                           title="Please enter exactly 11 digits"
-                           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                    <input name="phone" type="tel" pattern="09[0-9]{9}" maxlength="11" required placeholder="09123456789"
+                           title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)"
+                           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                 </div>
             </div>
 

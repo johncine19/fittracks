@@ -137,7 +137,7 @@ function progress_page(): void
             'log_date'         => 'required',
             'weight_kg'        => 'required|numeric|min_num:20|max_num:300',
             'body_fat_percent' => 'numeric|min_num:1|max_num:70',
-            'neck_cm'          => 'numeric|min_num:20|max_num:100',
+            'neck_cm'          => 'numeric|min_num:20|max_num:60',
             'chest_cm'         => 'numeric|min_num:30|max_num:200',
             'waist_cm'         => 'numeric|min_num:30|max_num:200',
             'hips_cm'          => 'numeric|min_num:30|max_num:200',

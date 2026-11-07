@@ -25,8 +25,8 @@ function walk_ins_page(): void
             redirect('walk_ins');
         }
 
-        if (strlen($phone) !== 11) {
-            flash('Mobile number is required and must be exactly 11 digits.', 'danger');
+        if (!preg_match('/^09\d{9}$/', $phone)) {
+            flash('Mobile number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).', 'danger');
             redirect('walk_ins');
         }
 
@@ -102,8 +102,8 @@ function walk_ins_page(): void
     // -------------------------------------------------------------
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') !== 'convert') {
         $contact_info = preg_replace('/[^0-9]/', '', (string)post('contact_info'));
-        if (strlen($contact_info) !== 11) {
-            flash('Mobile number is required and must be exactly 11 digits.', 'danger');
+        if (!preg_match('/^09\d{9}$/', $contact_info)) {
+            flash('Mobile number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).', 'danger');
             redirect('walk_ins');
         }
         $guestName = mb_convert_case(trim((string) post('guest_name')), MB_CASE_TITLE, 'UTF-8');
@@ -600,7 +600,7 @@ function walk_ins_page(): void
                         <label>Mobile Number (11 Digits) *</label>
                         <div class="fit-input-wrap">
                             <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                            <input name="contact_info" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                            <input name="contact_info" type="tel" pattern="09[0-9]{9}" maxlength="11" required title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                         </div>
                     </div>
 
@@ -706,7 +706,7 @@ function walk_ins_page(): void
                     <label>Mobile Number (11 Digits) *</label>
                     <div class="fit-input-wrap">
                         <svg class="fit-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                        <input name="convert_phone" id="convert_phone" type="tel" pattern="[0-9]{11}" maxlength="11" required title="Please enter exactly 11 digits" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                        <input name="convert_phone" id="convert_phone" type="tel" pattern="09[0-9]{9}" maxlength="11" required title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)" placeholder="09123456789" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                     </div>
                 </div>
 

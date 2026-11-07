@@ -59,7 +59,7 @@ function trainer_assessment_page(): void
             'height_cm' => 'numeric|min_num:100|max_num:250',
             'weight_kg' => 'numeric|min_num:20|max_num:300',
             'age'       => 'numeric|min_num:16|max_num:120',
-            'neck_cm'   => 'numeric|min_num:20|max_num:100',
+            'neck_cm'   => 'numeric|min_num:20|max_num:60',
             'waist_cm'  => 'numeric|min_num:30|max_num:200',
         ];
         if ($sex === 'female') {

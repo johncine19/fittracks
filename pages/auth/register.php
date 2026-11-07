@@ -21,7 +21,7 @@ function handle_register(): void
             'first_name'       => 'required|min:1|max:100',
             'last_name'        => 'required|min:1|max:100',
             'email'            => 'required|email|max:255',
-            'phone'            => 'required|digits:11',
+            'phone'            => 'required|ph_mobile',
             'password'         => 'required|min:8',
             'confirm_password' => 'required',
         ];
@@ -59,8 +59,8 @@ function handle_register(): void
             $pdo->beginTransaction();
             try {
                 $phone = preg_replace('/[^0-9]/', '', (string) post('phone'));
-                if (strlen($phone) !== 11) {
-                    throw new Exception('Mobile number is required and must be exactly 11 digits.');
+                if (!preg_match('/^09\d{9}$/', $phone)) {
+                    throw new Exception('Mobile number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
                 }
 
                 // This route is exclusively for member accounts.
@@ -322,10 +322,10 @@ function handle_register(): void
                                         <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
                                         </svg>
-                                        <input name="phone" type="tel" pattern="[0-9]{11}" maxlength="11" placeholder="09xxxxxxxxx" required
+                                        <input name="phone" type="tel" pattern="09[0-9]{9}" maxlength="11" placeholder="09123456789" required
                                                value="<?= h(post('phone')) ?>"
-                                               title="Please enter an 11-digit mobile number (e.g. 09123456789)"
-                                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)">
+                                               title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789)"
+                                               oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11); this.setCustomValidity('');">
                                     </div>
                                 </div>
                             </div>
@@ -474,10 +474,13 @@ function handle_register(): void
                 return;
             }
             const ph = document.querySelector('input[name="phone"]');
-            if (ph && (!ph.value.trim() || ph.value.trim().length !== 11)) {
+            if (ph && (!ph.value.trim() || !/^09\d{9}$/.test(ph.value.trim().replace(/\D/g, '')))) {
                 ph.focus();
+                ph.setCustomValidity('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789).');
                 ph.reportValidity();
                 return;
+            } else if (ph) {
+                ph.setCustomValidity('');
             }
 
             pane1.classList.add('step-hidden');
