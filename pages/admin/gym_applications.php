@@ -1010,6 +1010,26 @@ function gym_applications_page(): void
         font-weight: 600;
         border-radius: 8px;
     }
+
+    .app-table-actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .app-table-actions form {
+        margin: 0;
+        display: inline-flex;
+    }
+
+    .app-table-actions .btn-sm {
+        min-width: 88px;
+        width: 88px;
+        justify-content: center;
+        text-align: center;
+        box-sizing: border-box;
+    }
     </style>
 
     <section class="panel">
@@ -1275,7 +1295,7 @@ function gym_applications_page(): void
                             </td>
                             <?php if ($showActionsColumn): ?>
                             <td>
-                                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <div class="app-table-actions">
                                     <?php if ($app['status'] === 'pending'): ?>
                                         <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
                                             <?= csrf_field() ?>
