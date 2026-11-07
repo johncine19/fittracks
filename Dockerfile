@@ -1,15 +1,17 @@
 FROM php:8.3-apache
 
-# Install dependencies, apply OS security updates, configure GD (with FreeType, JPEG, WebP), PDO MySQL, and EXIF
+# Install dependencies, apply OS security updates, configure GD (with FreeType, JPEG, WebP), PDO MySQL, EXIF, and ZIP
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
-    zip unzip git curl ca-certificates \
+    zip unzip git curl ca-certificates libzip-dev \
     libfreetype6-dev libjpeg62-turbo-dev libpng-dev libwebp-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
-    && docker-php-ext-install -j$(nproc) gd exif pdo pdo_mysql \
+    && docker-php-ext-install -j$(nproc) gd exif pdo pdo_mysql zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    COMPOSER_MEMORY_LIMIT=-1
 
 # Enable Apache mod_rewrite and harden production PHP configuration
 # Note: php.ini-production sets variables_order = "GPCS" (omitting E), which prevents
@@ -25,7 +27,7 @@ WORKDIR /var/www/html
 # Cache optimization: install Composer dependencies before copying the full codebase.
 # This layer is reused on every deploy unless composer.json / composer.lock change.
 COPY composer.json composer.lock* /var/www/html/
-RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --prefer-dist
+RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction --prefer-dist --no-progress
 
 # Copy project files (owned by root, read-only to the www-data web server process)
 COPY . /var/www/html/
