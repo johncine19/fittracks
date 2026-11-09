@@ -37,7 +37,7 @@ function exercises_page(): void
             exit;
         }
 
-        $chkSql = 'SELECT exercise_id, name, gym_id FROM exercises WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))';
+        $chkSql = 'SELECT exercise_id, name, gym_id FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?))';
         $chkParams = [$targetGymId, $checkName];
         if ($excludeId > 0) {
             $chkSql .= ' AND exercise_id != ?';
@@ -149,12 +149,12 @@ function exercises_page(): void
         }
 
         $existingNames = [];
-        if (!empty($rawList) && $targetGymId > 0) {
+        if (!empty($rawList)) {
             $names = array_filter(array_map(fn($item) => trim((string)($item['name'] ?? '')), $rawList));
             if (!empty($names)) {
                 $inClause = implode(',', array_fill(0, count($names), '?'));
                 $chkParams = array_merge([$targetGymId], array_values($names));
-                $chkStmt = $pdo->prepare("SELECT LOWER(name) FROM exercises WHERE gym_id = ? AND LOWER(name) IN ($inClause)");
+                $chkStmt = $pdo->prepare("SELECT LOWER(name) FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(name) IN ($inClause)");
                 $chkStmt->execute(array_map('strtolower', $chkParams));
                 $existingNames = $chkStmt->fetchAll(PDO::FETCH_COLUMN);
             }
@@ -277,7 +277,7 @@ Safety: " : "") . $safety;
                 exit;
             }
 
-            $exists = scalar('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))', [$targetGymId, $name]);
+            $exists = scalar('SELECT exercise_id FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?))', [$targetGymId, $name]);
             if ($exists) {
                 echo json_encode(['success' => true, 'already_existed' => true, 'exercise_id' => (int)$exists, 'message' => 'Exercise is already in your library.']);
                 exit;
@@ -344,7 +344,7 @@ Safety: " : "") . $safety;
                 $name = trim((string)($item['name'] ?? ''));
                 if ($name === '') continue;
 
-                $exists = scalar('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?))', [$targetGymId, $name]);
+                $exists = scalar('SELECT exercise_id FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?))', [$targetGymId, $name]);
                 if ($exists) {
                     $skippedCount++;
                     continue;
@@ -400,7 +400,7 @@ Safety: " : "") . $safety;
             } else {
                 $urlInput = trim((string) post('animation_url_input'));
                 if ($postAction === 'create') {
-                    $dupCheck = query_one('SELECT exercise_id, gym_id FROM exercises WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$targetGymId, $name]);
+                    $dupCheck = query_one('SELECT exercise_id, gym_id FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$targetGymId, $name]);
                     if ($dupCheck) {
                         $isGlobal = ((int)$dupCheck['gym_id'] === 0);
                         flash('An exercise named "' . htmlspecialchars($name) . '" already exists ' . ($isGlobal ? 'in the global library.' : 'in your gym library.') . ' Duplicates are not allowed.', 'danger');
@@ -429,7 +429,7 @@ Safety: " : "") . $safety;
                     if (in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$exGymId !== (string)$gymId) {
                         flash('Permission denied.', 'danger');
                     } else {
-                        $dupCheck = query_one('SELECT exercise_id, gym_id FROM exercises WHERE gym_id = ? AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND exercise_id != ? LIMIT 1', [$targetGymId, $name, $editId]);
+                        $dupCheck = query_one('SELECT exercise_id, gym_id FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) AND exercise_id != ? LIMIT 1', [$targetGymId, $name, $editId]);
                         if ($dupCheck) {
                             $isGlobal = ((int)$dupCheck['gym_id'] === 0);
                             flash('Cannot save: an exercise named "' . htmlspecialchars($name) . '" already exists ' . ($isGlobal ? 'in the global library.' : 'in your gym library.') . '.', 'danger');
@@ -534,6 +534,7 @@ Safety: " : "") . $safety;
     $cat = trim((string) ($_GET['cat'] ?? ''));
     $muscle = trim((string) ($_GET['muscle'] ?? ''));
     $diff = trim((string) ($_GET['diff'] ?? ''));
+    $scope = trim((string) ($_GET['scope'] ?? ''));
 
     $csrfStr = csrf_field();
 
@@ -542,9 +543,18 @@ Safety: " : "") . $safety;
     $params = [];
     
     if ($gymId) {
-        $sql .= ' AND e.gym_id = ?';
-        $countSql .= ' AND e.gym_id = ?';
+        $sql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL)';
+        $countSql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL)';
         $params[] = $gymId;
+    } elseif ($user['role'] === 'platform_admin') {
+        if ($scope === 'global') {
+            $sql .= ' AND (e.gym_id = 0 OR e.gym_id IS NULL)';
+            $countSql .= ' AND (e.gym_id = 0 OR e.gym_id IS NULL)';
+        } elseif ($scope !== '' && is_numeric($scope)) {
+            $sql .= ' AND e.gym_id = ?';
+            $countSql .= ' AND e.gym_id = ?';
+            $params[] = (int) $scope;
+        }
     }
     
     if ($q !== '') {
@@ -982,6 +992,19 @@ Safety: " : "") . $safety;
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" name="q" class="form-control" placeholder="Search exercises..." value="<?= h($q) ?>" style="padding-left: 40px; width: 100%; height: 42px; border-radius: 8px; box-sizing: border-box;">
             </div>
+
+            <?php if ($user['role'] === 'platform_admin'): ?>
+                <!-- Facility / Catalog Scope Filter -->
+                <div class="exercises-filter-field">
+                    <select name="scope" class="form-control" style="width: 100%; height: 42px; border-radius: 8px;" onchange="this.form.submit()">
+                        <option value="">All Scopes</option>
+                        <option value="global" <?= ($scope === 'global' ? 'selected' : '') ?>>Global Catalog (System)</option>
+                        <?php foreach ($gyms as $g): ?>
+                            <option value="<?= (int)$g['gym_id'] ?>" <?= ($scope === (string)$g['gym_id'] ? 'selected' : '') ?>><?= h($g['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            <?php endif; ?>
             
             <!-- Target Muscle Filter -->
             <div class="exercises-filter-field">
@@ -1014,7 +1037,7 @@ Safety: " : "") . $safety;
             </div>
             
             <button type="submit" class="btn exercises-filter-button" style="height: 42px; padding: 0 18px; border-radius: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;">Filter</button>
-            <?php if ($q !== '' || $cat !== '' || $muscle !== '' || $diff !== ''): ?>
+            <?php if ($q !== '' || $cat !== '' || $muscle !== '' || $diff !== '' || $scope !== ''): ?>
                 <a href="index.php?page=exercises" class="btn exercises-clear-button" style="background: transparent; border: none; color: var(--muted); text-decoration: none; padding: 0 8px; font-size: 13px;">Clear</a>
             <?php endif; ?>
         </form>
@@ -1064,17 +1087,29 @@ Safety: " : "") . $safety;
                                 <div style="display:flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
                                     <div>
                                         <h3 style="margin:0; font-size:17px; font-weight:700; color:var(--ink); line-height:1.3; cursor:pointer;" onclick="openExerciseDetailsModal(<?= $safeJson ?>)"><?= h($ex['name']) ?></h3>
-                                        <?php if ($user['role'] === 'platform_admin' && $ex['gym_name']): ?>
-                                            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                                                <?= h($ex['gym_name']) ?>
-                                            </div>
+                                        <?php if ($user['role'] === 'platform_admin'): ?>
+                                            <?php if (!empty($ex['gym_name'])): ?>
+                                                <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                                                    <?= h($ex['gym_name']) ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <div style="font-size: 11px; color: var(--lime); opacity: 0.85; margin-top: 4px; font-weight: 600;">
+                                                    Global Catalog
+                                                </div>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
-                                    <div style="display:flex; gap:6px; flex-shrink:0;">
-                                        <button onclick="editExercise(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                                        <button type="button" onclick="confirmDeleteExercise(<?= (int)$ex['exercise_id'] ?>, <?= htmlspecialchars(json_encode($ex['name']), ENT_QUOTES) ?>)" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-                                    </div>
+                                    <?php 
+                                    $isGlobalEx = empty($ex['gym_id']) || (int)$ex['gym_id'] === 0;
+                                    $canManageEx = ($user['role'] === 'platform_admin' || (!$isGlobalEx && (int)$ex['gym_id'] === (int)$gymId));
+                                    ?>
+                                    <?php if ($canManageEx): ?>
+                                        <div style="display:flex; gap:6px; flex-shrink:0;">
+                                            <button onclick="editExercise(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                            <button type="button" onclick="confirmDeleteExercise(<?= (int)$ex['exercise_id'] ?>, <?= htmlspecialchars(json_encode($ex['name']), ENT_QUOTES) ?>)" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                                 
                                 <div class="ex-meta-group">
@@ -1123,7 +1158,7 @@ Safety: " : "") . $safety;
                 <?php if ($totalPages > 1): ?>
                     <div style="margin-top: 32px;">
                         <?php 
-                        $queryString = '&q=' . urlencode($q) . '&cat=' . urlencode($cat) . '&muscle=' . urlencode($muscle) . '&diff=' . urlencode($diff);
+                        $queryString = '&q=' . urlencode($q) . '&cat=' . urlencode($cat) . '&muscle=' . urlencode($muscle) . '&diff=' . urlencode($diff) . ($scope !== '' ? '&scope=' . urlencode($scope) : '');
                         render_pagination($pageNum, $totalPages, '?page=exercises' . $queryString); 
                         ?>
                     </div>
