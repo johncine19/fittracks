@@ -271,7 +271,7 @@ function platform_demo_requests_page(): void
             border-bottom: none;
         }
 
-        /* Status Badges */
+        /* Status Badges & Dropdown */
         .demo-status-pill {
             display: inline-flex;
             align-items: center;
@@ -284,25 +284,90 @@ function platform_demo_requests_page(): void
             letter-spacing: 0.4px;
             white-space: nowrap;
         }
+        select.demo-status-pill {
+            cursor: pointer;
+            outline: none;
+            width: auto;
+            max-width: 155px;
+            height: 30px;
+            padding: 2px 28px 2px 12px;
+            box-sizing: border-box;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 750;
+            line-height: 1.2;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-repeat: no-repeat;
+            background-position: right 9px center;
+            background-size: 10px 10px;
+            transition: all 0.18s ease;
+        }
+        select.demo-status-pill:hover {
+            filter: brightness(1.1);
+        }
+        select.demo-status-pill:focus {
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+        }
         .status-new {
-            background: rgba(199, 255, 34, 0.15);
-            color: var(--lime);
-            border: 1px solid rgba(199, 255, 34, 0.3);
+            background-color: rgba(199, 255, 34, 0.15) !important;
+            color: var(--lime) !important;
+            border: 1px solid rgba(199, 255, 34, 0.35) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c7ff22' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
         }
         .status-contacted {
-            background: rgba(245, 158, 11, 0.15);
-            color: #f59e0b;
-            border: 1px solid rgba(245, 158, 11, 0.3);
+            background-color: rgba(245, 158, 11, 0.15) !important;
+            color: #f59e0b !important;
+            border: 1px solid rgba(245, 158, 11, 0.35) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
         }
         .status-demo_scheduled {
-            background: rgba(56, 189, 248, 0.15);
-            color: #38bdf8;
-            border: 1px solid rgba(56, 189, 248, 0.3);
+            background-color: rgba(56, 189, 248, 0.15) !important;
+            color: #38bdf8 !important;
+            border: 1px solid rgba(56, 189, 248, 0.35) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
         }
         .status-closed {
-            background: rgba(148, 163, 184, 0.12);
-            color: var(--muted);
-            border: 1px solid rgba(148, 163, 184, 0.25);
+            background-color: rgba(148, 163, 184, 0.12) !important;
+            color: var(--muted) !important;
+            border: 1px solid rgba(148, 163, 184, 0.3) !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+        select.demo-status-pill option {
+            background: var(--panel, #10131b) !important;
+            color: var(--ink, #ffffff) !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            padding: 6px 10px !important;
+        }
+        [data-theme="light"] .status-new {
+            background-color: #ecfccb !important;
+            color: #365314 !important;
+            border-color: #bef264 !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23365314' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+        [data-theme="light"] .status-contacted {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+            border-color: #fde68a !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2392400e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+        [data-theme="light"] .status-demo_scheduled {
+            background-color: #e0f2fe !important;
+            color: #0369a1 !important;
+            border-color: #bae6fd !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230369a1' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+        [data-theme="light"] .status-closed {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border-color: #cbd5e1 !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+        [data-theme="light"] select.demo-status-pill option {
+            background: #ffffff !important;
+            color: #0f172a !important;
         }
 
         /* Mobile Cards (hidden on desktop) */
@@ -525,7 +590,7 @@ function platform_demo_requests_page(): void
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="update_status">
                                             <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
-                                            <select name="status" class="demo-status-pill <?= $statusCls ?>" onchange="this.form.submit()" style="cursor:pointer; outline:none; border-radius:20px; font-size:11.5px; font-weight:700;">
+                                            <select name="status" class="demo-status-pill <?= $statusCls ?>" onchange="this.form.submit()" title="Change Inquiry Status">
                                                 <option value="new" <?= $req['status'] === 'new' ? 'selected' : '' ?>>New</option>
                                                 <option value="contacted" <?= $req['status'] === 'contacted' ? 'selected' : '' ?>>Contacted</option>
                                                 <option value="demo_scheduled" <?= $req['status'] === 'demo_scheduled' ? 'selected' : '' ?>>Demo Scheduled</option>
