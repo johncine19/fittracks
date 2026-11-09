@@ -206,14 +206,80 @@ function gym_applications_page(): void
     }
 
     /* Gym Applications Compact Table & Dropdown Styles */
-    .table-container {
-        min-height: 380px;
-        padding-bottom: 60px;
+    .app-desktop-table.table-container {
+        min-height: 420px;
+        padding-bottom: 70px;
+        overflow-x: auto;
     }
-
-    .table-container table td {
+    .app-desktop-table table {
+        width: 100%;
+        min-width: 0 !important;
+        font-size: 12px;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .app-desktop-table th {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 9px 8px;
+        white-space: nowrap;
+        background: color-mix(in srgb, var(--panel-soft) 85%, var(--surface));
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+    }
+    .app-desktop-table td {
         vertical-align: middle !important;
-        padding: 10px 12px !important;
+        padding: 9px 8px;
+        font-size: 12px;
+        border-bottom: 1px solid var(--line);
+    }
+    .app-desktop-table td strong {
+        font-size: 12.5px;
+    }
+    .app-col-name {
+        max-width: 160px;
+        min-width: 110px;
+        word-break: break-word;
+        line-height: 1.3;
+    }
+    .app-col-owner {
+        max-width: 120px;
+        min-width: 85px;
+        word-break: break-word;
+        line-height: 1.3;
+    }
+    .app-col-email {
+        max-width: 150px;
+        min-width: 100px;
+        word-break: break-all;
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.25;
+    }
+    .app-address-cell {
+        max-width: 170px;
+        min-width: 90px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 11.5px;
+        cursor: default;
+    }
+    .app-col-contact {
+        max-width: 110px;
+        min-width: 80px;
+        font-size: 11.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .app-desktop-table .badge {
+        font-size: 10.5px;
+        padding: 2.5px 7px;
+        letter-spacing: 0.2px;
+        border-radius: 99px;
+        white-space: nowrap;
     }
 
     .pending-count-badge {
@@ -227,15 +293,6 @@ function gym_applications_page(): void
         margin-left: 8px;
         vertical-align: middle;
         display: inline-block;
-    }
-
-    .app-address-cell {
-        max-width: 220px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        font-size: 13px;
-        cursor: default;
     }
 
     /* Live Search Toolbar */
@@ -563,13 +620,13 @@ function gym_applications_page(): void
     .doc-pill-trigger {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        padding: 5px 11px;
+        gap: 5px;
+        padding: 3px 9px;
         background: var(--panel-soft, rgba(255, 255, 255, 0.05));
         border: 1px solid var(--line, rgba(255, 255, 255, 0.1));
         border-radius: 99px;
         color: var(--ink, #f8fafc);
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.15s ease;
@@ -1069,10 +1126,11 @@ function gym_applications_page(): void
     }
 
     .app-table-actions {
-        display: flex;
-        gap: 6px;
+        display: inline-flex;
+        gap: 5px;
         align-items: center;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        white-space: nowrap;
     }
 
     .app-table-actions form {
@@ -1081,11 +1139,16 @@ function gym_applications_page(): void
     }
 
     .app-table-actions .btn-sm {
-        min-width: 88px;
-        width: 88px;
+        min-width: unset;
+        width: auto;
+        padding: 4px 9px;
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
         justify-content: center;
         text-align: center;
         box-sizing: border-box;
+        border-radius: 6px;
     }
     </style>
 
@@ -1190,7 +1253,7 @@ function gym_applications_page(): void
                         <th>Documents</th>
                         <th>Status</th>
                         <?php if ($showActionsColumn): ?>
-                            <th style="width: 170px;">Actions</th>
+                            <th style="width: 120px; min-width: 120px; text-align: right;">Actions</th>
                         <?php endif; ?>
                     </tr>
                 </thead>
@@ -1212,28 +1275,28 @@ function gym_applications_page(): void
                             data-has-fire="<?= $app['has_fire'] ?>"
                             data-has-brgy="<?= $app['has_brgy'] ?>"
                             data-doc-complete="<?= $app['doc_complete'] ?>">
-                            <td>
+                            <td class="app-col-name">
                                 <strong><?= h($app['name']) ?></strong>
                                 <?php if (!empty($app['created_at'])): ?>
-                                    <div class="muted" style="font-size:11px; margin-top:2px;"><?= date('M j, Y', strtotime($app['created_at'])) ?></div>
+                                    <div class="muted" style="font-size:10.5px; margin-top:2px;"><?= date('M j, Y', strtotime($app['created_at'])) ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td><?= h($app['first_name'] . ' ' . $app['last_name']) ?></td>
-                            <td><?= h($app['email']) ?></td>
+                            <td class="app-col-owner"><?= h($app['first_name'] . ' ' . $app['last_name']) ?></td>
+                            <td class="app-col-email"><?= h($app['email']) ?></td>
                             <td>
                                 <div class="app-address-cell" title="<?= h($app['address']) ?>">
                                     <?= h($app['address']) ?>
                                 </div>
                             </td>
-                            <td><?= h($app['contact_info'] ?? 'N/A') ?></td>
-                            <td>
+                            <td class="app-col-contact" title="<?= h($app['contact_info'] ?? '') ?>"><?= h($app['contact_info'] ?? '—') ?></td>
+                            <td style="white-space: nowrap;">
                                 <?php if (!empty($app['payout_account_number'])): ?>
                                     <div class="doc-pill-dropdown payout-pill-dropdown" id="payout-dropdown-<?= (int)$app['gym_id'] ?>">
                                         <button type="button" class="doc-pill-trigger payout-pill-trigger" onclick="togglePayoutDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View payout destination details">
-                                            <span style="width: 7px; height: 7px; border-radius: 50%; background: #16a34a; display: inline-block; flex-shrink: 0;"></span>
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a; display: inline-block; flex-shrink: 0;"></span>
                                             <span class="payout-pill-chan" style="font-weight: 700; color: var(--accent, #c7ff22);"><?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?></span>
-                                            <span style="font-size: 11.5px; opacity: 0.92; font-family: monospace; letter-spacing: -0.2px;"><?= h($app['payout_account_number']) ?></span>
-                                            <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <span style="font-size: 11px; opacity: 0.92; font-family: monospace; letter-spacing: -0.2px;"><?= h($app['payout_account_number']) ?></span>
+                                            <svg class="doc-pill-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
                                             </svg>
                                         </button>
@@ -1294,25 +1357,25 @@ function gym_applications_page(): void
                                         </div>
                                     </div>
                                 <?php else: ?>
-                                    <span class="muted" style="font-size:12px;">Not provided</span>
+                                    <span class="muted" style="font-size:11.5px;">Not provided</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <?php if ($docCount === 0): ?>
                                     <?php if ($app['status'] === 'approved'): ?>
-                                        <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 11px; padding: 2px 7px; border-radius: 4px;" title="Directly provisioned by Platform Admin. Documents can be uploaded via Gym Profile.">Admin Provisioned</span>
+                                        <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 10.5px; padding: 2px 7px; border-radius: 4px;" title="Directly provisioned by Platform Admin. Documents can be uploaded via Gym Profile.">Admin Provisioned</span>
                                     <?php else: ?>
-                                        <span class="muted" style="font-size:12px;">No docs</span>
+                                        <span class="muted" style="font-size:11.5px;">No docs</span>
                                     <?php endif; ?>
                                 <?php else: ?>
                                     <div class="doc-pill-dropdown" id="dropdown-<?= (int)$app['gym_id'] ?>">
                                         <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View <?= $docCount ?> attached documents">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                                 <polyline points="14 2 14 8 20 8"></polyline>
                                             </svg>
                                             <span><?= $docCount ?> <?= $docCount === 1 ? 'Doc' : 'Docs' ?></span>
-                                            <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <svg class="doc-pill-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
                                             </svg>
                                         </button>
@@ -1339,7 +1402,7 @@ function gym_applications_page(): void
                                     </div>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <?php if ($app['status'] === 'approved'): ?>
                                     <span class="badge" style="background: rgba(34, 197, 94, 0.15); color: var(--lime); font-weight: 700; border: 1px solid rgba(34, 197, 94, 0.3);">Approved</span>
                                 <?php elseif ($app['status'] === 'rejected'): ?>
@@ -1347,12 +1410,12 @@ function gym_applications_page(): void
                                 <?php elseif ($app['status'] === 'suspended'): ?>
                                     <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #fbbf24; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);">Suspended</span>
                                 <?php else: ?>
-                                    <span class="pending-count-badge" style="margin: 0; font-size: 11px;">Pending</span>
+                                    <span class="pending-count-badge" style="margin: 0; font-size: 10.5px; padding: 2px 7px;">Pending</span>
                                 <?php endif; ?>
                             </td>
                             <?php if ($showActionsColumn): ?>
-                            <td>
-                                <div class="app-table-actions">
+                            <td style="white-space: nowrap; width: 120px; min-width: 120px; text-align: right;">
+                                <div class="app-table-actions" style="justify-content: flex-end;">
                                     <?php if ($app['status'] === 'pending'): ?>
                                         <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
                                             <?= csrf_field() ?>
@@ -1374,7 +1437,7 @@ function gym_applications_page(): void
                                             <button type="submit" class="btn-sm btn-primary" data-confirm="Re-approve this previously rejected gym?">Re-Approve</button>
                                         </form>
                                     <?php else: ?>
-                                        <span class="muted" style="font-size: 12px;">—</span>
+                                        <span class="muted" style="font-size: 11px;">—</span>
                                     <?php endif; ?>
                                 </div>
                             </td>
