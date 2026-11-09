@@ -498,6 +498,11 @@ function reports_page(): void
     $saasRawMonthly = [];
     $saasPlanMix = [];
     $saasLedger = [];
+    $saasTotalCount = 0;
+    $saasPerPage = 20;
+    $saasPage = 1;
+    $saasTotalPages = 1;
+    $saasOffset = 0;
 
     if ($isPlatformAdmin) {
         $saasGymFilter = ($isGymSpecific ? 'AND sp.gym_id = ' . (int)$selectedGymId : '') . $dateFilterSaaS;
@@ -550,6 +555,21 @@ function reports_page(): void
         $saasRawMonthly = query_all("SELECT DATE_FORMAT(sp.payment_date, '%Y-%m') AS month, SUM(sp.amount) AS revenue, COUNT(*) AS transactions FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter GROUP BY month ORDER BY month DESC LIMIT 12");
         $saasPlanMix = query_all("SELECT sp.plan_name, COUNT(*) AS count, COALESCE(SUM(sp.amount), 0) AS revenue FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter GROUP BY sp.plan_name ORDER BY revenue DESC");
         
+        $saasPerPage = 20;
+        $saasTotalCount = (int) scalar("
+            SELECT COUNT(*) 
+            FROM gym_subscription_payments sp
+            JOIN gyms g ON g.gym_id = sp.gym_id
+            JOIN users u ON u.user_id = sp.owner_user_id
+            WHERE sp.status = 'paid' $saasGymFilter
+        ");
+        $saasTotalPages = max(1, (int) ceil($saasTotalCount / $saasPerPage));
+        $saasPage = max(1, (int)($_GET['p'] ?? $_GET['ledger_page'] ?? 1));
+        if ($saasPage > $saasTotalPages) {
+            $saasPage = $saasTotalPages;
+        }
+        $saasOffset = ($saasPage - 1) * $saasPerPage;
+
         $saasLedger = query_all("
             SELECT sp.id, sp.gym_id, sp.owner_user_id, sp.plan_name, sp.amount, sp.billing_cycle, sp.payment_method, sp.status, sp.receipt_number, sp.payment_date, sp.start_date, sp.end_date,
                    g.name AS gym_name, g.logo_url, u.first_name, u.last_name, u.email
@@ -557,7 +577,8 @@ function reports_page(): void
             JOIN gyms g ON g.gym_id = sp.gym_id
             JOIN users u ON u.user_id = sp.owner_user_id
             WHERE sp.status = 'paid' $saasGymFilter
-            ORDER BY sp.payment_date DESC LIMIT 50
+            ORDER BY sp.payment_date DESC 
+            LIMIT $saasPerPage OFFSET $saasOffset
         ");
 
         if ($isGlobalScope || $isPlatformScope) {
@@ -987,7 +1008,16 @@ function reports_page(): void
         }
         if ($type === 'platform_saas' && $isPlatformAdmin) {
             $exportRows = [];
-            foreach ($saasLedger as $row) {
+            $exportSaasLedger = query_all("
+                SELECT sp.id, sp.gym_id, sp.owner_user_id, sp.plan_name, sp.amount, sp.billing_cycle, sp.payment_method, sp.status, sp.receipt_number, sp.payment_date, sp.start_date, sp.end_date,
+                       g.name AS gym_name, g.logo_url, u.first_name, u.last_name, u.email
+                FROM gym_subscription_payments sp
+                JOIN gyms g ON g.gym_id = sp.gym_id
+                JOIN users u ON u.user_id = sp.owner_user_id
+                WHERE sp.status = 'paid' $saasGymFilter
+                ORDER BY sp.payment_date DESC
+            ");
+            foreach ($exportSaasLedger as $row) {
                 $exportRows[] = [
                     'Receipt #' => $row['receipt_number'] ?: ('SUB-' . $row['id']),
                     'Payment Date' => date('Y-m-d H:i', strtotime($row['payment_date'])),
@@ -1677,7 +1707,7 @@ function reports_page(): void
                         <p style="margin: 0; font-size: 12.5px; color: var(--muted);">Direct audit trail of software plan collections from gym owners.</p>
                     </div>
                     <span class="pill-badge neutral" style="font-size: 11px; font-weight: 700;">
-                        <?= count($saasLedger) ?> logged transactions
+                        <?= number_format($saasTotalCount) ?> logged transactions
                     </span>
                 </div>
 
@@ -1812,6 +1842,22 @@ function reports_page(): void
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </div>
+
+                <?php if ($saasTotalPages > 1): ?>
+                    <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <span style="font-size: 13px; color: var(--muted);">
+                            Showing <?= number_format($saasOffset + 1) ?> to <?= number_format(min($saasOffset + $saasPerPage, $saasTotalCount)) ?> of <?= number_format($saasTotalCount) ?> transactions
+                        </span>
+                        <div style="margin-top: -1.5rem;">
+                            <?php 
+                            $ledgerBaseParams = $_GET;
+                            unset($ledgerBaseParams['p'], $ledgerBaseParams['ledger_page']);
+                            $ledgerPaginationUrl = 'index.php?' . http_build_query($ledgerBaseParams);
+                            render_pagination($saasPage, $saasTotalPages, $ledgerPaginationUrl, 'p'); 
+                            ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

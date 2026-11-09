@@ -100,21 +100,22 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
     </script>
     <script src="assets/dashboard-charts.js" defer></script>
 
-    <div class="skeleton-wrapper"><section class="dash-grid lower-row" style="margin-top:24px">
+    <div class="skeleton-wrapper"><section class="dash-grid lower-row" style="margin-top:24px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"></div></div>
         <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"></div></div>
         <div class="sk-card"><div class="sk sk-title" style="width:130px;margin-bottom:14px"></div><div class="list-stack" style="gap:10px"></div></div>
     </section></div>
 
-    <section class="dash-grid lower-row skeleton-content sk-display-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
-        <article class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <h2>Recent Demo Requests</h2>
+    <section class="dash-grid lower-row skeleton-content sk-display-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <article class="panel" style="min-width: 0; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                    <h2 style="margin: 0; font-size: 15px; font-weight: 700; white-space: nowrap;">Recent Demo Requests</h2>
                     <?php if ($newDemoRequests > 0): ?>
-                        <span class="badge" style="background:rgba(199,255,34,0.15); color:var(--lime); font-size:11px; padding:2px 7px; border-radius:10px; font-weight:700;"><?= $newDemoRequests ?> New</span>
+                        <span class="badge" style="background: rgba(199, 255, 34, 0.15); color: var(--lime); font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0;"><?= $newDemoRequests ?> New</span>
                     <?php endif; ?>
                 </div>
-                <a href="index.php?page=demo_requests" style="font-size: 13px; color: var(--lime); text-decoration: none;">View all &rarr;</a>
+                <a href="index.php?page=demo_requests" style="font-size: 12.5px; color: var(--lime); text-decoration: none; white-space: nowrap; flex-shrink: 0;">View all &rarr;</a>
             </div>
             <div class="list-stack">
                 <?php foreach ($recentDemoRequests as $dr): 
@@ -123,67 +124,69 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
                     elseif ($dr['status'] === 'demo_scheduled') $badgeStyle = "background: rgba(56, 189, 248, 0.15); color: #38bdf8;";
                     elseif ($dr['status'] === 'contacted') $badgeStyle = "background: rgba(245, 158, 11, 0.15); color: #f59e0b;";
                 ?>
-                    <div class="checkin-row" style="display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-                        <div style="width: 40px; height: 40px; background: rgba(56, 189, 248, 0.12); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #38bdf8; flex-shrink: 0;">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    <div class="checkin-row" style="display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); min-width: 0;">
+                        <div style="width: 38px; height: 38px; background: rgba(56, 189, 248, 0.12); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #38bdf8; flex-shrink: 0;">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                         </div>
-                        <div style="flex:1; min-width:0;">
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><?= h($dr['gym_name']) ?></strong>
-                                <span style="font-size:10px; font-weight:700; text-transform:uppercase; padding:1px 6px; border-radius:4px; <?= $badgeStyle ?>"><?= h(str_replace('_', ' ', $dr['status'])) ?></span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1;" title="<?= h($dr['gym_name']) ?>"><?= h($dr['gym_name']) ?></strong>
+                                <span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; white-space: nowrap; flex-shrink: 0; <?= $badgeStyle ?>"><?= h(str_replace('_', ' ', $dr['status'])) ?></span>
                             </div>
-                            <small style="display:block; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <small style="display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= h($dr['full_name']) ?> • <?= h($dr['work_email']) ?>">
                                 <?= h($dr['full_name']) ?> &bull; <?= h($dr['work_email']) ?>
                             </small>
                         </div>
-                        <time style="font-size:12px; color:var(--muted); flex-shrink:0;"><?= h(date('M d', strtotime($dr['created_at']))) ?></time>
+                        <time style="font-size: 11.5px; color: var(--muted); flex-shrink: 0; white-space: nowrap;"><?= h(date('M d', strtotime($dr['created_at']))) ?></time>
                     </div>
                 <?php endforeach;
                 if (!$recentDemoRequests): ?><p class="muted">No demo inquiries yet.</p><?php endif; ?>
             </div>
         </article>
-        <article class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>Recent Gym Registrations</h2>
-                <a href="index.php?page=gym_applications" style="font-size: 13px; color: var(--lime); text-decoration: none;">View all →</a>
+        <article class="panel" style="min-width: 0; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <h2 style="margin: 0; font-size: 15px; font-weight: 700; white-space: nowrap;">Recent Gym Registrations</h2>
+                <a href="index.php?page=gym_applications" style="font-size: 12.5px; color: var(--lime); text-decoration: none; white-space: nowrap; flex-shrink: 0;">View all →</a>
             </div>
             <div class="list-stack">
                 <?php foreach ($recentGyms as $gym): ?>
-                    <div class="checkin-row" style="display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-                        <div style="width: 40px; height: 40px; background: rgba(199,255,34,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--lime);">
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
+                    <div class="checkin-row" style="display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); min-width: 0;">
+                        <div style="width: 38px; height: 38px; background: rgba(199,255,34,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--lime); flex-shrink: 0;">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>
                         </div>
-                        <div style="flex:1"><strong><?= h($gym['name']) ?></strong><small style="display:block; font-size:12px; color:var(--muted);"><?= h(ucfirst($gym['status'])) ?></small></div>
-                        <time style="font-size:12px; color:var(--muted);"><?= h(date('M d, Y', strtotime($gym['created_at']))) ?></time>
+                        <div style="flex: 1; min-width: 0;">
+                            <strong style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= h($gym['name']) ?>"><?= h($gym['name']) ?></strong>
+                            <small style="display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= h(ucfirst($gym['status'])) ?></small>
+                        </div>
+                        <time style="font-size: 11.5px; color: var(--muted); flex-shrink: 0; white-space: nowrap;"><?= h(date('M d, Y', strtotime($gym['created_at']))) ?></time>
                     </div>
                 <?php endforeach;
                 if (!$recentGyms): ?><p class="muted">No gyms registered yet.</p><?php endif; ?>
             </div>
         </article>
 
-        <article class="panel">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>Recent Subscriptions</h2>
-                <a href="index.php?page=payments" style="font-size: 13px; color: var(--lime); text-decoration: none;">View all →</a>
+        <article class="panel" style="min-width: 0; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <h2 style="margin: 0; font-size: 15px; font-weight: 700; white-space: nowrap;">Recent Subscriptions</h2>
+                <a href="index.php?page=payments" style="font-size: 12.5px; color: var(--lime); text-decoration: none; white-space: nowrap; flex-shrink: 0;">View all →</a>
             </div>
             <div class="list-stack">
                 <?php foreach ($recentPayments as $payment): ?>
-                    <div class="checkin-row" style="display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
-                        <div style="width: 40px; height: 40px; background: rgba(34, 197, 94, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: #22c55e;">₱</div>
-                        <div style="flex:1">
-                            <strong><?= h($payment['gym_name']) ?></strong>
-                            <small style="display:block; font-size:12px; color:var(--muted);">
+                    <div class="checkin-row" style="display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.04); min-width: 0;">
+                        <div style="width: 38px; height: 38px; background: rgba(34, 197, 94, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: bold; color: #22c55e; flex-shrink: 0;">₱</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <strong style="display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= h($payment['gym_name']) ?>"><?= h($payment['gym_name']) ?></strong>
+                            <small style="display: block; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= h($payment['first_name'] . ' ' . $payment['last_name']) ?> • <?= h($payment['plan_name']) ?> Plan (<?= strtoupper(h($payment['payment_method'])) ?>)">
                                 <?= h($payment['first_name'] . ' ' . $payment['last_name']) ?> &bull; <?= h($payment['plan_name']) ?> Plan (<?= strtoupper(h($payment['payment_method'])) ?>)
                             </small>
                         </div>
-                        <time style="color:var(--lime); font-size:13px; font-weight:bold;"><?= money((float)$payment['amount']) ?></time>
+                        <time style="color: var(--lime); font-size: 12.5px; font-weight: bold; flex-shrink: 0; white-space: nowrap;"><?= money((float)$payment['amount']) ?></time>
                     </div>
                 <?php endforeach;
                 if (!$recentPayments): ?><p class="muted">No subscription payments recorded yet.</p><?php endif; ?>
             </div>
         </article>
     </section>
-
 
 <?php
 }
