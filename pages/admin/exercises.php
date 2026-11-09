@@ -1540,11 +1540,6 @@ Safety: " : "") . $safety;
                 video.load();
                 video.play().catch(()=>{});
             }
-        } else {
-            // Default image fallback for the modal
-            animBox.style.display = 'block';
-            img.src = 'assets/images/default exercise.png';
-            img.style.display = 'block';
         }
 
         const modal = document.getElementById('exerciseDetailsModal');

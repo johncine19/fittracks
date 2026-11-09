@@ -1985,12 +1985,12 @@ function reports_page(): void
                 <table class="trainer-leaderboard-table">
                     <thead>
                         <tr class="table-head-row" style="border-bottom: 1px solid var(--line);">
-                            <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 230px;">Rank & Gym Facility</th>
-                            <th style="padding: 12px 18px; text-align: left; font-size: 12px; min-width: 170px;">Owner</th>
-                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Plan Tier</th>
-                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Active Members</th>
+                            <th style="padding: 12px 18px; text-align: left; font-size: 12px; width: 280px; max-width: 280px;">Rank & Gym Facility</th>
+                            <th style="padding: 12px 18px; text-align: left; font-size: 12px; width: 180px; max-width: 180px;">Owner</th>
+                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 110px;">Plan Tier</th>
+                            <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 110px;">Active Members</th>
                             <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 120px;">Monthly Check-Ins</th>
-                            <th style="padding: 12px 18px; text-align: right; font-size: 12px; min-width: 160px;">Monthly GMV</th>
+                            <th style="padding: 12px 18px; text-align: right; font-size: 12px; min-width: 140px;">Monthly GMV</th>
                             <th style="padding: 12px 18px; text-align: center; font-size: 12px; min-width: 130px;">Action</th>
                         </tr>
                     </thead>
@@ -2005,29 +2005,29 @@ function reports_page(): void
                         <?php else: ?>
                             <?php foreach ($gymsLeaderboard as $idx => $g): ?>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s;">
-                                    <td style="padding: 14px 18px;">
+                                    <td style="padding: 14px 18px; width: 280px; max-width: 280px;">
                                         <div style="display: flex; align-items: center; gap: 12px;">
-                                            <span style="font-weight: 800; font-size: 14px; width: 22px; color: <?= $idx === 0 ? '#fbbf24' : ($idx === 1 ? '#94a3b8' : ($idx === 2 ? '#b45309' : 'var(--muted)')) ?>;">
+                                            <span style="font-weight: 800; font-size: 14px; width: 22px; flex-shrink: 0; color: <?= $idx === 0 ? '#fbbf24' : ($idx === 1 ? '#94a3b8' : ($idx === 2 ? '#b45309' : 'var(--muted)')) ?>;">
                                                 #<?= $idx + 1 ?>
                                             </span>
                                             <?php if (!empty($g['logo_url'])): ?>
-                                                <img src="<?= h(upload_url($g['logo_url'])) ?>" alt="Logo" style="width: 36px; height: 36px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line);">
+                                                <img src="<?= h(upload_url($g['logo_url'])) ?>" alt="Logo" style="width: 36px; height: 36px; border-radius: 8px; object-fit: cover; border: 1px solid var(--line); flex-shrink: 0;">
                                             <?php else: ?>
-                                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(132, 204, 22, 0.15); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; border: 1px solid rgba(132, 204, 22, 0.3);">
+                                                <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(132, 204, 22, 0.15); color: var(--lime); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; border: 1px solid rgba(132, 204, 22, 0.3); flex-shrink: 0;">
                                                     <?= strtoupper(substr($g['name'] ?? 'G', 0, 1)) ?>
                                                 </div>
                                             <?php endif; ?>
-                                            <div>
-                                                <strong style="color: var(--ink); font-size: 14px; display: block;"><?= h($g['name']) ?></strong>
-                                                <span style="color: var(--muted); font-size: 12px;"><?= h($g['address'] ?: 'No address specified') ?></span>
+                                            <div style="min-width: 0; flex: 1; overflow: hidden;">
+                                                <strong style="color: var(--ink); font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= h($g['name']) ?>"><?= h($g['name']) ?></strong>
+                                                <span style="color: var(--muted); font-size: 12px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 215px;" title="<?= h($g['address'] ?: 'No address specified') ?>"><?= h($g['address'] ?: 'No address specified') ?></span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td style="padding: 14px 18px;">
-                                        <div style="font-size: 13px; font-weight: 600; color: var(--ink);">
+                                    <td style="padding: 14px 18px; width: 180px; max-width: 180px;">
+                                        <div style="font-size: 13px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= h($g['owner_first_name'] . ' ' . $g['owner_last_name']) ?>">
                                             <?= h($g['owner_first_name'] . ' ' . $g['owner_last_name']) ?>
                                         </div>
-                                        <div style="font-size: 12px; color: var(--muted);">
+                                        <div style="font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= h($g['owner_email']) ?>">
                                             <?= h($g['owner_email']) ?>
                                         </div>
                                     </td>
@@ -2461,15 +2461,15 @@ function reports_page(): void
                             <?php else: ?>
                                 <?php foreach ($trainersList as $idx => $t): ?>
                                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.15s;">
-                                        <td style="padding: 14px 18px;">
+                                        <td style="padding: 14px 18px; max-width: 250px;">
                                             <div style="display: flex; align-items: center; gap: 12px;">
-                                                <span style="font-weight: 800; font-size: 14px; width: 22px; color: <?= $idx === 0 ? '#fbbf24' : ($idx === 1 ? '#94a3b8' : ($idx === 2 ? '#b45309' : 'var(--muted)')) ?>;">
+                                                <span style="font-weight: 800; font-size: 14px; width: 22px; flex-shrink: 0; color: <?= $idx === 0 ? '#fbbf24' : ($idx === 1 ? '#94a3b8' : ($idx === 2 ? '#b45309' : 'var(--muted)')) ?>;">
                                                     #<?= $idx + 1 ?>
                                                 </span>
                                                 <?= render_avatar($t) ?>
-                                                <div>
-                                                    <strong style="color: var(--ink); font-size: 14px; display: block;"><?= h($t['first_name'] . ' ' . $t['last_name']) ?></strong>
-                                                    <span style="color: var(--muted); font-size: 12.5px;"><?= h($t['email']) ?></span>
+                                                <div style="min-width: 0; flex: 1; overflow: hidden;">
+                                                    <strong style="color: var(--ink); font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= h($t['first_name'] . ' ' . $t['last_name']) ?>"><?= h($t['first_name'] . ' ' . $t['last_name']) ?></strong>
+                                                    <span style="color: var(--muted); font-size: 12.5px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= h($t['email']) ?>"><?= h($t['email']) ?></span>
                                                 </div>
                                             </div>
                                         </td>
