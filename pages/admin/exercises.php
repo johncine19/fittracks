@@ -1938,12 +1938,7 @@ Safety: " : "") . $safety;
                 ? `<input type="checkbox" disabled style="width:16px; height:16px; opacity:0.3; cursor:not-allowed;">`
                 : `<input type="checkbox" class="ninja-item-cb" data-idx="${idx}" onchange="updateBatchImportButton()" style="width:16px; height:16px; accent-color: var(--lime); cursor:pointer;">`;
 
-            const ninjaThumb = resolveExerciseImageJs(ex.name, ex.muscle_group, ex.category);
-
             card.innerHTML = `
-                <div style="width:100%; height:120px; border-radius:8px; overflow:hidden; margin-bottom:10px; background:#050a10; position:relative; display:flex; align-items:center; justify-content:center;">
-                    <img src="${ninjaThumb}" alt="${escapeHtml(ex.name)}" style="width:100%; height:100%; object-fit:contain; object-position:center; opacity:0.95;" loading="lazy">
-                </div>
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         ${cbHtml}
