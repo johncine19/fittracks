@@ -586,9 +586,60 @@ function gyms_page(): void
     .gyms-desktop-table.table-container {
         min-height: 420px;
         padding-bottom: 70px;
+        overflow-x: auto;
     }
-    .gyms-desktop-table.table-container table td {
+    .gyms-desktop-table table {
+        width: 100%;
+        min-width: 0 !important;
+        font-size: 12px;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .gyms-desktop-table th {
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 9px 8px;
+        white-space: nowrap;
+        background: color-mix(in srgb, var(--panel-soft) 85%, var(--surface));
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+    }
+    .gyms-desktop-table td {
         vertical-align: middle !important;
+        padding: 9px 8px;
+        font-size: 12px;
+        border-bottom: 1px solid var(--line);
+    }
+    .gyms-desktop-table td strong {
+        font-size: 12.5px;
+    }
+    .gyms-col-name {
+        max-width: 170px;
+        min-width: 120px;
+        word-break: break-word;
+        line-height: 1.3;
+    }
+    .gyms-col-owner {
+        max-width: 130px;
+        min-width: 90px;
+        word-break: break-word;
+        line-height: 1.3;
+    }
+    .gyms-col-email {
+        max-width: 160px;
+        min-width: 110px;
+        word-break: break-all;
+        font-size: 11.5px;
+        color: var(--muted);
+        line-height: 1.25;
+    }
+    .gyms-desktop-table .badge {
+        font-size: 10.5px;
+        padding: 2.5px 7px;
+        letter-spacing: 0.2px;
+        border-radius: 99px;
+        white-space: nowrap;
     }
 
     /* Compact Document Dropdown Pill in All Gyms */
@@ -604,15 +655,15 @@ function gyms_page(): void
     .doc-pill-trigger {
         display: inline-flex !important;
         align-items: center !important;
-        gap: 6px !important;
+        gap: 5px !important;
         min-height: unset !important;
         height: auto !important;
-        padding: 5px 11px !important;
+        padding: 3px 9px !important;
         background: var(--panel-soft, rgba(255, 255, 255, 0.05)) !important;
         border: 1px solid var(--line, rgba(255, 255, 255, 0.12)) !important;
         border-radius: 99px !important;
         color: var(--ink, #f8fafc) !important;
-        font-size: 12px !important;
+        font-size: 11px !important;
         font-weight: 600 !important;
         cursor: pointer !important;
         transition: all 0.15s ease !important;
@@ -985,8 +1036,8 @@ function gyms_page(): void
         z-index: 1050 !important;
     }
     .action-kebab-btn {
-        width: 28px !important;
-        height: 28px !important;
+        width: 26px !important;
+        height: 26px !important;
         border-radius: 6px !important;
         border: 1px solid var(--line, rgba(255, 255, 255, 0.12)) !important;
         background: var(--panel-soft, rgba(255, 255, 255, 0.05)) !important;
@@ -1297,7 +1348,7 @@ function gyms_page(): void
                         <th>Subscription Plan</th>
                         <th>Sub Status</th>
                         <th>Renewal Date</th>
-                        <th style="width: 145px; min-width: 145px; text-align: right;">Actions</th>
+                        <th style="width: 110px; min-width: 110px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1323,34 +1374,34 @@ function gyms_page(): void
                         $gStats = get_gym_rating_stats((int)$gym['gym_id']);
                     ?>
                         <tr>
-                            <td><strong><?= h($gym['name']) ?></strong></td>
-                            <td>
-                                <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>#sec-ratings" style="text-decoration:none; display:inline-flex; align-items:center; gap:5px;" title="View member ratings &amp; reviews">
-                                    <span style="color:#f59e0b; font-weight:700; font-size:13px;">★ <?= number_format($gStats['avg_rating'], 1) ?></span>
-                                    <span style="font-size:11px; color:var(--muted);">(<?= $gStats['total_reviews'] ?>)</span>
+                            <td class="gyms-col-name"><strong><?= h($gym['name']) ?></strong></td>
+                            <td style="white-space: nowrap;">
+                                <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>#sec-ratings" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;" title="View member ratings &amp; reviews">
+                                    <span style="color:#f59e0b; font-weight:700; font-size:12px;">★ <?= number_format($gStats['avg_rating'], 1) ?></span>
+                                    <span style="font-size:10.5px; color:var(--muted);">(<?= $gStats['total_reviews'] ?>)</span>
                                 </a>
                             </td>
-                            <td><?= h($gym['first_name'] . ' ' . $gym['last_name']) ?></td>
-                            <td><?= h($gym['email']) ?></td>
-                            <td>
+                            <td class="gyms-col-owner"><?= h($gym['first_name'] . ' ' . $gym['last_name']) ?></td>
+                            <td class="gyms-col-email"><?= h($gym['email']) ?></td>
+                            <td style="white-space: nowrap;">
                                 <?php if ($gym['status'] === 'approved'): ?>
                                     <span class="badge badge-active">Approved</span>
                                 <?php elseif ($gym['status'] === 'suspended'): ?>
                                     <span class="badge badge-inactive" style="color:var(--danger)">Suspended</span>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <?php if ($gym['doc_count'] === 0): ?>
-                                    <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 11px; padding: 2px 7px; border-radius: 4px;" title="Directly provisioned by Platform Admin. Documents can be uploaded via Gym Profile.">Admin Provisioned</span>
+                                    <span class="badge" style="background: rgba(59, 130, 246, 0.12); color: #60a5fa; font-size: 10.5px; padding: 2px 7px; border-radius: 4px;" title="Directly provisioned by Platform Admin. Documents can be uploaded via Gym Profile.">Admin Provisioned</span>
                                 <?php else: ?>
                                     <div class="doc-pill-dropdown" id="dropdown-<?= (int)$gym['gym_id'] ?>">
                                         <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown(<?= (int)$gym['gym_id'] ?>, event)" title="View <?= $gym['doc_count'] ?> attached documents">
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                                 <polyline points="14 2 14 8 20 8"></polyline>
                                             </svg>
                                             <span><?= $gym['doc_count'] ?> <?= $gym['doc_count'] === 1 ? 'Doc' : 'Docs' ?></span>
-                                            <svg class="doc-pill-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <svg class="doc-pill-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
                                             </svg>
                                         </button>
@@ -1377,25 +1428,25 @@ function gyms_page(): void
                                     </div>
                                 <?php endif; ?>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <span class="badge" style="<?= $planBadgeStyle ?>; font-weight:700;">
                                     <?= h($subPlan) ?>
                                     <?php if (in_array(strtolower($subPlan), ['starter', 'professional', 'business'], true)): ?>
-                                        <span style="font-size: 10px; opacity: 0.85; font-weight: 600; text-transform: uppercase;">(<?= ($gym['subscription_billing_cycle'] ?? 'monthly') === 'yearly' ? 'Yearly' : 'Monthly' ?>)</span>
+                                        <span style="font-size: 9.5px; opacity: 0.85; font-weight: 600; text-transform: uppercase;">(<?= ($gym['subscription_billing_cycle'] ?? 'monthly') === 'yearly' ? 'Yearly' : 'Monthly' ?>)</span>
                                     <?php endif; ?>
                                 </span>
                             </td>
-                            <td>
+                            <td style="white-space: nowrap;">
                                 <span class="badge <?= $statusBadgeClass ?>">
                                     <?= h(ucfirst($subStatus)) ?>
                                 </span>
                             </td>
-                            <td><small style="color:var(--muted);"><?= h($renewal) ?></small></td>
-                            <td style="white-space: nowrap; width: 145px; text-align: right;">
+                            <td style="white-space: nowrap;"><small style="color:var(--muted); font-size: 11px;"><?= h($renewal) ?></small></td>
+                            <td style="white-space: nowrap; width: 110px; min-width: 110px; text-align: right;">
                                 <div class="gym-actions-wrap">
                                     <button type="button" 
                                             class="btn-sm btn-primary" 
-                                            style="padding: 5px 11px; font-size: 12px; font-weight: 700; white-space: nowrap;"
+                                            style="padding: 4px 8px; font-size: 11px; font-weight: 700; white-space: nowrap;"
                                             data-gym-id="<?= (int)$gym['gym_id'] ?>"
                                             data-gym-name="<?= h($gym['name']) ?>"
                                             data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
