@@ -1750,6 +1750,41 @@ if (!function_exists('get_meal_photo_url')) {
     }
 }
 
+if (!function_exists('get_exercise_image_url')) {
+    /**
+     * Resolves an exercise image or thumbnail URL.
+     * Uses custom image/animation if provided, otherwise defaults to local assets/images/default exercise.png.
+     *
+     * @param string|null $customUrl Custom animation/image URL or uploaded filename
+     * @param string $name Exercise name
+     * @param string $muscleGroup Target muscle
+     * @param string $category Exercise category
+     * @return string Valid image URL
+     */
+    function get_exercise_image_url(?string $customUrl, string $name = '', string $muscleGroup = '', string $category = ''): string {
+        $cUrl = trim((string) $customUrl);
+        if (!empty($cUrl)) {
+            $cleanUrl = strtolower(explode('?', $cUrl)[0]);
+            $isDirectImg = str_ends_with($cleanUrl, '.jpg') || str_ends_with($cleanUrl, '.jpeg') ||
+                           str_ends_with($cleanUrl, '.png') || str_ends_with($cleanUrl, '.webp') ||
+                           str_ends_with($cleanUrl, '.gif') || str_ends_with($cleanUrl, '.svg');
+            
+            // If it's a direct image file or external image service, return it
+            if ($isDirectImg || str_contains($cUrl, 'unsplash.com') || str_contains($cUrl, 'imagekit.io') || str_contains($cUrl, 'cloudinary.com')) {
+                if (str_starts_with($cUrl, 'http://') || str_starts_with($cUrl, 'https://') || str_starts_with($cUrl, '/')) {
+                    return $cUrl;
+                }
+                if (str_starts_with($cUrl, 'assets/')) {
+                    return $cUrl;
+                }
+                return 'assets/exercise_animations/' . $cUrl;
+            }
+        }
+
+        return 'assets/images/default exercise.png';
+    }
+}
+
 /**
  * Returns an array of compatible dietary restrictions for a given target restriction.
 

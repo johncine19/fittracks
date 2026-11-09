@@ -482,6 +482,75 @@ function users_page(): void
                         redirect('users');
                         return;
                     }
+                    // For Gym Owner managing a Member: disaffiliate from this facility only, preserving the member's account
+                    if (!$isAdmin && $targetUser['role'] === 'member') {
+                        $hasActiveMembership = (bool) scalar(
+                            'SELECT 1 FROM memberships m 
+                             JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                             WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active"',
+                            [$targetUserId, $gymId]
+                        );
+                        if ($hasActiveMembership) {
+                            flash('Cannot remove member: They have an active membership plan at this facility. Please cancel or expire their membership first.', 'danger');
+                            redirect('users');
+                            return;
+                        }
+
+                        $pdo = db();
+                        try {
+                            $pdo->beginTransaction();
+
+                            if (function_exists('release_user_equipment_on_checkout')) {
+                                release_user_equipment_on_checkout($targetUserId, $gymId);
+                            }
+
+                            // End trainer assignments with trainers belonging to this gym
+                            $pdo->prepare(
+                                'UPDATE trainer_assignments ta
+                                 JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id
+                                 SET ta.status = "ended", ta.ended_date = NOW()
+                                 WHERE ta.member_user_id = ? AND tp.gym_id = ? AND ta.status IN ("active", "pending_trainer", "pending_admin")'
+                            )->execute([$targetUserId, $gymId]);
+
+                            // Remove member from gym_members for this gym
+                            $pdo->prepare('DELETE FROM gym_members WHERE user_id = ? AND gym_id = ?')
+                                ->execute([$targetUserId, $gymId]);
+
+                            // Archive gym-scoped workout & diet plans for this member at this facility
+                            $pdo->prepare("UPDATE training_plans SET status = 'archived' WHERE member_user_id = ? AND gym_id = ? AND status IN ('active', 'paused', 'upcoming')")->execute([$targetUserId, $gymId]);
+                            $pdo->prepare("UPDATE dietary_plans SET status = 'completed', is_preferred = 0 WHERE member_user_id = ? AND gym_id = ? AND status IN ('active', 'paused', 'upcoming')")->execute([$targetUserId, $gymId]);
+
+                            $gymName = scalar('SELECT name FROM gyms WHERE gym_id = ?', [$gymId]) ?: 'our gym';
+                            audit_log($user['user_id'], 'disaffiliate', 'member', (string) $targetUserId, json_encode([
+                                'gym_id' => $gymId,
+                                'gym_name' => $gymName
+                            ]));
+
+                            if (function_exists('clear_member_gyms_cache')) {
+                                clear_member_gyms_cache($targetUserId);
+                            }
+
+                            notify_user(
+                                $targetUserId,
+                                'system',
+                                'Gym Affiliation Updated',
+                                "You have been disaffiliated from {$gymName}. Your FitTrack account and workout history are preserved."
+                            );
+
+                            $pdo->commit();
+                            flash('Member has been removed from your gym roster. Their FitTrack account remains active.');
+                        } catch (Throwable $e) {
+                            if ($pdo->inTransaction()) {
+                                $pdo->rollBack();
+                            }
+                            error_log('Failed to disaffiliate member: ' . $e->getMessage());
+                            flash('Failed to remove member: ' . $e->getMessage(), 'danger');
+                        }
+
+                        redirect('users');
+                        return;
+                    }
+
                     if ($targetUser['role'] === 'member') {
                         $hasActiveMembership = (bool) scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active"', [$targetUserId]);
                         if ($hasActiveMembership) {
@@ -1817,11 +1886,11 @@ function users_page(): void
                                                     data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
                                                     data-user-role="<?= h($row['role']) ?>" 
                                                     onclick="closeAllUserActionDropdowns()"
-                                                    title="Delete User">
+                                                    title="<?= (!$isAdmin && $row['role'] === 'member') ? 'Remove from Gym' : 'Delete User' ?>">
                                                     <span class="action-item-icon">
                                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                                     </span>
-                                                    <span class="action-item-text">Delete</span>
+                                                    <span class="action-item-text"><?= (!$isAdmin && $row['role'] === 'member') ? 'Remove' : 'Delete' ?></span>
                                                 </button>
                                             <?php endif; ?>
                                         </div>
@@ -2001,11 +2070,11 @@ function users_page(): void
                                                 data-user-name="<?= h($row['first_name'] . ' ' . $row['last_name']) ?>" 
                                                 data-user-role="<?= h($row['role']) ?>" 
                                                 onclick="closeAllUserActionDropdowns()"
-                                                title="Delete User">
+                                                title="<?= (!$isAdmin && $row['role'] === 'member') ? 'Remove from Gym' : 'Delete User' ?>">
                                                 <span class="action-item-icon">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                                 </span>
-                                                <span class="action-item-text">Delete</span>
+                                                <span class="action-item-text"><?= (!$isAdmin && $row['role'] === 'member') ? 'Remove' : 'Delete' ?></span>
                                             </button>
                                         <?php endif; ?>
                                     </div>

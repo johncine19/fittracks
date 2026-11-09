@@ -147,16 +147,24 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             
             if (!$valid) {
                 flash($validator_error ?? ($validator->firstError() ?? 'Invalid measurements provided.'), 'danger');
-                redirect('profile');
+                redirect('profile&tab=physical');
             }
 
             $oldGoal = $profile['primary_goal'] ?? '';
             $newGoal = post('primary_goal');
+            $oldDiet = strtolower(trim((string)($profile['dietary_restrictions'] ?? 'none')));
+            $newDiet = strtolower(trim((string)post('dietary_restrictions', 'none')));
             
             save_member_profile((int) $user['user_id']);
             
             $memberUserId = (int) $user['user_id'];
             if (is_member_self_guided($memberUserId)) {
+                $dietChanged = ($oldDiet !== $newDiet && $newDiet !== '');
+                if ($dietChanged) {
+                    require_once __DIR__ . '/../../core/nutrition_service.php';
+                    generate_dietary_plan($memberUserId, null, true);
+                }
+
                 if ($oldGoal !== $newGoal && !empty($newGoal)) {
                     $goalFormatted = ucwords(str_replace('_', ' ', (string) $newGoal));
                     notify_user(
@@ -165,12 +173,18 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                         'Fitness Goal Updated',
                         'You updated your fitness goal to "' . $goalFormatted . '". Your existing workout plan is preserved. You can review and regenerate an updated routine anytime in My Workout.'
                     );
-                    flash('Physical profile updated. Your current workout routine has been preserved. You can refresh your workout plan in My Workout whenever you are ready.', 'success');
+                    if ($dietChanged) {
+                        flash('Physical profile and nutrition plan updated to match your new dietary restriction.', 'success');
+                    } else {
+                        flash('Physical profile updated. Your current workout routine has been preserved. You can refresh your workout plan in My Workout whenever you are ready.', 'success');
+                    }
+                } elseif ($dietChanged) {
+                    flash('Physical profile and nutrition plan updated to match your new dietary restriction.', 'success');
                 } else {
                     flash('Physical profile updated.', 'success');
                 }
             } else {
-                // Member is under coach guidance: keep custom plan intact and notify trainer if goal changed
+                // Member is under coach guidance: keep custom plan intact and notify trainer if goal or diet changed
                 if ($oldGoal !== $newGoal && $newGoal) {
                     $trainerUserId = get_member_active_trainer_user_id($memberUserId);
                     if ($trainerUserId) {
@@ -185,14 +199,23 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
                         );
                     }
                 }
+                if ($oldDiet !== $newDiet && $newDiet !== '') {
+                    $trainerUserId = get_member_active_trainer_user_id($memberUserId);
+                    if ($trainerUserId) {
+                        $clientName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Your client';
+                        $dietFormatted = ucwords(str_replace(['_', '-'], ' ', (string) $newDiet));
+                        notify_user(
+                            $trainerUserId,
+                            'system',
+                            'Client Dietary Restriction Updated',
+                            $clientName . ' updated their dietary restriction to "' . $dietFormatted . '". Review and update their nutrition plan accordingly.',
+                            $memberUserId
+                        );
+                    }
+                }
                 flash('Physical profile updated.', 'success');
             }
-            $hasMembership = scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status IN ("active", "pending")', [$user['user_id']]);
-            $hasGym = scalar('SELECT 1 FROM gym_members WHERE user_id = ?', [$user['user_id']]);
-            if (!$hasMembership && !$hasGym) {
-                redirect('gym_selection');
-            }
-            redirect('profile');
+            redirect('profile&tab=physical');
         } elseif (isset($_POST['update_platform_settings']) && $user['role'] === 'platform_admin') {
             $keys = [
                 'platform_name', 

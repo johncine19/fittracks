@@ -964,11 +964,17 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     candidateUrls.push(`assets/exercise animation/${spacedName}.mp4`);
                     candidateUrls.push(`assets/exercise animation/${cleanName}.mp4`);
                     candidateUrls.push(`assets/${cleanName}.mp4`);
+                    // Smart exercise photo fallback
+                    candidateUrls.push(getExerciseDefaultImageUrl(ex.name, ex.muscle_group, ex.category));
 
                     function isImageFormat(url) {
                         if (!url) return false;
                         const clean = url.split('?')[0].toLowerCase();
                         return clean.endsWith('.gif') || clean.endsWith('.webp') || clean.endsWith('.png') || clean.endsWith('.jpg') || clean.endsWith('.jpeg');
+                    }
+
+                    function getExerciseDefaultImageUrl(name, muscle, category) {
+                        return 'assets/images/default exercise.png';
                     }
 
                     function loadNextCandidate(candidates) {

@@ -1,3 +1,8 @@
+/* Ensure viewport width remains stable regardless of vertical scrollbars */
+html {
+    scrollbar-gutter: stable;
+}
+
 /* 70/20/10 Color System Tokens */
 .diet-builder-page {
     --diet-accent: #84cc16;
@@ -40,29 +45,46 @@
     opacity: 0.35;
 }
 
+/* Header Layout */
+.diet-builder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+.diet-header-info {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
 /* Action Buttons Bar */
 .diet-actions-wrap {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
+    flex-shrink: 0;
+    margin-left: auto;
 }
 .diet-action-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 9px 16px;
-    min-height: 40px;
+    gap: 6px;
+    padding: 7px 13px;
+    min-height: 36px;
     border-radius: 8px;
-    font-size: 13.5px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
     text-decoration: none;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     box-sizing: border-box;
     line-height: 1;
     border: 1px solid transparent;
+    white-space: nowrap;
 }
 .diet-action-btn svg {
     flex-shrink: 0;
@@ -325,44 +347,52 @@
     right: 0;
     top: calc(100% + 4px);
     z-index: 1000;
-    background: var(--surface);
-    border: 1px solid var(--line);
+    background: #0f172a !important; /* Solid opaque dark surface - no transparency */
+    opacity: 1 !important;
+    border: 1px solid #334155 !important;
     border-radius: 10px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.8), 0 6px 16px rgba(0, 0, 0, 0.6) !important;
     max-height: 290px;
     overflow-y: auto;
     overflow-x: hidden;
+    backdrop-filter: none !important;
 }
 [data-theme="light"] .custom-food-menu {
-    background: #ffffff;
-    border-color: #cbd5e1;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+    background: #ffffff !important;
+    opacity: 1 !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
 .custom-food-item {
     padding: 10px 12px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid #1e293b;
     cursor: pointer;
     transition: background 0.15s ease;
     display: flex;
     align-items: center;
     gap: 10px;
+    background: #0f172a;
 }
 .custom-food-item:last-child {
     border-bottom: none;
 }
 .custom-food-item:hover {
-    background: var(--panel-soft);
+    background: #1e293b !important;
+}
+[data-theme="light"] .custom-food-item {
+    border-bottom-color: #e2e8f0;
+    background: #ffffff;
 }
 [data-theme="light"] .custom-food-item:hover {
-    background: #f1f5f9;
+    background: #f1f5f9 !important;
 }
 .custom-food-item.is-selected {
-    background: var(--diet-accent-tint);
+    background: rgba(132, 204, 22, 0.15) !important;
     border-left: 3px solid var(--diet-accent);
 }
 .custom-select-option {
     padding: 10px 14px;
-    border-bottom: 1px solid var(--diet-border);
+    border-bottom: 1px solid #1e293b;
     cursor: pointer;
     transition: background 0.15s ease;
     display: flex;
@@ -373,18 +403,23 @@
     font-weight: 500;
     color: var(--ink);
     user-select: none;
+    background: #0f172a;
 }
 .custom-select-option:last-child {
     border-bottom: none;
 }
 .custom-select-option:hover {
-    background: var(--panel-soft);
+    background: #1e293b !important;
+}
+[data-theme="light"] .custom-select-option {
+    border-bottom-color: #e2e8f0;
+    background: #ffffff;
 }
 [data-theme="light"] .custom-select-option:hover {
-    background: #f1f5f9;
+    background: #f1f5f9 !important;
 }
 .custom-select-option.is-selected {
-    background: var(--diet-accent-tint);
+    background: rgba(132, 204, 22, 0.15) !important;
     font-weight: 700;
     color: var(--diet-accent);
     border-left: 3px solid var(--diet-accent);

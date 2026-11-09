@@ -158,15 +158,15 @@ function food_lookup_page(): void
         exit;
     }
 
-    if ($action === 'calorieninjas') {
+    if (in_array($action, ['calorieninjas', 'api_ninjas', 'nutrition_lookup'], true)) {
         $normalizedQuery = strtolower(trim(preg_replace('/\s+/', ' ', $query)));
-        $cacheKey = 'calorieninjas:' . md5($normalizedQuery);
+        $cacheKey = 'nutrition_lookup:' . md5($normalizedQuery);
 
         // 1. Check server-side cache (MySQL `cache` table / Redis)
         try {
             $pdo = db();
-            $stmt = $pdo->prepare('SELECT cache_value, expires_at FROM cache WHERE cache_key = ?');
-            $stmt->execute([$cacheKey]);
+            $stmt = $pdo->prepare('SELECT cache_value, expires_at FROM cache WHERE cache_key IN (?, ?)');
+            $stmt->execute([$cacheKey, 'calorieninjas:' . md5($normalizedQuery)]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($row && time() < (int)$row['expires_at']) {
                 $cachedData = json_decode($row['cache_value'], true);
@@ -198,9 +198,11 @@ function food_lookup_page(): void
             exit;
         }
 
-        $apiKey = trim((string) ($_ENV['CALORIENINJAS_API_KEY'] ?? ''));
-        if (empty($apiKey)) {
-            echo json_encode(['success' => false, 'error' => 'CalorieNinjas API key is not configured in .env.']);
+        $apiKeyNinjas = trim((string) (app_env('API_NINJAS_KEY') ?: ($_ENV['API_NINJAS_KEY'] ?? '')));
+        $apiCalorieNinjas = trim((string) (app_env('CALORIENINJAS_API_KEY') ?: ($_ENV['CALORIENINJAS_API_KEY'] ?? '')));
+
+        if (empty($apiKeyNinjas) && empty($apiCalorieNinjas)) {
+            echo json_encode(['success' => false, 'error' => 'API Ninjas / CalorieNinjas API key is not configured in .env.']);
             exit;
         }
 
@@ -210,23 +212,60 @@ function food_lookup_page(): void
             session_write_close();
         }
 
-        $url = 'https://api.calorieninjas.com/v1/nutrition?query=' . urlencode($query);
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $apiKey]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-        $res = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($res === false || $httpCode !== 200) {
-            echo json_encode(['success' => false, 'error' => 'CalorieNinjas service error (HTTP ' . $httpCode . ').']);
-            exit;
+        $targets = [];
+        // Legacy CalorieNinjas key provides unpaywalled macros & calories for free
+        if (!empty($apiCalorieNinjas)) {
+            $targets[] = [
+                'url' => 'https://api.calorieninjas.com/v1/nutrition?query=' . urlencode($query),
+                'key' => $apiCalorieNinjas,
+                'provider' => 'calorieninjas'
+            ];
+        }
+        // Official API Ninjas platform endpoint
+        if (!empty($apiKeyNinjas)) {
+            $targets[] = [
+                'url' => 'https://api.api-ninjas.com/v1/nutrition?query=' . urlencode($query),
+                'key' => $apiKeyNinjas,
+                'provider' => 'api_ninjas'
+            ];
         }
 
-        $data = json_decode($res, true);
-        if (!isset($data['items']) || empty($data['items'])) {
+        $rawItems = [];
+        $usedProvider = 'api_ninjas';
+
+        foreach ($targets as $target) {
+            $ch = curl_init($target['url']);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-Api-Key: ' . $target['key']]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            $res = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($res !== false && $httpCode === 200) {
+                $data = json_decode($res, true);
+                $extracted = $data['items'] ?? (is_array($data) && isset($data[0]) ? $data : []);
+                if (!empty($extracted)) {
+                    // Check if calories is paywalled ("Only available for premium subscribers.")
+                    $hasPaywall = false;
+                    foreach ($extracted as $it) {
+                        if (isset($it['calories']) && !is_numeric($it['calories'])) {
+                            $hasPaywall = true;
+                            break;
+                        }
+                    }
+                    if ($hasPaywall && count($targets) > 1 && $target['provider'] !== 'calorieninjas') {
+                        continue; // Fallback to unpaywalled CalorieNinjas if available
+                    }
+                    $rawItems = $extracted;
+                    $usedProvider = $target['provider'];
+                    break;
+                }
+            }
+        }
+
+        if (empty($rawItems)) {
             echo json_encode(['success' => false, 'error' => 'No nutrition information found for "' . htmlspecialchars($query, ENT_QUOTES, 'UTF-8') . '". Try being more descriptive (e.g., "2 eggs and 1 cup rice").']);
             exit;
         }
@@ -237,11 +276,16 @@ function food_lookup_page(): void
         $totFat = 0.0;
 
         $cleanItems = [];
-        foreach ($data['items'] as $item) {
-            $cals = (float) ($item['calories'] ?? 0);
-            $pro = (float) ($item['protein_g'] ?? 0);
-            $carbs = (float) ($item['carbohydrates_total_g'] ?? 0);
-            $fat = (float) ($item['fat_total_g'] ?? 0);
+        foreach ($rawItems as $item) {
+            $pro = is_numeric($item['protein_g'] ?? null) ? (float) $item['protein_g'] : 0.0;
+            $carbs = is_numeric($item['carbohydrates_total_g'] ?? null) ? (float) $item['carbohydrates_total_g'] : 0.0;
+            $fat = is_numeric($item['fat_total_g'] ?? null) ? (float) $item['fat_total_g'] : 0.0;
+
+            if (is_numeric($item['calories'] ?? null)) {
+                $cals = (float) $item['calories'];
+            } else {
+                $cals = ($pro * 4) + ($carbs * 4) + ($fat * 9);
+            }
 
             $totCals += $cals;
             $totPro += $pro;
@@ -264,7 +308,7 @@ function food_lookup_page(): void
 
         $resultPayload = [
             'success' => true,
-            'provider' => 'calorieninjas',
+            'provider' => $usedProvider,
             'query' => $query,
             'total_calories' => round($totCals),
             'total_protein' => round($totPro, 1),
@@ -333,9 +377,9 @@ function food_lookup_page(): void
             exit;
         }
 
-        $apiKey = trim((string) ($_ENV['CALORIENINJAS_API_KEY'] ?? ''));
+        $apiKey = trim((string) (app_env('API_NINJAS_KEY') ?: (app_env('CALORIENINJAS_API_KEY') ?: ($_ENV['API_NINJAS_KEY'] ?? ($_ENV['CALORIENINJAS_API_KEY'] ?? '')))));
         if (empty($apiKey)) {
-            echo json_encode(['success' => false, 'error' => 'CalorieNinjas API key is not configured in .env.']);
+            echo json_encode(['success' => false, 'error' => 'API Ninjas / CalorieNinjas API key is not configured in .env.']);
             exit;
         }
 
@@ -363,7 +407,8 @@ function food_lookup_page(): void
         }
 
         $data = json_decode($res, true);
-        if (!isset($data['items']) || empty($data['items'])) {
+        $rawItems = $data['items'] ?? (is_array($data) && isset($data[0]) ? $data : []);
+        if (empty($rawItems)) {
             echo json_encode([
                 'success' => false,
                 'empty_text' => true,
@@ -379,7 +424,7 @@ function food_lookup_page(): void
         $cleanItems = [];
         $names = [];
 
-        foreach ($data['items'] as $item) {
+        foreach ($rawItems as $item) {
             $cals = (float) ($item['calories'] ?? 0);
             $pro = (float) ($item['protein_g'] ?? 0);
             $carbs = (float) ($item['carbohydrates_total_g'] ?? 0);
@@ -536,6 +581,6 @@ function food_lookup_page(): void
         exit;
     }
 
-    echo json_encode(['success' => false, 'error' => 'Invalid action. Specify calorieninjas or decompose_meal.']);
+    echo json_encode(['success' => false, 'error' => 'Invalid action. Specify api_ninjas, calorieninjas, or decompose_meal.']);
     exit;
 }

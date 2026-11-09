@@ -189,7 +189,18 @@ function progress_page(): void
         }
 
         // Refresh static profile cache so callers see updated measurements from progress_logs
-        member_profile($memberId, true);
+        $updatedProfile = member_profile($memberId, true);
+
+        $targetReached = false;
+        if (function_exists('calculate_goal_progress')) {
+            $updatedLogs = query_all('SELECT * FROM progress_logs WHERE user_id = ? ORDER BY log_date DESC, created_at DESC, log_id DESC', [$memberId]);
+            $gp = calculate_goal_progress($memberId, $updatedProfile, $updatedLogs);
+            foreach ($gp['milestones'] ?? [] as $ms) {
+                if ($ms['key'] === 'weight_goal_met' && !empty($ms['unlocked'])) {
+                    $targetReached = true;
+                }
+            }
+        }
 
         if (!is_member_self_guided($memberId)) {
             // Coached member: retain trainer's custom routine and notify assigned trainer
@@ -205,9 +216,11 @@ function progress_page(): void
                 );
             }
         }
-        $flashMsg = 'Progress logged successfully.';
+        $flashMsg = $targetReached ? '🎉 Outstanding! You have reached your target weight!' : 'Progress logged successfully.';
         
-        notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
+        if (!$targetReached) {
+            notify_user($memberId, 'milestone', 'Progress logged', 'Nice work — your latest measurements were saved.');
+        }
         flash($flashMsg, 'success');
         redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
     }

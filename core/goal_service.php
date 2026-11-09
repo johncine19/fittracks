@@ -1028,11 +1028,21 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         'pct' => (int)min(100, round(($totalWeeksLogged / 4) * 100))
     ];
 
+    // Query existing unlocked badges to detect newly achieved milestones
+    $existingBadgesStmt = $pdo->prepare('SELECT badge_type FROM member_badges WHERE user_id = ? AND badge_type LIKE "milestone_%"');
+    $existingBadgesStmt->execute([$memberId]);
+    $alreadyUnlockedSet = array_flip($existingBadgesStmt->fetchAll(PDO::FETCH_COLUMN));
+
     // 3. Persist all newly met milestones into member_badges
     $badgesToInsert = [];
+    $newlyUnlockedKeys = [];
     foreach ($qualifies as $key => $status) {
         if ($status['met']) {
-            $badgesToInsert[] = 'milestone_' . $key;
+            $bType = 'milestone_' . $key;
+            $badgesToInsert[] = $bType;
+            if (!isset($alreadyUnlockedSet[$bType])) {
+                $newlyUnlockedKeys[] = $key;
+            }
         }
     }
 
@@ -1046,6 +1056,39 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
         }
         $sql = 'INSERT IGNORE INTO member_badges (user_id, badge_type) VALUES ' . implode(', ', $placeholders);
         $pdo->prepare($sql)->execute($params);
+
+        // Send in-app notifications for newly achieved targets & milestones
+        if (!empty($newlyUnlockedKeys) && function_exists('notify_user')) {
+            $trainerUserId = function_exists('get_member_active_trainer_user_id')
+                ? get_member_active_trainer_user_id($memberId)
+                : null;
+            $clientName = trim(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?: 'Your client';
+
+            foreach ($newlyUnlockedKeys as $newKey) {
+                $mTitle = $defs[$newKey]['name'] ?? 'Goal Milestone';
+                $mDesc = $defs[$newKey]['desc'] ?? 'Congratulations on reaching a new milestone!';
+
+                if ($newKey === 'weight_goal_met') {
+                    $notifTitle = '🎯 Target Weight Achieved!';
+                    $notifMsg = "Congratulations! You officially reached your target weight of {$targetWeight} kg. Your hard work and consistency paid off!";
+                    notify_user($memberId, 'milestone', $notifTitle, $notifMsg);
+
+                    if ($trainerUserId) {
+                        notify_user(
+                            $trainerUserId,
+                            'milestone',
+                            '🎯 Client Target Reached!',
+                            "{$clientName} officially reached their target weight of {$targetWeight} kg! Congratulate them on this milestone achievement.",
+                            $memberId
+                        );
+                    }
+                } else {
+                    $notifTitle = '🏆 Milestone Unlocked: ' . $mTitle;
+                    $notifMsg = "You unlocked the \"{$mTitle}\" milestone: {$mDesc}";
+                    notify_user($memberId, 'milestone', $notifTitle, $notifMsg);
+                }
+            }
+        }
     }
 
     // 4. Query current user's unlocked badges

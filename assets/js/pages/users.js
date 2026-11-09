@@ -240,26 +240,43 @@ if (FT_USERS_CONFIG.hasOldUser) {
             tempForm.submit();
         };
 
+        const isDisaffiliate = !IS_ADMIN && userRole === 'member';
+        const dialogTitle = isDisaffiliate ? 'Remove Member from Gym?' : 'Delete User Account?';
+        const confirmBtnText = isDisaffiliate ? 'Yes, Remove Member' : 'Yes, Delete User';
+        const modalHtml = isDisaffiliate
+            ? `
+                <div style="margin-top: 6px;">
+                    <p style="margin: 0 0 14px 0; font-size: 14.5px; text-align: center; color: var(--ink, #ffffff); line-height: 1.5;">
+                        Are you sure you want to remove <strong>${safeName}</strong> from your gym roster?
+                    </p>
+                    <div style="display: flex; align-items: flex-start; text-align: left; gap: 8px; padding: 10px 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; color: #60a5fa; font-size: 12.5px; line-height: 1.4;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <span>This will remove their affiliation with this facility and end any active trainer assignments here. <strong>Their FitTrack account, physical profile, and workout history will be safely preserved.</strong></span>
+                    </div>
+                </div>
+            `
+            : `
+                <div style="margin-top: 6px;">
+                    <p style="margin: 0 0 14px 0; font-size: 14.5px; text-align: center; color: var(--ink, #ffffff); line-height: 1.5;">
+                        Are you sure you want to permanently delete <strong>${safeName}</strong>?
+                    </p>
+                    <div style="display: flex; align-items: flex-start; text-align: left; gap: 8px; padding: 10px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; color: #f87171; font-size: 12.5px; line-height: 1.4;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <span>This will permanently delete this account and all associated access. <strong>This action cannot be undone.</strong></span>
+                    </div>
+                </div>
+            `;
+
         if (typeof Swal !== 'undefined') {
             Swal.fire({
-                title: 'Delete User Account?',
-                html: `
-                    <div style="margin-top: 6px;">
-                        <p style="margin: 0 0 14px 0; font-size: 14.5px; text-align: center; color: var(--ink, #ffffff); line-height: 1.5;">
-                            Are you sure you want to permanently delete <strong>${safeName}</strong>?
-                        </p>
-                        <div style="display: flex; align-items: flex-start; text-align: left; gap: 8px; padding: 10px 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; color: #f87171; font-size: 12.5px; line-height: 1.4;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                            <span>This will permanently delete this account and all associated access. <strong>This action cannot be undone.</strong></span>
-                        </div>
-                    </div>
-                `,
-                icon: 'warning',
-                iconColor: '#ef4444',
+                title: dialogTitle,
+                html: modalHtml,
+                icon: isDisaffiliate ? 'info' : 'warning',
+                iconColor: isDisaffiliate ? '#3b82f6' : '#ef4444',
                 showCancelButton: true,
-                confirmButtonText: 'Yes, Delete User',
+                confirmButtonText: confirmBtnText,
                 cancelButtonText: 'Cancel',
-                confirmButtonColor: '#ef4444',
+                confirmButtonColor: isDisaffiliate ? '#3b82f6' : '#ef4444',
                 cancelButtonColor: 'var(--line, #334155)',
                 background: 'var(--panel, #121721)',
                 color: 'var(--ink, #ffffff)',
@@ -270,7 +287,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                     doSubmit();
                 }
             });
-        } else if (confirm(`Are you sure you want to permanently delete ${userName || 'this user'}? This action cannot be undone.`)) {
+        } else if (confirm(isDisaffiliate ? `Are you sure you want to remove ${userName || 'this member'} from your gym roster?` : `Are you sure you want to permanently delete ${userName || 'this user'}? This action cannot be undone.`)) {
             doSubmit();
         }
 
@@ -716,11 +733,11 @@ if (FT_USERS_CONFIG.hasOldUser) {
                                 ` : ''}
                                 ${u.can_delete ? `
                                     <div class="action-kebab-divider"></div>
-                                    <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
+                                    <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="${(!IS_ADMIN && u.role === 'member') ? 'Remove from Gym' : 'Delete User'}">
                                         <span class="action-item-icon">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                         </span>
-                                        <span class="action-item-text">Delete</span>
+                                        <span class="action-item-text">${(!IS_ADMIN && u.role === 'member') ? 'Remove' : 'Delete'}</span>
                                     </button>
                                 ` : ''}
                             </div>
@@ -878,11 +895,11 @@ if (FT_USERS_CONFIG.hasOldUser) {
                                 ` : ''}
                                 ${u.can_delete ? `
                                     <div class="action-kebab-divider"></div>
-                                    <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="Delete User">
+                                    <button type="button" class="action-kebab-item is-danger btn-delete-user" data-user-id="${u.user_id}" data-user-name="${escapeUserHtml(u.full_name)}" data-user-role="${escapeUserHtml(u.role)}" onclick="closeAllUserActionDropdowns()" title="${(!IS_ADMIN && u.role === 'member') ? 'Remove from Gym' : 'Delete User'}">
                                         <span class="action-item-icon">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                         </span>
-                                        <span class="action-item-text">Delete</span>
+                                        <span class="action-item-text">${(!IS_ADMIN && u.role === 'member') ? 'Remove' : 'Delete'}</span>
                                     </button>
                                 ` : ''}
                             </div>

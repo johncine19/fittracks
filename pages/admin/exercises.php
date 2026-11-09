@@ -261,12 +261,8 @@ Safety: " : "") . $safety;
             RateLimiter::hit($importRateLimitKey, 60);
 
             $targetGymId = $gymId;
-            if (!$targetGymId && $user['role'] === 'platform_admin') {
-                $targetGymId = (int) post('gym_id');
-            }
-            if (!$targetGymId) {
-                echo json_encode(['success' => false, 'error' => 'A valid gym must be selected.']);
-                exit;
+            if ($targetGymId === null && $user['role'] === 'platform_admin') {
+                $targetGymId = (post('gym_id') !== '' && post('gym_id') !== null) ? (int) post('gym_id') : 0;
             }
 
             $name = trim((string) post('name'));
@@ -324,12 +320,8 @@ Safety: " : "") . $safety;
             RateLimiter::hit($importRateLimitKey, 60);
 
             $targetGymId = $gymId;
-            if (!$targetGymId && $user['role'] === 'platform_admin') {
-                $targetGymId = (int) post('gym_id');
-            }
-            if (!$targetGymId) {
-                echo json_encode(['success' => false, 'error' => 'A valid gym must be selected.']);
-                exit;
+            if ($targetGymId === null && $user['role'] === 'platform_admin') {
+                $targetGymId = (post('gym_id') !== '' && post('gym_id') !== null) ? (int) post('gym_id') : 0;
             }
 
             $rawPayload = post('exercises_json') ?? '';
@@ -395,16 +387,16 @@ Safety: " : "") . $safety;
             $difficulty_level = max(1, min(3, (int) post('difficulty_level', 1)));
             $description = trim((string) post('description'));
             
-            // For platform admin creating an exercise, they must pick a gym
+            // For platform admin creating an exercise, they can pick a gym or Global (0)
             $targetGymId = $gymId;
-            if (!$targetGymId && $user['role'] === 'platform_admin') {
-                $targetGymId = (int) post('gym_id');
+            if ($targetGymId === null && $user['role'] === 'platform_admin') {
+                $targetGymId = (post('gym_id') !== '' && post('gym_id') !== null) ? (int) post('gym_id') : 0;
             }
             
             if (!$name) {
                 flash('Exercise name is required.', 'danger');
-            } elseif (!$targetGymId) {
-                flash('You must select a gym for this exercise.', 'danger');
+            } elseif ($targetGymId === null) {
+                flash('You must select a gym or Global for this exercise.', 'danger');
             } else {
                 $urlInput = trim((string) post('animation_url_input'));
                 if ($postAction === 'create') {
@@ -593,8 +585,103 @@ Safety: " : "") . $safety;
     ?>
 
     <style>
-        .ex-card { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 16px; padding: 20px; transition: all 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; position: relative; overflow: hidden; height: 100%; box-sizing: border-box; }
-        .ex-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+        .ex-card { 
+            background: var(--panel-soft); 
+            border: 1px solid var(--line); 
+            border-radius: 16px; 
+            padding: 0; 
+            transition: all 0.2s ease; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            position: relative; 
+            overflow: hidden; 
+            height: 100%; 
+            box-sizing: border-box; 
+        }
+        .ex-card:hover { 
+            border-color: rgba(255,255,255,0.2); 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 28px rgba(0,0,0,0.28); 
+        }
+        .ex-card-thumb-wrap {
+            position: relative;
+            width: 100%;
+            height: 160px;
+            background: #050a10;
+            overflow: hidden;
+            flex-shrink: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .ex-card-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+            display: block;
+            transition: transform 0.35s ease, opacity 0.2s ease;
+            opacity: 0.95;
+        }
+        .ex-card:hover .ex-card-thumb {
+            transform: scale(1.04);
+            opacity: 1;
+        }
+        .ex-thumb-badge-group {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            z-index: 2;
+        }
+        .ex-thumb-pill {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.68);
+            backdrop-filter: blur(4px);
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .ex-thumb-pill-anim {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 9px;
+            border-radius: 6px;
+            background: rgba(163, 230, 53, 0.92);
+            color: #0d1302;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            z-index: 2;
+            text-decoration: none;
+            transition: transform 0.15s ease, background 0.15s ease;
+        }
+        .ex-thumb-pill-anim:hover {
+            background: #bef264;
+            transform: scale(1.05);
+            color: #000;
+        }
+        .ex-card-body {
+            padding: 16px 18px 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            flex-grow: 1;
+            gap: 12px;
+        }
         .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; align-items: stretch; }
         .ex-meta-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; align-content: flex-start; min-height: 58px; }
         .ex-meta-tag { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); font-size: 11.5px; line-height: 1.2; color: var(--ink); }
@@ -940,78 +1027,94 @@ Safety: " : "") . $safety;
                 </div>
             <?php else: ?>
                 <div class="ex-grid">
-                    <?php foreach ($exercises as $ex): $safeJson = htmlspecialchars(json_encode($ex)); ?>
+                    <?php foreach ($exercises as $ex): 
+                        $safeJson = htmlspecialchars(json_encode($ex)); 
+                        $photoUrl = get_exercise_image_url($ex['animation_url'] ?? null, $ex['name'], $ex['muscle_group'] ?? '', $ex['category'] ?? '');
+                        $hasAnimation = !empty($ex['animation_url']);
+                    ?>
                         <div class="ex-card">
-                            <div style="display:flex; justify-content: space-between; align-items: flex-start;">
-                                <div>
-                                    <h3 style="margin:0; font-size:18px; color:var(--ink)"><?= h($ex['name']) ?></h3>
-                                    <?php if ($user['role'] === 'platform_admin' && $ex['gym_name']): ?>
-                                        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                                            <?= h($ex['gym_name']) ?>
-                                        </div>
+                            <!-- Exercise Visual Thumbnail Banner -->
+                            <div class="ex-card-thumb-wrap" onclick="openExerciseDetailsModal(<?= $safeJson ?>)" title="Click to view details">
+                                <img class="ex-card-thumb" 
+                                     src="<?= h($photoUrl) ?>" 
+                                     alt="<?= h($ex['name']) ?>" 
+                                     loading="lazy"
+                                     onerror="this.onerror=null; this.src='assets/images/default exercise.png';">
+                                
+                                <div class="ex-thumb-badge-group">
+                                    <?php if (!empty($ex['category'])): ?>
+                                        <span class="ex-thumb-pill"><?= h(ucwords((string)$ex['category'])) ?></span>
                                     <?php endif; ?>
                                 </div>
-                                <div style="display:flex; gap:6px;">
-                                    <button onclick="editExercise(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                                    <button type="button" onclick="confirmDeleteExercise(<?= (int)$ex['exercise_id'] ?>, <?= htmlspecialchars(json_encode($ex['name']), ENT_QUOTES) ?>)" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-                                </div>
-                            </div>
-                            
-                            <div class="ex-meta-group">
-                                <?php if (!empty($ex['muscle_group'])): ?>
-                                    <span class="ex-meta-tag">
-                                        <span class="ex-meta-label">Target:</span>
-                                        <span class="ex-meta-value"><?= h(ucwords((string)$ex['muscle_group'])) ?></span>
-                                    </span>
-                                <?php endif; ?>
-                                <?php if (!empty($ex['category'])): ?>
-                                    <span class="ex-meta-tag">
-                                        <span class="ex-meta-label">Type:</span>
-                                        <span class="ex-meta-value"><?= h(ucwords((string)$ex['category'])) ?></span>
-                                    </span>
-                                <?php endif; ?>
-                                <?php if (!empty($ex['equipment'])): ?>
-                                    <span class="ex-meta-tag">
-                                        <span class="ex-meta-label">Equip:</span>
-                                        <span class="ex-meta-value"><?= h(ucwords((string)$ex['equipment'])) ?></span>
-                                    </span>
-                                <?php endif; ?>
-                                <?php 
-                                    $diffMap = [1 => 'Beginner', 2 => 'Intermediate', 3 => 'Expert'];
-                                    $diffLabel = $diffMap[(int)($ex['difficulty_level'] ?? 1)] ?? 'Beginner';
-                                ?>
-                                <span class="ex-meta-tag">
-                                    <span class="ex-meta-label">Difficulty:</span>
-                                    <span class="ex-meta-value"><?= h($diffLabel) ?></span>
-                                </span>
-                                <?php if (!empty($ex['animation_url'])): ?>
+
+                                <?php if ($hasAnimation): ?>
                                     <?php 
                                         $animUrl = (str_starts_with($ex['animation_url'], 'http://') || str_starts_with($ex['animation_url'], 'https://'))
                                             ? $ex['animation_url']
                                             : 'assets/exercise_animations/' . $ex['animation_url'];
                                     ?>
-                                    <a href="<?= h($animUrl) ?>" target="_blank" class="ex-meta-tag ex-anim-link" title="View exercise animation">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                    <a href="<?= h($animUrl) ?>" target="_blank" onclick="event.stopPropagation();" class="ex-thumb-pill-anim" title="View exercise animation">
+                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                                         <span>Animation</span>
                                     </a>
                                 <?php endif; ?>
                             </div>
 
-                            <?php 
-                                $descText = trim((string)($ex['description'] ?? ''));
-                                $isLong = mb_strlen($descText) > 130;
-                            ?>
-                            <div class="ex-desc-wrap">
-                                <p class="ex-desc-clamp">
-                                    <?= nl2br(h($descText ?: 'No description provided.')) ?>
-                                </p>
-                                <?php if ($isLong): ?>
-                                    <button type="button" class="ex-see-more-btn" onclick="openExerciseDetailsModal(<?= $safeJson ?>)">
-                                        <span>See more</span>
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                                    </button>
-                                <?php endif; ?>
+                            <div class="ex-card-body">
+                                <div style="display:flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                                    <div>
+                                        <h3 style="margin:0; font-size:17px; font-weight:700; color:var(--ink); line-height:1.3; cursor:pointer;" onclick="openExerciseDetailsModal(<?= $safeJson ?>)"><?= h($ex['name']) ?></h3>
+                                        <?php if ($user['role'] === 'platform_admin' && $ex['gym_name']): ?>
+                                            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                                                <?= h($ex['gym_name']) ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                                        <button onclick="editExercise(<?= $safeJson ?>)" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px;" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                        <button type="button" onclick="confirmDeleteExercise(<?= (int)$ex['exercise_id'] ?>, <?= htmlspecialchars(json_encode($ex['name']), ENT_QUOTES) ?>)" style="background:transparent; border:none; color:var(--danger); cursor:pointer; padding:4px;" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                                    </div>
+                                </div>
+                                
+                                <div class="ex-meta-group">
+                                    <?php if (!empty($ex['muscle_group'])): ?>
+                                        <span class="ex-meta-tag">
+                                            <span class="ex-meta-label">Target:</span>
+                                            <span class="ex-meta-value"><?= h(ucwords((string)$ex['muscle_group'])) ?></span>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($ex['equipment'])): ?>
+                                        <span class="ex-meta-tag">
+                                            <span class="ex-meta-label">Equip:</span>
+                                            <span class="ex-meta-value"><?= h(ucwords((string)$ex['equipment'])) ?></span>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php 
+                                        $diffMap = [1 => 'Beginner', 2 => 'Intermediate', 3 => 'Expert'];
+                                        $diffLabel = $diffMap[(int)($ex['difficulty_level'] ?? 1)] ?? 'Beginner';
+                                    ?>
+                                    <span class="ex-meta-tag">
+                                        <span class="ex-meta-label">Difficulty:</span>
+                                        <span class="ex-meta-value"><?= h($diffLabel) ?></span>
+                                    </span>
+                                </div>
+
+                                <?php 
+                                    $descText = trim((string)($ex['description'] ?? ''));
+                                    $isLong = mb_strlen($descText) > 110;
+                                ?>
+                                <div class="ex-desc-wrap">
+                                    <p class="ex-desc-clamp">
+                                        <?= nl2br(h($descText ?: 'No description provided.')) ?>
+                                    </p>
+                                    <?php if ($isLong): ?>
+                                        <button type="button" class="ex-see-more-btn" onclick="openExerciseDetailsModal(<?= $safeJson ?>)">
+                                            <span>See more</span>
+                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -1087,8 +1190,9 @@ Safety: " : "") . $safety;
             <form id="ninjaSearchForm" onsubmit="event.preventDefault(); triggerNinjaSearch();" style="display:flex; flex-direction:column; gap:12px;">
                 <?php if ($user['role'] === 'platform_admin'): ?>
                 <div>
-                    <label style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">Target Gym</label>
+                    <label style="font-size:13px; font-weight:600; color:var(--muted); margin-bottom:4px; display:block;">Target Gym / Scope</label>
                     <select id="ninjaGymSelect" class="form-control" style="height:38px;">
+                        <option value="0">Global (All Gyms & Self-Guided)</option>
                         <?php foreach ($gyms as $g): ?>
                             <option value="<?= $g['gym_id'] ?>"><?= h($g['name']) ?></option>
                         <?php endforeach; ?>
@@ -1244,9 +1348,9 @@ Safety: " : "") . $safety;
                 </div>
                 
                 <?php if ($user['role'] === 'platform_admin'): ?>
-                <label><span class="label-title">Assign to Gym <span class="req-star">*</span></span>
+                <label><span class="label-title">Assign to Gym / Scope <span class="req-star">*</span></span>
                     <select name="gym_id" id="exGymId" class="form-control" required>
-                        <option value="">-- Select a Gym --</option>
+                        <option value="0">Global (All Gyms & Self-Guided)</option>
                         <?php foreach ($gyms as $g): ?>
                             <option value="<?= $g['gym_id'] ?>"><?= h($g['name']) ?></option>
                         <?php endforeach; ?>
@@ -1436,12 +1540,21 @@ Safety: " : "") . $safety;
                 video.load();
                 video.play().catch(()=>{});
             }
+        } else {
+            // Default image fallback for the modal
+            animBox.style.display = 'block';
+            img.src = 'assets/images/default exercise.png';
+            img.style.display = 'block';
         }
 
         const modal = document.getElementById('exerciseDetailsModal');
         if (modal) {
             modal.showModal();
         }
+    }
+
+    function resolveExerciseImageJs(name, muscle, category) {
+        return 'assets/images/default exercise.png';
     }
 
     function setSelectValueCaseInsensitive(selectEl, value) {
@@ -1524,6 +1637,7 @@ Safety: " : "") . $safety;
         if (document.getElementById('exCat')) document.getElementById('exCat').value = 'Strength';
         if (document.getElementById('exMuscle')) document.getElementById('exMuscle').value = '';
         if (document.getElementById('exDifficulty')) document.getElementById('exDifficulty').value = '1';
+        if (document.getElementById('exGymId')) document.getElementById('exGymId').value = '0';
         document.getElementById('exModalTitle').innerText = 'Add New Exercise';
         document.getElementById('exCurrentAnimContainer').style.display = 'none';
         document.getElementById('exPreviewVideo').style.display = 'none';
@@ -1772,7 +1886,12 @@ Safety: " : "") . $safety;
                 ? `<input type="checkbox" disabled style="width:16px; height:16px; opacity:0.3; cursor:not-allowed;">`
                 : `<input type="checkbox" class="ninja-item-cb" data-idx="${idx}" onchange="updateBatchImportButton()" style="width:16px; height:16px; accent-color: var(--lime); cursor:pointer;">`;
 
+            const ninjaThumb = resolveExerciseImageJs(ex.name, ex.muscle_group, ex.category);
+
             card.innerHTML = `
+                <div style="width:100%; height:120px; border-radius:8px; overflow:hidden; margin-bottom:10px; background:#050a10; position:relative; display:flex; align-items:center; justify-content:center;">
+                    <img src="${ninjaThumb}" alt="${escapeHtml(ex.name)}" style="width:100%; height:100%; object-fit:contain; object-position:center; opacity:0.95;" loading="lazy">
+                </div>
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         ${cbHtml}

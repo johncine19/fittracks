@@ -276,22 +276,7 @@
             }
         }
 
-        // ── Video BG Toggle ──
-        const toggleVideoBg = document.getElementById('toggleVideoBg');
-        if (toggleVideoBg) {
-            toggleVideoBg.addEventListener('change', function(e) {
-                const isEnabled = e.target.checked;
-                document.cookie = "fittracks_video_bg=" + (isEnabled ? "on" : "off") + "; path=/; max-age=31536000";
-                const video = document.getElementById('app-bg-video');
-                if (!isEnabled && video) {
-                    video.pause();
-                    video.style.display = 'none';
-                } else if (isEnabled) {
-                    if (video) { video.style.display = 'block'; video.play(); }
-                    else { location.reload(); }
-                }
-            });
-        }
+
 
         // ── Home Gym Dropdown (Mobile-responsive, overflow-free) ──
         const gymWrap = document.getElementById('switchHomeGymDropdownWrap');

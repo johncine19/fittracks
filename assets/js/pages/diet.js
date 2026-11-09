@@ -242,7 +242,7 @@ function formatPortionQty(qty) {
             if (badgeMode) badgeMode.classList.add('manual-mode');
             if (badgeModeTxt) badgeModeTxt.textContent = 'Manual Entry';
             if (badgeModeIcon) {
-                badgeModeIcon.innerHTML = '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>';
+                badgeModeIcon.style.display = 'none';
             }
 
             // Update mobile header
@@ -256,7 +256,7 @@ function formatPortionQty(qty) {
                 setTimeout(() => manualFoodName.focus(), 80);
             }
         } else {
-            // 'ai'
+            // 'ai' (Quick Parse)
             tabLoggerAi?.classList.add('active');
             tabLoggerAi?.setAttribute('aria-selected', 'true');
             tabLoggerManual?.classList.remove('active');
@@ -276,13 +276,13 @@ function formatPortionQty(qty) {
 
             // Update badge in header
             if (badgeMode) badgeMode.classList.remove('manual-mode');
-            if (badgeModeTxt) badgeModeTxt.textContent = 'AI Assistant';
+            if (badgeModeTxt) badgeModeTxt.textContent = 'Quick Parse';
             if (badgeModeIcon) {
-                badgeModeIcon.innerHTML = '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>';
+                badgeModeIcon.style.display = 'none';
             }
 
             // Update mobile header
-            if (subTitleEl) subTitleEl.textContent = 'AI Assistant & Natural Language';
+            if (subTitleEl) subTitleEl.textContent = 'Quick Parse & Natural Language';
             if (iconGlowEl) {
                 iconGlowEl.style.color = 'var(--lime)';
                 iconGlowEl.style.background = 'color-mix(in srgb, var(--lime) 15%, transparent)';

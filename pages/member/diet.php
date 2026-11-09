@@ -713,27 +713,39 @@ function diet_page(): void
             $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
             for ($d = 1; $d <= 7; $d++) {
-                foreach ($dist as $mType => $pct) {
+                $mealTargets = [
+                    'Breakfast' => (int) round($targetCals * 0.25),
+                    'Lunch'     => (int) round($targetCals * 0.35),
+                    'Dinner'    => (int) round($targetCals * 0.30),
+                ];
+                $mealTargets['Snack'] = $targetCals - array_sum($mealTargets);
+
+                foreach ($mealTargets as $mType => $mCals) {
+                    $pct = $dist[$mType];
                     $options = $foodsByType[$mType];
                     $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
+                    $portionGrams = max(50, (int) round($mCals / 1.5));
 
                     if ($selectedFood) {
-                        $mFood = $selectedFood['name'];
-                        $mImg = $selectedFood['image_url'] ?? null;
-                        $mCals = (int) $selectedFood['calories'];
-                        $mP = (float) $selectedFood['protein_g'];
-                        $mC = (float) $selectedFood['carbs_g'];
-                        $mF = (float) $selectedFood['fat_g'];
+                        $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
+                        $scale = $mCals / $baseCals;
+
+                        $mP = (float) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale, 1);
+                        $mC = (float) round((float)($selectedFood['carbs_g'] ?: ($c_g * $pct)) * $scale, 1);
+                        $mF = (float) round((float)($selectedFood['fat_g'] ?: ($f_g * $pct)) * $scale, 1);
+                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $mImg = !empty($selectedFood['image_url']) 
+                            ? $selectedFood['image_url'] 
+                            : (function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($selectedFood['name'], $mType) : null);
                     } else {
-                        $mCals = round($targetCals * $pct);
-                        $mP = round($p_g * $pct);
-                        $mC = round($c_g * $pct);
-                        $mF = round($f_g * $pct);
-                        $mFood = "Healthy " . $mType;
-                        $mImg = null;
+                        $mP = (float) round($p_g * $pct, 1);
+                        $mC = (float) round($c_g * $pct, 1);
+                        $mF = (float) round($f_g * $pct, 1);
+                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mImg = function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($mFood, $mType) : null;
                     }
 
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, (int) round((float) $mCals), (int) round((float) $mP), (int) round((float) $mC), (int) round((float) $mF)]);
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, (int) round($mP), (int) round($mC), (int) round($mF)]);
                 }
             }
             
@@ -1440,7 +1452,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         </div>
                         <div class="mobile-logger-title-wrap">
                             <span class="mobile-logger-main-title">Live Macro Logger</span>
-                            <span class="mobile-logger-sub-title" id="mobile-logger-sub-title">AI Assistant &amp; Natural Language</span>
+                            <span class="mobile-logger-sub-title" id="mobile-logger-sub-title">Quick Parse &amp; Natural Language</span>
                         </div>
                     </div>
                     <span id="mobile-logger-btn-label" class="mobile-logger-badge-btn">+ Log Food</span>
@@ -1463,7 +1475,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                     </div>
                     <div class="menu-item-text">
-                        <strong>AI Quick Log</strong>
+                        <strong>Quick Parse Log</strong>
                         <span>Type what you ate in natural language</span>
                     </div>
                 </button>
@@ -1492,8 +1504,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         <span>Live Macro Logger</span>
                     </h3>
                     <span class="smart-api-badge" id="logger-badge-mode">
-                        <svg id="logger-badge-mode-icon" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                        <span id="logger-badge-mode-text">AI Assistant</span>
+                        <span id="logger-badge-mode-text">Quick Parse</span>
                     </span>
                 </div>
 
@@ -1506,13 +1517,10 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 </div>
             </div>
 
-            <!-- Mode Switch Tabs: AI Assistant vs Manual Entry -->
+            <!-- Mode Switch Tabs: Quick Parse vs Manual Entry -->
             <div class="logger-nav-tabs" role="tablist" aria-label="Logging Mode">
                 <button type="button" id="tab-logger-ai" class="logger-tab-pill active" onclick="switchLoggerTab('ai')" role="tab" aria-selected="true">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                    </svg>
-                    <span>AI Assistant</span>
+                    <span>Quick Parse</span>
                 </button>
                 <button type="button" id="tab-logger-manual" class="logger-tab-pill" onclick="switchLoggerTab('manual')" role="tab" aria-selected="false">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -1525,7 +1533,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
 
             <!-- Assistant Body -->
             <div class="meal-logger-body">
-                <!-- PANEL A: AI ASSISTANT -->
+                <!-- PANEL A: QUICK PARSE -->
                 <div id="panel-logger-ai" class="logger-tab-panel active">
                     <div class="smart-meal-input-wrap">
                         <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="Type what you ate (e.g., 2 eggs, 1 slice wheat toast, 1 glass milk)..." autocomplete="off">

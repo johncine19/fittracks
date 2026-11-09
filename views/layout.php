@@ -50,6 +50,7 @@ function render_header(string $title, ?array $user = null): void
                 'gyms' => 'All Gyms',
                 'users' => 'Users Accounts',
                 'platform_plans' => 'Subscription Plans',
+                'exercises' => 'Exercises',
                 'food_library' => 'Food Library',
                 'reports' => 'Reports',
                 'audit_logs' => 'Audit Logs',
@@ -2078,12 +2079,7 @@ function render_header(string $title, ?array $user = null): void
         </script>
     <?php endif; ?>
     <?php if ($user): ?>
-        <!-- Background Video -->
-        <?php if (!isset($_COOKIE['fittracks_video_bg']) || $_COOKIE['fittracks_video_bg'] !== 'off'): ?>
-        <video autoplay loop muted playsinline class="bg-video" id="app-bg-video">
-            <source src="assets/images/miles.mp4" type="video/mp4">
-        </video>
-        <?php endif; ?>
+
         
         <!-- Mobile sidebar overlay -->
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
@@ -3251,10 +3247,52 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebar  = document.getElementById('main-sidebar');
     const overlay  = document.getElementById('sidebar-overlay');
     const frame    = document.querySelector('.app-frame');
+    const sideNav  = document.querySelector('.side-nav');
+
+    // Sidebar scroll persistence & active item visibility
+    if (sideNav) {
+        try {
+            const savedScroll = sessionStorage.getItem('fittracks_sidebar_scroll');
+            if (savedScroll !== null) {
+                sideNav.scrollTop = parseInt(savedScroll, 10);
+            }
+        } catch (e) {}
+
+        const ensureActiveVisible = (behavior = 'auto') => {
+            const activeLink = sideNav.querySelector('a.active');
+            if (activeLink) {
+                const navRect = sideNav.getBoundingClientRect();
+                const linkRect = activeLink.getBoundingClientRect();
+                const isVisible = (linkRect.top >= navRect.top && linkRect.bottom <= navRect.bottom);
+                if (!isVisible) {
+                    activeLink.scrollIntoView({ block: 'nearest', behavior: behavior });
+                }
+            }
+        };
+
+        // If no scroll position was explicitly restored or if active link is out of view, scroll it into view
+        ensureActiveVisible('auto');
+
+        const saveNavScroll = () => {
+            try {
+                sessionStorage.setItem('fittracks_sidebar_scroll', sideNav.scrollTop);
+            } catch (e) {}
+        };
+
+        sidebar?.querySelectorAll('a').forEach(a => {
+            a.addEventListener('click', saveNavScroll);
+        });
+
+        window.addEventListener('beforeunload', saveNavScroll);
+    }
 
     function openSidebar() {
         sidebar?.classList.add('open');
         overlay?.classList.add('open');
+        const activeLink = sideNav?.querySelector('a.active');
+        if (activeLink) {
+            activeLink.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        }
     }
     function closeSidebar() {
         sidebar?.classList.remove('open');

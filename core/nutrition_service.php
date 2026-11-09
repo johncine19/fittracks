@@ -263,22 +263,34 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     $stmtMeal = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
     for ($d = 1; $d <= 7; $d++) {
-        foreach ($dist as $mType => $pct) {
-            $mCals = (int) round($targetCals * $pct);
-            $mP = (int) round($p_g * $pct);
-            $mC = (int) round($c_g * $pct);
-            $mF = (int) round($f_g * $pct);
+        $mealTargets = [
+            'Breakfast' => (int) round($targetCals * 0.25),
+            'Lunch'     => (int) round($targetCals * 0.35),
+            'Dinner'    => (int) round($targetCals * 0.30),
+        ];
+        $mealTargets['Snack'] = $targetCals - array_sum($mealTargets);
+
+        foreach ($mealTargets as $mType => $mCals) {
+            $pct = $dist[$mType];
             $portionGrams = max(50, (int) round($mCals / 1.5));
 
             $options = $foodsByType[$mType];
             $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
 
             if ($selectedFood) {
+                $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
+                $scale = $mCals / $baseCals;
+                $mP = (int) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale);
+                $mC = (int) round((float)($selectedFood['carbs_g'] ?: ($c_g * $pct)) * $scale);
+                $mF = (int) round((float)($selectedFood['fat_g'] ?: ($f_g * $pct)) * $scale);
                 $mFood = $portionGrams . "g of " . $selectedFood['name'];
                 $mImg = !empty($selectedFood['image_url']) 
                     ? $selectedFood['image_url'] 
                     : (function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($selectedFood['name'], $mType) : null);
             } else {
+                $mP = (int) round($p_g * $pct);
+                $mC = (int) round($c_g * $pct);
+                $mF = (int) round($f_g * $pct);
                 $mFood = $portionGrams . "g of Healthy " . $mType;
                 $mImg = function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($mFood, $mType) : null;
             }

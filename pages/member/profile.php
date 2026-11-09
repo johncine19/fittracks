@@ -223,13 +223,7 @@ function profile_page(): void
                     Subscription & Billing
                 </button>
             <?php endif; ?>
-            <button class="settings-tab" data-tab="preferences">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                </svg>
-                Preferences
-            </button>
+
             <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>
                 <button class="settings-tab" data-tab="ratings_feedback">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1457,36 +1451,7 @@ function profile_page(): void
             </div>
         <?php endif; ?>
 
-        <!-- Tab: Preferences -->
-        <div class="settings-panel" data-panel="preferences">
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <div>
-                        <h2 class="settings-section-title">Preferences</h2>
-                        <p class="settings-section-desc">Customize your app experience and visual settings.</p>
-                    </div>
-                </div>
 
-                <div class="settings-pref-list">
-                    <div class="settings-pref-item">
-                        <div class="settings-pref-icon" style="background: color-mix(in srgb, var(--lime) 12%, transparent); color: var(--lime);">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polygon points="23 7 16 12 23 17 23 7" />
-                                <rect width="15" height="14" x="1" y="5" rx="2" ry="2" />
-                            </svg>
-                        </div>
-                        <div class="settings-pref-content">
-                            <strong>Video Background</strong>
-                            <span class="muted" style="font-size:13px;">Show an animated video loop behind your dashboard.</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="toggleVideoBg" <?= (!isset($_COOKIE['fittracks_video_bg']) || $_COOKIE['fittracks_video_bg'] !== 'off') ? 'checked' : '' ?>>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Tab: Rating & Feedback -->
         <?php if (in_array(($user['role'] ?? ''), ['gym_owner', 'admin'], true)): ?>

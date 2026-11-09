@@ -345,39 +345,58 @@ function diet_builder_page(): void
             $stmt = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
             
             for ($d = 1; $d <= 7; $d++) {
-                foreach ($dist as $mType => $pct) {
+                $mealTargets = [
+                    'Breakfast' => (int) round($targetCals * 0.25),
+                    'Lunch'     => (int) round($targetCals * 0.35),
+                    'Dinner'    => (int) round($targetCals * 0.30),
+                ];
+                $mealTargets['Snack'] = $targetCals - array_sum($mealTargets);
+
+                foreach ($mealTargets as $mType => $mCals) {
+                    $pct = $dist[$mType];
                     $options = $foodsByType[$mType];
                     $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
+                    $portionGrams = max(50, (int) round($mCals / 1.5));
                     
                     if ($selectedFood) {
-                        $mFood = $selectedFood['name'];
-                        $mImg = $selectedFood['image_url'] ?? null;
-                        $mCals = (int) $selectedFood['calories'];
-                        $mP = (float) $selectedFood['protein_g'];
-                        $mC = (float) $selectedFood['carbs_g'];
-                        $mF = (float) $selectedFood['fat_g'];
+                        $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
+                        $scale = $mCals / $baseCals;
+                        
+                        $mP = (float) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale, 1);
+                        $mC = (float) round((float)($selectedFood['carbs_g'] ?: ($c_g * $pct)) * $scale, 1);
+                        $mF = (float) round((float)($selectedFood['fat_g'] ?: ($f_g * $pct)) * $scale, 1);
+                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $mImg = !empty($selectedFood['image_url']) 
+                            ? $selectedFood['image_url'] 
+                            : (function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($selectedFood['name'], $mType) : null);
+                        $servings = round($scale, 2);
+                        $foodId = (int)$selectedFood['food_id'];
+                        $foodName = (string)$selectedFood['name'];
                     } else {
-                        $mCals = round($targetCals * $pct);
-                        $mP = round($p_g * $pct);
-                        $mC = round($c_g * $pct);
-                        $mF = round($f_g * $pct);
-                        $mFood = "Healthy " . $mType;
-                        $mImg = null;
+                        $mP = (float) round($p_g * $pct, 1);
+                        $mC = (float) round($c_g * $pct, 1);
+                        $mF = (float) round($f_g * $pct, 1);
+                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mImg = function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($mFood, $mType) : null;
+                        $servings = 1.00;
+                        $foodId = null;
+                        $foodName = $mFood;
                     }
                     
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, (int) round((float) $mCals), (int) round((float) $mP), (int) round((float) $mC), (int) round((float) $mF)]);
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, (int) round($mP), (int) round($mC), (int) round($mF)]);
                     $newMealId = (int)$pdo->lastInsertId();
                     if ($newMealId > 0) {
                         try {
-                            $insMf = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, 1.00, ?, ?, ?, ?)');
+                            $insMf = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
                             $insMf->execute([
                                 $newMealId,
-                                $selectedFood ? (int)$selectedFood['food_id'] : null,
-                                $selectedFood ? (string)$selectedFood['name'] : $mFood,
-                                (int) round((float) $mCals),
-                                (float) $mP,
-                                (float) $mC,
-                                (float) $mF
+                                $foodId,
+                                $foodName,
+                                $servings,
+                                $mCals,
+                                $mP,
+                                $mC,
+                                $mF
                             ]);
                         } catch (Throwable $e) {}
                     }
@@ -652,9 +671,11 @@ function diet_builder_page(): void
     render_header('Build Diet Plan', $user);
     $daysMap = [1=>'Monday', 2=>'Tuesday', 3=>'Wednesday', 4=>'Thursday', 5=>'Friday', 6=>'Saturday', 7=>'Sunday'];
 ?>
+<link rel="stylesheet" href="<?= h(asset_url('css/pages/diet_builder.css')) ?>">
+
 <div class="diet-builder-page">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
-        <div>
+    <div class="diet-builder-header">
+        <div class="diet-header-info">
             <h2 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 800; color: var(--ink);">
                 Diet Plan for <?= h(($member['first_name'] ?? '') . ' ' . ($member['last_name'] ?? '')) ?>
             </h2>
@@ -713,8 +734,6 @@ function diet_builder_page(): void
             </form>
         </div>
     </div>
-
-<link rel="stylesheet" href="<?= h(asset_url('css/pages/diet_builder.css')) ?>">
 
 <div class="diet-builder-layout">
     <!-- Left Column: Add Meal Form -->
