@@ -6852,3 +6852,113 @@ dialog.modal .swal2-container .swal2-popup {
         justify-content: flex-start;
     }
 }
+
+/* ==========================================================================
+   MEMBER PORTAL TYPOGRAPHY SYSTEM (Outfit + Plus Jakarta Sans + JetBrains Mono)
+   Scoped to body[data-user-role="member"] for an athletic, high-energy UI
+   ========================================================================== */
+body[data-user-role="member"],
+body[data-user-role="member"] .panel.gym-select,
+[data-theme="light"] body[data-user-role="member"] .panel.gym-select,
+[data-theme="dark"] body[data-user-role="member"] .panel.gym-select {
+    --font-display: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-ui: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+body[data-user-role="member"] {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.008em;
+}
+
+/* Form Controls, Buttons & Interactive Elements Inherit Plus Jakarta Sans */
+body[data-user-role="member"] button,
+body[data-user-role="member"] input,
+body[data-user-role="member"] select,
+body[data-user-role="member"] textarea,
+body[data-user-role="member"] .btn,
+body[data-user-role="member"] .form-control,
+body[data-user-role="member"] .swal2-popup {
+    font-family: var(--font-sans);
+}
+
+/* Display & Athletic Headings — Outfit */
+body[data-user-role="member"] h1,
+body[data-user-role="member"] h2,
+body[data-user-role="member"] h3,
+body[data-user-role="member"] h4,
+body[data-user-role="member"] .brand,
+body[data-user-role="member"] .topbar h1,
+body[data-user-role="member"] .ft-splash-brand-title,
+body[data-user-role="member"] .member-welcome-title,
+body[data-user-role="member"] .act-panel-title,
+body[data-user-role="member"] .panel-title h2,
+body[data-user-role="member"] .tour-banner-text h3,
+body[data-user-role="member"] .arrival-banner-title,
+body[data-user-role="member"] .gym-pause-banner-title,
+body[data-user-role="member"] .profile-name-title,
+body[data-user-role="member"] .modal-title,
+body[data-user-role="member"] .swal2-title,
+body[data-user-role="member"] .workout-hero-title,
+body[data-user-role="member"] .exercise-card-title,
+body[data-user-role="member"] .plan-card-title,
+body[data-user-role="member"] .trainer-name,
+body[data-user-role="member"] .class-title,
+body[data-user-role="member"] .equip-name,
+body[data-user-role="member"] .tier-hero-name,
+body[data-user-role="member"] .mission-title {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+}
+
+/* KPI Counters, Workout/Macro Metrics & Score Rings — Outfit Tabular Numbers */
+body[data-user-role="member"] .member-stat-num,
+body[data-user-role="member"] .hero-score-ring-val,
+body[data-user-role="member"] .act-stat-val,
+body[data-user-role="member"] .act-stat-val-text,
+body[data-user-role="member"] .dash-stat strong,
+body[data-user-role="member"] .hero-cals-big-num,
+body[data-user-role="member"] .hero-val-logged,
+body[data-user-role="member"] .macro-val,
+body[data-user-role="member"] .stat-value,
+body[data-user-role="member"] .metric-val,
+body[data-user-role="member"] .leaderboard-score,
+body[data-user-role="member"] .leaderboard-rank,
+body[data-user-role="member"] .tier-xp-val,
+body[data-user-role="member"] .workout-stat-val,
+body[data-user-role="member"] .progress-stat-val,
+body[data-user-role="member"] .plan-price,
+body[data-user-role="member"] .price-amount {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+}
+
+/* Navigation Tabs, Section Eyebrows & Tier/Status Pills — Crisp Geometric Outfit */
+body[data-user-role="member"] .member-dash-tab,
+body[data-user-role="member"] .act-subnav-btn,
+body[data-user-role="member"] .member-tier-pill,
+body[data-user-role="member"] .hero-score-badge,
+body[data-user-role="member"] .eyebrow,
+body[data-user-role="member"] .stat-head,
+body[data-user-role="member"] .member-stat-label,
+body[data-user-role="member"] .sidebar-nav-badge,
+body[data-user-role="member"] .sidebar-notif-badge {
+    font-family: var(--font-display);
+}
+
+/* Live Timers, Durations, Pass Codes & Receipts — JetBrains Mono Tabular */
+body[data-user-role="member"] #grace-timer-display,
+body[data-user-role="member"] .act-duration-pill,
+body[data-user-role="member"] .act-time-pill,
+body[data-user-role="member"] .commission-mobile-value,
+body[data-user-role="member"] code,
+body[data-user-role="member"] pre {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+

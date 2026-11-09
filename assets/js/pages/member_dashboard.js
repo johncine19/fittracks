@@ -190,7 +190,7 @@ let actAutoRefreshTimer = null;
                         suggestedMax: maxVal + 1,
                         ticks: {
                             color: textColor,
-                            font: { family: "'Inter', system-ui, sans-serif", size: 11, weight: '600' },
+                            font: { family: "'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif", size: 11, weight: '600' },
                             precision: 0,
                             stepSize: 1
                         },
@@ -202,7 +202,7 @@ let actAutoRefreshTimer = null;
                     x: {
                         ticks: {
                             color: textColor,
-                            font: { family: "'Inter', system-ui, sans-serif", size: 11, weight: '600' },
+                            font: { family: "'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif", size: 11, weight: '600' },
                             maxRotation: 45,
                             minRotation: 0
                         },

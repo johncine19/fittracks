@@ -239,7 +239,11 @@ try {
         "UPDATE attendance SET check_in_method = 'manual' WHERE check_in_method = 'rfid'",
         "ALTER TABLE attendance MODIFY COLUMN check_in_method ENUM('qr_code', 'manual') NOT NULL DEFAULT 'manual'",
         // ── Concurrency & Performance: Class Bookings Schedule Status Index ──
-        "CREATE INDEX idx_cb_schedule_status ON class_bookings (schedule_id, booking_status)"
+        "CREATE INDEX idx_cb_schedule_status ON class_bookings (schedule_id, booking_status)",
+        // ── Normalize Orphaned Global Catalog Exercises (gym_id = 0) ──
+        "ALTER TABLE exercises DROP FOREIGN KEY fk_exercises_gym",
+        "ALTER TABLE exercises MODIFY COLUMN gym_id INT UNSIGNED NOT NULL DEFAULT 0",
+        "UPDATE exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id SET e.gym_id = 0 WHERE e.gym_id IS NULL OR (e.gym_id > 0 AND g.gym_id IS NULL)"
     ];
 
     foreach ($migrations as $sql) {

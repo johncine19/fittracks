@@ -162,6 +162,9 @@ function render_header(string $title, ?array $user = null): void
         <link rel="icon" type="image/png" sizes="192x192" href="assets/images/favicon.png?v=2">
         <link rel="apple-touch-icon" sizes="180x180" href="assets/images/favicon.png?v=2">
         <link rel="icon" type="image/svg+xml" href="assets/images/fittracks-icon.svg?v=2">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="assets/app.css?v=<?= filemtime(__DIR__ . '/../assets/app.css') ?>">
         <link rel="stylesheet" href="assets/dropdown.css?v=<?= file_exists(__DIR__ . '/../assets/dropdown.css') ? filemtime(__DIR__ . '/../assets/dropdown.css') : 1 ?>">
         <?php if ($gym && !empty($gym['brand_color']) && gym_has_feature('custom_branding', $gym)): 
@@ -300,8 +303,11 @@ function render_header(string $title, ?array $user = null): void
             <link rel="stylesheet" href="assets/gym-owner-tour.css?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.css') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.css') : 1 ?>">
             <script src="assets/gym-owner-tour.js?v=<?= file_exists(__DIR__ . '/../assets/gym-owner-tour.js') ? filemtime(__DIR__ . '/../assets/gym-owner-tour.js') : 1 ?>" defer></script>
         <?php endif; ?>
+        <?php
+        $effectiveUserRole = $user['role'] ?? (in_array($page, ['setup_profile', 'setup_goal', 'setup_review'], true) ? 'member' : '');
+        ?>
     </head>
-    <body class="<?= $user ? 'app-body' : 'auth-body' ?>" data-user-role="<?= h($user['role'] ?? '') ?>">
+    <body class="<?= $user ? 'app-body' : 'auth-body' ?>" data-user-role="<?= h($effectiveUserRole) ?>">
     <!-- In-App FitTrack Splash Preloader -->
     <div id="ft-splash-screen" aria-hidden="true">
         <div class="ft-splash-glow"></div>

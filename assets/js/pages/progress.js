@@ -534,7 +534,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                             c.lineTo(chartArea.right, yPos);
                             c.stroke();
 
-                            c.font = '700 10.5px Inter, system-ui, sans-serif';
+                            c.font = "700 10.5px 'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif";
                             c.fillStyle = targetColor;
                             c.textAlign = 'right';
                             c.fillText(targetLabel, chartArea.right - 6, yPos - 6);
@@ -571,8 +571,8 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                         padding: 12,
                         boxPadding: 6,
                         usePointStyle: true,
-                        titleFont: { size: 12, weight: '700', family: 'Inter, system-ui, sans-serif' },
-                        bodyFont: { size: 12, weight: '600', family: 'Inter, system-ui, sans-serif' },
+                        titleFont: { size: 12, weight: '700', family: "'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif" },
+                        bodyFont: { size: 12, weight: '600', family: "'Plus Jakarta Sans', system-ui, sans-serif" },
                         callbacks: {
                             labelPointStyle: function() {
                                 return {
@@ -601,7 +601,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                         border: { display: false },
                         ticks: {
                             color: tickColor,
-                            font: { weight: '600', size: 11, family: 'Inter, system-ui, sans-serif' },
+                            font: { weight: '600', size: 11, family: "'Plus Jakarta Sans', system-ui, sans-serif" },
                             padding: 8
                         }
                     },
@@ -613,7 +613,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                         border: { display: false },
                         ticks: {
                             color: tickColor,
-                            font: { weight: '600', size: 11, family: 'Inter, system-ui, sans-serif' },
+                            font: { weight: '600', size: 11, family: "'Plus Jakarta Sans', system-ui, sans-serif" },
                             padding: 8
                         }
                     }

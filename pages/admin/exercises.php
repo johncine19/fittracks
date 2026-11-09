@@ -218,13 +218,30 @@ Safety: " : "") . $safety;
     }
 
     
+    // Self-heal orphaned global exercises (e.g. from legacy fix_db.php migration that assigned initial global exercises to deleted gym #1)
+    if (empty($_SESSION['exercises_global_scope_healed'])) {
+        try {
+            $orphanedCount = (int) scalar('SELECT COUNT(*) FROM exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id WHERE e.gym_id IS NULL OR (e.gym_id > 0 AND g.gym_id IS NULL)');
+            if ($orphanedCount > 0) {
+                try {
+                    $pdo->exec('ALTER TABLE exercises DROP FOREIGN KEY fk_exercises_gym');
+                } catch (Throwable) {}
+                try {
+                    $pdo->exec('ALTER TABLE exercises MODIFY COLUMN gym_id INT UNSIGNED NOT NULL DEFAULT 0');
+                } catch (Throwable) {}
+                $pdo->exec('UPDATE exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id SET e.gym_id = 0 WHERE e.gym_id IS NULL OR (e.gym_id > 0 AND g.gym_id IS NULL)');
+            }
+            $_SESSION['exercises_global_scope_healed'] = 1;
+        } catch (Throwable) {}
+    }
+
     // Build filter queries based on role
     $catQuery = 'SELECT DISTINCT category FROM exercises WHERE category IS NOT NULL AND category != ""';
     $mgQuery = 'SELECT DISTINCT muscle_group FROM exercises WHERE muscle_group IS NOT NULL AND muscle_group != ""';
     $filterParams = [];
     if ($gymId) {
-        $catQuery .= ' AND gym_id = ?';
-        $mgQuery .= ' AND gym_id = ?';
+        $catQuery .= ' AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)';
+        $mgQuery .= ' AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)';
         $filterParams[] = $gymId;
     }
     $catQuery .= ' ORDER BY category';
@@ -435,8 +452,13 @@ Safety: " : "") . $safety;
                             flash('Cannot save: an exercise named "' . htmlspecialchars($name) . '" already exists ' . ($isGlobal ? 'in the global library.' : 'in your gym library.') . '.', 'danger');
                             redirect('exercises');
                         }
-                        $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, equipment = ?, difficulty_level = ?, description = ? WHERE exercise_id = ?');
-                        $stmt->execute([$name, $category, $muscle_group, $equipment ?: null, $difficulty_level, $description, $editId]);
+                        if ($user['role'] === 'platform_admin') {
+                            $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, equipment = ?, difficulty_level = ?, description = ?, gym_id = ? WHERE exercise_id = ?');
+                            $stmt->execute([$name, $category, $muscle_group, $equipment ?: null, $difficulty_level, $description, (int)$targetGymId, $editId]);
+                        } else {
+                            $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, equipment = ?, difficulty_level = ?, description = ? WHERE exercise_id = ?');
+                            $stmt->execute([$name, $category, $muscle_group, $equipment ?: null, $difficulty_level, $description, $editId]);
+                        }
                         
                         if ($urlInput) {
                             $pdo->prepare('UPDATE exercises SET animation_url = ? WHERE exercise_id = ?')->execute([$urlInput, $editId]);
@@ -539,17 +561,17 @@ Safety: " : "") . $safety;
     $csrfStr = csrf_field();
 
     $sql = 'SELECT e.*, g.name AS gym_name FROM exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id WHERE 1=1';
-    $countSql = 'SELECT COUNT(*) FROM exercises e WHERE 1=1';
+    $countSql = 'SELECT COUNT(*) FROM exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id WHERE 1=1';
     $params = [];
     
     if ($gymId) {
-        $sql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL)';
-        $countSql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL)';
+        $sql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL OR g.gym_id IS NULL)';
+        $countSql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL OR g.gym_id IS NULL)';
         $params[] = $gymId;
     } elseif ($user['role'] === 'platform_admin') {
         if ($scope === 'global') {
-            $sql .= ' AND (e.gym_id = 0 OR e.gym_id IS NULL)';
-            $countSql .= ' AND (e.gym_id = 0 OR e.gym_id IS NULL)';
+            $sql .= ' AND (e.gym_id = 0 OR e.gym_id IS NULL OR g.gym_id IS NULL)';
+            $countSql .= ' AND (e.gym_id = 0 OR e.gym_id IS NULL OR g.gym_id IS NULL)';
         } elseif ($scope !== '' && is_numeric($scope)) {
             $sql .= ' AND e.gym_id = ?';
             $countSql .= ' AND e.gym_id = ?';
@@ -1101,7 +1123,7 @@ Safety: " : "") . $safety;
                                         <?php endif; ?>
                                     </div>
                                     <?php 
-                                    $isGlobalEx = empty($ex['gym_id']) || (int)$ex['gym_id'] === 0;
+                                    $isGlobalEx = empty($ex['gym_id']) || (int)$ex['gym_id'] === 0 || empty($ex['gym_name']);
                                     $canManageEx = ($user['role'] === 'platform_admin' || (!$isGlobalEx && (int)$ex['gym_id'] === (int)$gymId));
                                     ?>
                                     <?php if ($canManageEx): ?>
@@ -1693,7 +1715,7 @@ Safety: " : "") . $safety;
         
         var gymIdSelect = document.getElementById('exGymId');
         if (gymIdSelect) {
-            gymIdSelect.value = ex.gym_id || '';
+            gymIdSelect.value = (ex.gym_id && Number(ex.gym_id) > 0 && ex.gym_name) ? String(ex.gym_id) : '0';
         }
 
         const animContainer = document.getElementById('exCurrentAnimContainer');
