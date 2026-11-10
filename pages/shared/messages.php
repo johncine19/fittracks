@@ -360,6 +360,44 @@ function messages_page(): void
         exit;
     }
 
+    // Helpers for message date formatting
+    if (!function_exists('format_message_date_badge')) {
+        function format_message_date_badge(string|int $time): string {
+            $ts = is_numeric($time) ? (int)$time : strtotime($time);
+            $msgDate = date('Y-m-d', $ts);
+            $today = date('Y-m-d');
+            $yesterday = date('Y-m-d', strtotime('-1 day'));
+            if ($msgDate === $today) {
+                return 'Today';
+            } elseif ($msgDate === $yesterday) {
+                return 'Yesterday';
+            } elseif (date('Y', $ts) === date('Y')) {
+                return date('D, M j', $ts);
+            } else {
+                return date('M j, Y', $ts);
+            }
+        }
+    }
+
+    if (!function_exists('format_message_display_time')) {
+        function format_message_display_time(string|int $time): string {
+            $ts = is_numeric($time) ? (int)$time : strtotime($time);
+            $msgDate = date('Y-m-d', $ts);
+            $today = date('Y-m-d');
+            $yesterday = date('Y-m-d', strtotime('-1 day'));
+            $timeStr = date('g:i A', $ts);
+            if ($msgDate === $today) {
+                return 'Today, ' . $timeStr;
+            } elseif ($msgDate === $yesterday) {
+                return 'Yesterday, ' . $timeStr;
+            } elseif (date('Y', $ts) === date('Y')) {
+                return date('M j, ', $ts) . $timeStr;
+            } else {
+                return date('M j, Y, ', $ts) . $timeStr;
+            }
+        }
+    }
+
     // ── AJAX: Poll for new messages ──────────────────────────────────────
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && post('action') === 'poll_messages' && $isAjax) {
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -390,6 +428,11 @@ function messages_page(): void
         // Decrypt messages for client consumption
         foreach ($newRows as &$r) {
             $r['message_text'] = decrypt_message($r['message_text']);
+            $ts = strtotime($r['sent_at']);
+            $r['date_key']     = date('Y-m-d', $ts);
+            $r['date_label']   = format_message_date_badge($ts);
+            $r['display_time'] = format_message_display_time($ts);
+            $r['full_time']    = date('l, F j, Y \a\t g:i A', $ts);
         }
         unset($r);
 
@@ -452,12 +495,19 @@ function messages_page(): void
                 echo json_encode(['success' => false, 'error' => $error]);
             } else {
                 $sentAtRaw = scalar('SELECT sent_at FROM trainer_messages WHERE message_id = ?', [$newMessageId]);
-                $sentFormatted = $sentAtRaw ? date('g:i A', strtotime($sentAtRaw)) : date('g:i A');
+                $ts = $sentAtRaw ? strtotime($sentAtRaw) : time();
+                $displayTime = format_message_display_time($ts);
+                $dateBadge   = format_message_date_badge($ts);
+                $fullTime    = date('l, F j, Y \a\t g:i A', $ts);
                 echo json_encode([
-                    'success'    => true,
-                    'message_id' => $newMessageId,
-                    'sent_at'    => $sentFormatted,
-                    'text'       => $text,
+                    'success'      => true,
+                    'message_id'   => $newMessageId,
+                    'sent_at'      => $displayTime,
+                    'display_time' => $displayTime,
+                    'date_key'     => date('Y-m-d', $ts),
+                    'date_label'   => $dateBadge,
+                    'full_time'    => $fullTime,
+                    'text'         => $text,
                 ]);
             }
             exit;
@@ -968,6 +1018,20 @@ function messages_page(): void
                     $cName = h($c['first_name'] . ' ' . $c['last_name']);
                     $cAvatar = render_avatar($c, 'small');
                     $lastMsg = h($c['last_message'] ?? 'New conversation');
+                    $lastTimeSnippet = '';
+                    if (!empty($c['last_time'])) {
+                        $ts = strtotime($c['last_time']);
+                        $cDate = date('Y-m-d', $ts);
+                        if ($cDate === date('Y-m-d')) {
+                            $lastTimeSnippet = date('g:i A', $ts);
+                        } elseif ($cDate === date('Y-m-d', strtotime('-1 day'))) {
+                            $lastTimeSnippet = 'Yesterday';
+                        } elseif (date('Y', $ts) === date('Y')) {
+                            $lastTimeSnippet = date('M j', $ts);
+                        } else {
+                            $lastTimeSnippet = date('M j, Y', $ts);
+                        }
+                    }
                 ?>
                     <div class="conv-item-row <?= $isActive ? 'active' : '' ?>">
                         <a href="index.php?page=messages&chat=<?= (int)$c['user_id'] ?>" class="conv-item-link">
@@ -975,11 +1039,14 @@ function messages_page(): void
                             <div style="overflow: hidden; flex: 1; min-width: 0;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
                                     <div style="font-weight: <?= $isActive ? '600' : '500' ?>; font-size: 0.95rem; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; overflow: hidden;"><?= $cName ?></div>
-                                    <?php if (!empty($c['is_blocked'])): ?>
-                                        <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 600; text-transform: uppercase;">Blocked</span>
-                                    <?php endif; ?>
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                        <span id="conv-last-time-<?= (int)$c['user_id'] ?>" style="font-size: 0.72rem; color: var(--muted);"><?= h($lastTimeSnippet) ?></span>
+                                        <?php if (!empty($c['is_blocked'])): ?>
+                                            <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 600; text-transform: uppercase;">Blocked</span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                                <div style="font-size: 0.8rem; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; margin-top: 2px;"><?= $lastMsg ?></div>
+                                <div id="conv-last-msg-<?= (int)$c['user_id'] ?>" style="font-size: 0.8rem; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; overflow: hidden; margin-top: 2px;"><?= $lastMsg ?></div>
                             </div>
                         </a>
                         <div class="conv-menu-container">
@@ -1081,9 +1148,9 @@ function messages_page(): void
                 </div>
                 
                 <!-- Chat Messages -->
-                <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+                <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px;">
                     <?php if (!$rows): ?>
-                        <div style="margin: auto; text-align: center; color: var(--muted);">
+                        <div id="chat-empty-state" style="margin: auto; text-align: center; color: var(--muted);">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48" style="margin-bottom: 10px;">
                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                             </svg>
@@ -1091,10 +1158,24 @@ function messages_page(): void
                         </div>
                     <?php else: ?>
                         <?php
+                        $prevDateKey = null;
                         $prevSenderId = null;
                         foreach ($rows as $msg):
-                            $isMine      = (int) $msg['sender_id'] === (int) $user['user_id'];
-                            $time        = date('g:i A', strtotime($msg['sent_at']));
+                            $isMine       = (int) $msg['sender_id'] === (int) $user['user_id'];
+                            $ts           = strtotime($msg['sent_at']);
+                            $msgDateKey   = date('Y-m-d', $ts);
+                            if ($msgDateKey !== $prevDateKey):
+                                $prevDateKey  = $msgDateKey;
+                                $dateLabel    = format_message_date_badge($ts);
+                                $prevSenderId = null; // reset grouping across date dividers
+                        ?>
+                            <div class="chat-date-divider" data-date="<?= $msgDateKey ?>" style="align-self: center; margin: 10px auto; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 0.72rem; font-weight: 600; padding: 4px 12px; border-radius: 9999px; letter-spacing: 0.3px;">
+                                <?= h($dateLabel) ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php
+                            $displayTime  = format_message_display_time($ts);
+                            $fullTime     = date('l, F j, Y \a\t g:i A', $ts);
                             $isSameSender = $prevSenderId === (int) $msg['sender_id'];
                             $prevSenderId = (int) $msg['sender_id'];
                             $gap = $isSameSender ? '4px' : '14px';
@@ -1106,9 +1187,7 @@ function messages_page(): void
                                 <div style="padding: 10px 14px; border-radius: 14px; font-size: 0.95rem; line-height: 1.4; word-break: break-word; <?= $isMine ? 'background: var(--lime); color: #000; border-bottom-right-radius: 4px;' : 'background: var(--surface); color: var(--ink); border-bottom-left-radius: 4px; border: 1px solid var(--line);' ?>">
                                     <?= nl2br(h($msg['message_text'])) ?>
                                 </div>
-                                <?php if (!$isSameSender || true): // always show time on last bubble – simplified: always show ?>
-                                    <span style="font-size: 0.7rem; color: var(--muted); margin-top: 4px;"><?= h($time) ?></span>
-                                <?php endif; ?>
+                                <span title="<?= h($fullTime) ?>" style="font-size: 0.7rem; color: var(--muted); margin-top: 4px; cursor: default;"><?= h($displayTime) ?></span>
                             </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -1150,7 +1229,7 @@ function messages_page(): void
                     const textarea  = document.getElementById('msg-textarea');
                     const sendBtn   = document.getElementById('msg-send-btn');
                     const recipientId = document.getElementById('msg-recipient-id').value;
-                    const csrfToken = form.querySelector('[name="csrf_token"]').value;
+                    const csrfToken = form ? form.querySelector('[name="csrf_token"]').value : '';
                     const myId      = <?= (int) $user['user_id'] ?>;
 
                     // Track highest seen message ID and last sender for grouping
@@ -1161,6 +1240,40 @@ function messages_page(): void
                     // Scroll to bottom
                     chatBox.scrollTop = chatBox.scrollHeight;
 
+                    function removeEmptyState() {
+                        const emptyState = document.getElementById('chat-empty-state');
+                        if (emptyState) {
+                            emptyState.remove();
+                        }
+                    }
+
+                    function ensureDateDivider(dateKey, dateLabel) {
+                        if (!dateKey) {
+                            const d = new Date();
+                            dateKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                        }
+                        if (!chatBox.querySelector('.chat-date-divider[data-date="' + dateKey + '"]')) {
+                            const div = document.createElement('div');
+                            div.className = 'chat-date-divider';
+                            div.dataset.date = dateKey;
+                            div.style.cssText = 'align-self:center;margin:10px auto;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:0.72rem;font-weight:600;padding:4px 12px;border-radius:9999px;letter-spacing:0.3px;';
+                            div.textContent = dateLabel || 'Today';
+                            chatBox.appendChild(div);
+                            lastSenderId = null; // reset sender grouping across date divider
+                        }
+                    }
+
+                    function updateSidebarConversation(targetUserId, messageText, timeLabel) {
+                        const lastMsgEl = document.getElementById('conv-last-msg-' + targetUserId);
+                        if (lastMsgEl) {
+                            lastMsgEl.textContent = messageText;
+                        }
+                        const lastTimeEl = document.getElementById('conv-last-time-' + targetUserId);
+                        if (lastTimeEl) {
+                            lastTimeEl.textContent = timeLabel || 'Just now';
+                        }
+                    }
+
                     /**
                      * Build a chat bubble element.
                      * @param {string}  text
@@ -1170,8 +1283,9 @@ function messages_page(): void
                      * @param {number}  msgId
                      * @param {boolean} showName   — false when same sender as previous bubble
                      * @param {string}  senderId   — stored as data-sender-id for future grouping checks
+                     * @param {string}  fullTime   — tooltip title
                      */
-                    function buildBubble(text, timeStr, isMine, senderName, msgId, showName, senderId) {
+                    function buildBubble(text, timeStr, isMine, senderName, msgId, showName, senderId, fullTime) {
                         const wrap = document.createElement('div');
                         wrap.dataset.msgId    = msgId   || '';
                         wrap.dataset.senderId = senderId || (isMine ? myId : '');
@@ -1194,70 +1308,92 @@ function messages_page(): void
                         bubble.innerHTML = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
                         wrap.appendChild(bubble);
                         const timeEl = document.createElement('span');
-                        timeEl.style.cssText = 'font-size:0.7rem;color:var(--muted);margin-top:4px;';
+                        timeEl.style.cssText = 'font-size:0.7rem;color:var(--muted);margin-top:4px;cursor:default;';
                         timeEl.textContent = timeStr;
+                        if (fullTime) {
+                            timeEl.title = fullTime;
+                        }
                         wrap.appendChild(timeEl);
                         return wrap;
                     }
 
                     // ── Send via AJAX ─────────────────────────────────────────
-                    form.addEventListener('submit', async function(e) {
-                        e.preventDefault();
-                        const text = textarea.value.trim();
-                        if (!text) return;
-
-                        // Optimistic UI — group with previous if I was last sender
-                        const isSameAsPrev = lastSenderId === myId;
-                        const bubble = buildBubble(text, '···', true, '', 0, !isSameAsPrev, myId);
-                        chatBox.appendChild(bubble);
-                        chatBox.scrollTop = chatBox.scrollHeight;
-                        lastSenderId = myId; // update grouping tracker
-                        textarea.value = '';
-                        textarea.style.height = '';
-                        sendBtn.disabled = true;
-                        sendBtn.style.opacity = '0.6';
-
-                        try {
-                            const body = new URLSearchParams({
-                                action: 'send',
-                                recipient_id: recipientId,
-                                message_text: text,
-                                csrf_token: csrfToken
-                            });
-                            const res = await fetch('index.php?page=messages', {
-                                method: 'POST',
-                                headers: { 'X-Requested-With': 'XMLHttpRequest',
-                                           'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: body.toString()
-                            });
-                            const data = await res.json();
-                            if (data.success) {
-                                bubble.dataset.msgId = data.message_id;
-                                lastMsgId = Math.max(lastMsgId, data.message_id);
-                                const timeEl = bubble.querySelector('span:last-child');
-                                if (timeEl) timeEl.textContent = data.sent_at + ' ✓';
-                            } else {
-                                bubble.remove();
-                                lastSenderId = null; // reset since bubble was removed
-                                Swal.fire({icon:'error', title:'Error', text: data.error || 'Could not send message.', background:'var(--bg)', color:'var(--ink)'});
-                            }
-                        } catch (err) {
-                            bubble.remove();
-                            lastSenderId = null;
-                            Swal.fire({icon:'error', title:'Network Error', text:'Message not sent. Please try again.', background:'var(--bg)', color:'var(--ink)'});
-                        } finally {
-                            sendBtn.disabled = false;
-                            sendBtn.style.opacity = '1';
-                        }
-                    });
-
-                    // Enter = send (Shift+Enter = newline)
-                    textarea.addEventListener('keydown', function(e) {
-                        if (e.key === 'Enter' && !e.shiftKey) {
+                    if (form) {
+                        form.addEventListener('submit', async function(e) {
                             e.preventDefault();
-                            form.dispatchEvent(new Event('submit', {cancelable: true}));
-                        }
-                    });
+                            const text = textarea.value.trim();
+                            if (!text) return;
+
+                            // 1. Clear empty state placeholder immediately
+                            removeEmptyState();
+
+                            // 2. Ensure today date badge is present
+                            const now = new Date();
+                            const todayKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+                            ensureDateDivider(todayKey, 'Today');
+
+                            // 3. Optimistic UI — group with previous if I was last sender
+                            const isSameAsPrev = lastSenderId === myId;
+                            const nowTimeStr = 'Today, ' + now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                            const bubble = buildBubble(text, nowTimeStr + ' ···', true, '', 0, !isSameAsPrev, myId, now.toLocaleString());
+                            chatBox.appendChild(bubble);
+                            chatBox.scrollTop = chatBox.scrollHeight;
+                            lastSenderId = myId; // update grouping tracker
+                            textarea.value = '';
+                            textarea.style.height = '';
+                            sendBtn.disabled = true;
+                            sendBtn.style.opacity = '0.6';
+
+                            // 4. Update sidebar conversation item immediately
+                            updateSidebarConversation(recipientId, 'You: ' + text, 'Just now');
+
+                            try {
+                                const body = new URLSearchParams({
+                                    action: 'send',
+                                    recipient_id: recipientId,
+                                    message_text: text,
+                                    csrf_token: csrfToken
+                                });
+                                const res = await fetch('index.php?page=messages', {
+                                    method: 'POST',
+                                    headers: { 'X-Requested-With': 'XMLHttpRequest',
+                                               'Content-Type': 'application/x-www-form-urlencoded' },
+                                    body: body.toString()
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                    bubble.dataset.msgId = data.message_id;
+                                    lastMsgId = Math.max(lastMsgId, data.message_id);
+                                    const timeEl = bubble.querySelector('span:last-child');
+                                    if (timeEl) {
+                                        timeEl.textContent = (data.display_time || data.sent_at) + ' ✓';
+                                        if (data.full_time) {
+                                            timeEl.title = data.full_time;
+                                        }
+                                    }
+                                } else {
+                                    bubble.remove();
+                                    lastSenderId = null; // reset since bubble was removed
+                                    Swal.fire({icon:'error', title:'Error', text: data.error || 'Could not send message.', background:'var(--bg)', color:'var(--ink)'});
+                                }
+                            } catch (err) {
+                                bubble.remove();
+                                lastSenderId = null;
+                                Swal.fire({icon:'error', title:'Network Error', text:'Message not sent. Please try again.', background:'var(--bg)', color:'var(--ink)'});
+                            } finally {
+                                sendBtn.disabled = false;
+                                sendBtn.style.opacity = '1';
+                            }
+                        });
+
+                        // Enter = send (Shift+Enter = newline)
+                        textarea.addEventListener('keydown', function(e) {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                form.dispatchEvent(new Event('submit', {cancelable: true}));
+                            }
+                        });
+                    }
 
                     // ── Poll for incoming messages every 4s ──────────────────
                     setInterval(async function() {
@@ -1277,19 +1413,27 @@ function messages_page(): void
                             });
                             const data = await res.json();
                             if (data.messages && data.messages.length) {
+                                removeEmptyState();
                                 const wasAtBottom = chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 60;
                                 data.messages.forEach(function(m) {
                                     const isMine   = parseInt(m.sender_id) === myId;
                                     const senderId = parseInt(m.sender_id);
                                     // Skip messages already rendered (optimistic or duplicate)
                                     if (chatBox.querySelector('[data-msg-id="' + m.message_id + '"]')) return;
-                                    // Format time from DB timestamp (same as PHP template)
-                                    const t = new Date(m.sent_at.replace(' ', 'T'));
-                                    const timeStr = t.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                                    
+                                    // Ensure date divider exists
+                                    ensureDateDivider(m.date_key, m.date_label);
+
+                                    const timeStr = m.display_time || m.sent_at;
                                     const showName = senderId !== lastSenderId;
-                                    chatBox.appendChild(buildBubble(m.message_text, timeStr, isMine, m.sender_name, m.message_id, showName, senderId));
+                                    chatBox.appendChild(buildBubble(m.message_text, timeStr, isMine, m.sender_name, m.message_id, showName, senderId, m.full_time));
                                     lastMsgId    = Math.max(lastMsgId, parseInt(m.message_id));
                                     lastSenderId = senderId;
+
+                                    // Update sidebar
+                                    const otherUserId = isMine ? recipientId : senderId;
+                                    const prefix = isMine ? 'You: ' : '';
+                                    updateSidebarConversation(otherUserId, prefix + m.message_text, m.date_label === 'Today' ? 'Today' : m.date_label);
                                 });
                                 if (wasAtBottom) chatBox.scrollTop = chatBox.scrollHeight;
                             }
