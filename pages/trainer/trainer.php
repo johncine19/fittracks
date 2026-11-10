@@ -35,7 +35,18 @@ function trainer_members_page(): void
             $assignment = $stmt->fetch();
             if ($assignment) {
                 $memberUserId = (int)$assignment['member_user_id'];
-                $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships WHERE user_id = ? AND status = 'active' AND end_date >= CURDATE()", [$memberUserId]);
+                
+                $trainerCoveragePlan = query_all("
+                    SELECT mp.plan_name, mp.allow_trainer_commission 
+                    FROM memberships m 
+                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
+                    WHERE m.user_id = ? AND m.status = 'active' AND m.end_date >= CURDATE()
+                    ORDER BY mp.allow_trainer_commission DESC, m.end_date DESC 
+                    LIMIT 1
+                ", [$memberUserId])[0] ?? null;
+
+                $hasTrainerCoverage = !empty($trainerCoveragePlan) && (int)$trainerCoveragePlan['allow_trainer_commission'] === 1;
+                $hasActivePlan = !empty($trainerCoveragePlan);
                 
                 $assignedDate = !empty($assignment['assigned_date']) ? (string)$assignment['assigned_date'] : '';
                 $endedDate = !empty($assignment['ended_date']) ? (string)$assignment['ended_date'] : '';
@@ -51,13 +62,20 @@ function trainer_members_page(): void
                     $aptDateStr = date('M j, Y \a\t g:i A', strtotime($assignedDate));
                 }
 
-                if ($hasActivePlan) {
+                $sessionRate = (float) scalar('SELECT session_rate FROM trainer_profiles WHERE trainer_id = ?', [$coachId]);
+                $rateText = $sessionRate > 0 ? ' (Fee: ₱' . number_format($sessionRate, 2) . ')' : '';
+
+                if ($hasTrainerCoverage) {
                     notify_user($memberUserId, 'system', 'Appointment Accepted', 'Your trainer appointment request was accepted by ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . '.');
                     flash('Appointment accepted.');
-                } else {
-                    $notifMsg = 'Your appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Please prepare your personal session fee to pay the trainer directly at the appointment.';
+                } elseif ($hasActivePlan) {
+                    $notifMsg = 'Your appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Your membership plan does not include personal trainer sessions. Please prepare your session fee' . $rateText . ' to pay the trainer directly.';
                     notify_user($memberUserId, 'system', 'Appointment Confirmed (Direct Payment)', $notifMsg);
-                    flash('Appointment accepted. Note: Client does not have an active gym membership plan and will pay you directly for the session.');
+                    flash('Appointment accepted. Note: Client\'s membership plan does not include trainer sessions and will pay you directly for the session' . $rateText . '.');
+                } else {
+                    $notifMsg = 'Your appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Please prepare your personal session fee' . $rateText . ' to pay the trainer directly at the appointment.';
+                    notify_user($memberUserId, 'system', 'Appointment Confirmed (Direct Payment)', $notifMsg);
+                    flash('Appointment accepted. Note: Client does not have an active gym membership plan and will pay you directly for the session' . $rateText . '.');
                 }
 
                 if ($assignment['assigned_by']) {
@@ -65,15 +83,28 @@ function trainer_members_page(): void
                 }
                 grant_retroactive_commission($memberUserId, (int)$coachId);
             }
+        } elseif (post('action') === 'update_session_rate') {
+            $newRate = max(0.0, (float) post('session_rate', 0));
+            db()->prepare('UPDATE trainer_profiles SET session_rate = ? WHERE trainer_id = ?')->execute([$newRate, $coachId]);
+            flash('Your per-session rate has been updated successfully to ₱' . number_format($newRate, 2) . '.');
+            redirect('trainer_members');
         } elseif (post('action') === 'complete_session') {
             $assignmentId = (int) post('assignment_id');
-            db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = NOW() WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
-            $stmt = db()->prepare('SELECT member_user_id FROM trainer_assignments WHERE assignment_id = ?');
-            $stmt->execute([$assignmentId]);
-            $assignRow = $stmt->fetch();
-            if ($assignRow) {
-                notify_user((int)$assignRow['member_user_id'], 'system', 'Coaching Session Concluded', 'Your coaching session / appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ' has concluded. Thank you!');
+            $assignRow = query_all('SELECT assignment_id, member_user_id, assigned_date, ended_date FROM trainer_assignments WHERE assignment_id = ? AND trainer_id = ?', [$assignmentId, $coachId])[0] ?? null;
+            if (!$assignRow) {
+                flash('Assignment not found.', 'danger');
+                redirect('trainer_members');
             }
+            if (!empty($assignRow['assigned_date']) && !empty($assignRow['ended_date'])) {
+                $aTime = strtotime((string)$assignRow['assigned_date']);
+                $eTime = strtotime((string)$assignRow['ended_date']);
+                if (date('Y-m-d', $aTime) === date('Y-m-d', $eTime) && $aTime > time()) {
+                    flash('Cannot complete an appointment that has not occurred yet.', 'danger');
+                    redirect('trainer_members');
+                }
+            }
+            db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = NOW() WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
+            notify_user((int)$assignRow['member_user_id'], 'system', 'Coaching Session Concluded', 'Your coaching session / appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ' has concluded. Thank you!');
             flash('Coaching session marked as completed.');
             redirect('trainer_members');
         } elseif (post('action') === 'reject_appointment') {
@@ -137,6 +168,8 @@ function trainer_members_page(): void
     
     render_header('Clients', $user);
     
+    $currentSessionRate = (float) scalar('SELECT session_rate FROM trainer_profiles WHERE trainer_id = ?', [$coachId]);
+
     // KPI Stats calculation
     $totalClients = count($members);
     $withPlanCount = count(array_filter($members, fn($m) => !empty($m['active_plan_title'])));
@@ -149,7 +182,7 @@ function trainer_members_page(): void
 
     <div class="tm-container">
         <!-- Top Header & Subtitle -->
-        <div class="tm-header-row">
+        <div class="tm-header-row" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
             <div>
                 <h1 class="tm-header-title">
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -161,6 +194,13 @@ function trainer_members_page(): void
                     Assigned Clients
                 </h1>
                 <p class="tm-header-subtitle">Monitor client progress, build personalized training & diet plans, and update assessments.</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button type="button" onclick="editMySessionRate(<?= $currentSessionRate ?>)" class="btn" style="background:var(--panel-soft, rgba(255,255,255,0.04)); border:1px solid var(--line); color:var(--ink); font-size:13px; font-weight:600; padding:8px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:8px; cursor:pointer;" title="Click to update your direct session fee">
+                    <span style="color:var(--muted); font-weight:normal;">My Session Rate:</span>
+                    <strong style="color:var(--lime);"><?= $currentSessionRate > 0 ? '₱' . number_format($currentSessionRate, 2) : 'Free / Included' ?></strong>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </button>
             </div>
         </div>
 
@@ -376,14 +416,31 @@ function trainer_members_page(): void
                 }
 
                 $dateTimeText = 'Immediate (Ongoing)';
-                if ($member['assigned_date'] && $member['ended_date']) {
-                    if (date('Y-m-d', strtotime($member['assigned_date'])) === date('Y-m-d', strtotime($member['ended_date']))) {
-                        $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date'])) . ' (Single Day)';
+                $isFutureSession = false;
+                $isEarlyRange = false;
+                $endDateFormatted = '';
+                $now = time();
+
+                if (!empty($member['assigned_date']) && !empty($member['ended_date'])) {
+                    $assignedTs = strtotime((string)$member['assigned_date']);
+                    $endedTs = strtotime((string)$member['ended_date']);
+                    $isSingleDay = (date('Y-m-d', $assignedTs) === date('Y-m-d', $endedTs));
+
+                    if ($isSingleDay) {
+                        $dateTimeText = date('M j, Y g:i A', $assignedTs) . ' (Single Day)';
+                        if ($assignedTs > $now) {
+                            $isFutureSession = true;
+                        }
                     } else {
-                        $dateTimeText = date('M j, Y g:i A', strtotime($member['assigned_date'])) . ' – ' . date('M j, Y', strtotime($member['ended_date']));
+                        $dateTimeText = date('M j, Y g:i A', $assignedTs) . ' – ' . date('M j, Y', $endedTs);
+                        if ($endedTs > $now) {
+                            $isEarlyRange = true;
+                            $endDateFormatted = date('M j, Y', $endedTs);
+                        }
                     }
-                } elseif ($member['assigned_date']) {
-                    $dateTimeText = date('M j, Y', strtotime($member['assigned_date'])) . ' (Ongoing)';
+                } elseif (!empty($member['assigned_date'])) {
+                    $assignedTs = strtotime((string)$member['assigned_date']);
+                    $dateTimeText = date('M j, Y', $assignedTs) . ' (Ongoing)';
                 }
             ?>
                 <article class="tm-card tm-client-item" 
@@ -529,10 +586,17 @@ function trainer_members_page(): void
                                 <input type="hidden" name="action" value="complete_session">
                                 <input type="hidden" name="assignment_id" value="<?= (int)$member['assignment_id'] ?>">
                             </form>
-                            <button type="button" class="tm-btn-tool" style="padding: 0 12px;" onclick="confirmCompleteSession(<?= (int)$member['assignment_id'] ?>, <?= htmlspecialchars(json_encode($name), ENT_QUOTES, 'UTF-8') ?>)" title="Mark this coaching session as completed">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                                <span>Complete</span>
-                            </button>
+                            <?php if ($isFutureSession): ?>
+                                <button type="button" class="tm-btn-tool" style="padding: 0 12px; opacity: 0.55; cursor: not-allowed; background: rgba(255,255,255,0.03);" disabled title="Session is scheduled for <?= date('M j, Y g:i A', $assignedTs) ?>. Cannot complete before it occurs.">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    <span>Upcoming</span>
+                                </button>
+                            <?php else: ?>
+                                <button type="button" class="tm-btn-tool" style="padding: 0 12px; <?= $isEarlyRange ? 'color: #f59e0b !important;' : '' ?>" onclick="confirmCompleteSession(<?= (int)$member['assignment_id'] ?>, <?= htmlspecialchars(json_encode($name), ENT_QUOTES, 'UTF-8') ?>, <?= $isEarlyRange ? 'true' : 'false' ?>, <?= htmlspecialchars(json_encode($endDateFormatted), ENT_QUOTES, 'UTF-8') ?>)" title="<?= $isEarlyRange ? 'Coaching duration not finished yet - click to end early' : 'Mark this coaching session as completed' ?>">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <span>Complete</span>
+                                </button>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </article>
@@ -608,22 +672,78 @@ function trainer_members_page(): void
         csrfToken: <?= json_encode(csrf_token()) ?>
     };
 
-    function confirmCompleteSession(assignmentId, clientName) {
+    function editMySessionRate(currentRate) {
         Swal.fire({
-            title: 'Complete Session?',
-            text: 'Are you sure you want to mark the coaching session for ' + clientName + ' as completed? This will move the client to Completed Sessions.',
-            icon: 'question',
+            title: 'My Per-Session Rate',
+            html: `
+                <div style="text-align:left; margin-top:8px;">
+                    <p style="font-size:13px; color:var(--muted); margin-bottom:14px; line-height:1.45;">
+                        Set your fee for members whose plans exclude personal training (such as Monthly plans or non-member bookings). This amount will be displayed directly to members when booking an appointment.
+                    </p>
+                    <form id="rateForm" method="post">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="update_session_rate">
+                        <label style="font-size:12.5px; font-weight:700; color:var(--ink); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Session Fee (PHP):</label>
+                        <div style="position:relative;">
+                            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-weight:700; color:var(--lime);">₱</span>
+                            <input type="number" step="0.01" min="0" name="session_rate" id="swal_session_rate" class="form-control" value="${parseFloat(currentRate || 0).toFixed(2)}" style="padding-left:28px; width:100%; box-sizing:border-box; font-size:15px; font-weight:600;" required>
+                        </div>
+                        <small style="display:block; margin-top:6px; color:var(--muted); font-size:11.5px;">Set to 0.00 if your appointments are complimentary / included.</small>
+                    </form>
+                </div>
+            `,
             showCancelButton: true,
-            confirmButtonText: 'Yes, Complete',
+            confirmButtonText: 'Save Rate',
             confirmButtonColor: 'var(--lime-dark)',
-            cancelButtonColor: 'var(--line)',
-            background: 'var(--bg)',
-            color: 'var(--ink)'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                document.getElementById('complete-form-' + assignmentId).submit();
+            preConfirm: () => {
+                const form = document.getElementById('rateForm');
+                if (form) form.submit();
             }
         });
+    }
+
+    function confirmCompleteSession(assignmentId, clientName, isEarly = false, endDateStr = '') {
+        if (isEarly && endDateStr) {
+            Swal.fire({
+                title: 'End Coaching Early?',
+                html: `
+                    <div style="text-align: left; font-size: 13.5px; line-height: 1.5; color: var(--ink);">
+                        This client's coaching duration is scheduled until <strong style="color: var(--lime);">${endDateStr}</strong>.
+                        <br><br>
+                        Completing now will end their coaching period early and move them to Completed Sessions.
+                        <br><br>
+                        Are you sure you want to conclude it early?
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, End Early',
+                confirmButtonColor: '#f59e0b',
+                cancelButtonColor: 'var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('complete-form-' + assignmentId).submit();
+                }
+            });
+        } else {
+            Swal.fire({
+                title: 'Complete Session?',
+                text: 'Are you sure you want to mark the coaching session for ' + clientName + ' as completed? This will move the client to Completed Sessions.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Complete',
+                confirmButtonColor: 'var(--lime-dark)',
+                cancelButtonColor: 'var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('complete-form-' + assignmentId).submit();
+                }
+            });
+        }
     }
     </script>
     <script src="<?= h(asset_url('js/pages/trainer.js')) ?>"></script>

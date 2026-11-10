@@ -821,6 +821,7 @@ CREATE TABLE `trainer_profiles` (
   `specialization` varchar(100) DEFAULT NULL,
   `bio` text,
   `commission_rate` decimal(5,2) DEFAULT NULL COMMENT 'Personal commission % (NULL = use plan rate)',
+  `session_rate` decimal(10,2) NOT NULL DEFAULT '0.00' COMMENT 'Per-session direct fee (PHP) for non-covered appointments',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `gym_id` int UNSIGNED DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

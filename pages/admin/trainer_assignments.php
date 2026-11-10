@@ -276,8 +276,9 @@ function trainer_assignments_page(): void
                 db()->prepare('INSERT INTO users (role, first_name, last_name, email, password_hash, status, email_verified_at) VALUES ("trainer", ?, ?, ?, ?, "active", NOW())')
                     ->execute([$firstName, $lastName, $email, password_hash($plainPassword, PASSWORD_DEFAULT)]);
                 $newUserId = (int) db()->lastInsertId();
-                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, gym_id) VALUES (?, ?, ?)')
-                    ->execute([$newUserId, post('specialization'), $gymId]);
+                $sessionRate = max(0.0, (float) post('session_rate', 0));
+                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, session_rate, gym_id) VALUES (?, ?, ?, ?)')
+                    ->execute([$newUserId, post('specialization'), $sessionRate, $gymId]);
                 flash('Trainer created successfully.', 'success');
             }
         } elseif (post('action') === 'end') {

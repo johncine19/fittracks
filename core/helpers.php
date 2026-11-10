@@ -1943,33 +1943,38 @@ function sync_trainer_assignments_with_memberships(?int $memberUserId = null): a
         $userCondition = $memberUserId !== null ? ' AND ca.member_user_id = ' . (int)$memberUserId : '';
 
         // 1. Extend active assignments to match renewed/current active plan expiration dates
+        // Only applies to plans that include trainer coverage (allow_trainer_commission = 1)
         $extendSql = "UPDATE trainer_assignments ca
                       SET ca.ended_date = (
                           SELECT MAX(m.end_date) 
                           FROM memberships m 
+                          JOIN membership_plans mp ON mp.plan_id = m.plan_id
                           WHERE m.user_id = ca.member_user_id 
                             AND m.status = 'active' 
                             AND m.end_date >= CURDATE()
+                            AND mp.allow_trainer_commission = 1
                       )
                       WHERE ca.status = 'active'
                         AND EXISTS (
                           SELECT 1 
                           FROM memberships m2 
+                          JOIN membership_plans mp2 ON mp2.plan_id = m2.plan_id
                           WHERE m2.user_id = ca.member_user_id 
                             AND m2.status = 'active' 
                             AND m2.end_date >= CURDATE()
+                            AND mp2.allow_trainer_commission = 1
                             AND (ca.ended_date IS NULL OR m2.end_date > ca.ended_date)
                         )" . $userCondition;
         $extended = (int) $pdo->exec($extendSql);
 
         // 2. Automatically end active assignments when:
         // - Appointment scheduled end date and assigned date have passed (< CURDATE()), and
-        // - Member has no active membership plan covering them.
+        // - Member has no active membership plan covering trainer sessions.
         $endSql = "UPDATE trainer_assignments ca
                    SET ca.status = 'ended',
                        ca.ended_date = COALESCE(
                            ca.ended_date,
-                           (SELECT MAX(m.end_date) FROM memberships m WHERE m.user_id = ca.member_user_id),
+                           (SELECT MAX(m.end_date) FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ca.member_user_id AND mp.allow_trainer_commission = 1),
                            CURDATE()
                        )
                    WHERE ca.status = 'active'
@@ -1978,9 +1983,11 @@ function sync_trainer_assignments_with_memberships(?int $memberUserId = null): a
                      AND NOT EXISTS (
                        SELECT 1 
                        FROM memberships m_active 
+                       JOIN membership_plans mp_active ON mp_active.plan_id = m_active.plan_id
                        WHERE m_active.user_id = ca.member_user_id 
                          AND m_active.status = 'active' 
                          AND m_active.end_date >= CURDATE()
+                         AND mp_active.allow_trainer_commission = 1
                      )" . $userCondition;
         $ended = (int) $pdo->exec($endSql);
     } catch (Throwable $e) {

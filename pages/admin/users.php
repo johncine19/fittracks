@@ -250,7 +250,8 @@ function users_page(): void
                     );
                 } elseif ($roleToCreate === 'trainer') {
                     $trainerGymId = $isAdmin ? null : $gymId;
-                    db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, gym_id) VALUES (?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $trainerGymId]);
+                    $sessionRate = max(0.0, (float) post('session_rate', 0));
+                    db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, session_rate, gym_id) VALUES (?, ?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $sessionRate, $trainerGymId]);
                 } elseif ($roleToCreate === 'staff') {
                     $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
                     $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
@@ -447,8 +448,9 @@ function users_page(): void
             
             if (post('role') === 'trainer') {
                 db()->prepare('UPDATE users SET staff_role = "trainer" WHERE user_id = ?')->execute([$editUserId]);
-                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio)')
-                    ->execute([$editUserId, post('specialization'), post('bio')]);
+                $sessionRate = max(0.0, (float) post('session_rate', 0));
+                db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, session_rate) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio), session_rate = VALUES(session_rate)')
+                    ->execute([$editUserId, post('specialization'), post('bio'), $sessionRate]);
             } elseif (post('role') === 'staff') {
                 $allowedStaffRoles = ['front_desk', 'manager'];
                 $reqStaffRole = trim((string) post('staff_role'));
@@ -890,7 +892,7 @@ function users_page(): void
         $offset = ($p - 1) * $limit;
         $totalPages = max(1, (int) ceil($totalFound / $limit));
 
-        $sql = 'SELECT u.*, tp.specialization, tp.bio, 
+        $sql = 'SELECT u.*, tp.specialization, tp.bio, tp.session_rate, 
                 (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
                 (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
                 (SELECT g2.name FROM trainer_profiles tp2 JOIN gyms g2 ON tp2.gym_id = g2.gym_id WHERE tp2.user_id = u.user_id LIMIT 1) AS trainer_gym_name,
@@ -933,6 +935,7 @@ function users_page(): void
                 'associated_gym'       => $associatedGym,
                 'owner_gym_status'     => $row['owner_gym_status'] ?? null,
                 'specialization'       => $row['specialization'] ?? 'General Trainer',
+                'session_rate'         => (float) ($row['session_rate'] ?? 0.0),
                 'staff_role'           => $row['staff_role'] ?? 'trainer',
                 'engagement_score'     => (int) ($row['engagement_score'] ?? 0),
                 'membership_plan_name' => $row['membership_plan_name'] ?? null,
@@ -1087,7 +1090,7 @@ function users_page(): void
     }
     $totalPages = max(1, (int) ceil($total / $limit));
 
-    $sql = 'SELECT u.*, tp.specialization, tp.bio, 
+    $sql = 'SELECT u.*, tp.specialization, tp.bio, tp.session_rate, 
             g_tr.name AS trainer_gym_name,
             (SELECT g1.name FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_name,
             (SELECT g1.status FROM gyms g1 WHERE g1.owner_user_id = u.user_id ORDER BY g1.gym_id DESC LIMIT 1) AS owner_gym_status,
@@ -1301,9 +1304,12 @@ function users_page(): void
                         <div id="roleComboboxWrap"></div>
                     </label>
                     <?php if (!$isAdmin): ?>
-                    <div id="trainer_fields" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'grid' : 'none' ?>; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;">
+                    <div id="trainer_fields" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'grid' : 'none' ?>; grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
                         <label><span class="label-title">Specialization <span class="req-star" id="specReqStar" style="display: <?= ($oldUser['role'] ?? '') === 'trainer' ? 'inline' : 'none' ?>;">*</span></span>
                             <input name="specialization" id="new_user_spec" value="<?= h($oldUser['specialization'] ?? '') ?>" placeholder="e.g. Strength & Conditioning">
+                        </label>
+                        <label><span class="label-title">Session Rate (PHP)</span>
+                            <input type="number" step="0.01" min="0" name="session_rate" id="new_user_session_rate" value="<?= h((string)($oldUser['session_rate'] ?? '0.00')) ?>" placeholder="0.00">
                         </label>
                         <label><span class="label-title">Bio</span>
                             <input name="bio" value="<?= h($oldUser['bio'] ?? '') ?>" placeholder="Short bio">
@@ -1969,14 +1975,25 @@ function users_page(): void
                         </div>
                         <?php endif; ?>
 
-                        <?php if ($row['role'] === 'trainer' && !empty($row['specialization'])): ?>
-                        <div class="user-card-detail-item">
-                            <span class="user-card-detail-label">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34M18 14.66V17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-2.34M8 2h8a2 2 0 0 1 2 2v7a6 6 0 0 1-12 0V4a2 2 0 0 1 2-2z"/></svg>
-                                Specialization
-                            </span>
-                            <span class="user-card-detail-value"><?= h($row['specialization']) ?></span>
-                        </div>
+                        <?php if ($row['role'] === 'trainer'): ?>
+                            <?php if (!empty($row['specialization'])): ?>
+                            <div class="user-card-detail-item">
+                                <span class="user-card-detail-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34M18 14.66V17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-2.34M8 2h8a2 2 0 0 1 2 2v7a6 6 0 0 1-12 0V4a2 2 0 0 1 2-2z"/></svg>
+                                    Specialization
+                                </span>
+                                <span class="user-card-detail-value"><?= h($row['specialization']) ?></span>
+                            </div>
+                            <?php endif; ?>
+                            <div class="user-card-detail-item">
+                                <span class="user-card-detail-label">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                    Session Rate
+                                </span>
+                                <span class="user-card-detail-value" style="font-weight: 600; color: var(--lime);">
+                                    <?= ((float)($row['session_rate'] ?? 0)) > 0 ? '₱' . number_format((float)$row['session_rate'], 2) . ' / session' : '<span style="color:var(--muted);font-weight:normal;">Free / Included</span>' ?>
+                                </span>
+                            </div>
                         <?php endif; ?>
 
                         <?php if ($row['role'] === 'member'): ?>

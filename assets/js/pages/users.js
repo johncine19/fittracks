@@ -358,6 +358,10 @@ if (FT_USERS_CONFIG.hasOldUser) {
                             <input name="specialization" id="eu_spec" class="form-control" placeholder="e.g. Strength & Conditioning">
                         </label>
                         <label class="eu-field eu-field-full">
+                            <span class="eu-label">Per-Session Rate (PHP)</span>
+                            <input type="number" step="0.01" min="0" name="session_rate" id="eu_session_rate" class="form-control" placeholder="0.00">
+                        </label>
+                        <label class="eu-field eu-field-full">
                             <span class="eu-label">Bio</span>
                             <input name="bio" id="eu_bio" class="form-control" placeholder="Short bio">
                         </label>
@@ -378,6 +382,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 document.getElementById('eu_email').value = u.email;
                 document.getElementById('eu_phone').value = u.phone || '';
                 document.getElementById('eu_spec').value = u.specialization || '';
+                document.getElementById('eu_session_rate').value = u.session_rate !== undefined ? parseFloat(u.session_rate).toFixed(2) : '0.00';
                 document.getElementById('eu_bio').value = u.bio || '';
 
                 const editRoleItems = [];
@@ -811,13 +816,24 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 </div>
                 ` : ''}
 
-                ${u.role === 'trainer' && u.specialization ? `
+                ${u.role === 'trainer' ? `
+                ${u.specialization ? `
                 <div class="user-card-detail-item">
                     <span class="user-card-detail-label">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-2.34M18 14.66V17c0 .55-.45 1-1 1h-2c-.55 0-1-.45-1-1v-2.34M8 2h8a2 2 0 0 1 2 2v7a6 6 0 0 1-12 0V4a2 2 0 0 1 2-2z"/></svg>
                         Specialization
                     </span>
                     <span class="user-card-detail-value">${escapeUserHtml(u.specialization)}</span>
+                </div>
+                ` : ''}
+                <div class="user-card-detail-item">
+                    <span class="user-card-detail-label">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        Session Rate
+                    </span>
+                    <span class="user-card-detail-value" style="font-weight: 600; color: var(--lime);">
+                        ${parseFloat(u.session_rate || 0) > 0 ? '₱' + parseFloat(u.session_rate).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' / session' : '<span style="color:var(--muted);font-weight:normal;">Free / Included</span>'}
+                    </span>
                 </div>
                 ` : ''}
 

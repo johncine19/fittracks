@@ -243,7 +243,9 @@ try {
         // ── Normalize Orphaned Global Catalog Exercises (gym_id = 0) ──
         "ALTER TABLE exercises DROP FOREIGN KEY fk_exercises_gym",
         "ALTER TABLE exercises MODIFY COLUMN gym_id INT UNSIGNED NOT NULL DEFAULT 0",
-        "UPDATE exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id SET e.gym_id = 0 WHERE e.gym_id IS NULL OR (e.gym_id > 0 AND g.gym_id IS NULL)"
+        "UPDATE exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id SET e.gym_id = 0 WHERE e.gym_id IS NULL OR (e.gym_id > 0 AND g.gym_id IS NULL)",
+        // ── Per-Session Fee for Trainers ──
+        "ALTER TABLE trainer_profiles ADD COLUMN session_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER commission_rate"
     ];
 
     foreach ($migrations as $sql) {

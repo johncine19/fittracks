@@ -44,7 +44,6 @@ function render_header(string $title, ?array $user = null): void
         $nav['dashboard'] = 'Dashboard';
         if ($role === 'platform_admin') {
             $nav += [
-                'notifications' => 'Notifications',
                 'demo_requests' => 'Demo Requests',
                 'gym_applications' => 'Gym Applications',
                 'gyms' => 'All Gyms',
@@ -60,7 +59,6 @@ function render_header(string $title, ?array $user = null): void
         if ($role === 'gym_owner') {
             $nav += [
                 'messages' => 'Messages',
-                'notifications' => 'Notifications',
                 'gym_profile' => 'Gym Profile',
                 'scanner' => 'Scan QR',
                 'users' => 'Users Accounts',
@@ -82,7 +80,6 @@ function render_header(string $title, ?array $user = null): void
         if ($role === 'staff') {
             $nav += [
                 'messages' => 'Messages',
-                'notifications' => 'Notifications',
                 'scanner' => 'Scan QR',
                 'attendance' => 'Attendance',
                 'memberships' => 'Memberships',
@@ -95,7 +92,6 @@ function render_header(string $title, ?array $user = null): void
         if ($role === 'trainer') {
             $nav += [
                 'messages' => 'Messages',
-                'notifications' => 'Notifications',
                 'qr_attendance' => 'My QR',
                 'equipment' => 'Equipment',
                 'exercises' => 'Exercises',
@@ -116,7 +112,6 @@ function render_header(string $title, ?array $user = null): void
 
             $nav += [
                 'messages' => 'Messages',
-                'notifications' => 'Notifications',
                 'qr_attendance' => 'My QR',
                 'my_plans' => 'My Plans',
                 'my_workout' => 'Workouts',

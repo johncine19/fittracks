@@ -16,13 +16,14 @@ function trainers_page(): void
     $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
     
     $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? " . ($gymId > 0 ? " AND mp.gym_id = ?" : "") . " AND m.status = 'active' AND m.end_date >= CURDATE()", $gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
+    $hasTrainerCoverage = (bool) scalar("SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? " . ($gymId > 0 ? " AND mp.gym_id = ?" : "") . " AND m.status = 'active' AND m.end_date >= CURDATE() AND mp.allow_trainer_commission = 1", $gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'request_appointment') {
         $trainerId = (int) post('trainer_id');
         
         $assignedDate = date('Y-m-d H:i:s');
         $endedDate = null;
-        if (!$hasActivePlan) {
+        if (!$hasTrainerCoverage) {
             $aptType = post('appointment_type') === 'range' ? 'range' : 'single';
             $reqDate = post('appointment_date');
             if (!$reqDate) {
@@ -81,7 +82,7 @@ function trainers_page(): void
         redirect('trainers');
     }
 
-    $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
+    $trainers = query_all('SELECT tp.trainer_id, u.user_id, u.first_name, u.last_name, u.profile_picture, tp.specialization, tp.bio, tp.session_rate, (SELECT COUNT(*) FROM attendance WHERE user_id = u.user_id AND check_out_time IS NULL AND check_in_time >= CURDATE() AND check_in_time < CURDATE() + INTERVAL 1 DAY) as is_present FROM trainer_profiles tp JOIN users u ON u.user_id = tp.user_id WHERE u.status = "active" AND tp.gym_id = ?', [$gymId]);
     
     $stmt = db()->prepare("
         SELECT ca.*, 
@@ -325,7 +326,16 @@ function trainers_page(): void
                     <?php endif; ?>
                     <?= render_avatar(['first_name' => $trainer['first_name'], 'last_name' => $trainer['last_name'], 'profile_picture' => $trainer['profile_picture']], 'large') ?>
                     <h3 style="margin: 15px 0 5px;"><?= h($trainer['first_name'] . ' ' . $trainer['last_name']) ?></h3>
-                    <div style="color: var(--lime); font-size: 14px; font-weight: 500; margin-bottom: 15px;"><?= h($trainer['specialization'] ?? 'General Trainer') ?></div>
+                    <div style="color: var(--lime); font-size: 14px; font-weight: 500; margin-bottom: 8px;"><?= h($trainer['specialization'] ?? 'General Trainer') ?></div>
+                    
+                    <div style="margin-bottom: 12px; display: inline-flex; align-items: center; gap: 6px; background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.2); padding: 3px 10px; border-radius: 12px; font-size: 12.5px; font-weight: 600; color: var(--lime);">
+                        <?php if ((float)($trainer['session_rate'] ?? 0) > 0): ?>
+                            <span>₱<?= number_format((float)$trainer['session_rate'], 2) ?></span> <span style="font-weight: 400; font-size: 11px; opacity: 0.85;">/ session</span>
+                        <?php else: ?>
+                            <span>Complimentary / Included</span>
+                        <?php endif; ?>
+                    </div>
+
                     <p style="color: var(--muted); font-size: 14px; flex-grow: 1; margin-bottom: 20px;"><?= h($trainer['bio'] ?? 'No bio available.') ?></p>
                     
                     <form id="form-trainer-<?= $trainer['trainer_id'] ?>" method="post" style="width: 100%;">
@@ -340,11 +350,14 @@ function trainers_page(): void
                             <?php else: ?>
                                 <button type="button" class="btn" style="width: 100%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed;" disabled>Request Appointment</button>
                             <?php endif; ?>
-                        <?php elseif (!$hasActivePlan): ?>
+                        <?php elseif (!$hasTrainerCoverage): ?>
                             <input type="hidden" name="appointment_type" id="type-<?= $trainer['trainer_id'] ?>" value="single">
                             <input type="hidden" name="appointment_date" id="date-<?= $trainer['trainer_id'] ?>" value="">
                             <input type="hidden" name="appointment_end_date" id="end-date-<?= $trainer['trainer_id'] ?>" value="">
-                            <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>)" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
+                            <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>, <?= (float)($trainer['session_rate'] ?? 0) ?>, <?= htmlspecialchars(json_encode($trainer['first_name'] . ' ' . $trainer['last_name'])) ?>)" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
+                            <?php if ($hasActivePlan): ?>
+                                <small style="display:block; margin-top:6px; font-size:11.5px; color:var(--muted);">Plan excludes coaching • Direct payment session</small>
+                            <?php endif; ?>
                         <?php else: ?>
                             <button type="submit" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
                         <?php endif; ?>
@@ -390,10 +403,30 @@ function trainers_page(): void
         }
     };
 
-    function requestTrainerDate(trainerId) {
+    function requestTrainerDate(trainerId, sessionRate = 0, trainerName = 'Trainer') {
         window.swalAptMode = 'single';
         const minDateTime = '<?= date('Y-m-d\TH:i') ?>';
         const minDate = '<?= date('Y-m-d') ?>';
+        const isPlanWithoutTrainer = <?= ($hasActivePlan && !$hasTrainerCoverage) ? 'true' : 'false' ?>;
+        const rateFloat = parseFloat(sessionRate) || 0;
+
+        const rateNoticeHtml = rateFloat > 0 ? `
+            <div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:flex-start;gap:10px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div style="font-size:12.5px;color:#f59e0b;line-height:1.45;">
+                    <div style="font-weight:700;margin-bottom:2px;">Direct Session Fee: ₱${rateFloat.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} / session</div>
+                    <span>${isPlanWithoutTrainer ? 'Your current gym plan does not include trainer sessions.' : 'Non-member appointment.'} Please prepare your payment to pay <strong>Coach ${trainerName}</strong> directly at the session.</span>
+                </div>
+            </div>
+        ` : `
+            <div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);display:flex;align-items:flex-start;gap:10px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                <div style="font-size:12.5px;color:#22c55e;line-height:1.45;">
+                    <div style="font-weight:700;margin-bottom:2px;">Complimentary Session</div>
+                    <span>Coach ${trainerName} offers this appointment with no additional direct fee.</span>
+                </div>
+            </div>
+        `;
 
         const modalHtml = `
             <div style="text-align:left; margin-top:10px;">
@@ -431,13 +464,7 @@ function trainers_page(): void
                     </div>
                 </div>
 
-                <!-- Payment Notice -->
-                <div style="margin-top:16px;padding:10px 14px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:flex-start;gap:10px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <span style="font-size:12.5px;color:#f59e0b;line-height:1.45;">
-                        <strong>Direct Payment:</strong> Please prepare your payment for the session/package. You will pay the trainer directly.
-                    </span>
-                </div>
+                ${rateNoticeHtml}
             </div>
         `;
 

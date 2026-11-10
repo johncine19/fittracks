@@ -135,22 +135,24 @@ function commissions_page(): void
 
         if ($isOwner && $action === 'save_trainer_rates') {
             $rates = $_POST['rates'] ?? [];
+            $sessionRates = $_POST['session_rates'] ?? [];
             $changed = [];
             if (is_array($rates)) {
-                $stmt = $pdo->prepare('UPDATE trainer_profiles SET commission_rate = ? WHERE trainer_id = ? AND gym_id = ?');
+                $stmt = $pdo->prepare('UPDATE trainer_profiles SET commission_rate = ?, session_rate = ? WHERE trainer_id = ? AND gym_id = ?');
                 foreach ($rates as $trainerId => $rate) {
                     $rate = trim((string) $rate);
                     $value = $rate === '' ? null : max(0.0, min(100.0, (float) $rate));
-                    $stmt->execute([$value, (int) $trainerId, $gymId]);
+                    $sRate = isset($sessionRates[$trainerId]) ? max(0.0, (float) $sessionRates[$trainerId]) : 0.00;
+                    $stmt->execute([$value, $sRate, (int) $trainerId, $gymId]);
                     if ($stmt->rowCount() > 0) {
-                        $changed[(int) $trainerId] = $value;
+                        $changed[(int) $trainerId] = ['commission' => $value, 'session_rate' => $sRate];
                     }
                 }
             }
             if ($changed) {
                 audit_log($user['user_id'], 'edit', 'commission_rates', null, json_encode($changed), $gymId);
             }
-            flash('Trainer commission rates saved.');
+            flash('Trainer commission and session rates saved.');
             redirect('commissions&tab=settings');
         }
     }
@@ -215,7 +217,7 @@ function commissions_page(): void
     $trainers = [];
     if ($isOwner) {
         $trainers = query_all(
-            'SELECT tp.trainer_id, tp.user_id, tp.commission_rate, tp.specialization,
+            'SELECT tp.trainer_id, tp.user_id, tp.commission_rate, tp.session_rate, tp.specialization,
                     CONCAT(u.first_name, " ", u.last_name) AS name
              FROM trainer_profiles tp
              JOIN users u ON u.user_id = tp.user_id
@@ -314,7 +316,7 @@ function commissions_page(): void
         }
 
         .admin-commission-mobile-list { display: none; }
-        .commission-settings-grid { display: grid; grid-template-columns: 1fr; max-width: 680px; margin-bottom: 24px; }
+        .commission-settings-grid { display: grid; grid-template-columns: 1fr; max-width: 720px; margin-bottom: 24px; }
         .commission-settings-card { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
         .commission-settings-card h3 { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
         .commission-settings-card .hint { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
@@ -339,14 +341,15 @@ function commissions_page(): void
             border-radius: 8px !important;
         }
         .trainer-rates-list {
-            max-height: 380px;
+            max-height: 420px;
             overflow-y: auto;
             padding-right: 4px;
         }
-        .commission-rate-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+        .commission-rate-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
         .commission-rate-row:first-of-type { border-top: 0; }
-        .commission-rate-meta { font-size: 12px; color: var(--muted); }
-        .commission-rate-input { width: 90px !important; text-align: right; margin: 0 !important; }
+        .commission-rate-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .commission-rate-inputs-group { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+        .commission-rate-input { width: 85px !important; text-align: right; margin: 0 !important; padding: 6px 10px !important; font-size: 13px !important; font-weight: 600; }
         .commission-tier-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(163,230,53,.12); color: var(--lime); }
         .commission-tier-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--ink); }
         .commission-tier-form { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: 8px; margin-top: 14px; align-items: end; }
@@ -356,6 +359,8 @@ function commissions_page(): void
             .commission-settings-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 640px) {
+            .commission-rate-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .commission-rate-inputs-group { width: 100%; justify-content: space-between; gap: 10px; }
             .commission-tier-form { grid-template-columns: 1fr 1fr; }
             .admin-commission-table { display: none; }
             .admin-commission-mobile-list { display: grid; gap: 12px; }
@@ -592,8 +597,8 @@ function commissions_page(): void
                 <form method="post" class="commission-settings-card">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="save_trainer_rates">
-                    <h3>Trainer Rates</h3>
-                    <p class="hint">Set a personal commission % per trainer. Leave blank to use each membership plan's own rate. Plans with a 0% rate never pay commission.</p>
+                    <h3>Trainer Rates & Session Fees</h3>
+                    <p class="hint">Set each trainer's personal commission % (from membership payments) and direct per-session fee (for appointments on plans that exclude trainer coaching).</p>
                     <?php if (!$trainers): ?>
                         <p class="hint" style="margin:0;">No active trainers at your gym yet.</p>
                     <?php else: ?>
@@ -604,7 +609,7 @@ function commissions_page(): void
                         <div class="trainer-rates-list" id="trainerRatesList">
                             <?php foreach ($trainers as $t): ?>
                                 <div class="commission-rate-row" data-trainer-name="<?= h(strtolower($t['name'] . ' ' . ($t['specialization'] ?? ''))) ?>">
-                                    <div>
+                                    <div style="flex:1; min-width:0;">
                                         <strong style="color:var(--ink); font-size:14px;"><?= h($t['name']) ?></strong>
                                         <?php if (!empty($t['specialization'])): ?>
                                              <span style="font-size:12px; color:var(--muted); margin-left: 4px;">(<?= h($t['specialization']) ?>)</span>
@@ -614,17 +619,31 @@ function commissions_page(): void
                                             <?= h(money($t['metrics']['monthly_revenue'])) ?> this month
                                         </div>
                                     </div>
-                                    <div style="display:flex; align-items:center; gap:6px;">
-                                        <input type="number" step="0.01" min="0" max="100" name="rates[<?= (int) $t['trainer_id'] ?>]"
-                                               class="form-control commission-rate-input" placeholder="Plan"
-                                               value="<?= $t['commission_rate'] !== null ? h((string) (float) $t['commission_rate']) : '' ?>">
-                                        <span style="color:var(--muted); font-size:13px;">%</span>
+                                    <div class="commission-rate-inputs-group">
+                                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                                            <span style="font-size:10px; color:var(--muted); text-transform:uppercase; font-weight:700; letter-spacing:0.3px;">Commission</span>
+                                            <div style="display:flex; align-items:center; gap:4px;">
+                                                <input type="number" step="0.01" min="0" max="100" name="rates[<?= (int) $t['trainer_id'] ?>]"
+                                                       class="form-control commission-rate-input" placeholder="Plan"
+                                                       value="<?= $t['commission_rate'] !== null ? h((string) (float) $t['commission_rate']) : '' ?>" style="width:75px !important;" title="Trainer commission rate %">
+                                                <span style="color:var(--muted); font-size:12px; font-weight:600;">%</span>
+                                            </div>
+                                        </div>
+                                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                                            <span style="font-size:10px; color:var(--muted); text-transform:uppercase; font-weight:700; letter-spacing:0.3px;">Session Fee</span>
+                                            <div style="display:flex; align-items:center; gap:4px;">
+                                                <span style="color:var(--lime); font-size:12.5px; font-weight:700;">₱</span>
+                                                <input type="number" step="0.01" min="0" name="session_rates[<?= (int) $t['trainer_id'] ?>]"
+                                                       class="form-control commission-rate-input" placeholder="0.00"
+                                                       value="<?= isset($t['session_rate']) ? h((string) (float) $t['session_rate']) : '0.00' ?>" style="width:85px !important;" title="Direct per-session fee">
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
                         <p id="noTrainersFoundMsg" class="hint" style="display:none; margin: 12px 0 0; text-align: center;">No matching trainers found.</p>
-                        <button type="submit" class="btn" style="margin-top:14px; width:100%;">Save Trainer Rates</button>
+                        <button type="submit" class="btn" style="margin-top:14px; width:100%;">Save Trainer Rates & Fees</button>
                     <?php endif; ?>
                 </form>
             </div>

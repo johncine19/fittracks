@@ -33,6 +33,9 @@ const ftCurrentDate = FT_CFG.currentDate || new Date().toISOString().split('T')[
                     <label style="display:block; color: var(--muted); font-size: 14px;">Specialization *
                         <input name="specialization" class="form-control" placeholder="e.g. Strength & Conditioning" style="width: 100%; box-sizing: border-box;" required>
                     </label>
+                    <label style="display:block; color: var(--muted); font-size: 14px;">Session Rate (PHP)
+                        <input type="number" step="0.01" min="0" name="session_rate" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box;">
+                    </label>
                 </form>
             `,
             showCancelButton: true,
