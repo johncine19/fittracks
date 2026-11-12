@@ -94,6 +94,24 @@ function setup_profile_page(): void
             redirect($errorRedirectBase . '&step=2');
         }
 
+        // Validate Navy Body Fat calculation validity on the backend
+        $userHeight = (float)($_POST['height_cm'] ?? 0);
+        $userWaist = (float)($_POST['waist_cm'] ?? 0);
+        $userNeck = (float)($_POST['neck_cm'] ?? 0);
+        $userHip = (float)($_POST['hip_cm'] ?? 0);
+        if ($userHeight > 0 && $userNeck > 0 && $userWaist > 0) {
+            $bfCalc = null;
+            if ($sex !== 'female' && $userWaist > $userNeck) {
+                $bfCalc = 495 / (1.0324 - 0.19077 * log10($userWaist - $userNeck) + 0.15456 * log10($userHeight)) - 450;
+            } elseif ($sex === 'female' && $userHip > 0 && ($userWaist + $userHip) > $userNeck) {
+                $bfCalc = 495 / (1.29579 - 0.35004 * log10($userWaist + $userHip - $userNeck) + 0.22100 * log10($userHeight)) - 450;
+            }
+            if ($bfCalc !== null && ($bfCalc < 3 || $bfCalc > 65)) {
+                flash('Your measurements produce an unrealistic Body Fat estimate (' . round($bfCalc, 1) . '%). Please enter realistic sizes (typical adult waist is 65–120 cm) or leave circumference fields blank.', 'danger');
+                redirect($errorRedirectBase . '&step=2');
+            }
+        }
+
         // Validate preferred workout days based on weekly target
         $targetDays = max(2, min(5, (int)($_POST['weekly_workout_target'] ?? 3)));
         $daysInput = (string)($_POST['preferred_workout_days'] ?? '');
@@ -1311,7 +1329,7 @@ function setup_profile_page(): void
     }
 
     function goToProfileStep(targetStep, bypassValidation = false) {
-        const showStepError = (el, msg) => {
+        const showStepError = (el, msg, allowSkip = false) => {
             if (el) {
                 const wrap = el.closest('.split-input-wrap');
                 if (wrap) {
@@ -1320,15 +1338,39 @@ function setup_profile_page(): void
                 el.focus();
             }
             if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Check Measurement',
-                    text: msg,
-                    confirmButtonText: 'Got it',
-                    confirmButtonColor: '#84cc16'
-                });
+                if (allowSkip) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Unrealistic Measurements',
+                        text: msg,
+                        showCancelButton: true,
+                        confirmButtonText: 'Fix Sizes',
+                        confirmButtonColor: '#84cc16',
+                        cancelButtonText: "I don't know my sizes (Skip)",
+                        cancelButtonColor: '#64748b',
+                        reverseButtons: true
+                    }).then(res => {
+                        if (res.isDismissed && res.dismiss === Swal.DismissReason.cancel) {
+                            skipMeasurements();
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Check Measurement',
+                        text: msg,
+                        confirmButtonText: 'Got it',
+                        confirmButtonColor: '#84cc16'
+                    });
+                }
             } else {
-                alert(msg);
+                if (allowSkip && confirm(msg + '\n\nClick OK to fix sizes, or Cancel to skip measurements.')) {
+                    // user chose to fix
+                } else if (allowSkip) {
+                    skipMeasurements();
+                } else {
+                    alert(msg);
+                }
             }
             return false;
         };
@@ -1377,22 +1419,49 @@ function setup_profile_page(): void
 
                 // Validate only if value is provided; allow skipping if left empty
                 if (neck && neck.value && (parseFloat(neck.value) < 20 || parseFloat(neck.value) > 60)) {
-                    return showStepError(neck, 'Neck circumference must be between 20 and 60 cm (typical adult range is 28–50 cm). Did you measure your chest or shoulders by mistake?');
+                    return showStepError(neck, 'Neck circumference must be between 20 and 60 cm (typical adult range is 28–50 cm). Did you measure your chest or shoulders by mistake?', true);
                 }
                 if (waist && waist.value && (parseFloat(waist.value) < 45 || parseFloat(waist.value) > 200)) {
-                    return showStepError(waist, 'Waist circumference must be between 45 and 200 cm (a realistic adult waist is typically 60–100 cm).');
+                    return showStepError(waist, 'Waist circumference must be between 45 and 200 cm (a realistic adult waist is typically 60–100 cm).', true);
                 }
                 if (isFemale && hip && hip.value && (parseFloat(hip.value) < 60 || parseFloat(hip.value) > 220)) {
-                    return showStepError(hip, 'Hip circumference must be between 60 and 220 cm (measured around the widest part of your hips/buttocks).');
+                    return showStepError(hip, 'Hip circumference must be between 60 and 220 cm (measured around the widest part of your hips/buttocks).', true);
                 }
                 if (isFemale && hip && hip.value && waist && waist.value && parseFloat(hip.value) <= parseFloat(waist.value)) {
-                    return showStepError(hip, 'For female measurements, hip circumference (measured around the widest part of your hips/buttocks) must be greater than your waist circumference.');
+                    return showStepError(hip, 'For female measurements, hip circumference (measured around the widest part of your hips/buttocks) must be greater than your waist circumference.', true);
                 }
                 if (!isFemale && waist && waist.value && neck && neck.value && parseFloat(waist.value) <= parseFloat(neck.value)) {
-                    return showStepError(waist, 'Waist circumference must be greater than neck circumference.');
+                    return showStepError(waist, 'Waist circumference must be greater than neck circumference.', true);
                 }
                 if (isFemale && waist && waist.value && hip && hip.value && neck && neck.value && (parseFloat(waist.value) + parseFloat(hip.value)) <= parseFloat(neck.value)) {
-                    return showStepError(waist, 'Combined waist and hip circumference must be greater than neck circumference.');
+                    return showStepError(waist, 'Combined waist and hip circumference must be greater than neck circumference.', true);
+                }
+
+                // Check Navy Body Fat calculation validity to block unrealistic inputs
+                if (hasNeck && hasWaist && (!isFemale || hasHip)) {
+                    const hVal = parseFloat(document.getElementById('field-height')?.value || '0');
+                    const wVal = parseFloat(waist.value);
+                    const nVal = parseFloat(neck.value);
+                    const hpVal = isFemale ? parseFloat(hip.value) : 0;
+
+                    let stepBf = 0;
+                    if (!isFemale && wVal > nVal && hVal > 0) {
+                        stepBf = 495 / (1.0324 - 0.19077 * Math.log10(wVal - nVal) + 0.15456 * Math.log10(hVal)) - 450;
+                    } else if (isFemale && (wVal + hpVal) > nVal && hVal > 0) {
+                        stepBf = 495 / (1.29579 - 0.35004 * Math.log10(wVal + hpVal - nVal) + 0.22100 * Math.log10(hVal)) - 450;
+                    }
+
+                    if (isNaN(stepBf) || stepBf < 3 || stepBf > 65) {
+                        let bfErr = '';
+                        if (stepBf < 3) {
+                            bfErr = 'Your measurements produce an impossible Body Fat estimate (' + stepBf.toFixed(1) + '%). A waist of ' + wVal + ' cm is too small relative to neck (' + nVal + ' cm). Typical adult waist is 65–120 cm. Please enter realistic measurements, or click "I don\'t know my sizes (Skip)" below.';
+                        } else if (stepBf > 65) {
+                            bfErr = 'Your measurements produce an unusually high Body Fat estimate (' + stepBf.toFixed(1) + '%). Please verify your numbers, or click "I don\'t know my sizes (Skip)" below.';
+                        } else {
+                            bfErr = 'Your circumference measurements are out of range for the Navy formula. Please enter realistic measurements, or click "I don\'t know my sizes (Skip)" below.';
+                        }
+                        return showStepError(waist, bfErr, true);
+                    }
                 }
             }
         }
@@ -1499,9 +1568,9 @@ function setup_profile_page(): void
 
         if (!warningMsg && bfOutOfRange && calculatedBfVal !== null) {
             if (calculatedBfVal < 3) {
-                warningMsg = 'Waist circumference (' + waist + ' cm) is unusually small compared to neck (' + neck + ' cm). The U.S. Navy formula yields an impossible body fat (' + calculatedBfVal.toFixed(1) + '%). Typical adult waist is 65–120 cm.';
+                warningMsg = 'Waist circumference (' + waist + ' cm) is unusually small compared to neck (' + neck + ' cm). The U.S. Navy formula yields an impossible body fat (' + calculatedBfVal.toFixed(1) + '%). Typical adult waist is 65–120 cm. Please enter realistic measurements, or click "Skip for now" below.';
             } else if (calculatedBfVal > 65) {
-                warningMsg = 'Calculated body fat (' + calculatedBfVal.toFixed(1) + '%) is unusually high. Please verify your circumference measurements.';
+                warningMsg = 'Calculated body fat (' + calculatedBfVal.toFixed(1) + '%) is unusually high. Please verify your circumference measurements, or click "Skip for now" below.';
             }
         }
 
