@@ -480,6 +480,7 @@
             }
 
             bindFileInput('permit-dropzone', 'permit-file-input', 'permit-label-text', 10, 'Business Permit');
+            bindFileInput('valid-id-dropzone', 'valid-id-file-input', 'valid-id-label-text', 10, "Owner's Valid ID");
             bindFileInput('brgy-dropzone', 'brgy-file-input', 'brgy-label-text', 10, 'Barangay Clearance');
             bindFileInput('fire-dropzone', 'fire-file-input', 'fire-label-text', 10, 'Fire Safety Certificate');
 

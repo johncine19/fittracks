@@ -158,6 +158,36 @@ function gym_profile_page(): void
             }
         }
 
+        // Owner's Valid ID
+        $validIdUrl = $gym['valid_id_url'] ?? null;
+        $validIdType = post('valid_id_type') ?: ($gym['valid_id_type'] ?? null);
+        if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
+            try {
+                $uploadedValidId = FileUpload::storeValidId($_FILES['valid_id'], (int)$gym['gym_id']);
+                if ($validIdUrl && $validIdUrl !== $uploadedValidId) {
+                    FileUpload::deleteGymGalleryImage($validIdUrl);
+                }
+                $validIdUrl = $uploadedValidId;
+            } catch (RuntimeException $e) {
+                flash('Valid ID upload failed: ' . $e->getMessage(), 'danger');
+            }
+        }
+
+        // Secondary Valid ID (Optional)
+        $secValidIdUrl = $gym['secondary_valid_id_url'] ?? null;
+        $secValidIdType = post('secondary_valid_id_type') ?: ($gym['secondary_valid_id_type'] ?? null);
+        if (isset($_FILES['secondary_valid_id']) && $_FILES['secondary_valid_id']['error'] === UPLOAD_ERR_OK) {
+            try {
+                $uploadedSecId = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$gym['gym_id'], 'supporting');
+                if ($secValidIdUrl && $secValidIdUrl !== $uploadedSecId) {
+                    FileUpload::deleteGymGalleryImage($secValidIdUrl);
+                }
+                $secValidIdUrl = $uploadedSecId;
+            } catch (RuntimeException $e) {
+                flash('Supporting Valid ID upload failed: ' . $e->getMessage(), 'danger');
+            }
+        }
+
         // Barangay Clearance
         $brgyUrl = $gym['barangay_clearance_url'] ?? null;
         if (isset($_FILES['barangay_clearance']) && $_FILES['barangay_clearance']['error'] === UPLOAD_ERR_OK) {
@@ -253,9 +283,13 @@ function gym_profile_page(): void
                 ->execute([$name, $address, $contactInfoVal, $fbPageUrl, $walkInFee, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $latitude, $longitude, $geofenceRadius, $gym['gym_id']]);
 
             save_gym_verification_documents((int)$gym['gym_id'], [
-                'business_permit_url'    => $permitUrl,
-                'barangay_clearance_url' => $brgyUrl,
-                'fire_safety_cert_url'   => $fireSafetyUrl,
+                'business_permit_url'     => $permitUrl,
+                'valid_id_url'            => $validIdUrl,
+                'valid_id_type'           => $validIdType,
+                'secondary_valid_id_url'  => $secValidIdUrl,
+                'secondary_valid_id_type' => $secValidIdType,
+                'barangay_clearance_url'  => $brgyUrl,
+                'fire_safety_cert_url'    => $fireSafetyUrl,
             ]);
 
             $payoutData = [
@@ -942,6 +976,50 @@ function gym_profile_page(): void
                             <?php endif; ?>
                         </div>
 
+                        <!-- Owner's Valid ID -->
+                        <div class="overview-doc-item">
+                            <div class="overview-doc-left">
+                                <div class="overview-doc-icon <?= !empty($gym['valid_id_url']) ? 'is-verified' : 'is-missing' ?>">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>
+                                </div>
+                                <div class="overview-doc-info">
+                                    <div class="overview-doc-name">Owner's Valid ID <?= !empty($gym['valid_id_type']) ? '<span style="font-size: 11px; color: var(--muted); font-weight: normal;">(' . h($gym['valid_id_type']) . ')</span>' : '' ?></div>
+                                    <div class="overview-doc-status" title="<?= h($gym['valid_id_url'] ?? '') ?>">
+                                        <?php if (!empty($gym['valid_id_url'])): ?>
+                                            <span style="color: var(--teal, #10b981); font-weight: 600;">✅ <?= h(clean_doc_name($gym['valid_id_url'])) ?></span>
+                                        <?php else: ?>
+                                            <span style="color: var(--danger, #ef4444); font-weight: 600;">⚠️ Missing</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php if (!empty($gym['valid_id_url'])): ?>
+                                <a href="<?= h(upload_url($gym['valid_id_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
+                                    View
+                                </a>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Supporting Valid ID (if uploaded) -->
+                        <?php if (!empty($gym['secondary_valid_id_url'])): ?>
+                        <div class="overview-doc-item">
+                            <div class="overview-doc-left">
+                                <div class="overview-doc-icon is-verified">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>
+                                </div>
+                                <div class="overview-doc-info">
+                                    <div class="overview-doc-name">Supporting Valid ID <?= !empty($gym['secondary_valid_id_type']) ? '<span style="font-size: 11px; color: var(--muted); font-weight: normal;">(' . h($gym['secondary_valid_id_type']) . ')</span>' : '' ?></div>
+                                    <div class="overview-doc-status" title="<?= h($gym['secondary_valid_id_url']) ?>">
+                                        <span style="color: var(--teal, #10b981); font-weight: 600;">✅ <?= h(clean_doc_name($gym['secondary_valid_id_url'])) ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <a href="<?= h(upload_url($gym['secondary_valid_id_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 4px 9px; border-radius: 6px;">
+                                View
+                            </a>
+                        </div>
+                        <?php endif; ?>
+
                         <!-- Barangay Clearance -->
                         <div class="overview-doc-item">
                             <div class="overview-doc-left">
@@ -1457,6 +1535,66 @@ function gym_profile_page(): void
                             </span>
                             <span style="font-size: 10.5px; color: var(--muted);">PDF, JPG, PNG (Max 10MB)</span>
                             <input type="file" name="business_permit" id="permit-file-input" accept=".pdf,.jpg,.jpeg,.png">
+                        </label>
+                    </div>
+
+                    <!-- Owner's Valid ID -->
+                    <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                            <div>
+                                <strong style="font-size: 13px; color: var(--ink); display: block;">Owner's Valid Government ID</strong>
+                                <span style="font-size: 11.5px; color: var(--muted);">Primary proof of owner identification.</span>
+                            </div>
+                            <?php if (!empty($gym['valid_id_url'])): ?>
+                                <span style="font-size: 10.5px; font-weight: 700; color: var(--teal, #10b981); background: color-mix(in srgb, var(--teal, #10b981) 14%, transparent); border: 1px solid color-mix(in srgb, var(--teal, #10b981) 28%, transparent); padding: 2px 7px; border-radius: 5px;">
+                                    ✅ On File
+                                </span>
+                            <?php endif; ?>
+                        </div>
+
+                        <div>
+                            <label style="font-size: 11.5px; font-weight: 600; color: var(--muted); margin-bottom: 4px; display: block;">Valid ID Type</label>
+                            <select name="valid_id_type" class="form-control" style="font-size: 12px; height: 36px;">
+                                <?php
+                                $validIdOptions = [
+                                    'Philippine National ID (PhilSys ID)',
+                                    "Driver's License",
+                                    'Passport',
+                                    'UMID (Unified Multi-Purpose ID)',
+                                    'PRC ID',
+                                    'SSS ID',
+                                    'GSIS ID',
+                                    'Postal ID',
+                                    'TIN ID',
+                                    'Other Valid Government ID'
+                                ];
+                                $curIdType = $gym['valid_id_type'] ?? '';
+                                ?>
+                                <option value="">Select ID Type...</option>
+                                <?php foreach ($validIdOptions as $opt): ?>
+                                    <option value="<?= h($opt) ?>" <?= (strcasecmp($curIdType, $opt) === 0) ? 'selected' : '' ?>><?= h($opt) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <?php if (!empty($gym['valid_id_url'])): ?>
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px;">
+                                <span style="font-size: 12px; color: var(--ink); font-weight: 600;" title="<?= h($gym['valid_id_url']) ?>">
+                                    <?= h(clean_doc_name($gym['valid_id_url'])) ?>
+                                </span>
+                                <a href="<?= h(upload_url($gym['valid_id_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
+                                    View
+                                </a>
+                            </div>
+                        <?php endif; ?>
+
+                        <label class="modern-dropzone" id="valid-id-dropzone" style="padding: 12px;">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            <span id="valid-id-label-text" style="font-size: 12.5px; font-weight: 700; color: var(--ink);">
+                                <?= !empty($gym['valid_id_url']) ? 'Click to Replace Valid ID' : 'Click or Drag to Upload Valid ID' ?>
+                            </span>
+                            <span style="font-size: 10.5px; color: var(--muted);">PDF, JPG, PNG (Max 10MB)</span>
+                            <input type="file" name="valid_id" id="valid-id-file-input" accept=".pdf,.jpg,.jpeg,.png">
                         </label>
                     </div>
 

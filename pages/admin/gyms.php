@@ -829,6 +829,83 @@ function gyms_page(): void
         background: rgba(59, 130, 246, 0.12) !important;
     }
 
+    /* Light Mode Overrides for Attached Documents Pill & Dropdown Menu */
+    html[data-theme="light"] button.doc-pill-trigger,
+    [data-theme="light"] button.doc-pill-trigger,
+    html[data-theme="light"] .doc-pill-trigger,
+    [data-theme="light"] .doc-pill-trigger {
+        background: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] button.doc-pill-trigger:hover,
+    [data-theme="light"] button.doc-pill-trigger:hover,
+    html[data-theme="light"] .doc-pill-dropdown.is-open button.doc-pill-trigger,
+    [data-theme="light"] .doc-pill-dropdown.is-open .doc-pill-trigger {
+        background: color-mix(in srgb, var(--lime, #84cc16) 18%, transparent) !important;
+        border-color: var(--lime, #84cc16) !important;
+        color: #15803d !important;
+        box-shadow: 0 0 10px rgba(132, 204, 22, 0.25) !important;
+    }
+    html[data-theme="light"] .doc-pill-chevron,
+    [data-theme="light"] .doc-pill-chevron {
+        color: #64748b !important;
+    }
+    html[data-theme="light"] .doc-pill-dropdown.is-open .doc-pill-chevron,
+    [data-theme="light"] .doc-pill-dropdown.is-open .doc-pill-chevron {
+        color: #15803d !important;
+    }
+    html[data-theme="light"] .doc-pill-menu,
+    [data-theme="light"] .doc-pill-menu {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.06) !important;
+        scrollbar-color: #cbd5e1 transparent;
+    }
+    html[data-theme="light"] .doc-pill-menu::-webkit-scrollbar-thumb,
+    [data-theme="light"] .doc-pill-menu::-webkit-scrollbar-thumb {
+        background: #cbd5e1 !important;
+    }
+    html[data-theme="light"] .doc-menu-header,
+    [data-theme="light"] .doc-menu-header {
+        background: #ffffff !important;
+        color: #64748b !important;
+        border-bottom-color: #e2e8f0 !important;
+    }
+    html[data-theme="light"] .doc-item-title,
+    [data-theme="light"] .doc-item-title {
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] button.doc-menu-item,
+    [data-theme="light"] button.doc-menu-item,
+    html[data-theme="light"] a.doc-menu-item,
+    [data-theme="light"] a.doc-menu-item {
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] button.doc-menu-item:hover,
+    [data-theme="light"] button.doc-menu-item:hover,
+    html[data-theme="light"] a.doc-menu-item:hover,
+    [data-theme="light"] a.doc-menu-item:hover {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+    html[data-theme="light"] .doc-item-icon,
+    [data-theme="light"] .doc-item-icon {
+        background: rgba(132, 204, 22, 0.16) !important;
+        color: #4d7c0f !important;
+    }
+    html[data-theme="light"] .doc-item-badge,
+    [data-theme="light"] .doc-item-badge {
+        background: #e2e8f0 !important;
+        color: #475569 !important;
+    }
+    html[data-theme="light"] .doc-item-badge.link,
+    [data-theme="light"] .doc-item-badge.link {
+        background: rgba(59, 130, 246, 0.14) !important;
+        color: #2563eb !important;
+    }
+
     /* ── Gyms Toolbar, Tabs & Filters ── */
     .gyms-toolbar {
         display: flex;
@@ -2314,8 +2391,8 @@ function gyms_page(): void
                 width: '80%',
                 showCloseButton: true,
                 showConfirmButton: false,
-                background: 'var(--surface-color, #18251eff)',
-                color: 'var(--text-color, #ffffff)'
+                background: 'var(--panel, var(--bg, #ffffff))',
+                color: 'var(--ink, #0f172a)'
             });
         } else {
             Swal.fire({
@@ -2324,8 +2401,8 @@ function gyms_page(): void
                 width: '80%',
                 showCloseButton: true,
                 showConfirmButton: false,
-                background: 'var(--surface, #18251eff)',
-                color: 'var(--text-color, #ffffff)'
+                background: 'var(--panel, var(--bg, #ffffff))',
+                color: 'var(--ink, #0f172a)'
             });
         }
     }
