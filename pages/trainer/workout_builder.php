@@ -252,70 +252,6 @@ function workout_builder_page(): void
             redirect('training');
         }
 
-        // 1. Auto Generate Entire Plan
-        if ($action === 'auto_generate') {
-            try {
-                $planId = $ensurePlanId();
-            $options = [
-                'goal' => post('goal') ?: null,
-                // Do not accept a staff-supplied override: use the member's
-                // recorded workout frequency for every generated plan.
-                'days_count' => $prefDays,
-                'split_type' => post('split_type') ?: 'auto',
-                'experience_level' => post('experience_level') ?: $memberExpKey,
-            ];
-            
-            $options['library_gym_id'] = $exerciseLibraryGymId;
-            if (auto_populate_plan_advanced($planId, $memberId, $options)) {
-                flash('Plan auto-generated with custom parameters. Review before publishing.', 'success');
-            } else {
-                flash("This member's gym exercise library is empty. Add exercises before generating a plan.", 'error');
-            }
-            } catch (Throwable $e) {
-                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
-                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
-            }
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
-            exit;
-        }
-        
-        // 2. Auto Generate Specific Day
-        if ($action === 'auto_generate_day') {
-            try {
-                $planId = $ensurePlanId();
-            $dayOfWeek = (int) post('day_of_week');
-            if ($dayOfWeek < 1 || $dayOfWeek > 7) {
-                flash('Please select a valid day of the week.', 'error');
-                redirect('workout_builder&member_user_id=' . $memberId);
-            }
-            if (!empty($prefWorkoutDays) && !in_array($dayOfWeek, $prefWorkoutDays, true)) {
-                $allowedNames = implode(', ', array_map('workout_day_name', $prefWorkoutDays));
-                flash("Member's committed training schedule is strictly limited to {$allowedNames}. You cannot schedule workouts on their rest days.", 'error');
-                redirect('workout_builder&member_user_id=' . $memberId);
-            }
-            $dayAlreadyScheduled = (bool) scalar(
-                'SELECT 1 FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ? LIMIT 1',
-                [$planId, $dayOfWeek]
-            );
-            if (!$dayAlreadyScheduled && $getScheduledDaysCount($pdo, $planId) >= $prefDays) {
-                flash("This member's plan is limited to {$prefDays} workout day(s) per week.", 'error');
-                redirect('workout_builder&member_user_id=' . $memberId);
-            }
-            $focus = post('focus') ?: 'auto';
-            if (auto_populate_day_focused($planId, $memberId, $dayOfWeek, $focus, $exerciseLibraryGymId)) {
-                flash(workout_day_name($dayOfWeek) . ' routine generated.', 'success');
-            } else {
-                flash("This member's gym exercise library has no suitable exercises for that routine.", 'error');
-            }
-            } catch (Throwable $e) {
-                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
-                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
-            }
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
-            exit;
-        }
-
-
         // 4. Clear Specific Day
         if ($action === 'clear_day') {
             try {
@@ -652,10 +588,6 @@ function workout_builder_page(): void
         </div>
         </div>
         <div class="builder-actions-group">
-            <button type="button" onclick="openAdvancedAutoGenerateModal()" class="builder-btn builder-btn-outline-lime" title="Smart AI Auto-Generate with custom parameters">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-                Auto-Gen
-            </button>
             <form id="publishForm" method="post" style="margin:0;">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="publish">
@@ -666,24 +598,6 @@ function workout_builder_page(): void
             </form>
         </div>
     </div>
-
-    <!-- Hidden form for auto-generating with advanced options -->
-    <form id="advancedAutoGenForm" method="post" style="display:none;">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="auto_generate">
-        <input type="hidden" name="goal" id="autoGenGoal" value="">
-        <input type="hidden" name="days_count" id="autoGenDays" value="3">
-        <input type="hidden" name="split_type" id="autoGenSplit" value="auto">
-        <input type="hidden" name="experience_level" id="autoGenExp" value="intermediate">
-    </form>
-
-    <!-- Hidden form for auto-generating a specific day -->
-    <form id="autoGenDayForm" method="post" style="display:none;">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="auto_generate_day">
-        <input type="hidden" name="day_of_week" id="autoGenDayInput" value="">
-        <input type="hidden" name="focus" id="autoGenDayFocus" value="auto">
-    </form>
 
     <!-- Hidden form for clearing a specific day -->
     <form id="clearDayForm" method="post" style="display:none;">
@@ -763,10 +677,6 @@ function workout_builder_page(): void
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                     Add
                                 </button>
-                                <button type="button" onclick="openDayAutoGenModal(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn" title="Auto-generate <?= $dayName ?> with target focus">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-                                    Auto
-                                </button>
                                 <?php if ($exCount > 0): ?>
                                     <button type="button" onclick="confirmClearDay(<?= $dayNum ?>, '<?= $dayName ?>')" class="builder-micro-btn builder-micro-btn-clear" title="Clear all exercises on <?= $dayName ?>">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -791,7 +701,7 @@ function workout_builder_page(): void
                     <?php if ($exCount === 0): ?>
                         <div class="builder-empty-day">
                             <?php if ($isCommittedDay): ?>
-                                Rest day. Click <strong>+ Add</strong> or <strong>Auto</strong> to schedule exercises.
+                                Rest day. Click <strong>+ Add</strong> to schedule exercises.
                             <?php else: ?>
                                 Scheduled rest day according to member preference. Exercises cannot be scheduled on this day.
                             <?php endif; ?>
@@ -962,8 +872,9 @@ function workout_builder_page(): void
     $mappedBasicGoal = map_detailed_goal_to_basic($rawMemberGoal);
     $builderSelectedGoal = match($mappedBasicGoal) {
         'fat_loss' => 'weight_loss',
-        'muscle_gain' => (stripos($rawMemberGoal, 'strength') !== false ? 'strength' : 'muscle_gain'),
-        default => (stripos($rawMemberGoal, 'endurance') !== false || stripos($rawMemberGoal, 'stamina') !== false ? 'endurance' : $mappedBasicGoal)
+        'strength', 'strength_power' => 'strength',
+        'muscle_gain' => (stripos($rawMemberGoal, 'strength') !== false || stripos($rawMemberGoal, 'power') !== false ? 'strength' : 'muscle_gain'),
+        default => (stripos($rawMemberGoal, 'endurance') !== false || stripos($rawMemberGoal, 'stamina') !== false ? 'endurance' : (stripos($rawMemberGoal, 'power') !== false ? 'strength' : $mappedBasicGoal))
     };
     if (!in_array($builderSelectedGoal, ['weight_loss', 'muscle_gain', 'strength', 'endurance', 'general_health'], true)) {
         $builderSelectedGoal = 'general_health';

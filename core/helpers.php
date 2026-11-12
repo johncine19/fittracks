@@ -749,9 +749,9 @@ function map_detailed_goal_to_basic(string $detailedGoal): string
         'developing a wide chest' => 'muscle_gain',
         'sculpting a v tapered back' => 'muscle_gain',
         'shaping the lower body' => 'muscle_gain',
-        'increasing maximum strength' => 'muscle_gain',
-        'boosting explosive power' => 'general_health',
-        'enhancing physical endurance' => 'general_health',
+        'increasing maximum strength' => 'strength',
+        'boosting explosive power' => 'strength',
+        'enhancing physical endurance' => 'endurance',
         'improving body flexibility' => 'general_health',
         'losing excess body fat' => 'fat_loss',
         'gaining lean body mass' => 'muscle_gain',
@@ -771,14 +771,14 @@ function map_detailed_goal_to_basic(string $detailedGoal): string
     if (str_contains($clean, 'muscle') || str_contains($clean, 'bicep') || str_contains($clean, 'arm') || str_contains($clean, 'chest') || str_contains($clean, 'back') || str_contains($clean, 'lean body') || str_contains($clean, 'lower body') || str_contains($clean, 'hypertrophy')) {
         return 'muscle_gain';
     }
-    if (str_contains($clean, 'strength') || str_contains($clean, 'power') || str_contains($clean, 'lift')) {
-        return 'muscle_gain';
+    if (str_contains($clean, 'strength') || str_contains($clean, 'power') || str_contains($clean, 'lift') || str_contains($clean, 'athletic')) {
+        return 'strength';
     }
     if (str_contains($clean, 'fat') || str_contains($clean, 'weight') || str_contains($clean, 'lose') || str_contains($clean, 'six pack') || str_contains($clean, 'shred')) {
         return 'fat_loss';
     }
     if (str_contains($clean, 'endurance') || str_contains($clean, 'stamina') || str_contains($clean, 'cardio') || str_contains($clean, 'running')) {
-        return 'general_health';
+        return 'endurance';
     }
     if (str_contains($clean, 'casual') || str_contains($clean, 'flexible') || str_contains($clean, 'lifestyle')) {
         return 'casual';
