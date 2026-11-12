@@ -394,11 +394,9 @@ function training_page(): void
                     $p['end_date'] = '<span style="color:var(--muted);"><small>N/A</small></span>';
                     
                     $renewBtn = '';
-                    $buildBtn = '<form method="get" action="index.php" style="display:inline;">' .
-                                '<input type="hidden" name="page" value="workout_builder">' .
-                                '<input type="hidden" name="member_user_id" value="' . $p['member_user_id'] . '">' .
-                                '<input type="hidden" name="plan_id" value="' . (int)$p['plan_id'] . '">' .
-                                '<button type="submit" class="btn btn-primary" style="padding:4px 8px;font-size:12px;margin-right:4px;cursor:pointer;">Build Workout</button></form>';
+                    $buildBtn = '<a href="index.php?page=workout_builder&member_user_id=' . (int)$p['member_user_id'] . '&plan_id=' . (int)$p['plan_id'] . '" class="btn btn-primary" style="padding:4px 10px; font-size:12px; font-weight:600; white-space:nowrap; text-decoration:none; display:inline-flex; align-items:center; gap:5px; height:28px; box-sizing:border-box;">' .
+                                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>' .
+                                '<span>Build Workout</span></a>';
                 } else {
                     // Calculate Progress & Adherence
                     $startDate = strtotime($p['start_date'] ?? date('Y-m-d'));
@@ -423,31 +421,60 @@ function training_page(): void
                                            <span style="font-size:12px;">'.$adherencePercent.'%</span>
                                        </div>';
                                        
-                    // Expiry Alert
+                    // Expiry Alert & Date Formatting (mm/dd/yyyy)
                     $daysLeft = ($endDate - $now) / 86400;
+                    $formattedStart = !empty($p['start_date']) ? date('m/d/Y', $startDate) : '<span style="color:var(--muted);"><small>N/A</small></span>';
+                    $formattedEnd = !empty($p['end_date']) ? date('m/d/Y', $endDate) : '<span style="color:var(--muted);"><small>N/A</small></span>';
+
+                    $p['start_date'] = $formattedStart;
                     if ($daysLeft <= 3 && $daysLeft >= 0) {
-                        $p['end_date'] = '<span style="color:orange; font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expiring)</small></span>';
+                        $p['end_date'] = '<span style="color:orange; font-weight:600;">' . $formattedEnd . ' <br><small>(Expiring)</small></span>';
                     } elseif ($daysLeft < 0) {
-                        $p['end_date'] = '<span style="color:var(--red); font-weight:600;">' . h($p['end_date']) . ' <br><small>(Expired)</small></span>';
+                        $p['end_date'] = '<span style="color:var(--red); font-weight:600;">' . $formattedEnd . ' <br><small>(Expired)</small></span>';
+                    } else {
+                        $p['end_date'] = $formattedEnd;
                     }
                     
-                    $renewBtn = ($daysLeft <= 3) ? '<button type="button" class="btn btn-primary btn-renew-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 8px;font-size:12px;margin-right:4px;">Renew</button>' : '';
+                    $renewBtn = ($daysLeft <= 3) ? '<button type="button" class="btn btn-primary btn-renew-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 10px; font-size:12px; font-weight:600; white-space:nowrap; height:28px; box-sizing:border-box;">Renew</button>' : '';
                     $buildBtn = '';
                 }
                 
                 $feedbackStr = $p['latest_feedback'] ? h(substr($p['latest_feedback'], 0, 30)) . (strlen($p['latest_feedback']) > 30 ? '...' : '') : '<i style="color:var(--muted);">None</i>';
                 $p['feedback'] = '<span style="font-size:12px; display:inline-block; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' . $feedbackStr . '</span>';
                 
-                $duplicateBtn = '<button type="button" class="btn btn-secondary btn-duplicate-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 8px;font-size:12px;margin-right:4px;">Duplicate</button>';
-                
-                $deleteBtn = '<button type="button" class="btn btn-danger btn-delete-plan" data-plan-id="'.$p['plan_id'].'" data-plan-title="'.h($p['title'] ?: 'Workout Plan').'" style="padding:4px 8px;font-size:12px;display:inline-flex;align-items:center;gap:4px;">' .
-                             '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' .
-                             '<span>Delete</span></button>';
+                $planId = (int)$p['plan_id'];
+                $planTitle = h($p['title'] ?: 'Workout Plan');
+                $primaryAction = $isDraft ? $buildBtn : $renewBtn;
 
-                $p['actions'] = '<div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">' . 
-                                $renewBtn . $buildBtn . $duplicateBtn . 
-                                '<button type="button" onclick="editPlan(' . $safeJson . ')" class="btn btn-secondary" style="padding:4px 8px;font-size:12px;margin-right:4px;">Edit</button>' .
-                                $deleteBtn . '</div>';
+                $kebabDropdown = '<div class="plan-action-dropdown" id="plan-dropdown-' . $planId . '">' .
+                    '<button type="button" class="plan-kebab-btn" onclick="togglePlanDropdown(' . $planId . ', event)" title="More options" aria-label="More options">' .
+                        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' .
+                            '<circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle>' .
+                        '</svg>' .
+                    '</button>' .
+                    '<div class="plan-kebab-menu" id="plan-menu-' . $planId . '">' .
+                        '<button type="button" class="plan-kebab-item" onclick="closeAllPlanDropdowns(); editPlan(' . $safeJson . ');">' .
+                            '<span class="plan-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>' .
+                            '<span class="plan-item-text">Edit Plan</span>' .
+                        '</button>' .
+                        '<button type="button" class="plan-kebab-item btn-duplicate-plan" data-plan-id="' . $planId . '" data-plan-title="' . $planTitle . '" onclick="closeAllPlanDropdowns();">' .
+                            '<span class="plan-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>' .
+                            '<span class="plan-item-text">Duplicate</span>' .
+                        '</button>' .
+                        '<button type="button" class="plan-kebab-item" onclick="closeAllPlanDropdowns(); window.location.href=\'index.php?page=workout_builder&member_user_id=' . (int)$p['member_user_id'] . '&plan_id=' . $planId . '\';">' .
+                            '<span class="plan-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg></span>' .
+                            '<span class="plan-item-text">' . ($isDraft ? 'Open Builder' : 'View / Edit Routine') . '</span>' .
+                        '</button>' .
+                        '<div class="plan-kebab-divider"></div>' .
+                        '<button type="button" class="plan-kebab-item is-danger btn-delete-plan" data-plan-id="' . $planId . '" data-plan-title="' . $planTitle . '" onclick="closeAllPlanDropdowns();">' .
+                            '<span class="plan-item-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></span>' .
+                            '<span class="plan-item-text">Delete</span>' .
+                        '</button>' .
+                    '</div>' .
+                '</div>';
+
+                $p['actions'] = '<div style="display:inline-flex; gap:6px; align-items:center; white-space:nowrap;">' . 
+                                $primaryAction . $kebabDropdown . '</div>';
                 return $p;
             }, $plans);
             ?>
@@ -464,8 +491,8 @@ function training_page(): void
                     $isDraft = ($p['status'] === 'draft');
                     $statusKey = strtolower((string)$p['status']);
                     
-                    $startDate = !empty($p['start_date']) ? date('M j, Y', strtotime($p['start_date'])) : 'N/A';
-                    $endDate = !empty($p['end_date']) ? date('M j, Y', strtotime($p['end_date'])) : 'N/A';
+                    $startDate = !empty($p['start_date']) ? date('m/d/Y', strtotime($p['start_date'])) : 'N/A';
+                    $endDate = !empty($p['end_date']) ? date('m/d/Y', strtotime($p['end_date'])) : 'N/A';
                     
                     $daysLeft = null;
                     $isExpiring = false;
@@ -728,7 +755,7 @@ function training_page(): void
                                         <?= (int) $row['exercise_count'] ?> movements
                                     </td>
                                     <td style="padding:12px; font-size:12px; color:var(--muted); white-space:nowrap;">
-                                        <?= $row['start_date'] ? date('M j, Y', strtotime($row['start_date'])) : 'Pending' ?>
+                                        <?= $row['start_date'] ? date('m/d/Y', strtotime($row['start_date'])) : 'Pending' ?>
                                     </td>
                                     <td style="padding:12px; text-align:right;">
                                         <div style="display:inline-flex; gap:6px; justify-content:flex-end; align-items:center;">
@@ -813,7 +840,7 @@ function training_page(): void
                                 </div>
                                 <div class="trainer-mcard-stat">
                                     <span class="mcard-stat-lbl">Start Date</span>
-                                    <span class="mcard-stat-val"><?= $row['start_date'] ? date('M j, Y', strtotime($row['start_date'])) : 'Pending' ?></span>
+                                    <span class="mcard-stat-val"><?= $row['start_date'] ? date('m/d/Y', strtotime($row['start_date'])) : 'Pending' ?></span>
                                 </div>
                             </div>
 

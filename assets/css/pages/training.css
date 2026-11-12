@@ -596,3 +596,154 @@
         max-width: 100% !important;
     }
 }
+
+/* Training Plans Dropdown / Kebab Menu */
+.plans-desktop-table .table-wrap {
+    overflow: visible;
+}
+.plan-action-dropdown {
+    position: relative;
+    display: inline-block;
+}
+.plan-action-dropdown.is-open {
+    z-index: 1050;
+}
+.plan-kebab-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+    background: var(--panel-soft, rgba(255, 255, 255, 0.05));
+    color: var(--muted, #8792ad);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+}
+.plan-kebab-btn:hover,
+.plan-action-dropdown.is-open .plan-kebab-btn {
+    background: color-mix(in srgb, var(--lime) 15%, transparent);
+    color: var(--lime);
+    border-color: color-mix(in srgb, var(--lime) 40%, transparent);
+}
+.plan-kebab-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 5px);
+    min-width: 165px;
+    background: #11141c;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    padding: 5px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.45);
+    display: none;
+    z-index: 1060;
+    box-sizing: border-box;
+}
+html[data-theme="light"] .plan-kebab-menu,
+[data-theme="light"] .plan-kebab-menu {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+}
+.plan-action-dropdown.drop-up .plan-kebab-menu {
+    top: auto;
+    bottom: calc(100% + 5px);
+}
+.plan-action-dropdown.is-open .plan-kebab-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.plan-kebab-item,
+button.plan-kebab-item,
+a.plan-kebab-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 9px !important;
+    padding: 8px 10px !important;
+    border-radius: 6px !important;
+    font-family: inherit !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    color: var(--ink, #f8fafc) !important;
+    background: transparent !important;
+    border: none !important;
+    width: 100% !important;
+    min-height: unset !important;
+    height: auto !important;
+    text-align: left !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    transition: background 0.12s ease !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    margin: 0 !important;
+}
+.plan-kebab-item:hover,
+button.plan-kebab-item:hover,
+a.plan-kebab-item:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+}
+html[data-theme="light"] .plan-kebab-item,
+html[data-theme="light"] button.plan-kebab-item,
+html[data-theme="light"] a.plan-kebab-item {
+    color: #0f172a !important;
+}
+html[data-theme="light"] .plan-kebab-item:hover,
+[data-theme="light"] .plan-kebab-item:hover {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+.plan-kebab-item.is-danger,
+button.plan-kebab-item.is-danger {
+    color: #ef4444 !important;
+}
+.plan-kebab-item.is-danger:hover,
+button.plan-kebab-item.is-danger:hover {
+    background: rgba(239, 68, 68, 0.15) !important;
+    color: #ef4444 !important;
+}
+.plan-kebab-divider {
+    height: 1px !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    margin: 4px 0 !important;
+    border: none !important;
+}
+html[data-theme="light"] .plan-kebab-divider,
+[data-theme="light"] .plan-kebab-divider {
+    background: #e2e8f0 !important;
+}
+.plan-item-icon {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    opacity: 0.8 !important;
+}
+.plan-item-icon svg {
+    width: 14px !important;
+    height: 14px !important;
+    display: block !important;
+    flex-shrink: 0 !important;
+}
+.plan-item-text {
+    flex: 1 !important;
+    text-align: left !important;
+    font-size: 12.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.4 !important;
+    color: inherit !important;
+}
+.plan-kebab-item:hover .plan-item-icon,
+button.plan-kebab-item:hover .plan-item-icon {
+    opacity: 1 !important;
+}

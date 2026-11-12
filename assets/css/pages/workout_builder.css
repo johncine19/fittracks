@@ -780,7 +780,7 @@
             font-style: italic;
             border-left: 2px solid var(--line);
             padding-left: 0.4rem;
-            white-space: pre-wrap;
+            white-space: pre-line;
             word-break: break-word;
             line-height: 1.4;
             max-height: 120px;
@@ -914,40 +914,6 @@
             gap: 0.25rem;
             white-space: nowrap;
         }
-        /* Templates Modal Cards */
-        .template-card-choice {
-            text-align: left;
-            padding: 1rem;
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            background: var(--bg);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-bottom: 0.75rem;
-        }
-        .template-card-heading {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 4px;
-        }
-        .template-card-title {
-            min-width: 0;
-            color: var(--lime);
-            font-size: 15px;
-            overflow-wrap: anywhere;
-        }
-        .template-card-days {
-            flex: 0 0 auto;
-            white-space: nowrap;
-        }
-        .template-card-choice:hover {
-            border-color: var(--lime);
-            background: color-mix(in srgb, var(--lime) 5%, var(--bg));
-            transform: translateX(4px);
-        }
-
         /* MOBILE RESPONSIVE OPTIMIZATIONS */
         @media (max-width: 768px) {
             .builder-header-wrap {

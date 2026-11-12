@@ -209,6 +209,52 @@ function editPlan(p) {
     });
 }
 
+// Plan Kebab Dropdown Management
+function togglePlanDropdown(planId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const dropdown = document.getElementById('plan-dropdown-' + planId);
+    if (!dropdown) return;
+
+    const isOpen = dropdown.classList.contains('is-open');
+    closeAllPlanDropdowns();
+
+    if (!isOpen) {
+        dropdown.classList.remove('drop-up');
+        dropdown.classList.add('is-open');
+
+        const trigger = dropdown.querySelector('.plan-kebab-btn');
+        if (trigger) {
+            const triggerRect = trigger.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - triggerRect.bottom;
+            if (spaceBelow < 190 && triggerRect.top > spaceBelow) {
+                dropdown.classList.add('drop-up');
+            }
+        }
+    }
+}
+window.togglePlanDropdown = togglePlanDropdown;
+
+function closeAllPlanDropdowns() {
+    document.querySelectorAll('.plan-action-dropdown.is-open').forEach(el => {
+        el.classList.remove('is-open', 'drop-up');
+    });
+}
+window.closeAllPlanDropdowns = closeAllPlanDropdowns;
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.plan-action-dropdown')) {
+        closeAllPlanDropdowns();
+    }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeAllPlanDropdowns();
+    }
+});
+
 // Event delegation for plan action buttons
 document.addEventListener('click', function(e) {
     const renewBtn = e.target.closest('.btn-renew-plan');

@@ -1461,6 +1461,8 @@ function setup_profile_page(): void
 
         // Navy Body Fat Formula estimation & Measurement conflict check
         let bfCalculated = false;
+        let bfOutOfRange = false;
+        let calculatedBfVal = null;
         const warnBox = document.getElementById('measurements-warning');
         const warnText = document.getElementById('measurements-warning-text');
         let warningMsg = '';
@@ -1477,6 +1479,32 @@ function setup_profile_page(): void
             warningMsg = 'Neck measurement (' + neck + ' cm) looks unusually high. Typical adult neck circumference is 28–50 cm.';
         }
 
+        if (height > 0 && waist > 0 && neck > 0) {
+            try {
+                let bf = 0;
+                if (!isFemale && waist > neck) {
+                    bf = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+                } else if (isFemale && hip > 0 && (waist + hip) > neck) {
+                    bf = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(height)) - 450;
+                }
+                calculatedBfVal = bf;
+                if (!isNaN(bf) && bf >= 3 && bf <= 65) {
+                    if (bfEl) bfEl.textContent = bf.toFixed(1) + '%';
+                    bfCalculated = true;
+                } else if (!isNaN(bf) && (waist > neck || (isFemale && (waist + hip) > neck))) {
+                    bfOutOfRange = true;
+                }
+            } catch (e) {}
+        }
+
+        if (!warningMsg && bfOutOfRange && calculatedBfVal !== null) {
+            if (calculatedBfVal < 3) {
+                warningMsg = 'Waist circumference (' + waist + ' cm) is unusually small compared to neck (' + neck + ' cm). The U.S. Navy formula yields an impossible body fat (' + calculatedBfVal.toFixed(1) + '%). Typical adult waist is 65–120 cm.';
+            } else if (calculatedBfVal > 65) {
+                warningMsg = 'Calculated body fat (' + calculatedBfVal.toFixed(1) + '%) is unusually high. Please verify your circumference measurements.';
+            }
+        }
+
         if (warnBox && warnText) {
             if (warningMsg) {
                 warnText.textContent = warningMsg;
@@ -1486,23 +1514,11 @@ function setup_profile_page(): void
             }
         }
 
-        if (height > 0 && waist > 0 && neck > 0) {
-            try {
-                let bf = 0;
-                if (!isFemale && waist > neck) {
-                    bf = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
-                } else if (isFemale && hip > 0 && (waist + hip) > neck) {
-                    bf = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.22100 * Math.log10(height)) - 450;
-                }
-                if (bf > 3 && bf < 65) {
-                    if (bfEl) bfEl.textContent = bf.toFixed(1) + '%';
-                    bfCalculated = true;
-                }
-            } catch (e) {}
-        }
         if (!bfCalculated && bfEl) {
             if (neck > 0 && waist > 0 && (!isFemale && neck >= waist)) {
                 bfEl.innerHTML = '<span style="font-size: 11px; color: #ef4444; font-weight: 700; line-height: 1.2; display: inline-block;">Waist &gt; Neck required</span>';
+            } else if (bfOutOfRange) {
+                bfEl.innerHTML = '<span style="font-size: 11px; color: #ef4444; font-weight: 700; line-height: 1.2; display: inline-block;">Ratio too low (&lt;3%)</span>';
             } else {
                 bfEl.textContent = '—';
             }

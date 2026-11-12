@@ -1148,8 +1148,9 @@ function auto_populate_plan_advanced(int $planId, int $memberUserId, array $opti
         foreach ($dayExercises as $ex) {
             [$sets, $reps, $rest, $tempo, $rpe, $notes] = _assign_exercise_details($goal, $expLevel, $ex);
             $weight = null;
-            if (!empty($profile['weight_kg']) && in_array($ex['muscle_group'], ['legs', 'chest', 'back'])) {
-                $ratio = match($ex['muscle_group']) {
+            $cat = strtolower(trim((string)($ex['category'] ?? '')));
+            if ($cat !== 'cardio' && !empty($profile['weight_kg']) && in_array(strtolower($ex['muscle_group'] ?? ''), ['legs', 'chest', 'back'])) {
+                $ratio = match(strtolower($ex['muscle_group'])) {
                     'legs' => 0.75,
                     'chest' => 0.60,
                     'back' => 0.55,

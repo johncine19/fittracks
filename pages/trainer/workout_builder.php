@@ -309,28 +309,6 @@ function workout_builder_page(): void
             exit;
         }
 
-        // 3. Apply Preset Template
-        if ($action === 'apply_template') {
-            try {
-                $planId = $ensurePlanId();
-            $templateKey = post('template_key') ?: '';
-            $template = get_workout_templates()[$templateKey] ?? null;
-            $templateDays = is_array($template['days'] ?? null) ? count($template['days']) : 0;
-            $applied = $templateDays === $prefDays
-                ? apply_workout_template($planId, $templateKey, $exerciseLibraryGymId)
-                : false;
-            if ($applied) {
-                flash('Preset template applied successfully!', 'success');
-            } else {
-                flash("Choose a {$prefDays}-day preset to match this member's workout frequency.", 'error');
-            }
-            } catch (Throwable $e) {
-                error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
-                flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
-            }
-            header('Location: index.php?page=workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
-            exit;
-        }
 
         // 4. Clear Specific Day
         if ($action === 'clear_day') {
@@ -432,12 +410,12 @@ function workout_builder_page(): void
             $rest = max(0, (int) post('rest_seconds'));
             $tempo = trim((string) post('tempo')) ?: null;
             $rpe = trim((string) post('rpe')) ?: null;
-            $notes = trim((string) post('notes')) ?: null;
-            if ($notes === null && $exerciseId > 0) {
-                $defaultDesc = scalar('SELECT description FROM exercises WHERE exercise_id = ?', [$exerciseId]);
-                if (!empty($defaultDesc)) {
-                    $notes = trim((string)$defaultDesc);
-                }
+            $notes = trim((string) post('notes')) ?: null;
+            if ($notes === null && $exerciseId > 0) {
+                $defaultDesc = scalar('SELECT description FROM exercises WHERE exercise_id = ?', [$exerciseId]);
+                if (!empty($defaultDesc)) {
+                    $notes = trim((string)$defaultDesc);
+                }
             }
 
             $maxOrder = $pdo->query("SELECT MAX(sequence_order) FROM training_plan_exercises WHERE plan_id = $planId AND day_of_week = $dayOfWeek")->fetchColumn();
@@ -616,11 +594,6 @@ function workout_builder_page(): void
     $stmt->execute([$exerciseLibraryGymId, $planId]);
     $planExercises = $stmt->fetchAll();
 
-    // Fetch available templates
-    $templates = function_exists('get_available_workout_templates')
-        ? get_available_workout_templates()
-        : (function_exists('get_workout_templates') ? get_workout_templates() : []);
-
     $days = [
         1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday',
         4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'
@@ -662,10 +635,6 @@ function workout_builder_page(): void
         </div>
         </div>
         <div class="builder-actions-group">
-            <button type="button" onclick="openTemplatesModal()" class="builder-btn builder-btn-secondary" title="Choose from pre-built training splits">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                Presets
-            </button>
             <button type="button" onclick="openAdvancedAutoGenerateModal()" class="builder-btn builder-btn-outline-lime" title="Smart AI Auto-Generate with custom parameters">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
                 Auto-Gen
@@ -680,13 +649,6 @@ function workout_builder_page(): void
             </form>
         </div>
     </div>
-
-    <!-- Hidden form for applying a template -->
-    <form id="applyTemplateForm" method="post" style="display:none;">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="apply_template">
-        <input type="hidden" name="template_key" id="templateKeyInput" value="">
-    </form>
 
     <!-- Hidden form for auto-generating with advanced options -->
     <form id="advancedAutoGenForm" method="post" style="display:none;">
@@ -834,7 +796,7 @@ function workout_builder_page(): void
                                             ?>
                                             <span class="builder-pill" style="color:<?= $cardDiffColor ?>; border-color:color-mix(in srgb, <?= $cardDiffColor ?> 30%, transparent);" title="Difficulty Level"><?= h($cardDiffLabel) ?></span>
                                             <span class="builder-pill builder-pill-lime"><strong><?= (int)$ex['sets'] ?></strong> sets &times; <strong><?= h($ex['reps']) ?></strong></span>
-                                            <?php if ($ex['target_weight_kg'] !== null && $ex['target_weight_kg'] > 0): ?>
+                                            <?php if ($ex['target_weight_kg'] !== null && $ex['target_weight_kg'] > 0 && strtolower((string)($ex['category'] ?? '')) !== 'cardio'): ?>
                                                 <span class="builder-pill builder-pill-orange" title="Target Weight">
                                                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                                                     <?= (float)$ex['target_weight_kg'] ?> kg
@@ -864,9 +826,7 @@ function workout_builder_page(): void
                                             <?php endif; ?>
                                         </div>
                                         <?php if (!empty($ex['notes'])): ?>
-                                            <div class="builder-ex-notes">
-                                                "<?= h($ex['notes']) ?>"
-                                            </div>
+                                            <div class="builder-ex-notes">"<?= h(trim((string)$ex['notes'])) ?>"</div>
                                         <?php endif; ?>
                                     </div>
                                     <div class="builder-ex-actions">
@@ -976,32 +936,6 @@ function workout_builder_page(): void
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
-    </div>
-
-    <div id="templateOptionsPayload" style="display:none;">
-        <div style="max-height: 480px; overflow-y: auto; text-align: left; padding-right: 5px;">
-            <?php foreach ($templates as $key => $tmpl): 
-                $tmplTitle = $tmpl['title'] ?? $tmpl['name'] ?? ucfirst(str_replace('_', ' ', (string)$key));
-                $tmplDays = (int)($tmpl['days_per_week'] ?? (isset($tmpl['days']) && is_array($tmpl['days']) ? count($tmpl['days']) : 3));
-                if ($tmplDays !== $prefDays) continue;
-                $tmplDesc = $tmpl['description'] ?? '';
-                $tmplSplit = $tmpl['split_name'] ?? $tmpl['name'] ?? $tmplTitle;
-                $tmplGoal = $tmpl['primary_goal'] ?? $tmpl['goal'] ?? 'general_health';
-            ?>
-                <div class="template-card-choice" onclick="selectTemplate('<?= $key ?>', '<?= addslashes(h($tmplTitle)) ?>')">
-                    <div class="template-card-heading">
-                        <strong class="template-card-title"><?= h($tmplTitle) ?></strong>
-                        <span class="builder-badge builder-badge-stat template-card-days"><?= $tmplDays ?> Days/Wk</span>
-                    </div>
-                    <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
-                        <?= h($tmplDesc) ?>
-                    </div>
-                    <div style="font-size: 11px; color: var(--ink); opacity: 0.8; font-weight: 500;">
-                        Split: <?= h($tmplSplit) ?> &bull; Goal: <?= h(ucwords(str_replace('_', ' ', $tmplGoal))) ?>
-                    </div>
-                </div>
-            <?php endforeach; ?>
         </div>
     </div>
 
