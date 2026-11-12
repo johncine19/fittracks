@@ -999,6 +999,9 @@ function hydrate_gym_rows(array $gyms): array
         $gyms[$idx]['payout_channel'] = $g['payout_channel'] ?? 'gcash';
         $gyms[$idx]['payout_account_number'] = $g['payout_account_number'] ?? null;
         $gyms[$idx]['payout_account_name'] = $g['payout_account_name'] ?? null;
+        $gyms[$idx]['kyc_status'] = $g['kyc_status'] ?? 'none';
+        $gyms[$idx]['kyc_email'] = $g['kyc_email'] ?? null;
+        $gyms[$idx]['pending_subaccount_id'] = $g['pending_subaccount_id'] ?? null;
 
         $gyms[$idx]['inactivity_threshold_days'] = $g['inactivity_threshold_days'] ?? null;
         $gyms[$idx]['inactivity_cooldown_days'] = $g['inactivity_cooldown_days'] ?? null;
@@ -1066,6 +1069,7 @@ function hydrate_gym_rows(array $gyms): array
         $metaStmt = $pdo->prepare("
             SELECT g.gym_id,
                    p.xendit_subaccount_id, p.payout_channel, p.payout_account_number, p.payout_account_name,
+                   p.kyc_status, p.kyc_email, p.pending_subaccount_id,
                    p.gym_id AS has_payout,
                    s.inactivity_threshold_days, s.inactivity_cooldown_days, s.auto_inactivity_alerts,
                    s.staff_hide_financials, s.eod_email_summary, s.last_eod_email_sent_at, s.last_eod_email_sent_by,
@@ -1085,6 +1089,9 @@ function hydrate_gym_rows(array $gyms): array
                     $gyms[$idx]['payout_channel'] = $row['payout_channel'] ?? 'gcash';
                     $gyms[$idx]['payout_account_number'] = $row['payout_account_number'] ?? null;
                     $gyms[$idx]['payout_account_name'] = $row['payout_account_name'] ?? null;
+                    $gyms[$idx]['kyc_status'] = $row['kyc_status'] ?? 'none';
+                    $gyms[$idx]['kyc_email'] = $row['kyc_email'] ?? null;
+                    $gyms[$idx]['pending_subaccount_id'] = $row['pending_subaccount_id'] ?? null;
                 }
                 if (!empty($row['has_settings'])) {
                     $gyms[$idx]['inactivity_threshold_days'] = $row['inactivity_threshold_days'] ?? null;
@@ -1272,16 +1279,29 @@ function save_gym_payout_account(int $gymId, array $payout): void
         ? ($payout['payout_account_name'] !== '' && $payout['payout_account_name'] !== null ? (string)$payout['payout_account_name'] : null)
         : ($cur['payout_account_name'] ?? null);
 
+    $kycStatus = array_key_exists('kyc_status', $payout)
+        ? (string)$payout['kyc_status']
+        : ($cur['kyc_status'] ?? 'none');
+    $kycEmail = array_key_exists('kyc_email', $payout)
+        ? ($payout['kyc_email'] !== '' && $payout['kyc_email'] !== null ? (string)$payout['kyc_email'] : null)
+        : ($cur['kyc_email'] ?? null);
+    $pendingSub = array_key_exists('pending_subaccount_id', $payout)
+        ? ($payout['pending_subaccount_id'] !== '' && $payout['pending_subaccount_id'] !== null ? (string)$payout['pending_subaccount_id'] : null)
+        : ($cur['pending_subaccount_id'] ?? null);
+
     $stmt = $pdo->prepare('
-        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name, kyc_status, kyc_email, pending_subaccount_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             xendit_subaccount_id = VALUES(xendit_subaccount_id),
             payout_channel = VALUES(payout_channel),
             payout_account_number = VALUES(payout_account_number),
-            payout_account_name = VALUES(payout_account_name)
+            payout_account_name = VALUES(payout_account_name),
+            kyc_status = VALUES(kyc_status),
+            kyc_email = VALUES(kyc_email),
+            pending_subaccount_id = VALUES(pending_subaccount_id)
     ');
-    $stmt->execute([$gymId, $xenditSub, $channel, $acctNum, $acctName]);
+    $stmt->execute([$gymId, $xenditSub, $channel, $acctNum, $acctName, $kycStatus, $kycEmail, $pendingSub]);
 }
 
 /**

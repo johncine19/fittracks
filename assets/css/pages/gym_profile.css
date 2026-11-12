@@ -337,6 +337,49 @@
             box-shadow: 0 0 0 3px color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
         }
 
+        .input-with-icon.has-toggle {
+            padding-right: 44px !important;
+        }
+
+        /* Suppress browser-native password reveal/clear buttons (Edge/Chrome) */
+        input::-ms-reveal,
+        input::-ms-clear,
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            pointer-events: none !important;
+        }
+
+        .field-eye-toggle {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            padding: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted, #94a3b8);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: color 0.15s ease, background-color 0.15s ease;
+            z-index: 2;
+        }
+
+        .field-eye-toggle:hover {
+            color: var(--ink, #0f172a);
+            background: rgba(0, 0, 0, 0.06);
+        }
+
+        [data-theme="dark"] .field-eye-toggle:hover {
+            color: #f8fafc;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
         textarea.input-with-icon {
             height: auto !important;
             min-height: 60px;

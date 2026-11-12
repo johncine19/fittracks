@@ -16,6 +16,38 @@ function clean_doc_name(?string $url): string
     return $basename;
 }
 
+function mask_payout_number(?string $num): string
+{
+    if (!$num) {
+        return '';
+    }
+    $str = trim($num);
+    $len = strlen($str);
+    if ($len <= 5) {
+        return $str;
+    }
+    $first2 = substr($str, 0, 2);
+    $last3 = substr($str, -3);
+    $middle = str_repeat('*', max(1, $len - 5));
+    return $first2 . $middle . $last3;
+}
+
+function mask_payout_name(?string $name): string
+{
+    if (!$name) {
+        return '';
+    }
+    $trimmed = trim($name);
+    $len = mb_strlen($trimmed);
+    if ($len <= 2) {
+        return $trimmed;
+    }
+    $first = mb_substr($trimmed, 0, 1);
+    $last = mb_substr($trimmed, -1);
+    $middle = str_repeat('*', max(1, $len - 2));
+    return $first . $middle . $last;
+}
+
 function gym_profile_page(): void
 {
     $user = require_roles(['gym_owner', 'platform_admin']);
@@ -85,19 +117,29 @@ function gym_profile_page(): void
 
         $payoutChannel = trim((string) post('payout_channel')) ?: ($gym['payout_channel'] ?? 'gcash');
         $payoutAccountNumberRaw = post('payout_account_number') !== null ? trim((string) post('payout_account_number')) : ($gym['payout_account_number'] ?? null);
-        $payoutAccountNumber = $payoutAccountNumberRaw !== null && $payoutAccountNumberRaw !== '' ? preg_replace('/\D/', '', $payoutAccountNumberRaw) : null;
-        $payoutAccountNumber = $payoutAccountNumber !== '' ? $payoutAccountNumber : null;
-        if ($payoutAccountNumber !== null) {
-            if (in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutAccountNumber)) {
-                flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
-                $payoutAccountNumber = $gym['payout_account_number'] ?? null;
-            } elseif ($payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutAccountNumber)) {
-                flash('Bank account number must be between 10 and 18 digits.', 'danger');
-                $payoutAccountNumber = $gym['payout_account_number'] ?? null;
+        if ($payoutAccountNumberRaw !== null && strpos($payoutAccountNumberRaw, '*') !== false) {
+            // Unchanged masked value submitted; preserve existing database record
+            $payoutAccountNumber = $gym['payout_account_number'] ?? null;
+        } else {
+            $payoutAccountNumber = $payoutAccountNumberRaw !== null && $payoutAccountNumberRaw !== '' ? preg_replace('/\D/', '', $payoutAccountNumberRaw) : null;
+            $payoutAccountNumber = $payoutAccountNumber !== '' ? $payoutAccountNumber : null;
+            if ($payoutAccountNumber !== null) {
+                if (in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutAccountNumber)) {
+                    flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
+                    $payoutAccountNumber = $gym['payout_account_number'] ?? null;
+                } elseif ($payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutAccountNumber)) {
+                    flash('Bank account number must be between 10 and 18 digits.', 'danger');
+                    $payoutAccountNumber = $gym['payout_account_number'] ?? null;
+                }
             }
         }
-        $payoutAccountName = post('payout_account_name') !== null ? trim((string) post('payout_account_name')) : ($gym['payout_account_name'] ?? null);
-        $payoutAccountName = $payoutAccountName !== '' ? $payoutAccountName : null;
+        $payoutAccountNameRaw = post('payout_account_name') !== null ? trim((string) post('payout_account_name')) : ($gym['payout_account_name'] ?? null);
+        if ($payoutAccountNameRaw !== null && strpos($payoutAccountNameRaw, '*') !== false) {
+            // Unchanged masked value submitted; preserve existing database record
+            $payoutAccountName = $gym['payout_account_name'] ?? null;
+        } else {
+            $payoutAccountName = $payoutAccountNameRaw !== '' ? $payoutAccountNameRaw : null;
+        }
         $xenditSubaccountId = post('xendit_subaccount_id') !== null ? trim((string) post('xendit_subaccount_id')) : ($gym['xendit_subaccount_id'] ?? null);
         $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
         
@@ -297,8 +339,11 @@ function gym_profile_page(): void
                 'payout_account_number' => $payoutAccountNumber,
                 'payout_account_name'   => $payoutAccountName,
             ];
-            if ($isPlatformAdmin || $xenditSubaccountId !== null) {
+            if ($isPlatformAdmin) {
                 $payoutData['xendit_subaccount_id'] = $xenditSubaccountId;
+                if (!empty($xenditSubaccountId)) {
+                    $payoutData['kyc_status'] = 'verified';
+                }
             }
             save_gym_payout_account((int)$gym['gym_id'], $payoutData);
 
@@ -312,32 +357,150 @@ function gym_profile_page(): void
                 'eod_gate_effective_date'   => $pendingGateEffectiveDate,
             ]);
 
-            if (isset($_POST['request_xendit_activation'])) {
-                notify_admins(
-                    'system',
-                    'Online Payment Activation Requested',
-                    "Gym '{$name}' requested Xendit online payment gateway activation for {$payoutChannel} ({$payoutAccountNumber})."
-                );
+            if ($isPlatformAdmin && isset($_POST['approve_xendit_kyc'])) {
+                $approvedSubId = trim((string) post('approved_subaccount_id')) ?: ($gym['pending_subaccount_id'] ?? null);
+                if (!empty($approvedSubId)) {
+                    save_gym_payout_account((int)$gym['gym_id'], [
+                        'xendit_subaccount_id' => $approvedSubId,
+                        'kyc_status'           => 'verified',
+                        'pending_subaccount_id'=> null,
+                    ]);
 
-                $ownerEmail = (string)($user['email'] ?? '');
-                $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
-                if ($ownerEmail !== '') {
-                    Emails::sendXenditOnboardingInvite(
-                        $ownerEmail,
-                        $ownerFullName,
-                        $name,
-                        $payoutChannel,
-                        (string)$payoutAccountNumber,
-                        (string)$payoutAccountName,
-                        true
+                    $ownerId = (int)($gym['owner_user_id'] ?? 0);
+                    if ($ownerId > 0) {
+                        notify_user(
+                            $ownerId,
+                            'system',
+                            'Xendit Online Payments Activated',
+                            "Platform Administrator verified your Xendit KYC! Online payments gateway ({$approvedSubId}) is now active for '{$name}'."
+                        );
+                    }
+
+                    flash("Xendit sub-account '{$approvedSubId}' approved and gateway activated for '{$name}'!", 'success');
+                }
+                $redirectTab = 'payout';
+            } elseif ($isPlatformAdmin && isset($_POST['reject_xendit_kyc'])) {
+                save_gym_payout_account((int)$gym['gym_id'], [
+                    'kyc_status'           => 'rejected',
+                ]);
+
+                $ownerId = (int)($gym['owner_user_id'] ?? 0);
+                if ($ownerId > 0) {
+                    notify_user(
+                        $ownerId,
+                        'system',
+                        'Xendit KYC Review Update',
+                        "Platform Administrator reviewed your Xendit KYC submission for '{$name}' and requested changes. Please check your sub-account details."
                     );
                 }
 
-                flash("Payout destination saved! An activation email has been sent to {$ownerEmail} with verification instructions.", 'success');
+                flash("Xendit KYC submission rejected. The gym owner has been notified.", 'warning');
+                $redirectTab = 'payout';
+            } elseif (isset($_POST['submit_xendit_kyc'])) {
+                $kycEmail = trim((string) post('xendit_kyc_email'));
+                $subAccountId = trim((string) post('xendit_subaccount_id_submission'));
+
+                if (empty($kycEmail) || !filter_var($kycEmail, FILTER_VALIDATE_EMAIL)) {
+                    flash('Please provide a valid registered Xendit account email address.', 'danger');
+                } elseif (empty($subAccountId)) {
+                    flash('Please provide your Xendit Sub-Account ID.', 'danger');
+                } else {
+                    if ($isPlatformAdmin) {
+                        // When Platform Admin submits, directly verify and activate online payment routing
+                        save_gym_payout_account((int)$gym['gym_id'], [
+                            'xendit_subaccount_id' => $subAccountId,
+                            'payout_channel'       => $payoutChannel,
+                            'payout_account_number'=> $payoutAccountNumber,
+                            'payout_account_name'  => $payoutAccountName,
+                            'kyc_status'           => 'verified',
+                            'kyc_email'            => $kycEmail,
+                            'pending_subaccount_id'=> null,
+                        ]);
+
+                        $ownerId = (int)($gym['owner_user_id'] ?? 0);
+                        if ($ownerId > 0) {
+                            notify_user(
+                                $ownerId,
+                                'system',
+                                'Xendit Online Payments Activated',
+                                "Platform Administrator verified and linked your Xendit sub-account ({$subAccountId})! Online payments are now active for '{$name}'."
+                            );
+                        }
+
+                        flash("Xendit sub-account '{$subAccountId}' verified and activated by Platform Administrator for '{$name}'!", 'success');
+                    } else {
+                        // Gym Owner submission — saved as pending admin review
+                        save_gym_payout_account((int)$gym['gym_id'], [
+                            'payout_channel'       => $payoutChannel,
+                            'payout_account_number'=> $payoutAccountNumber,
+                            'payout_account_name'  => $payoutAccountName,
+                            'kyc_status'           => 'pending',
+                            'kyc_email'            => $kycEmail,
+                            'pending_subaccount_id'=> $subAccountId,
+                        ]);
+
+                        $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
+                        notify_admins(
+                            'system',
+                            'Xendit KYC Completed: Sub-Account Submitted',
+                            "Gym '{$name}' (Owner: {$ownerFullName}) submitted Xendit KYC. Registered Email: {$kycEmail}. Sub-Account ID: {$subAccountId}. Please review and approve gateway activation.",
+                            (int)$gym['gym_id']
+                        );
+
+                        flash("Xendit KYC & Sub-Account details submitted! Platform administrators have been notified to review and verify your account.", 'success');
+                    }
+                }
+                $redirectTab = 'payout';
+            } elseif (isset($_POST['request_xendit_activation'])) {
+                if ($isPlatformAdmin) {
+                    $ownerEmail = (string)scalar('SELECT email FROM users WHERE user_id = ?', [(int)($gym['owner_user_id'] ?? 0)]) ?: (string)($user['email'] ?? '');
+                    $ownerFullName = trim((string)scalar("SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE user_id = ?", [(int)($gym['owner_user_id'] ?? 0)])) ?: 'Gym Owner';
+                    if ($ownerEmail !== '') {
+                        Emails::sendXenditOnboardingInvite(
+                            $ownerEmail,
+                            $ownerFullName,
+                            $name,
+                            $payoutChannel,
+                            (string)$payoutAccountNumber,
+                            (string)$payoutAccountName,
+                            true
+                        );
+                    }
+                    flash("Onboarding invitation email sent to facility owner ({$ownerEmail}) with verification instructions.", 'success');
+                } else {
+                    notify_admins(
+                        'system',
+                        'Online Payment Activation Requested',
+                        "Gym '{$name}' requested Xendit online payment gateway activation for {$payoutChannel} ({$payoutAccountNumber})."
+                    );
+
+                    $ownerEmail = (string)($user['email'] ?? '');
+                    $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
+                    if ($ownerEmail !== '') {
+                        Emails::sendXenditOnboardingInvite(
+                            $ownerEmail,
+                            $ownerFullName,
+                            $name,
+                            $payoutChannel,
+                            (string)$payoutAccountNumber,
+                            (string)$payoutAccountName,
+                            true
+                        );
+                    }
+
+                    flash("Payout destination saved! An activation email has been sent to {$ownerEmail} with verification instructions.", 'success');
+                }
+                $redirectTab = 'payout';
             } else {
                 flash('Gym settings updated successfully.', 'success');
+                $postedTab = trim((string) post('active_tab'));
+                $validTabs = ['general', 'branding', 'documents', 'payout', 'reminders', 'gallery', 'ratings', 'all'];
+                $redirectTab = in_array($postedTab, $validTabs, true) ? $postedTab : (trim((string) get('tab')) ?: 'general');
+                if (!in_array($redirectTab, $validTabs, true)) {
+                    $redirectTab = 'general';
+                }
             }
-            redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id'] . '&tab=payout#sec-payout') : 'gym_profile?tab=payout#sec-payout');
+            redirect($isPlatformAdmin ? ('gym_profile?gym_id=' . (int)$gym['gym_id'] . '&tab=' . urlencode($redirectTab) . '#sec-' . urlencode($redirectTab)) : ('gym_profile?tab=' . urlencode($redirectTab) . '#sec-' . urlencode($redirectTab)));
         } else {
             flash('Facility name and physical address are required.', 'danger');
         }
@@ -441,6 +604,7 @@ function gym_profile_page(): void
         <form method="post" enctype="multipart/form-data" id="gym-profile-form" onsubmit="return handleFormSubmit(this, event)">
             <?= csrf_field() ?>
             <input type="hidden" name="gym_id" value="<?= (int)$gym['gym_id'] ?>">
+            <input type="hidden" name="active_tab" id="active_tab_input" value="<?= h($_GET['tab'] ?? 'general') ?>">
 
             <div class="gym-settings-layout">
                 <!-- Sidebar Navigation Tabs -->
@@ -603,7 +767,7 @@ function gym_profile_page(): void
                                     </div>
                                     <button type="button" class="btn-detect-loc-trigger" id="btn-address-use-loc" title="Fill physical address and map pin from current device location">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                                        <span class="btn-loc-text">Use My Current Location</span>
+                                        <span class="btn-loc-text">Autofill Address &amp; Pin</span>
                                     </button>
                                 </div>
                                 <span class="field-hint">Street address, building number, and city.</span>
@@ -621,9 +785,9 @@ function gym_profile_page(): void
                                         </span>
                                     </div>
                                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                        <button type="button" class="btn btn-secondary" id="btn-detect-owner-loc" style="padding: 6px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px;" title="Autodetect GPS position from this device">
+                                        <button type="button" class="btn btn-secondary" id="btn-detect-owner-loc" style="padding: 6px 14px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 8px;" title="Autodetect GPS position from this device and place pin on map">
                                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
-                                            <span id="btn-detect-loc-text">Use My Current Location</span>
+                                            <span id="btn-detect-loc-text">Locate on Map</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1105,13 +1269,18 @@ function gym_profile_page(): void
                         <div class="profile-card-header">
                             <div>
                                 <h3 class="profile-card-title" style="margin-bottom: 2px;">Online Payments &amp; Settlement Payouts</h3>
-                                <p class="profile-card-desc">Receive online payments (GCash, Maya, cards, bank) from members directly into your designated settlement account through Xendit XenPlatform.</p>
+                                <p class="profile-card-desc"><?= $isPlatformAdmin ? 'Configure payout disbursement rails and manage Xendit XenPlatform sub-accounts for this facility.' : 'Receive online payments (GCash, Maya, cards, bank) from members directly into your designated settlement account through Xendit XenPlatform.' ?></p>
                             </div>
                             <div>
-                                <?php if (!empty($gym['xendit_subaccount_id'])): ?>
+                                <?php if (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(132, 204, 22, 0.15); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.35);">
                                         <span style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e;"></span>
                                         Gateway Active (<?= h($gym['xendit_subaccount_id']) ?>)
+                                    </span>
+                                <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
+                                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">
+                                        <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;"></span>
+                                        <?= $isPlatformAdmin ? 'Owner KYC Submitted – Review Required' : 'KYC Submitted – Pending Admin Verification' ?>
                                     </span>
                                 <?php elseif (!empty($gym['payout_account_number'])): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">
@@ -1134,20 +1303,35 @@ function gym_profile_page(): void
                                 Automated Split Payments with Xendit XenPlatform
                             </div>
                             <p style="font-size: 12px; line-height: 1.5; color: var(--muted); margin: 0 0 10px 0;">
-                                FitTrack connects your gym to Xendit XenPlatform so member membership fees and pass purchases are automatically disbursed directly to your GCash or Bank account. Your platform admin does not hold your funds.
+                                <?= $isPlatformAdmin
+                                    ? 'FitTrack connects this facility to Xendit XenPlatform so collected dues and pass purchases disburse directly to the gym\'s settlement account. As Platform Administrator, you review owner KYC submissions and activate sub-account routing.'
+                                    : 'FitTrack connects your gym to Xendit XenPlatform so member membership fees and pass purchases are automatically disbursed directly to your GCash or Bank account. Your platform admin does not hold your funds.'
+                                ?>
                             </p>
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12px;">
                                 <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
                                     <strong style="color: var(--ink); display: block; margin-bottom: 3px;">1. Enter Payout Details</strong>
-                                    Provide your verified GCash or Bank account number and full name below.
+                                    <?= $isPlatformAdmin ? 'Verified GCash or Bank account details registered for facility settlements.' : 'Provide your verified GCash or Bank account number and full name below.' ?>
                                 </div>
-                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
-                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">2. Xendit Verification</strong>
-                                    Click &quot;Request Activation&quot;. An onboarding invitation link will be sent to your email to verify your ID and bank ownership.
+                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between;">
+                                    <div>
+                                        <strong style="color: var(--ink); display: block; margin-bottom: 3px;">2. Xendit Verification</strong>
+                                        <?= $isPlatformAdmin
+                                            ? 'Facility owner completes identity verification on Xendit. Review pending submissions or provision the verified sub-account.'
+                                            : 'Click &quot;Request Activation&quot;. Once KYC is verified on Xendit, click below to submit your sub-account.'
+                                        ?>
+                                    </div>
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="openCustomModal('modal-xendit-kyc')" style="margin-top: 8px; font-size: 11px; padding: 4px 8px; align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; border-color: rgba(132, 204, 22, 0.4);">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                        <?= $isPlatformAdmin ? (!empty($gym['pending_subaccount_id']) ? 'Review Submitted KYC' : 'Manage Sub-Account') : 'Submit Completed KYC' ?>
+                                    </button>
                                 </div>
                                 <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
                                     <strong style="color: var(--ink); display: block; margin-bottom: 3px;">3. Instant Online Sales</strong>
-                                    Once verified, your sub-account ID is linked and members can instantly purchase passes online!
+                                    <?= $isPlatformAdmin
+                                        ? 'Once verified by you, the sub-account is active and members can purchase passes online with split disbursement.'
+                                        : 'Once verified, your sub-account ID is linked and members can instantly purchase passes online!'
+                                    ?>
                                 </div>
                             </div>
                         </div>
@@ -1168,13 +1352,47 @@ function gym_profile_page(): void
                                 <span class="field-hint">Preferred disbursement rail for collected member payments.</span>
                             </div>
 
+                            <?php
+                            $rawPayoutNumber = (string)($gym['payout_account_number'] ?? '');
+                            $maskedPayoutNumber = mask_payout_number($rawPayoutNumber);
+                            $rawPayoutName = (string)($gym['payout_account_name'] ?? '');
+                            $maskedPayoutName = mask_payout_name($rawPayoutName);
+                            ?>
+
                             <div>
                                 <label class="field-label" for="payout_account_number">Payout Account / Mobile Number</label>
                                 <div class="input-icon-wrap">
                                     <span class="input-icon">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                                     </span>
-                                    <input type="tel" inputmode="numeric" maxlength="18" name="payout_account_number" id="payout_account_number" class="input-with-icon" value="<?= h($gym['payout_account_number'] ?? '') ?>" placeholder="09171234567" oninput="const chan = document.getElementById('payout_channel')?.value || 'gcash'; const maxLen = chan === 'bank_transfer' ? 18 : 11; this.value = this.value.replace(/\D/g, '').slice(0, maxLen);">
+                                    <input type="text"
+                                           inputmode="numeric"
+                                           maxlength="18"
+                                           name="payout_account_number"
+                                           id="payout_account_number"
+                                           class="input-with-icon has-toggle"
+                                           value="<?= h(!empty($maskedPayoutNumber) ? $maskedPayoutNumber : $rawPayoutNumber) ?>"
+                                           data-raw="<?= h($rawPayoutNumber) ?>"
+                                           data-masked="<?= h($maskedPayoutNumber) ?>"
+                                           data-is-masked="<?= !empty($maskedPayoutNumber) ? '1' : '0' ?>"
+                                           placeholder="09171234567"
+                                           autocomplete="off"
+                                           spellcheck="false"
+                                           data-lpignore="true">
+                                    <button type="button"
+                                            class="field-eye-toggle"
+                                            onclick="togglePayoutFieldMask('payout_account_number', this)"
+                                            aria-label="Toggle Account Number visibility"
+                                            title="Show / Hide">
+                                        <svg class="eye-show" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="<?= !empty($maskedPayoutNumber) ? 'display:inline-block;' : 'display:none;' ?>">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                        <svg class="eye-hide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="<?= !empty($maskedPayoutNumber) ? 'display:none;' : 'display:inline-block;' ?>">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                                 <span class="field-hint">Your 11-digit GCash mobile number or bank account number.</span>
                             </div>
@@ -1185,7 +1403,32 @@ function gym_profile_page(): void
                                     <span class="input-icon">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                     </span>
-                                    <input type="text" name="payout_account_name" id="payout_account_name" class="input-with-icon" value="<?= h($gym['payout_account_name'] ?? '') ?>" placeholder="e.g. Juan Dela Cruz">
+                                    <input type="text"
+                                           name="payout_account_name"
+                                           id="payout_account_name"
+                                           class="input-with-icon has-toggle"
+                                           value="<?= h(!empty($maskedPayoutName) ? $maskedPayoutName : $rawPayoutName) ?>"
+                                           data-raw="<?= h($rawPayoutName) ?>"
+                                           data-masked="<?= h($maskedPayoutName) ?>"
+                                           data-is-masked="<?= !empty($maskedPayoutName) ? '1' : '0' ?>"
+                                           placeholder="e.g. Juan Dela Cruz"
+                                           autocomplete="off"
+                                           spellcheck="false"
+                                           data-lpignore="true">
+                                    <button type="button"
+                                            class="field-eye-toggle"
+                                            onclick="togglePayoutFieldMask('payout_account_name', this)"
+                                            aria-label="Toggle Account Name visibility"
+                                            title="Show / Hide">
+                                        <svg class="eye-show" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="<?= !empty($maskedPayoutName) ? 'display:inline-block;' : 'display:none;' ?>">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                        <svg class="eye-hide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="<?= !empty($maskedPayoutName) ? 'display:none;' : 'display:inline-block;' ?>">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                                 <span class="field-hint">Exact account name as registered on GCash or Bank account.</span>
                             </div>
@@ -1201,7 +1444,32 @@ function gym_profile_page(): void
                                     </div>
                                     <span class="field-hint">Xendit XenPlatform account ID created for this facility. When populated, online checkout is activated.</span>
                                 </div>
-                            <?php elseif (!empty($gym['xendit_subaccount_id'])): ?>
+
+                                <?php if (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
+                                    <div style="grid-column: 1 / -1; margin-top: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                        <div>
+                                            <strong style="color: #f59e0b; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                                Owner Submitted KYC For Review
+                                            </strong>
+                                            <p style="font-size: 12px; color: var(--ink); margin: 4px 0 0;">
+                                                Sub-Account: <code style="font-weight: 700; color: var(--ink);"><?= h($gym['pending_subaccount_id']) ?></code> &bull; Registered Email: <span style="font-weight: 600;"><?= h($gym['kyc_email'] ?? 'Not provided') ?></span>
+                                            </p>
+                                        </div>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input type="hidden" name="approved_subaccount_id" value="<?= h($gym['pending_subaccount_id']) ?>">
+                                            <button type="submit" name="approve_xendit_kyc" value="1" class="btn btn-lime btn-sm" style="display: inline-flex; align-items: center; gap: 5px;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                                Approve &amp; Activate Gateway
+                                            </button>
+                                            <button type="submit" name="reject_xendit_kyc" value="1" class="btn btn-secondary btn-sm" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">
+                                                Reject
+                                            </button>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+
+                            <?php elseif (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
                                 <div>
                                     <label class="field-label">Linked Xendit Sub-Account</label>
                                     <div class="input-icon-wrap">
@@ -1212,23 +1480,55 @@ function gym_profile_page(): void
                                     </div>
                                     <span class="field-hint" style="color: var(--lime);">Verified and ready to receive member online payments.</span>
                                 </div>
+
+                            <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
+                                <div>
+                                    <label class="field-label">Submitted Sub-Account ID (Awaiting Admin Review)</label>
+                                    <div class="input-icon-wrap">
+                                        <span class="input-icon">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                        </span>
+                                        <input type="text" class="input-with-icon" value="<?= h($gym['pending_subaccount_id']) ?>" readonly style="opacity: 0.9; cursor: not-allowed; background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.35); color: var(--ink);">
+                                    </div>
+                                    <span class="field-hint" style="color: #f59e0b;">
+                                        ⏳ Submitted for verification (Email: <?= h($gym['kyc_email'] ?? '') ?>). Platform administrators have been notified and must verify your account before online payments become active.
+                                    </span>
+                                </div>
                             <?php endif; ?>
                         </div>
 
                         <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, rgba(255,255,255,0.08)); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
                             <div style="font-size: 12px; color: var(--muted);">
-                                <?php if (!empty($gym['xendit_subaccount_id'])): ?>
-                                    🟢 Online payments are actively routed to your sub-account.
+                                <?php if (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
+                                    <?= $isPlatformAdmin
+                                        ? '🟢 Online payments are actively routed to this facility\'s verified sub-account.'
+                                        : '🟢 Online payments are actively routed to your sub-account.'
+                                    ?>
+                                <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
+                                    <?= $isPlatformAdmin
+                                        ? '🟡 Facility owner submitted KYC details. Review the pending sub-account above and approve or reject.'
+                                        : '🟡 Your Xendit KYC details were submitted and are awaiting platform admin verification.'
+                                    ?>
                                 <?php else: ?>
-                                    Need help setting up? Save your account info and click &quot;Request Activation&quot;.
+                                    <?= $isPlatformAdmin
+                                        ? 'Assign a verified Xendit XenPlatform sub-account ID to enable member online checkout.'
+                                        : 'Completed Xendit KYC? Click &quot;Submit Completed KYC&quot; to notify platform admins.'
+                                    ?>
                                 <?php endif; ?>
                             </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button type="submit" class="btn btn-secondary btn-sm">Save Payout Details</button>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <button type="submit" class="btn btn-secondary btn-sm"><?= $isPlatformAdmin ? 'Save Payout Settings' : 'Save Payout Details' ?></button>
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="openCustomModal('modal-xendit-kyc')" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(132, 204, 22, 0.4); color: var(--ink);">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                    <?= $isPlatformAdmin
+                                        ? ((($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])) ? 'Review / Edit Submitted KYC' : 'Provision / Edit Sub-Account')
+                                        : (!empty($gym['xendit_subaccount_id']) ? 'Update KYC / Sub-Account' : 'Submit Completed KYC')
+                                    ?>
+                                </button>
                                 <?php if (empty($gym['xendit_subaccount_id'])): ?>
                                     <button type="submit" name="request_xendit_activation" value="1" class="btn btn-lime btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                                        Save &amp; Request Xendit Activation
+                                        <?= $isPlatformAdmin ? 'Send Onboarding Invite to Owner' : 'Save &amp; Request Xendit Activation' ?>
                                     </button>
                                 <?php endif; ?>
                             </div>
@@ -1695,7 +1995,7 @@ function gym_profile_page(): void
                     <button type="button" class="btn btn-secondary" onclick="closeCustomModal('modal-documents')">
                         Cancel
                     </button>
-                    <button type="button" class="btn btn-primary" onclick="submitProfileForm()">
+                    <button type="button" class="btn btn-primary" id="doc-modal-save-btn" onclick="submitProfileForm('documents')">
                         Save Documents
                     </button>
                 </div>
@@ -1762,8 +2062,83 @@ function gym_profile_page(): void
                     <button type="button" class="btn btn-secondary" onclick="closeCustomModal('modal-gallery')">
                         Close
                     </button>
-                    <button type="button" class="btn btn-primary" id="gallery-modal-save-btn" onclick="submitProfileForm()">
+                    <button type="button" class="btn btn-primary" id="gallery-modal-save-btn" onclick="submitProfileForm('gallery')">
                         Upload Selected Photos
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- MODAL 3: SUBMIT XENDIT KYC & SUB-ACCOUNT DETAILS         -->
+        <!-- ======================================================== -->
+        <div class="custom-modal-backdrop" id="modal-xendit-kyc" onclick="handleBackdropClick(event, 'modal-xendit-kyc')">
+            <div class="custom-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-xendit-kyc-title" style="max-width: 520px;">
+                <div class="custom-modal-header">
+                    <div>
+                        <h3 class="custom-modal-title" id="modal-xendit-kyc-title"><?= $isPlatformAdmin ? 'Manage Facility Xendit Sub-Account' : 'Submit Completed Xendit KYC' ?></h3>
+                        <p class="custom-modal-subtitle"><?= $isPlatformAdmin ? 'Review, assign, or verify the Xendit XenPlatform sub-account for this facility.' : 'Submit your verified Xendit account details for gateway activation.' ?></p>
+                    </div>
+                    <button type="button" class="custom-modal-close" onclick="closeCustomModal('modal-xendit-kyc')" aria-label="Close modal">&times;</button>
+                </div>
+                <div class="custom-modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+                    <?php if ($isPlatformAdmin): ?>
+                        <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.5; color: var(--ink);">
+                            <strong style="color: #3b82f6; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                Platform Administrator Provisioning
+                            </strong>
+                            Assign or update the verified Xendit XenPlatform sub-account ID for this facility. Saving will immediately verify the account, activate online payment routing, and notify the gym owner.
+                        </div>
+                    <?php else: ?>
+                        <div style="background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.5; color: var(--ink);">
+                            <strong style="color: var(--lime, #84cc16); display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                KYC Verification Completed
+                            </strong>
+                            Enter the email address registered on your Xendit account and your generated Sub-Account ID. Platform administrators will receive an in-app notification to review and activate your online payment gateway.
+                        </div>
+                    <?php endif; ?>
+
+                    <div>
+                        <label class="field-label" for="xendit_kyc_email"><?= $isPlatformAdmin ? 'Facility / Xendit Registered Email' : 'Registered Xendit Account Email' ?> <span style="color: #ef4444;">*</span></label>
+                        <div class="input-icon-wrap">
+                            <span class="input-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                            </span>
+                            <input type="email"
+                                   name="xendit_kyc_email"
+                                   id="xendit_kyc_email"
+                                   class="input-with-icon"
+                                   value="<?= h($gym['kyc_email'] ?? ($isPlatformAdmin ? '' : ($user['email'] ?? ''))) ?>"
+                                   placeholder="owner@yourgym.com">
+                        </div>
+                        <span class="field-hint"><?= $isPlatformAdmin ? 'Registered email address of the gym owner on Xendit.' : 'The email address you used to complete KYC on Xendit.' ?></span>
+                    </div>
+
+                    <div>
+                        <label class="field-label" for="xendit_subaccount_id_submission"><?= $isPlatformAdmin ? 'XenPlatform Sub-Account ID' : 'Xendit Sub-Account ID' ?> <span style="color: #ef4444;">*</span></label>
+                        <div class="input-icon-wrap">
+                            <span class="input-icon">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            </span>
+                            <input type="text"
+                                   name="xendit_subaccount_id_submission"
+                                   id="xendit_subaccount_id_submission"
+                                   class="input-with-icon"
+                                   value="<?= h($gym['pending_subaccount_id'] ?? $gym['xendit_subaccount_id'] ?? '') ?>"
+                                   placeholder="e.g. user_6492a5b6c...">
+                        </div>
+                        <span class="field-hint"><?= $isPlatformAdmin ? 'Unique XenPlatform sub-account ID generated for this facility.' : 'Your unique XenPlatform sub-account ID provided after KYC onboarding.' ?></span>
+                    </div>
+                </div>
+                <div class="custom-modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeCustomModal('modal-xendit-kyc')">
+                        Cancel
+                    </button>
+                    <button type="submit" name="submit_xendit_kyc" value="1" class="btn btn-lime" id="btn-submit-kyc-details" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <?= $isPlatformAdmin ? 'Save &amp; Activate Sub-Account' : 'Submit for Admin Verification' ?>
                     </button>
                 </div>
             </div>
@@ -1775,7 +2150,8 @@ function gym_profile_page(): void
     <!-- Gym Profile Configuration & Script -->
     <script>
     window.GYM_PROFILE_CONFIG = {
-        remainingSlots: <?= (int) ($remainingSlots ?? 10) ?>
+        remainingSlots: <?= (int) ($remainingSlots ?? 10) ?>,
+        isPlatformAdmin: <?= $isPlatformAdmin ? 'true' : 'false' ?>
     };
     </script>
     <script src="<?= h(asset_url('js/pages/gym_profile.js')) ?>"></script>
@@ -1876,17 +2252,54 @@ function gym_profile_page(): void
             return null;
         }
 
-        function triggerLocationAndAddressDetection(triggerBtn) {
+        function detectMapLocationOnly(btn) {
             if (!navigator.geolocation) {
                 alert('Geolocation is not supported by your browser.');
                 return;
             }
 
-            const allLocBtns = document.querySelectorAll('.btn-detect-loc-trigger, #btn-detect-owner-loc');
-            allLocBtns.forEach(b => {
-                const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
-                txt.textContent = 'Detecting GPS & Address...';
-            });
+            const txt = btn.querySelector('#btn-detect-loc-text') || btn;
+            const originalText = txt.textContent;
+            btn.disabled = true;
+            txt.textContent = 'Detecting GPS...';
+
+            navigator.geolocation.getCurrentPosition(
+                function (pos) {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+
+                    // Only update map pin and coordinate inputs — do NOT touch or overwrite physical address text
+                    setPin(lat, lng, true);
+
+                    txt.textContent = '✓ Map Pin Set!';
+                    setTimeout(() => {
+                        txt.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                },
+                function (err) {
+                    txt.textContent = originalText;
+                    btn.disabled = false;
+                    let msg = 'Unable to retrieve device position: ' + err.message;
+                    if (err.code === 1) {
+                        msg = 'Location permission was denied in your browser. Please allow location access in your address bar.';
+                    }
+                    alert(msg);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        function detectAddressAndMap(btn) {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+
+            const txt = btn.querySelector('.btn-loc-text') || btn;
+            const originalText = txt.textContent;
+            btn.disabled = true;
+            txt.textContent = 'Detecting GPS & Address...';
 
             navigator.geolocation.getCurrentPosition(
                 async function (pos) {
@@ -1904,23 +2317,15 @@ function gym_profile_page(): void
                         setTimeout(() => { addressInput.style.borderColor = ''; }, 2000);
                     }
 
-                    allLocBtns.forEach(b => {
-                        const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
-                        txt.textContent = '✓ Location & Address Set!';
-                    });
-
+                    txt.textContent = '✓ Address & Pin Set!';
                     setTimeout(() => {
-                        allLocBtns.forEach(b => {
-                            const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
-                            txt.textContent = 'Use My Current Location';
-                        });
+                        txt.textContent = originalText;
+                        btn.disabled = false;
                     }, 2500);
                 },
                 function (err) {
-                    allLocBtns.forEach(b => {
-                        const txt = b.querySelector('.btn-loc-text') || b.querySelector('#btn-detect-loc-text') || b;
-                        txt.textContent = 'Use My Current Location';
-                    });
+                    txt.textContent = originalText;
+                    btn.disabled = false;
                     let msg = 'Unable to retrieve device position: ' + err.message;
                     if (err.code === 1) {
                         msg = 'Location permission was denied in your browser. Please allow location access in your address bar.';
@@ -1933,13 +2338,13 @@ function gym_profile_page(): void
 
         if (btnDetect) {
             btnDetect.addEventListener('click', function () {
-                triggerLocationAndAddressDetection(this);
+                detectMapLocationOnly(this);
             });
         }
 
         if (btnAddressLoc) {
             btnAddressLoc.addEventListener('click', function () {
-                triggerLocationAndAddressDetection(this);
+                detectAddressAndMap(this);
             });
         }
 

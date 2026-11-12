@@ -139,12 +139,17 @@ function gyms_page(): void
             }
             $payoutName = trim((string) post('payout_account_name')) ?: null;
 
-            save_gym_payout_account($gymId, [
-                'xendit_subaccount_id' => $xenditSubaccountId,
-                'payout_channel' => $payoutChannel,
+            $payoutData = [
+                'xendit_subaccount_id'  => $xenditSubaccountId,
+                'payout_channel'        => $payoutChannel,
                 'payout_account_number' => $payoutNumber,
-                'payout_account_name' => $payoutName,
-            ]);
+                'payout_account_name'   => $payoutName,
+            ];
+            if (!empty($xenditSubaccountId)) {
+                $payoutData['kyc_status'] = 'verified';
+                $payoutData['pending_subaccount_id'] = null;
+            }
+            save_gym_payout_account($gymId, $payoutData);
 
             $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
             $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
@@ -1557,6 +1562,9 @@ function gyms_page(): void
                                                     data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
                                                     data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
                                                     data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
+                                                    data-pending-subaccount="<?= h((string)($gym['pending_subaccount_id'] ?? '')) ?>"
+                                                    data-kyc-email="<?= h((string)($gym['kyc_email'] ?? '')) ?>"
+                                                    data-kyc-status="<?= h((string)($gym['kyc_status'] ?? 'none')) ?>"
                                                     onclick="closeAllActionDropdowns(); handleEditPayoutClick(this)">
                                                 <span class="action-item-icon">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -1796,6 +1804,9 @@ function gyms_page(): void
                                 data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
                                 data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
                                 data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
+                                data-pending-subaccount="<?= h((string)($gym['pending_subaccount_id'] ?? '')) ?>"
+                                data-kyc-email="<?= h((string)($gym['kyc_email'] ?? '')) ?>"
+                                data-kyc-status="<?= h((string)($gym['kyc_status'] ?? 'none')) ?>"
                                 onclick="handleEditPayoutClick(this)">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
                             Payout
@@ -2069,16 +2080,34 @@ function gyms_page(): void
         const currentPayoutChannel = btn.getAttribute('data-payout-channel') || 'gcash';
         const currentPayoutNumber = btn.getAttribute('data-payout-number') || '';
         const currentPayoutName = btn.getAttribute('data-payout-name') || '';
-        openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName);
+        const pendingSub = btn.getAttribute('data-pending-subaccount') || '';
+        const kycEmail = btn.getAttribute('data-kyc-email') || '';
+        const kycStatus = btn.getAttribute('data-kyc-status') || 'none';
+        openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName, pendingSub, kycEmail, kycStatus);
     }
 
-    function openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName) {
+    function openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName, pendingSub, kycEmail, kycStatus) {
         currentPayoutChannel = currentPayoutChannel || 'gcash';
 
         const safeXenditAccount = String(currentXenditAccount || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         const safePayoutChannel = String(currentPayoutChannel || 'gcash').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         const safePayoutNumber = String(currentPayoutNumber || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         const safePayoutName = String(currentPayoutName || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const safePendingSub = String(pendingSub || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const safeKycEmail = String(kycEmail || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+        let kycBannerHtml = '';
+        if (safePendingSub) {
+            kycBannerHtml = `
+                <div style="padding: 10px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); font-size: 12px; color: var(--ink);">
+                    <strong style="color: #f59e0b; display: block; margin-bottom: 2px;">⏳ Owner Submitted KYC Details:</strong>
+                    Sub-Account: <strong>${safePendingSub}</strong> &bull; Email: <strong>${safeKycEmail}</strong><br>
+                    <button type="button" class="btn btn-lime btn-sm" style="margin-top: 6px; padding: 4px 10px; font-size: 11px;" onclick="document.getElementById('swal-xendit-account').value='${safePendingSub}'">
+                        Autofill &amp; Approve This Sub-Account
+                    </button>
+                </div>
+            `;
+        }
 
         Swal.fire({
             title: 'Payout Destination Settings',
@@ -2088,6 +2117,8 @@ function gyms_page(): void
                         <div style="font-size: 14px; font-weight: 700; color: var(--ink);">${gymName}</div>
                         <div style="font-size: 12px; color: var(--muted);">Owner: ${ownerName}</div>
                     </div>
+
+                    ${kycBannerHtml}
 
                     <div style="display: flex; gap: 10px;">
                         <label style="flex: 1; display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Channel

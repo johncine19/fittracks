@@ -29,6 +29,7 @@
             if (e.key === 'Escape') {
                 closeCustomModal('modal-documents');
                 closeCustomModal('modal-gallery');
+                closeCustomModal('modal-xendit-kyc');
             }
         });
 
@@ -166,11 +167,17 @@
                 localStorage.setItem('fittracks_gym_settings_tab', tabName);
             } catch (e) {}
 
+            const activeTabInput = document.getElementById('active_tab_input');
+            if (activeTabInput) {
+                activeTabInput.value = tabName;
+            }
+
             // Notify map and dynamic components of tab transition
             window.dispatchEvent(new CustomEvent('gym_profile_tab_changed', { detail: { tab: tabName } }));
         }
 
-        function submitProfileForm() {
+        function submitProfileForm(source) {
+            window._lastSubmitSource = source || '';
             const form = document.getElementById('gym-profile-form');
             if (form) form.requestSubmit();
         }
@@ -228,10 +235,112 @@
                 }
             }
 
-            const saveBtn = document.getElementById('save-btn');
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">⏳</span> Saving...';
+            const source = window._lastSubmitSource || '';
+            const isDocModalOpen = Boolean((document.getElementById('modal-documents') && document.getElementById('modal-documents').classList.contains('is-open')) || source === 'documents');
+            const isGalleryModalOpen = Boolean((document.getElementById('modal-gallery') && document.getElementById('modal-gallery').classList.contains('is-open')) || source === 'gallery');
+
+            // Restore unmasked raw values before submit so asterisks are never saved to database
+            ['payout_account_number', 'payout_account_name'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.dataset.isMasked === '1' && el.dataset.raw) {
+                    el.value = el.dataset.raw;
+                }
+            });
+
+            const spinnerSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 0.8s linear infinite; display:inline-block; vertical-align:middle; margin-right:6px;"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg>';
+
+            if (isDocModalOpen) {
+                const docSaveBtn = document.getElementById('doc-modal-save-btn');
+                if (docSaveBtn) {
+                    docSaveBtn.disabled = true;
+                    docSaveBtn.innerHTML = `${spinnerSvg} Saving Documents...`;
+                }
+                const docCancelBtn = document.querySelector('#modal-documents .btn-secondary');
+                if (docCancelBtn) docCancelBtn.disabled = true;
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Saving Documents…',
+                        text: 'Please wait while your compliance files are uploaded.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
+            } else if (isGalleryModalOpen) {
+                const gallerySaveBtn = document.getElementById('gallery-modal-save-btn');
+                if (gallerySaveBtn) {
+                    gallerySaveBtn.disabled = true;
+                    gallerySaveBtn.innerHTML = `${spinnerSvg} Uploading Photos...`;
+                }
+                const galleryCloseBtn = document.querySelector('#modal-gallery .btn-secondary');
+                if (galleryCloseBtn) galleryCloseBtn.disabled = true;
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Uploading Photos…',
+                        text: 'Please wait while your facility photos are being compressed and uploaded.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
+            } else if (isKycModalOpen) {
+                const isAdmin = Boolean(window.GYM_PROFILE_CONFIG?.isPlatformAdmin);
+                const kycBtn = document.getElementById('btn-submit-kyc-details');
+                if (kycBtn) {
+                    kycBtn.disabled = true;
+                    kycBtn.innerHTML = isAdmin ? `${spinnerSvg} Saving Sub-Account...` : `${spinnerSvg} Submitting KYC Details...`;
+                }
+                const kycCancelBtn = document.querySelector('#modal-xendit-kyc .btn-secondary');
+                if (kycCancelBtn) kycCancelBtn.disabled = true;
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: isAdmin ? 'Activating Sub-Account…' : 'Submitting KYC Verification…',
+                        text: isAdmin
+                            ? 'Please wait while the sub-account is verified and payment gateway is activated.'
+                            : 'Please wait while your sub-account details are submitted and administrators are notified.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
+            } else {
+                const saveBtn = document.getElementById('save-btn');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = `${spinnerSvg} Saving Changes...`;
+                }
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Saving Profile Changes…',
+                        text: 'Please wait a moment while your changes are saved.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
             }
             return true;
         }
@@ -565,4 +674,146 @@
                     if (typeof markDirty === 'function') markDirty();
                 });
             }
+
+            // Payout masked fields interactive behavior (09******123 and J*****l)
+            ['payout_account_number', 'payout_account_name'].forEach(id => {
+                const input = document.getElementById(id);
+                if (!input) return;
+                const btn = input.parentElement ? input.parentElement.querySelector('.field-eye-toggle') : null;
+
+                input.addEventListener('focus', function () {
+                    // Reveal real raw value on focus so the user can easily edit without typing into asterisks
+                    if (this.dataset.isMasked === '1') {
+                        this.value = this.dataset.raw || '';
+                        this.dataset.isMasked = '0';
+                        if (btn) {
+                            const eyeShow = btn.querySelector('.eye-show');
+                            const eyeHide = btn.querySelector('.eye-hide');
+                            if (eyeShow && eyeHide) {
+                                eyeShow.style.display = 'none';
+                                eyeHide.style.display = 'inline-block';
+                            }
+                        }
+                    }
+                });
+
+                input.addEventListener('input', function () {
+                    if (id === 'payout_account_number') {
+                        const chan = document.getElementById('payout_channel')?.value || 'gcash';
+                        const maxLen = chan === 'bank_transfer' ? 18 : 11;
+                        this.value = this.value.replace(/\D/g, '').slice(0, maxLen);
+                    }
+                    this.dataset.raw = this.value;
+                    this.dataset.masked = (id === 'payout_account_number')
+                        ? maskAccountNumber(this.value)
+                        : maskAccountName(this.value);
+                    this.dataset.isMasked = '0';
+                    if (typeof markDirty === 'function') markDirty();
+                });
+
+                input.addEventListener('blur', function () {
+                    // Re-mask on blur unless the user explicitly toggled eye to stay revealed
+                    if (!this.dataset.userRevealed && this.value.trim() !== '') {
+                        this.dataset.raw = this.value;
+                        this.dataset.masked = (id === 'payout_account_number')
+                            ? maskAccountNumber(this.value)
+                            : maskAccountName(this.value);
+                        this.value = this.dataset.masked;
+                        this.dataset.isMasked = '1';
+                        if (btn) {
+                            const eyeShow = btn.querySelector('.eye-show');
+                            const eyeHide = btn.querySelector('.eye-hide');
+                            if (eyeShow && eyeHide) {
+                                eyeShow.style.display = 'inline-block';
+                                eyeHide.style.display = 'none';
+                            }
+                        }
+                    }
+                });
+            });
+
+            // Validate Xendit KYC Modal submission
+            const kycSubmitBtn = document.getElementById('btn-submit-kyc-details');
+            if (kycSubmitBtn) {
+                kycSubmitBtn.addEventListener('click', function (e) {
+                    const emailInput = document.getElementById('xendit_kyc_email');
+                    const subInput = document.getElementById('xendit_subaccount_id_submission');
+                    const emailVal = emailInput ? emailInput.value.trim() : '';
+                    const subVal = subInput ? subInput.value.trim() : '';
+
+                    if (!emailVal || !emailVal.includes('@')) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert('Please enter a valid email address.');
+                        emailInput?.focus();
+                        return false;
+                    }
+                    if (!subVal) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert('Please enter the XenPlatform Sub-Account ID.');
+                        subInput?.focus();
+                        return false;
+                    }
+                });
+            }
         });
+
+        function maskAccountNumber(num) {
+            if (!num) return '';
+            const str = String(num).trim();
+            if (str.length <= 5) return str;
+            const first2 = str.slice(0, 2);
+            const last3 = str.slice(-3);
+            const middleLen = Math.max(1, str.length - 5);
+            return first2 + '*'.repeat(middleLen) + last3;
+        }
+
+        function maskAccountName(name) {
+            if (!name) return '';
+            const trimmed = String(name).trim();
+            if (trimmed.length <= 2) return trimmed;
+            const first = trimmed.charAt(0);
+            const last = trimmed.charAt(trimmed.length - 1);
+            const middleLen = Math.max(1, trimmed.length - 2);
+            return first + '*'.repeat(middleLen) + last;
+        }
+
+        function togglePayoutFieldMask(fieldId, btnEl) {
+            const input = document.getElementById(fieldId);
+            if (!input) return;
+
+            const isCurrentlyMasked = input.dataset.isMasked === '1';
+
+            if (isCurrentlyMasked) {
+                // User wants to reveal raw value
+                input.value = input.dataset.raw || '';
+                input.dataset.isMasked = '0';
+                input.dataset.userRevealed = '1';
+            } else {
+                // User wants to mask value
+                if (!input.value.includes('*')) {
+                    input.dataset.raw = input.value;
+                    input.dataset.masked = (fieldId === 'payout_account_number')
+                        ? maskAccountNumber(input.value)
+                        : maskAccountName(input.value);
+                }
+                input.value = input.dataset.masked || '';
+                input.dataset.isMasked = '1';
+                delete input.dataset.userRevealed;
+            }
+
+            if (btnEl) {
+                const eyeShow = btnEl.querySelector('.eye-show');
+                const eyeHide = btnEl.querySelector('.eye-hide');
+                if (eyeShow && eyeHide) {
+                    eyeShow.style.display = input.dataset.isMasked === '1' ? 'inline-block' : 'none';
+                    eyeHide.style.display = input.dataset.isMasked === '1' ? 'none' : 'inline-block';
+                }
+                btnEl.setAttribute('aria-label', input.dataset.isMasked === '1' ? 'Show' : 'Hide');
+                btnEl.setAttribute('title', input.dataset.isMasked === '1' ? 'Show' : 'Hide');
+            }
+        }
+        window.togglePayoutFieldMask = togglePayoutFieldMask;
+        window.maskAccountNumber = maskAccountNumber;
+        window.maskAccountName = maskAccountName;

@@ -300,10 +300,10 @@ function queue_email(string $toEmail, string $toName, string $subject, string $h
     ]);
 }
 
-function notify_admins(string $type, string $title, string $message): void
+function notify_admins(string $type, string $title, string $message, ?int $referenceId = null): void
 {
     foreach (query_all('SELECT user_id FROM users WHERE role IN ("platform_admin", "admin") AND status = "active"') as $user) {
-        notify_user((int) $user['user_id'], $type, $title, $message);
+        notify_user((int) $user['user_id'], $type, $title, $message, $referenceId);
     }
 }
 
