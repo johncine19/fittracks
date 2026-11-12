@@ -7,6 +7,7 @@ const FT_WB_CONFIG = window.WORKOUT_BUILDER_CONFIG || {};
 window.gymExercisesData = FT_WB_CONFIG.gymExercisesData || [];
 const csrfToken = FT_WB_CONFIG.csrfToken || (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
 const memberId = FT_WB_CONFIG.memberId || 0;
+const planId = FT_WB_CONFIG.planId || 0;
 const userGoal = FT_WB_CONFIG.primaryGoal || '';
 const rawPrimaryGoal = FT_WB_CONFIG.rawPrimaryGoal || '';
 const secondaryFocus = FT_WB_CONFIG.secondaryFocus || '';
@@ -1023,7 +1024,8 @@ const esc = window.escapeHtml || function(s) {
                     const targetDay = currentList.getAttribute('data-day');
                     
                     if (items.length > 0) {
-                        fetch('index.php?page=workout_builder&member_user_id=' + encodeURIComponent(memberId), {
+                        const targetUrl = 'index.php?page=workout_builder&member_user_id=' + encodeURIComponent(memberId) + (planId ? '&plan_id=' + encodeURIComponent(planId) : '');
+                        fetch(targetUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1031,13 +1033,20 @@ const esc = window.escapeHtml || function(s) {
                             },
                             body: JSON.stringify({
                                 action: 'reorder',
+                                csrf_token: csrfToken,
+                                plan_id: planId,
                                 day_of_week: targetDay,
                                 items: items
                             })
                         }).then(async (response) => {
-                            const result = await response.json().catch(() => ({ success: false }));
-                            if (!result.success) {
-                                await Swal.fire({ icon: 'error', text: result.message || 'Unable to move this workout.', background: 'var(--bg)', color: 'var(--ink)' });
+                            let result = null;
+                            try {
+                                result = await response.json();
+                            } catch (e) {
+                                result = { success: false, message: 'Server returned an invalid response.' };
+                            }
+                            if (!result || !result.success) {
+                                await Swal.fire({ icon: 'error', text: (result && result.message) || 'Unable to move this workout.', background: 'var(--bg)', color: 'var(--ink)' });
                                 window.location.reload();
                                 return;
                             }
@@ -1045,6 +1054,9 @@ const esc = window.escapeHtml || function(s) {
                                 // Reload to update empty states and metrics accurately
                                 window.location.reload();
                             }
+                        }).catch(async () => {
+                            await Swal.fire({ icon: 'error', text: 'Network error while reordering workout.', background: 'var(--bg)', color: 'var(--ink)' });
+                            window.location.reload();
                         });
                     }
                 }

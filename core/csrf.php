@@ -25,6 +25,13 @@ function verify_csrf(): void
     }
 
     $token = $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_SERVER['HTTP_X_XSRF_TOKEN'] ?? '';
+    if (empty($token) && isset($_SERVER['CONTENT_TYPE']) && stripos((string)$_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
+        $rawJson = file_get_contents('php://input');
+        $decodedJson = json_decode((string)$rawJson, true);
+        if (is_array($decodedJson) && !empty($decodedJson['csrf_token']) && is_string($decodedJson['csrf_token'])) {
+            $token = $decodedJson['csrf_token'];
+        }
+    }
     $valid = is_string($token) && $token !== '' && hash_equals($_SESSION['csrf_token'] ?? '', $token);
 
     if (!$valid) {

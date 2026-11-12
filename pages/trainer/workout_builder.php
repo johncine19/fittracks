@@ -231,7 +231,13 @@ function workout_builder_page(): void
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $action = post('action');
+        $jsonPayload = [];
+        $contentType = (string)($_SERVER['CONTENT_TYPE'] ?? '');
+        if (stripos($contentType, 'application/json') !== false) {
+            $rawInput = file_get_contents('php://input');
+            $jsonPayload = (array) json_decode((string)$rawInput, true);
+        }
+        $action = (string)(post('action') ?: ($jsonPayload['action'] ?? ($_GET['action'] ?? '')));
         
         // 0. Discard Draft
         if ($action === 'discard_draft') {
@@ -476,8 +482,8 @@ function workout_builder_page(): void
         
         // 9. API endpoint for drag & drop
         if ($action === 'reorder') {
-            header('Content-Type: application/json');
-            $orderData = json_decode(file_get_contents('php://input'), true);
+            header('Content-Type: application/json; charset=utf-8');
+            $orderData = !empty($jsonPayload) ? $jsonPayload : (array) json_decode((string)file_get_contents('php://input'), true);
             if (isset($orderData['items']) && is_array($orderData['items'])) {
                 $targetDay = (int) ($orderData['day_of_week'] ?? 0);
                 if ($targetDay < 1 || $targetDay > 7) {
@@ -491,13 +497,19 @@ function workout_builder_page(): void
                     echo json_encode(['success' => false, 'message' => "Member's committed training schedule is strictly limited to {$allowedNames}. You cannot move exercises to their rest days."]);
                     exit;
                 }
+
+                $activePlanId = $planId > 0 ? $planId : (int)($orderData['plan_id'] ?? 0);
+                if ($activePlanId <= 0) {
+                    $activePlanId = $ensurePlanId();
+                }
+
                 $pdo->beginTransaction();
                 try {
+                    $updateStmt = $pdo->prepare('UPDATE training_plan_exercises SET sequence_order = ?, day_of_week = ? WHERE plan_exercise_id = ? AND plan_id = ?');
                     foreach ($orderData['items'] as $index => $planExId) {
-                        $pdo->prepare('UPDATE training_plan_exercises SET sequence_order = ?, day_of_week = ? WHERE plan_exercise_id = ? AND plan_id = ?')
-                            ->execute([$index + 1, $targetDay, (int) $planExId, $planId]);
+                        $updateStmt->execute([$index + 1, $targetDay, (int) $planExId, $activePlanId]);
                     }
-                    if ($getScheduledDaysCount($pdo, $planId) > $prefDays) {
+                    if ($getScheduledDaysCount($pdo, $activePlanId) > $prefDays) {
                         $pdo->rollBack();
                         http_response_code(422);
                         echo json_encode(['success' => false, 'message' => "This member's plan is limited to {$prefDays} workout day(s) per week."]);
@@ -505,8 +517,13 @@ function workout_builder_page(): void
                     }
                     $pdo->commit();
                 } catch (Throwable $e) {
-                    if ($pdo->inTransaction()) $pdo->rollBack();
-                    throw $e;
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    error_log('Workout reorder error: ' . $e->getMessage());
+                    http_response_code(500);
+                    echo json_encode(['success' => false, 'message' => 'Failed to save reordered exercises: ' . $e->getMessage()]);
+                    exit;
                 }
             }
             echo json_encode(['success' => true]);
@@ -957,6 +974,7 @@ function workout_builder_page(): void
         gymExercisesData: <?= $exercisesJson ?>,
         csrfToken: <?= json_encode(csrf_token()) ?>,
         memberId: <?= (int)$memberId ?>,
+        planId: <?= (int)$planId ?>,
         primaryGoal: <?= json_encode($builderSelectedGoal) ?>,
         rawPrimaryGoal: <?= json_encode(ucwords(str_replace(['_', '-'], ' ', $rawMemberGoal))) ?>,
         secondaryFocus: <?= json_encode($profile['secondary_focus'] ?? '') ?>,

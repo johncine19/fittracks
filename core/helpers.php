@@ -113,6 +113,11 @@ function post(string $key, mixed $default = ''): mixed
     return $_POST[$key] ?? $default;
 }
 
+function get(string $key, mixed $default = ''): mixed
+{
+    return $_GET[$key] ?? $default;
+}
+
 function selected(string $a, ?string $b): string
 {
     return $a === $b ? 'selected' : '';
@@ -716,7 +721,7 @@ function audit_log(int $adminUserId, string $action, string $entityType, ?string
         // Non-fatal — audit logging should never break the main flow
     }
 }
-
+// GOAL MAPPING
 function map_detailed_goal_to_basic(string $detailedGoal): string
 {
     $clean = strtolower(trim(str_replace(['_', '-'], ' ', $detailedGoal)));
