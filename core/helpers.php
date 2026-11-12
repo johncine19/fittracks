@@ -719,34 +719,67 @@ function audit_log(int $adminUserId, string $action, string $entityType, ?string
 
 function map_detailed_goal_to_basic(string $detailedGoal): string
 {
+    $clean = strtolower(trim(str_replace(['_', '-'], ' ', $detailedGoal)));
+    if ($clean === '') {
+        return 'general_health';
+    }
+
     $map = [
-        'increasing_strength' => 'muscle_gain',
-        'building_muscle' => 'muscle_gain',
-        'losing_weight' => 'fat_loss',
-        'reducing_body_fat' => 'fat_loss',
-        'improving_endurance' => 'general_health',
-        'general_fitness' => 'general_health',
+        'increasing strength' => 'muscle_gain',
+        'building muscle' => 'muscle_gain',
+        'losing weight' => 'fat_loss',
+        'reducing body fat' => 'fat_loss',
+        'improving endurance' => 'general_health',
+        'general fitness' => 'general_health',
         'casual' => 'casual',
-        'casual_fitness' => 'casual',
-        'Casual Lifestyle / Flexible' => 'casual',
-        'Casual / Flexible Lifestyle' => 'casual',
-        'Active Health & Longevity' => 'general_health',
-        'Stress Relief & Functional Movement' => 'general_health',
-        'Building a visible six-pack' => 'fat_loss',
-        'Growing larger biceps and arms' => 'muscle_gain',
-        'Developing a wide chest' => 'muscle_gain',
-        'Sculpting a V-tapered back' => 'muscle_gain',
-        'Shaping the lower body' => 'muscle_gain',
-        'Increasing maximum strength' => 'muscle_gain',
-        'Boosting explosive power' => 'general_health',
-        'Enhancing physical endurance' => 'general_health',
-        'Improving body flexibility' => 'general_health',
-        'Losing excess body fat' => 'fat_loss',
-        'Gaining lean body mass' => 'muscle_gain',
-        'Reaching body recomposition' => 'maintenance'
+        'casual fitness' => 'casual',
+        'casual lifestyle flexible' => 'casual',
+        'casual flexible lifestyle' => 'casual',
+        'active health longevity' => 'general_health',
+        'active health & longevity' => 'general_health',
+        'stress relief functional movement' => 'general_health',
+        'stress relief & functional movement' => 'general_health',
+        'building a visible six pack' => 'fat_loss',
+        'growing larger biceps and arms' => 'muscle_gain',
+        'developing a wide chest' => 'muscle_gain',
+        'sculpting a v tapered back' => 'muscle_gain',
+        'shaping the lower body' => 'muscle_gain',
+        'increasing maximum strength' => 'muscle_gain',
+        'boosting explosive power' => 'general_health',
+        'enhancing physical endurance' => 'general_health',
+        'improving body flexibility' => 'general_health',
+        'losing excess body fat' => 'fat_loss',
+        'gaining lean body mass' => 'muscle_gain',
+        'reaching body recomposition' => 'maintenance'
     ];
     
-    return $map[$detailedGoal] ?? 'general_health';
+    if (isset($map[$clean])) {
+        return $map[$clean];
+    }
+
+    $cleanStripped = preg_replace('/[^a-z0-9 ]/', '', $clean);
+    if (isset($map[$cleanStripped])) {
+        return $map[$cleanStripped];
+    }
+
+    // Keyword fallback
+    if (str_contains($clean, 'muscle') || str_contains($clean, 'bicep') || str_contains($clean, 'arm') || str_contains($clean, 'chest') || str_contains($clean, 'back') || str_contains($clean, 'lean body') || str_contains($clean, 'lower body') || str_contains($clean, 'hypertrophy')) {
+        return 'muscle_gain';
+    }
+    if (str_contains($clean, 'strength') || str_contains($clean, 'power') || str_contains($clean, 'lift')) {
+        return 'muscle_gain';
+    }
+    if (str_contains($clean, 'fat') || str_contains($clean, 'weight') || str_contains($clean, 'lose') || str_contains($clean, 'six pack') || str_contains($clean, 'shred')) {
+        return 'fat_loss';
+    }
+    if (str_contains($clean, 'endurance') || str_contains($clean, 'stamina') || str_contains($clean, 'cardio') || str_contains($clean, 'running')) {
+        return 'general_health';
+    }
+    if (str_contains($clean, 'casual') || str_contains($clean, 'flexible') || str_contains($clean, 'lifestyle')) {
+        return 'casual';
+    }
+
+    return 'general_health';
 }
 
 function resolve_goal_category(string $goal): string

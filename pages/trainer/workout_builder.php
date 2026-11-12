@@ -940,12 +940,25 @@ function workout_builder_page(): void
     </div>
 
     <!-- Workout Builder Configuration & Script -->
+    <?php
+    $rawMemberGoal = (string)($profile['primary_goal'] ?? '');
+    $mappedBasicGoal = map_detailed_goal_to_basic($rawMemberGoal);
+    $builderSelectedGoal = match($mappedBasicGoal) {
+        'fat_loss' => 'weight_loss',
+        'muscle_gain' => (stripos($rawMemberGoal, 'strength') !== false ? 'strength' : 'muscle_gain'),
+        default => (stripos($rawMemberGoal, 'endurance') !== false || stripos($rawMemberGoal, 'stamina') !== false ? 'endurance' : $mappedBasicGoal)
+    };
+    if (!in_array($builderSelectedGoal, ['weight_loss', 'muscle_gain', 'strength', 'endurance', 'general_health'], true)) {
+        $builderSelectedGoal = 'general_health';
+    }
+    ?>
     <script>
     window.WORKOUT_BUILDER_CONFIG = {
         gymExercisesData: <?= $exercisesJson ?>,
         csrfToken: <?= json_encode(csrf_token()) ?>,
         memberId: <?= (int)$memberId ?>,
-        primaryGoal: <?= json_encode($profile['primary_goal'] ?? '') ?>,
+        primaryGoal: <?= json_encode($builderSelectedGoal) ?>,
+        rawPrimaryGoal: <?= json_encode(ucwords(str_replace(['_', '-'], ' ', $rawMemberGoal))) ?>,
         secondaryFocus: <?= json_encode($profile['secondary_focus'] ?? '') ?>,
         prefDays: <?= (int)$prefDays ?>,
         memberName: <?= json_encode($member['first_name'] ?? 'Member') ?>,

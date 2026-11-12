@@ -8,6 +8,7 @@ window.gymExercisesData = FT_WB_CONFIG.gymExercisesData || [];
 const csrfToken = FT_WB_CONFIG.csrfToken || (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
 const memberId = FT_WB_CONFIG.memberId || 0;
 const userGoal = FT_WB_CONFIG.primaryGoal || '';
+const rawPrimaryGoal = FT_WB_CONFIG.rawPrimaryGoal || '';
 const secondaryFocus = FT_WB_CONFIG.secondaryFocus || '';
 const prefDays = FT_WB_CONFIG.prefDays || 3;
 const memberName = FT_WB_CONFIG.memberName || 'Member';
@@ -114,8 +115,31 @@ const esc = window.escapeHtml || function(s) {
         });
     }
 
+    // Helper to resolve detailed goal string to dropdown option value
+    function resolveGoalOptionKey(g) {
+        if (!g) return 'general_health';
+        const s = String(g).toLowerCase().trim();
+        if (s === 'muscle_gain' || s === 'strength' || s === 'weight_loss' || s === 'endurance' || s === 'general_health') {
+            return s;
+        }
+        if (s.includes('bicep') || s.includes('arm') || s.includes('muscle') || s.includes('hypertrophy') || s.includes('chest') || s.includes('back') || s.includes('lean body') || s.includes('lower body')) {
+            return 'muscle_gain';
+        }
+        if (s.includes('strength') || s.includes('power') || s.includes('heavy') || s.includes('maximum strength')) {
+            return 'strength';
+        }
+        if (s.includes('fat') || s.includes('weight') || s.includes('lose') || s.includes('six pack') || s.includes('shred')) {
+            return 'weight_loss';
+        }
+        if (s.includes('endurance') || s.includes('stamina') || s.includes('cardio') || s.includes('running')) {
+            return 'endurance';
+        }
+        return 'general_health';
+    }
+
     // 2. Advanced Auto-Generate Modal
     function openAdvancedAutoGenerateModal() {
+        const activeGoalKey = resolveGoalOptionKey(userGoal);
         Swal.fire({
             title: 'Auto-Generate Training Routine',
             width: 'min(94vw, 560px)',
@@ -127,14 +151,19 @@ const esc = window.escapeHtml || function(s) {
                     <div>
                         <label style="display:block; color: var(--muted); font-size: 13px; margin-bottom: 4px;">Primary Goal</label>
                         <select id="swal-gen-goal" class="form-control" style="width: 100%;">
-                            <option value="weight_loss" ${userGoal === 'weight_loss' ? 'selected' : ''}>Fat Loss & Conditioning</option>
-                            <option value="muscle_gain" ${userGoal === 'muscle_gain' ? 'selected' : ''}>Muscle Hypertrophy (Mass)</option>
-                            <option value="strength" ${userGoal === 'strength' ? 'selected' : ''}>Max Strength & Power</option>
-                            <option value="endurance" ${userGoal === 'endurance' ? 'selected' : ''}>Stamina & Endurance</option>
-                            <option value="general_health" ${userGoal === 'general_health' ? 'selected' : ''}>General Health & Mobility</option>
+                            <option value="muscle_gain" ${activeGoalKey === 'muscle_gain' ? 'selected' : ''}>Muscle Hypertrophy (Mass)</option>
+                            <option value="strength" ${activeGoalKey === 'strength' ? 'selected' : ''}>Max Strength & Power</option>
+                            <option value="weight_loss" ${activeGoalKey === 'weight_loss' ? 'selected' : ''}>Fat Loss & Conditioning</option>
+                            <option value="endurance" ${activeGoalKey === 'endurance' ? 'selected' : ''}>Stamina & Endurance</option>
+                            <option value="general_health" ${activeGoalKey === 'general_health' ? 'selected' : ''}>General Health & Mobility</option>
                         </select>
-                        ${secondaryFocus ? `
+                        ${rawPrimaryGoal ? `
                         <div style="margin-top: 6px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px;">
+                            <span>Member's Profile Goal:</span>
+                            <strong style="color: var(--lime, #84cc16);">${esc(rawPrimaryGoal)}</strong>
+                        </div>` : ''}
+                        ${secondaryFocus ? `
+                        <div style="margin-top: 4px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px;">
                             <span>Secondary Focus:</span>
                             <strong style="color: var(--ink);">${esc(secondaryFocus)}</strong>
                         </div>` : ''}
