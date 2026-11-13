@@ -50,7 +50,7 @@ function get_platform_subscription_plans(): array
                     'Personal Trainers & Coaching (Unlimited)',
                     'Trainer Commission Tracking & Payouts',
                     'Workout Plans & Exercise Library',
-                    'Class Scheduling & Online Booking with Waitlists',
+                    'Class Scheduling & Online Booking',
                     'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)',
                     'Member Engagement Scoring & Inactivity Alerts',
                     'Advanced Analytics & Financial Growth Trends',
@@ -80,10 +80,13 @@ function get_platform_subscription_plans(): array
     $plans = [];
     $legacyBusinessBenefits = [
         'Multi-Branch Management & Centralized Dashboard',
+        'Multi-Branch Support',
         'Consolidated Cross-Branch Financial Reporting',
         'Full Compliance Security Audit Trail (IPs, Diffs)',
         'Custom App Brand Color & White-Label Theme',
         'Dedicated Account Manager & Priority Support',
+        'Dedicated Account Manager',
+        'Priority 24/7 Support',
     ];
     $businessBenefits = [
         'Unlimited Active Members',
@@ -450,6 +453,7 @@ function gym_has_feature(string $feature, array|int|null $gym = null): bool
         'scanner' => 'free',
         'attendance' => 'free',
         'walk_ins' => 'free',
+        'expenses' => 'free',
         'memberships' => 'free',
         'payments' => 'free',
         'basic_dashboard' => 'free',
@@ -590,11 +594,8 @@ function is_staff_financials_restricted(?array $user = null): bool
         return true;
     }
 
-    // Staff role permission levels (front_desk = masked when gym privacy mode is on, manager = full access)
+    // Staff financial visibility follows the gym's staff_hide_financials setting
     if (($user['role'] ?? '') === 'staff') {
-        if (($user['staff_role'] ?? 'front_desk') === 'manager') {
-            return false;
-        }
         $gym = get_user_gym($user);
         return !empty($gym['staff_hide_financials']);
     }

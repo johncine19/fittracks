@@ -293,7 +293,7 @@ function landing_page(): void
         'price_label' => '₱999',
         'desc' => 'Designed for growing commercial gyms with full coaching staff.',
         'popular' => true,
-        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking with Waitlists', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Inactivity Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
+        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Inactivity Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
     ];
     $businessPlan = $platformPlans['business'] ?? [
         'name' => 'Business',
@@ -2204,16 +2204,6 @@ function landing_page(): void
 
                     <div class="faq-item">
                         <button class="faq-question-btn" onclick="toggleFaq(this)">
-                            <span>Can I import existing member records from Excel/CSV?</span>
-                            <span class="faq-icon">+</span>
-                        </button>
-                        <div class="faq-answer">
-                            <p>Yes! Our onboarding engine includes a 1-click CSV importer. You can upload your existing member roster, active membership plans, and contact details in seconds during workspace setup.</p>
-                        </div>
-                    </div>
-
-                    <div class="faq-item">
-                        <button class="faq-question-btn" onclick="toggleFaq(this)">
                             <span>What makes FitTrack different from other gym management software?</span>
                             <span class="faq-icon">+</span>
                         </button>
@@ -2410,7 +2400,7 @@ function landing_page(): void
                 </div>
 
                 <div class="pricing-bottom-cue">
-                    <span>Need multi-branch licensing or a custom walkthrough?</span>
+                    <span>Need a custom walkthrough for your gym?</span>
                     <a href="javascript:void(0)" onclick="openDemoModal()" class="pricing-demo-link">
                         Request a Personalized Demo →
                     </a>
@@ -2665,8 +2655,8 @@ function landing_page(): void
                                 <tr>
                                     <td>Class Scheduling & Member Bookings</td>
                                     <td><span class="dist-pill muted">Basic Schedule</span></td>
-                                    <td class="col-popular"><span class="status-access">✓ Full Booking + Waitlists</span></td>
-                                    <td><span class="status-access">✓ Full Booking + Waitlists</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Full Online Booking</span></td>
+                                    <td><span class="status-access">✓ Full Online Booking</span></td>
                                 </tr>
 
                                 <!-- Category 5 -->

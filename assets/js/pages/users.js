@@ -367,12 +367,6 @@ if (FT_USERS_CONFIG.hasOldUser) {
                         </label>
                     </div>
 
-                    <div id="eu_staff_fields" class="eu-staff-fields" style="display: none;">
-                        <div class="eu-field eu-field-full">
-                            <span class="eu-label">Staff Permission Level</span>
-                            <div id="eu_staff_role_wrap"></div>
-                        </div>
-                    </div>
                 </form>
             `,
             didOpen: () => {
@@ -390,17 +384,12 @@ if (FT_USERS_CONFIG.hasOldUser) {
                     editRoleItems.push({ id: 'gym_owner', label: 'Gym Owner' });
                 }
                 if (!IS_ADMIN || u.role === 'staff') {
-                    editRoleItems.push({ id: 'staff', label: 'Front Desk / Staff' });
+                    editRoleItems.push({ id: 'staff', label: 'Staff' });
                 }
                 if (!IS_ADMIN || u.role === 'trainer') {
                     editRoleItems.push({ id: 'trainer', label: 'Trainer' });
                 }
                 editRoleItems.push({ id: 'member', label: 'Member' });
-
-                const editStaffRoleItems = [
-                    { id: 'front_desk', label: 'Front Desk / Cashier (Financials Masked)' },
-                    { id: 'manager', label: 'Operations Manager (Full Staff Access)' }
-                ];
 
                 if (typeof FitDropdown !== 'undefined') {
                     window.editUserRoleDropdown = new FitDropdown({
@@ -416,16 +405,6 @@ if (FT_USERS_CONFIG.hasOldUser) {
                             const val = (item && typeof item === 'object') ? item.id : item;
                             toggleEditTrainerFields(val);
                         }
-                    });
-
-                    window.editUserStaffRoleDropdown = new FitDropdown({
-                        container: '#eu_staff_role_wrap',
-                        name: 'staff_role',
-                        id: 'eu_staff_role',
-                        value: u.staff_role || 'front_desk',
-                        searchable: false,
-                        zIndex: 50,
-                        items: editStaffRoleItems
                     });
                 }
 
@@ -608,9 +587,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
             ? `<span style="color:var(--ink);">${escapeUserHtml(u.specialization)}</span>`
             : `<span class="muted">—</span>`;
         const rawUserJson = escapeUserHtml(JSON.stringify(u.raw_user));
-        const staffBadge = (u.role === 'staff')
-            ? `<span class="user-staff-role-text">${u.staff_role === 'manager' ? 'Operations Manager' : 'Front Desk'}</span>`
-            : '';
+        const staffBadge = '';
 
         let scoreHtml = '<span class="muted">—</span>';
         if (u.is_member) {
@@ -668,7 +645,6 @@ if (FT_USERS_CONFIG.hasOldUser) {
             <td>
                 <div class="user-role-wrap">
                     <span class="badge-role badge-role-${escapeUserHtml(u.role)}">${roleDisplayName}</span>
-                    ${u.role === 'staff' ? `<span class="badge-staff-subrole">${u.staff_role === 'manager' ? 'Operations Manager' : 'Front Desk'}</span>` : ''}
                 </div>
             </td>
             ${IS_ADMIN ? `<td class="user-gym-td">${associatedGymHtml}</td>` : ''}
@@ -786,7 +762,6 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 </div>
                 <div class="user-card-badges">
                     <span class="badge-role badge-role-${escapeUserHtml(u.role)}">${roleDisplayName}</span>
-                    ${u.role === 'staff' ? `<span class="badge-staff-subrole">${u.staff_role === 'manager' ? 'Manager' : 'Front Desk'}</span>` : ''}
                     <span class="user-status-pill is-${isDeleted ? 'inactive' : escapeUserHtml(u.status)}">
                         <span class="status-dot"></span>
                         ${isDeleted ? 'Deleted' : escapeUserHtml(u.status.charAt(0).toUpperCase() + u.status.slice(1))}
@@ -1424,7 +1399,7 @@ if (FT_USERS_CONFIG.hasOldUser) {
         );
     } else {
         roleItems.push(
-            { id: 'staff', label: 'Front Desk / Staff' },
+            { id: 'staff', label: 'Staff' },
             { id: 'trainer', label: 'Trainer' },
             { id: 'member', label: 'Member' }
         );
@@ -1444,20 +1419,6 @@ if (FT_USERS_CONFIG.hasOldUser) {
                 toggleTrainerFields((item && typeof item === 'object') ? item.id : item);
             }
         });
-        if (!IS_ADMIN && document.getElementById('staffRoleComboboxWrap')) {
-            window.createUserStaffRoleDropdown = new FitDropdown({
-                container: '#staffRoleComboboxWrap',
-                name: 'staff_role',
-                id: 'new_user_staff_role',
-                value: FT_USERS_CONFIG.oldUserStaffRole || 'front_desk',
-                searchable: false,
-                zIndex: 90,
-                items: [
-                    { id: 'front_desk', label: 'Front Desk / Cashier (Financials Masked)' },
-                    { id: 'manager', label: 'Operations Manager (Full Staff Access)' }
-                ]
-            });
-        }
         toggleTrainerFields(initialRole);
     }
 

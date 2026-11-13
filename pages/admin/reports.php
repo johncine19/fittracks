@@ -620,6 +620,32 @@ function reports_page(): void
     }
     $curMonthGross = $curMonthSub + $curMonthWalk;
 
+    $curMonthExpenses = 0.0;
+    try {
+        $hasExpensesTable = (bool)db()->query("SHOW TABLES LIKE 'gym_expenses'")->fetchColumn();
+        if ($hasExpensesTable) {
+            $expWhere = [];
+            $expParams = [];
+            if ($gymId) {
+                $expWhere[] = 'gym_id = ?';
+                $expParams[] = (int)$gymId;
+            }
+            if ($isCustomDateRange && $startDate && $endDate) {
+                $expWhere[] = 'expense_date >= ? AND expense_date <= ?';
+                $expParams[] = $startDate;
+                $expParams[] = $endDate;
+            } else {
+                $expWhere[] = 'DATE_FORMAT(expense_date, "%Y-%m") = ?';
+                $expParams[] = $curMonth;
+            }
+            $expWhereSql = $expWhere ? implode(' AND ', $expWhere) : '1=1';
+            $curMonthExpenses = (float)scalar("SELECT COALESCE(SUM(amount), 0) FROM gym_expenses WHERE {$expWhereSql}", $expParams);
+        }
+    } catch (Throwable) {
+        $curMonthExpenses = 0.0;
+    }
+    $curMonthNet = $curMonthGross - $curMonthExpenses;
+
     $prevMonthSub = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($subRevCondition) AS s WHERE s.month = ?", [$prevMonth]);
     $prevMonthWalk = (float) scalar("SELECT COALESCE(SUM(revenue), 0) FROM ($walkRevCondition) AS w WHERE w.month = ?", [$prevMonth]);
     $prevMonthGross = $prevMonthSub + $prevMonthWalk;
@@ -1547,6 +1573,31 @@ function reports_page(): void
                         <span>Enrolled members will calculate average yield</span>
                     <?php endif; ?>
                 </div>
+            </div>
+
+            <!-- 5. Net Profit (Revenue - Expenses) -->
+            <div class="kpi-card">
+                <div class="kpi-card-header">
+                    <span class="kpi-title"><?= $isCustomDateRange ? 'Net Profit (' . h($activeDateRangeLabel) . ')' : 'Net Profit (This Month)' ?></span>
+                    <?php if ($isStaffRestricted): ?>
+                        <span class="pill-badge red">🔒 Restricted</span>
+                    <?php elseif ($curMonthNet >= 0): ?>
+                        <span class="pill-badge green">After Expenses</span>
+                    <?php else: ?>
+                        <span class="pill-badge red">Deficit</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($isStaffRestricted): ?>
+                    <div class="kpi-value" style="color: var(--muted); letter-spacing: 2px;">••••••</div>
+                    <div class="kpi-sub"><span>Staff Privacy active</span></div>
+                <?php else: ?>
+                    <div class="kpi-value" style="color: <?= $curMonthNet >= 0 ? 'var(--lime)' : '#f87171' ?>;">
+                        <?= $curMonthNet < 0 ? '−₱' . number_format(abs($curMonthNet), 2) : '₱' . number_format($curMonthNet, 2) ?>
+                    </div>
+                    <div class="kpi-sub">
+                        <span>Gross ₱<?= number_format($curMonthGross, 0) ?> &minus; Expenses ₱<?= number_format($curMonthExpenses, 0) ?></span>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>

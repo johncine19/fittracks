@@ -42,7 +42,7 @@ function messages_page(): void
             'gym_owner'      => 'Gym Owner',
             'trainer'        => 'Trainer',
             'member'         => 'Member',
-            'staff'          => !empty($staffRole) ? 'Staff (' . ($staffRole === 'manager' ? 'Manager' : 'Front Desk') . ')' : 'Staff',
+            'staff'          => 'Staff',
             default          => ucwords(str_replace('_', ' ', (string)($userRole ?? 'User'))),
         };
     };

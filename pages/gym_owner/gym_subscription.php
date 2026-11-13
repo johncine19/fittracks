@@ -563,8 +563,8 @@ function gym_subscription_page(): void
                             <tr>
                                 <td>Class Scheduling & Member Bookings</td>
                                 <td><span class="dist-pill muted">Basic Schedule</span></td>
-                                <td class="col-popular"><span class="status-access">✓ Full Booking + Waitlists</span></td>
-                                <td><span class="status-access">✓ Full Booking + Waitlists</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Full Online Booking</span></td>
+                                <td><span class="status-access">✓ Full Online Booking</span></td>
                             </tr>
 
                             <!-- Category 5 -->

@@ -68,6 +68,7 @@ function render_header(string $title, ?array $user = null): void
                 'memberships' => 'Memberships',
                 'commissions' => 'Commissions',
                 'walk_ins' => 'Walk-ins',
+                'expenses' => 'Expenses',
                 'classes' => 'Classes',
                 'attendance' => 'Attendance',
                 'exercises' => 'Exercises',
@@ -84,6 +85,7 @@ function render_header(string $title, ?array $user = null): void
                 'attendance' => 'Attendance',
                 'memberships' => 'Memberships',
                 'walk_ins' => 'Walk-ins',
+                'expenses' => 'Expenses',
                 'users' => 'Member Lookup',
                 'gym_equipment' => 'Equipment',
                 'reports' => 'Reports',
@@ -126,6 +128,26 @@ function render_header(string $title, ?array $user = null): void
             
             $nav += ['progress' => 'Progress'];
         }
+
+        // Keep most-used core items at top, sort all other sidebar items alphabetically
+        $coreNavKeys = ['dashboard', 'messages', 'scanner', 'qr_attendance'];
+        $coreNav = [];
+        $otherNav = [];
+        foreach ($nav as $k => $lbl) {
+            if (in_array($k, $coreNavKeys, true)) {
+                $coreNav[$k] = $lbl;
+            } else {
+                $otherNav[$k] = $lbl;
+            }
+        }
+        $orderedCore = [];
+        foreach ($coreNavKeys as $ck) {
+            if (isset($coreNav[$ck])) {
+                $orderedCore[$ck] = $coreNav[$ck];
+            }
+        }
+        uasort($otherNav, static fn(string $a, string $b): int => strcasecmp($a, $b));
+        $nav = $orderedCore + $otherNav;
     }
     $page = $_GET['page'] ?? 'dashboard';
     $flash = flash();
@@ -2479,8 +2501,46 @@ function render_header(string $title, ?array $user = null): void
                         }
                     }
                 ?>
-                <nav class="side-nav">
-                    <?php foreach ($nav as $key => $label): 
+                <style>
+                    .side-nav a { position: relative; }
+                    .nav-pin-btn {
+                        margin-left: auto;
+                        background: none;
+                        border: none;
+                        padding: 3px 4px;
+                        border-radius: 5px;
+                        color: var(--muted);
+                        cursor: pointer;
+                        opacity: 0;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex-shrink: 0;
+                        transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+                    }
+                    .side-nav a:hover .nav-pin-btn,
+                    .side-nav a.is-pinned .nav-pin-btn {
+                        opacity: 1;
+                    }
+                    .side-nav a.is-pinned .nav-pin-btn {
+                        color: var(--lime);
+                    }
+                    .side-nav a:hover .nav-pin-btn,
+                    .side-nav a.active .nav-pin-btn,
+                    .side-nav a.is-pinned:hover .nav-pin-btn,
+                    .side-nav a.is-pinned.active .nav-pin-btn {
+                        color: currentColor;
+                    }
+                    .nav-pin-btn:hover {
+                        background: rgba(0, 0, 0, 0.14);
+                    }
+                    .sidebar.collapsed .nav-pin-btn {
+                        display: none !important;
+                    }
+                </style>
+                <nav class="side-nav" data-pin-storage-key="fittracks_pinned_nav_<?= (int)($user['user_id'] ?? 0) ?>_<?= h($role) ?>">
+                    <?php foreach ($nav as $key => $label):
+                        $isCoreNav = in_array($key, ['dashboard', 'messages', 'scanner', 'qr_attendance'], true); 
                         $tierBadge = null;
                         if (($role === 'gym_owner' || $role === 'staff') && $gym) {
                             $mappedFeature = match ($key) {
@@ -2520,7 +2580,7 @@ function render_header(string $title, ?array $user = null): void
                             }
                         }
                     ?>
-                        <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>"<?= $key === 'notifications' ? ' id="sidebar-nav-notifications"' : ($key === 'messages' ? ' id="sidebar-nav-messages"' : '') ?>>
+                        <a class="<?= $isActive ? 'active' : '' ?>" href="index.php?page=<?= h($key) ?>" data-nav-key="<?= h($key) ?>" data-nav-label="<?= h($label) ?>" data-nav-core="<?= $isCoreNav ? '1' : '0' ?>"<?= $key === 'notifications' ? ' id="sidebar-nav-notifications"' : ($key === 'messages' ? ' id="sidebar-nav-messages"' : '') ?>>
                             <span class="nav-icon" style="position: relative;">
                                 <?= nav_icon($key) ?>
                                 <?php if ($key === 'notifications'): ?>
@@ -2543,6 +2603,11 @@ function render_header(string $title, ?array $user = null): void
                             <?php endif; ?>
                             <?php if ($tierBadge): ?>
                                 <span class="sidebar-tier-badge" style="margin-left: auto; font-size: 8.5px; font-weight: 800; padding: 2px 5px; border-radius: 4px; background: rgba(132, 204, 22, 0.12); color: #84cc16; border: 1px solid rgba(132, 204, 22, 0.25); letter-spacing: 0.5px; flex-shrink: 0; white-space: nowrap; line-height: 1;"><?= $tierBadge ?></span>
+                            <?php endif; ?>
+                            <?php if (!$isCoreNav): ?>
+                                <button type="button" class="nav-pin-btn" title="Pin to top" aria-label="Pin <?= h($label) ?> to top">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+                                </button>
                             <?php endif; ?>
                         </a>
                     <?php endforeach; ?>
@@ -3250,8 +3315,79 @@ document.addEventListener('DOMContentLoaded', function() {
     const frame    = document.querySelector('.app-frame');
     const sideNav  = document.querySelector('.side-nav');
 
-    // Sidebar scroll persistence & active item visibility
+    // Sidebar scroll persistence, pin-to-top, & active item visibility
     if (sideNav) {
+        const pinStorageKey = sideNav.dataset.pinStorageKey || 'fittracks_pinned_nav';
+        const getPinnedKeys = () => {
+            try {
+                const raw = localStorage.getItem(pinStorageKey);
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        };
+        const savePinnedKeys = (keys) => {
+            try {
+                localStorage.setItem(pinStorageKey, JSON.stringify(keys));
+            } catch (e) {}
+        };
+        const applySidebarPins = () => {
+            const pinnedSet = new Set(getPinnedKeys());
+            const links = Array.from(sideNav.querySelectorAll('a[data-nav-key]'));
+            sideNav.querySelectorAll('.side-nav-pin-divider').forEach(el => el.remove());
+
+            const coreLinks = [];
+            const pinnedLinks = [];
+            const unpinnedLinks = [];
+
+            links.forEach(link => {
+                const key = link.dataset.navKey;
+                const isCore = link.dataset.navCore === '1';
+                const pinBtn = link.querySelector('.nav-pin-btn');
+                if (isCore) {
+                    coreLinks.push(link);
+                } else if (pinnedSet.has(key)) {
+                    link.classList.add('is-pinned');
+                    if (pinBtn) pinBtn.title = 'Unpin from top';
+                    pinnedLinks.push(link);
+                } else {
+                    link.classList.remove('is-pinned');
+                    if (pinBtn) pinBtn.title = 'Pin to top';
+                    unpinnedLinks.push(link);
+                }
+            });
+
+            const byLabel = (a, b) => (a.dataset.navLabel || '').localeCompare(b.dataset.navLabel || '', undefined, { sensitivity: 'base' });
+            pinnedLinks.sort(byLabel);
+            unpinnedLinks.sort(byLabel);
+
+            coreLinks.forEach(el => sideNav.appendChild(el));
+            pinnedLinks.forEach(el => sideNav.appendChild(el));
+            unpinnedLinks.forEach(el => sideNav.appendChild(el));
+        };
+
+        applySidebarPins();
+
+        sideNav.addEventListener('click', function(e) {
+            const pinBtn = e.target.closest('.nav-pin-btn');
+            if (!pinBtn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const link = pinBtn.closest('a[data-nav-key]');
+            if (!link || link.dataset.navCore === '1') return;
+            const key = link.dataset.navKey;
+            const pinned = getPinnedKeys();
+            const idx = pinned.indexOf(key);
+            if (idx >= 0) {
+                pinned.splice(idx, 1);
+            } else {
+                pinned.push(key);
+            }
+            savePinnedKeys(pinned);
+            applySidebarPins();
+        });
+
         try {
             const savedScroll = sessionStorage.getItem('fittracks_sidebar_scroll');
             if (savedScroll !== null) {

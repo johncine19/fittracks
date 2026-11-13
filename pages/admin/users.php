@@ -139,9 +139,7 @@ function users_page(): void
 
             $staffRole = null;
             if ($roleToCreate === 'staff') {
-                $allowedStaffRoles = ['front_desk', 'manager'];
-                $reqStaffRole = trim((string) post('staff_role'));
-                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'front_desk';
+                $staffRole = 'front_desk';
             } elseif ($roleToCreate === 'trainer') {
                 $staffRole = 'trainer';
             }
@@ -254,7 +252,7 @@ function users_page(): void
                     db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, session_rate, gym_id) VALUES (?, ?, ?, ?, ?)')->execute([$newUserId, post('specialization'), post('bio'), $sessionRate, $trainerGymId]);
                 } elseif ($roleToCreate === 'staff') {
                     $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
-                    $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
+                    $staffTitle = 'Staff';
                     db()->prepare('INSERT INTO gym_staff (gym_id, user_id, staff_title) VALUES (?, ?, ?)')->execute([$staffGymId, $newUserId, $staffTitle]);
                 } elseif ($roleToCreate === 'member') {
                     $targetGymId = $gymId ?: (int)(post('gym_id') ?: 0);
@@ -452,10 +450,8 @@ function users_page(): void
                 db()->prepare('INSERT INTO trainer_profiles (user_id, specialization, bio, session_rate) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE specialization = VALUES(specialization), bio = VALUES(bio), session_rate = VALUES(session_rate)')
                     ->execute([$editUserId, post('specialization'), post('bio'), $sessionRate]);
             } elseif (post('role') === 'staff') {
-                $allowedStaffRoles = ['front_desk', 'manager'];
-                $reqStaffRole = trim((string) post('staff_role'));
-                $staffRole = in_array($reqStaffRole, $allowedStaffRoles, true) ? $reqStaffRole : 'front_desk';
-                $staffTitle = ($staffRole === 'manager') ? 'Operations Manager' : 'Front Desk Staff';
+                $staffRole = 'front_desk';
+                $staffTitle = 'Staff';
                 db()->prepare('UPDATE users SET staff_role = ? WHERE user_id = ?')->execute([$staffRole, $editUserId]);
                 $staffGymId = $isAdmin ? (int)(post('gym_id') ?: 0) : $gymId;
                 db()->prepare('INSERT INTO gym_staff (gym_id, user_id, staff_title) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE staff_title = VALUES(staff_title)')
@@ -1316,13 +1312,6 @@ function users_page(): void
                         </label>
                     </div>
                     <?php endif; ?>
-                    <?php if (!$isAdmin): ?>
-                    <div id="staff_fields" style="display: <?= ($oldUser['role'] ?? '') === 'staff' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
-                        <label><span class="label-title">Staff Permission Level</span>
-                            <div id="staffRoleComboboxWrap"></div>
-                        </label>
-                    </div>
-                    <?php endif; ?>
                     <?php if ($isAdmin): ?>
                     <div id="gym_owner_fields" style="display: <?= ($oldUser['role'] ?? 'gym_owner') === 'gym_owner' ? 'block' : 'none' ?>; grid-column: 1 / -1;">
                         <div class="user-modal-subcard">
@@ -1736,11 +1725,6 @@ function users_page(): void
                         <td>
                             <div class="user-role-wrap">
                                 <span class="badge-role badge-role-<?= h($row['role']) ?>"><?= h($roleDisplayName) ?></span>
-                                <?php if ($row['role'] === 'staff'): ?>
-                                    <span class="badge-staff-subrole">
-                                        <?= ($row['staff_role'] ?? '') === 'manager' ? 'Operations Manager' : 'Front Desk' ?>
-                                    </span>
-                                <?php endif; ?>
                             </div>
                         </td>
                         <?php if ($isAdmin): ?>
@@ -1937,11 +1921,6 @@ function users_page(): void
                         </div>
                         <div class="user-card-badges">
                             <span class="badge-role badge-role-<?= h($row['role']) ?>"><?= h($roleDisplayName) ?></span>
-                            <?php if ($row['role'] === 'staff'): ?>
-                                <span class="badge-staff-subrole">
-                                    <?= ($row['staff_role'] ?? '') === 'manager' ? 'Manager' : 'Front Desk' ?>
-                                </span>
-                            <?php endif; ?>
                             <span class="user-status-pill is-<?= h($row['status']) ?>">
                                 <span class="status-dot"></span>
                                 <?= $isInactiveOrDeleted ? 'Deleted' : ucfirst(h($row['status'])) ?>

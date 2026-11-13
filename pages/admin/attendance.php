@@ -206,6 +206,7 @@ function attendance_page(): void
     $attendanceFrom = trim((string)($_GET['attendance_from'] ?? ''));
     $attendanceTo = trim((string)($_GET['attendance_to'] ?? ''));
     $attendanceStatus = (string)($_GET['attendance_status'] ?? '');
+    $attendanceMethod = (string)($_GET['attendance_method'] ?? '');
     $validDate = static function (string $value): string {
         $formats = ['!m/d/y' => 'm/d/y', '!Y-m-d' => 'Y-m-d'];
         foreach ($formats as $inputFormat => $outputFormat) {
@@ -217,6 +218,7 @@ function attendance_page(): void
     $attendanceFrom = $validDate($attendanceFrom);
     $attendanceTo = $validDate($attendanceTo);
     if (!in_array($attendanceStatus, ['in_gym', 'checked_out'], true)) $attendanceStatus = '';
+    if (!in_array($attendanceMethod, ['qr_code', 'manual'], true)) $attendanceMethod = '';
 
     $attendanceWhereParts = [];
     $attendanceFilterParams = [];
@@ -224,6 +226,9 @@ function attendance_page(): void
         $attendanceWhereParts[] = '(a.gym_id = ? OR a.recorded_by = ?)';
         $attendanceFilterParams[] = $currentGymId;
         $attendanceFilterParams[] = (int)$user['user_id'];
+    } elseif ($currentGymId) {
+        $attendanceWhereParts[] = 'a.gym_id = ?';
+        $attendanceFilterParams[] = $currentGymId;
     }
     if ($attendanceSearch !== '') {
         $attendanceWhereParts[] = 'CONCAT(u.first_name, " ", u.last_name) LIKE ?';
@@ -239,8 +244,96 @@ function attendance_page(): void
     }
     if ($attendanceStatus === 'in_gym') $attendanceWhereParts[] = 'a.check_out_time IS NULL';
     if ($attendanceStatus === 'checked_out') $attendanceWhereParts[] = 'a.check_out_time IS NOT NULL';
+    if ($attendanceMethod !== '') {
+        $attendanceWhereParts[] = 'a.check_in_method = ?';
+        $attendanceFilterParams[] = $attendanceMethod;
+    }
     $attendanceWhereSql = $attendanceWhereParts ? implode(' AND ', $attendanceWhereParts) : '1=1';
-    $attendanceFilterActive = $attendanceSearch !== '' || $attendanceFrom !== '' || $attendanceTo !== '' || $attendanceStatus !== '';
+    $attendanceFilterActive = $attendanceSearch !== '' || $attendanceFrom !== '' || $attendanceTo !== '' || $attendanceStatus !== '' || $attendanceMethod !== '';
+
+    // CSV Export for the currently filtered attendance records
+    if (($_GET['export'] ?? '') === 'csv') {
+        $exportStmt = db()->prepare('
+            SELECT CONCAT(u.first_name, " ", u.last_name) AS member, u.email, u.role, c.class_name,
+                   a.check_in_time, a.check_out_time, a.check_in_method
+            FROM attendance a
+            JOIN users u ON u.user_id = a.user_id
+            LEFT JOIN class_schedules s ON s.schedule_id = a.schedule_id
+            LEFT JOIN classes c ON c.class_id = s.class_id
+            WHERE ' . $attendanceWhereSql . '
+            ORDER BY a.check_in_time DESC
+        ');
+        $exportStmt->execute($attendanceFilterParams);
+        $exportRows = $exportStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        $fileSuffix = ($attendanceFrom !== '' && $attendanceFrom === $attendanceTo)
+            ? $attendanceFrom
+            : (($attendanceFrom !== '' || $attendanceTo !== '') ? ($attendanceFrom ?: 'start') . '_to_' . ($attendanceTo ?: 'now') : 'all');
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="attendance_' . $fileSuffix . '.csv"');
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['Name', 'Email', 'Role', 'Session', 'Date', 'Check-in', 'Check-out', 'Method', 'Status']);
+        foreach ($exportRows as $er) {
+            $sessionLabel = $er['class_name'] ?: (($er['role'] === 'trainer') ? 'Shift' : 'Gym visit');
+            $statusLabel = !empty($er['check_out_time']) ? 'Checked out' : 'In gym';
+            $inTs = strtotime((string)$er['check_in_time']);
+            $dateLabel = $inTs ? date('M j, Y', $inTs) : '—';
+            $checkInLabel = $inTs ? date('h:i A', $inTs) : '—';
+            $checkOutLabel = '—';
+            if (!empty($er['check_out_time'])) {
+                $outTs = strtotime((string)$er['check_out_time']);
+                if ($outTs) {
+                    $checkOutLabel = (date('Y-m-d', $outTs) === date('Y-m-d', $inTs))
+                        ? date('h:i A', $outTs)
+                        : date('M j, h:i A', $outTs);
+                }
+            }
+            fputcsv($out, [
+                $er['member'],
+                $er['email'],
+                ucfirst((string)$er['role']),
+                $sessionLabel,
+                $dateLabel,
+                $checkInLabel,
+                $checkOutLabel,
+                $er['check_in_method'],
+                $statusLabel,
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    // Daily / Filtered Summary Metrics
+    $todayYmd = date('Y-m-d');
+    $yesterdayYmd = date('Y-m-d', strtotime('-1 day'));
+    $weekStartYmd = date('Y-m-d', strtotime('monday this week'));
+    $isSingleDay = ($attendanceFrom !== '' && $attendanceFrom === $attendanceTo);
+    $summaryIsTodayDefault = ($attendanceFrom === '' && $attendanceTo === '');
+    $summaryWhereParts = $attendanceWhereParts;
+    $summaryParams = $attendanceFilterParams;
+    if ($summaryIsTodayDefault) {
+        $summaryWhereParts[] = 'DATE(a.check_in_time) = CURDATE()';
+    }
+    $summaryWhereSql = $summaryWhereParts ? implode(' AND ', $summaryWhereParts) : '1=1';
+    $summaryStmt = db()->prepare("
+        SELECT
+            COUNT(*) AS total_checkins,
+            COUNT(DISTINCT a.user_id) AS unique_attendees,
+            COALESCE(SUM(CASE WHEN a.check_out_time IS NULL THEN 1 ELSE 0 END), 0) AS currently_in,
+            COALESCE(SUM(CASE WHEN a.check_out_time IS NOT NULL THEN 1 ELSE 0 END), 0) AS checked_out,
+            COUNT(DISTINCT CASE WHEN u.role = 'member' THEN a.user_id END) AS unique_members,
+            COUNT(DISTINCT CASE WHEN u.role = 'trainer' THEN a.user_id END) AS unique_trainers
+        FROM attendance a
+        JOIN users u ON u.user_id = a.user_id
+        WHERE {$summaryWhereSql}
+    ");
+    $summaryStmt->execute($summaryParams);
+    $summaryStats = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
 
     $countStmt = db()->prepare('SELECT COUNT(*) FROM attendance a JOIN users u ON u.user_id = a.user_id WHERE ' . $attendanceWhereSql);
     $countStmt->execute($attendanceFilterParams);
@@ -302,7 +395,7 @@ function attendance_page(): void
             WHERE u.role IN ("member", "trainer") AND u.status = "active" ' . ($currentGymId ? 'AND (gm.gym_id = ' . (int)$currentGymId . ' OR tp.gym_id = ' . (int)$currentGymId . ')' : '') . '
             ORDER BY u.role, u.first_name, u.last_name
         ')->fetchAll();
-        $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE s.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
+        $schedules = db()->query('SELECT s.schedule_id, CONCAT(c.class_name, " - ", DATE_FORMAT(s.start_datetime, "%b %d %h:%i %p")) AS label FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE ' . ($currentGymId ? 'c.gym_id = ' . (int)$currentGymId . ' AND ' : '') . 's.start_datetime >= DATE_SUB(NOW(), INTERVAL 1 DAY) ORDER BY s.start_datetime')->fetchAll();
         $rowsStmt = db()->prepare('
             SELECT a.*, CONCAT(u.first_name, " ", u.last_name) AS member, u.first_name, u.last_name, u.role, c.class_name,
                    (SELECT CONCAT(ge.name, IF(ge.unit_number != "" AND ge.unit_number != "#1" AND ge.unit_number != "1", CONCAT(" (", ge.unit_number, ")"), ""))
@@ -419,6 +512,87 @@ function attendance_page(): void
             <button onclick="recordCheckin()" class="btn" style="background: var(--lime); color: var(--bg); font-weight: bold;">+ New Check-in</button>
         </div>
 
+        <?php
+            $baseQuickParams = ['page' => 'attendance'];
+            if ($currentGymId) $baseQuickParams['gym_id'] = $currentGymId;
+            if ($attendanceSearch !== '') $baseQuickParams['attendance_search'] = $attendanceSearch;
+            if ($attendanceStatus !== '') $baseQuickParams['attendance_status'] = $attendanceStatus;
+            if ($attendanceMethod !== '') $baseQuickParams['attendance_method'] = $attendanceMethod;
+
+            $makeDayUrl = static function (string $from, string $to) use ($baseQuickParams): string {
+                $p = $baseQuickParams;
+                if ($from !== '') $p['attendance_from'] = $from;
+                if ($to !== '') $p['attendance_to'] = $to;
+                return 'index.php?' . http_build_query($p);
+            };
+
+            $activeDay = $isSingleDay ? $attendanceFrom : $todayYmd;
+            $prevDay = date('Y-m-d', strtotime($activeDay . ' -1 day'));
+            $nextDay = date('Y-m-d', strtotime($activeDay . ' +1 day'));
+            $isTodayActive = ($attendanceFrom === $todayYmd && $attendanceTo === $todayYmd);
+            $isYesterdayActive = ($attendanceFrom === $yesterdayYmd && $attendanceTo === $yesterdayYmd);
+            $isWeekActive = ($attendanceFrom === $weekStartYmd && $attendanceTo === $todayYmd);
+            $isAllActive = ($attendanceFrom === '' && $attendanceTo === '');
+
+            $exportCsvParams = $baseQuickParams;
+            if ($attendanceFrom !== '') $exportCsvParams['attendance_from'] = $attendanceFrom;
+            if ($attendanceTo !== '') $exportCsvParams['attendance_to'] = $attendanceTo;
+            $exportCsvParams['export'] = 'csv';
+            $exportCsvUrl = 'index.php?' . http_build_query($exportCsvParams);
+
+            if ($summaryIsTodayDefault) {
+                $summaryHeading = 'Today (' . date('M j, Y') . ')';
+            } elseif ($isSingleDay) {
+                $summaryHeading = date('D, M j, Y', strtotime($attendanceFrom));
+            } else {
+                $fromLbl = $attendanceFrom !== '' ? date('M j, Y', strtotime($attendanceFrom)) : 'Start';
+                $toLbl = $attendanceTo !== '' ? date('M j, Y', strtotime($attendanceTo)) : 'Now';
+                $summaryHeading = $fromLbl . ' – ' . $toLbl;
+            }
+        ?>
+
+        <!-- Daily / Filtered Attendance Summary Strip -->
+        <div class="attendance-summary-header">
+            <span class="attendance-summary-title">Attendance Summary &mdash; <strong><?= h($summaryHeading) ?></strong></span>
+        </div>
+        <div class="attendance-summary-strip">
+            <div class="attendance-stat-card">
+                <span class="attendance-stat-label">Total Check-ins</span>
+                <strong class="attendance-stat-value"><?= (int)($summaryStats['total_checkins'] ?? 0) ?></strong>
+            </div>
+            <div class="attendance-stat-card">
+                <span class="attendance-stat-label">Unique Attendees</span>
+                <strong class="attendance-stat-value is-lime"><?= (int)($summaryStats['unique_attendees'] ?? 0) ?></strong>
+            </div>
+            <div class="attendance-stat-card">
+                <span class="attendance-stat-label">In Gym / Checked Out</span>
+                <strong class="attendance-stat-value"><?= (int)($summaryStats['currently_in'] ?? 0) ?> <span class="attendance-stat-sub">/ <?= (int)($summaryStats['checked_out'] ?? 0) ?></span></strong>
+            </div>
+            <div class="attendance-stat-card">
+                <span class="attendance-stat-label">Members / Trainers</span>
+                <strong class="attendance-stat-value"><?= (int)($summaryStats['unique_members'] ?? 0) ?> <span class="attendance-stat-sub">/ <?= (int)($summaryStats['unique_trainers'] ?? 0) ?></span></strong>
+            </div>
+        </div>
+
+        <!-- Quick Day Navigator & Export Bar -->
+        <div class="attendance-quick-bar">
+            <div class="attendance-quick-pills">
+                <a href="<?= h($makeDayUrl($todayYmd, $todayYmd)) ?>" class="attendance-quick-pill <?= $isTodayActive ? 'is-active' : '' ?>">Today</a>
+                <a href="<?= h($makeDayUrl($yesterdayYmd, $yesterdayYmd)) ?>" class="attendance-quick-pill <?= $isYesterdayActive ? 'is-active' : '' ?>">Yesterday</a>
+                <a href="<?= h($makeDayUrl($weekStartYmd, $todayYmd)) ?>" class="attendance-quick-pill <?= $isWeekActive ? 'is-active' : '' ?>">This Week</a>
+                <a href="<?= h($makeDayUrl('', '')) ?>" class="attendance-quick-pill <?= $isAllActive ? 'is-active' : '' ?>">All History</a>
+            </div>
+            <div class="attendance-day-nav">
+                <a href="<?= h($makeDayUrl($prevDay, $prevDay)) ?>" class="attendance-day-btn" title="Previous Day">&lsaquo; Prev</a>
+                <input type="date" id="attendanceQuickDayPicker" value="<?= h($isSingleDay ? $attendanceFrom : $todayYmd) ?>" max="<?= h($todayYmd) ?>" class="attendance-day-input" title="Jump to specific day">
+                <a href="<?= h($makeDayUrl($nextDay, $nextDay)) ?>" class="attendance-day-btn <?= $activeDay >= $todayYmd ? 'is-disabled' : '' ?>" <?= $activeDay >= $todayYmd ? 'aria-disabled="true" tabindex="-1"' : '' ?> title="Next Day">Next &rsaquo;</a>
+            </div>
+            <div class="attendance-export-actions">
+                <a href="<?= h($exportCsvUrl) ?>" class="btn btn-secondary attendance-export-btn" title="Download filtered attendance as CSV">Export CSV</a>
+                <button type="button" onclick="window.print()" class="btn btn-secondary attendance-export-btn" title="Print attendance roster">Print</button>
+            </div>
+        </div>
+
 
 
         <form method="get" action="index.php" class="attendance-filter-form">
@@ -450,6 +624,14 @@ function attendance_page(): void
                     <option value="">All statuses</option>
                     <option value="in_gym" <?= $attendanceStatus === 'in_gym' ? 'selected' : '' ?>>In gym</option>
                     <option value="checked_out" <?= $attendanceStatus === 'checked_out' ? 'selected' : '' ?>>Checked out</option>
+                </select>
+            </label>
+            <label class="attendance-filter-group attendance-filter-method">
+                Method
+                <select name="attendance_method" class="attendance-filter-select">
+                    <option value="">All methods</option>
+                    <option value="qr_code" <?= $attendanceMethod === 'qr_code' ? 'selected' : '' ?>>QR Code</option>
+                    <option value="manual" <?= $attendanceMethod === 'manual' ? 'selected' : '' ?>>Manual</option>
                 </select>
             </label>
             <div class="attendance-filter-actions">
@@ -512,10 +694,12 @@ function attendance_page(): void
                                         <?= h($row['active_equipment']) ?>
                                     </span>
                                 </div>
+                            <?php else: ?>
+                                <span style="color:var(--muted);font-size:12px;">None</span>
                             <?php endif; ?>
                         </td>
-                        <td><?= h(date('M j, h:i A', strtotime($row['check_in_time']))) ?></td>
-                        <td><?= $checkedOut ? h(date('M j, h:i A', strtotime($row['check_out_time']))) : '<span class="muted">—</span>' ?></td>
+                        <td><span style="color:var(--muted);font-size:12px;"><?= h(date('M j, h:i A', strtotime($row['check_in_time']))) ?></span></td>
+                        <td><span style="color:var(--muted);font-size:12px;"><?= $checkedOut ? h(date('M j, h:i A', strtotime($row['check_out_time']))) : '—' ?></span></td>
                         <td><span style="color:var(--muted);font-size:12px"><?= h($row['check_in_method']) ?></span></td>
                         <td>
                             <?php if ($checkedOut): ?>
@@ -580,14 +764,16 @@ function attendance_page(): void
                     </div>
                 </div>
 
-                <?php if (!$checkedOut && !empty($row['active_equipment'])): ?>
-                    <div class="attendance-card-equip">
-                        <span class="session-label">Equipment:</span>
+                <div class="attendance-card-equip">
+                    <span class="session-label">Equipment:</span>
+                    <?php if (!$checkedOut && !empty($row['active_equipment'])): ?>
                         <span style="background: rgba(34, 197, 94, 0.12); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); font-size: 11px; padding: 3px 8px; display: inline-flex; align-items: center; border-radius: 6px; font-weight: 600;">
                             <?= h($row['active_equipment']) ?>
                         </span>
-                    </div>
-                <?php endif; ?>
+                    <?php else: ?>
+                        <span style="color:var(--muted);font-size:12px;">None</span>
+                    <?php endif; ?>
+                </div>
 
                 <div class="attendance-card-details">
                     <div class="attendance-card-detail-item">
@@ -621,6 +807,7 @@ function attendance_page(): void
             if ($attendanceFrom !== '') $attendanceFilterParamsList['attendance_from'] = $attendanceFrom;
             if ($attendanceTo !== '') $attendanceFilterParamsList['attendance_to'] = $attendanceTo;
             if ($attendanceStatus !== '') $attendanceFilterParamsList['attendance_status'] = $attendanceStatus;
+            if ($attendanceMethod !== '') $attendanceFilterParamsList['attendance_method'] = $attendanceMethod;
             $attendanceBaseUrl = 'index.php?' . http_build_query($attendanceFilterParamsList);
         ?>
             <div class="pagination-bar">
@@ -634,10 +821,197 @@ function attendance_page(): void
     </section>
 
     <style>
+        /* ATTENDANCE SUMMARY & QUICK DAY BAR */
+        .attendance-summary-header {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .attendance-summary-header strong {
+            color: var(--ink);
+        }
+        .attendance-summary-strip {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin: 0 0 16px;
+        }
+        .attendance-stat-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px 16px;
+            display: grid;
+            gap: 4px;
+        }
+        .attendance-stat-label {
+            font-size: 12px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+        .attendance-stat-value {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--ink);
+            line-height: 1.2;
+        }
+        .attendance-stat-value.is-lime {
+            color: var(--lime);
+        }
+        .attendance-stat-sub {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--muted);
+        }
+        .attendance-quick-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0 0 12px;
+        }
+        .attendance-quick-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .attendance-quick-pill {
+            padding: 7px 13px;
+            border-radius: 999px;
+            font-size: 12.5px;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--muted);
+            background: var(--surface);
+            border: 1px solid var(--line);
+            transition: all 0.15s ease;
+        }
+        .attendance-quick-pill:hover {
+            color: var(--ink);
+            border-color: var(--lime);
+        }
+        .attendance-quick-pill.is-active {
+            background: var(--lime);
+            color: var(--bg);
+            border-color: var(--lime);
+        }
+        .attendance-day-nav {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .attendance-day-btn {
+            padding: 7px 11px;
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--ink);
+            background: var(--surface);
+            border: 1px solid var(--line);
+            white-space: nowrap;
+        }
+        .attendance-day-btn:hover:not(.is-disabled) {
+            border-color: var(--lime);
+        }
+        .attendance-day-btn.is-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .attendance-day-input {
+            height: 34px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: var(--bg);
+            color: var(--ink);
+            font-size: 12.5px;
+            font-family: inherit;
+        }
+        .attendance-export-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .attendance-export-btn {
+            height: 34px;
+            padding: 0 12px;
+            font-size: 12.5px !important;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            text-decoration: none;
+        }
+        @media (max-width: 860px) {
+            .attendance-summary-strip {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 640px) {
+            .attendance-quick-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            .attendance-quick-pills {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+            .attendance-quick-pill {
+                text-align: center;
+                padding: 8px 10px;
+            }
+            .attendance-day-nav {
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                gap: 8px;
+                width: 100%;
+            }
+            .attendance-day-btn {
+                height: 38px;
+                padding: 0 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                box-sizing: border-box;
+            }
+            .attendance-day-input {
+                width: 100%;
+                min-width: 0;
+                height: 38px;
+                box-sizing: border-box;
+                text-align: center;
+            }
+            .attendance-export-actions {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                width: 100%;
+            }
+            .attendance-export-btn {
+                width: 100%;
+                height: 38px;
+                font-size: 13px !important;
+            }
+        }
+        @media print {
+            .sidebar, .topbar, .page-header button, .attendance-quick-bar, .attendance-filter-form, .pagination-bar, .attendance-checkout-form {
+                display: none !important;
+            }
+            .panel {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }
+        }
+
         /* ATTENDANCE FILTER BAR */
         .attendance-filter-form {
             display: grid;
-            grid-template-columns: 2fr 1.2fr 1.2fr 1.3fr auto;
+            grid-template-columns: 1.8fr 1.1fr 1.1fr 1.1fr 1.1fr auto;
             gap: 12px;
             align-items: end;
             margin: 0 0 18px;
@@ -718,8 +1092,12 @@ function attendance_page(): void
                 grid-column: 1;
             }
 
-            .attendance-filter-actions {
+            .attendance-filter-method {
                 grid-column: 2;
+            }
+
+            .attendance-filter-actions {
+                grid-column: span 2;
                 display: flex;
                 gap: 8px;
                 align-items: flex-end;
@@ -961,6 +1339,19 @@ function attendance_page(): void
     window.checkinMembersData = <?= json_encode($checkinMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.checkinEquipmentData = <?= json_encode($checkinEquipmentData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.checkinSessionsData = <?= json_encode($checkinSessionsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+    const quickDayPicker = document.getElementById('attendanceQuickDayPicker');
+    if (quickDayPicker) {
+        quickDayPicker.addEventListener('change', function() {
+            if (!quickDayPicker.value) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', 'attendance');
+            url.searchParams.set('attendance_from', quickDayPicker.value);
+            url.searchParams.set('attendance_to', quickDayPicker.value);
+            url.searchParams.delete('attendance_page');
+            window.location.href = url.toString();
+        });
+    }
 
     document.querySelectorAll('[data-attendance-date-picker]').forEach(function(picker) {
         picker.addEventListener('change', function() {

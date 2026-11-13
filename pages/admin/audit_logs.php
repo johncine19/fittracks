@@ -88,7 +88,7 @@ function format_audit_log_entry(array $row): array
         'gym_owner'      => 'Gym Owner',
         'trainer'        => 'Trainer',
         'member'         => 'Member',
-        'staff'          => !empty($row['staff_role']) ? 'Staff (' . ($row['staff_role'] === 'manager' ? 'Manager' : 'Front Desk') . ')' : (!empty($row['staff_title']) ? 'Staff (' . $row['staff_title'] . ')' : 'Staff'),
+        'staff'          => 'Staff',
         default          => 'Staff',
     };
 
@@ -928,7 +928,7 @@ function audit_logs_page(): void
                                 'gym_owner'      => 'Gym Owner',
                                 'trainer'        => 'Trainer',
                                 'member'         => 'Member',
-                                'staff'          => !empty($a['staff_role']) ? 'Staff (' . ($a['staff_role'] === 'manager' ? 'Manager' : 'Front Desk') . ')' : (!empty($a['staff_title']) ? 'Staff (' . $a['staff_title'] . ')' : 'Staff'),
+                                'staff'          => 'Staff',
                                 default          => 'Staff'
                             };
                         ?>

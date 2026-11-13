@@ -238,6 +238,7 @@ try {
         'messages' => ['file' => 'pages/shared/messages.php', 'handler' => 'messages_page'],
         'reports' => ['file' => 'pages/admin/reports.php', 'handler' => 'reports_page'],
         'walk_ins' => ['file' => 'pages/admin/walk_ins.php', 'handler' => 'walk_ins_page'],
+        'expenses' => ['file' => 'pages/admin/expenses.php', 'handler' => 'expenses_page'],
         'qr_attendance' => ['file' => 'pages/member/qr_attendance.php', 'handler' => 'qr_attendance_page'],
         'scanner' => ['file' => 'pages/admin/scanner.php', 'handler' => 'scanner_page'],
         'complete_exercise' => ['file' => 'pages/member/complete_exercise.php', 'handler' => 'complete_exercise_action'],
