@@ -1380,9 +1380,21 @@
                 display: none;
             }
 
-            .action-btn-preview {
+            .profile-actions-bar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
                 width: 100%;
+            }
+
+            .profile-actions-bar .action-btn-back,
+            .profile-actions-bar .action-btn-preview {
+                flex: 1 1 140px;
+                width: auto;
                 justify-content: center;
+                padding: 9px 12px;
+                font-size: 12.5px;
+                white-space: nowrap;
             }
 
             .profile-card {

@@ -79,6 +79,109 @@ function gym_profile_page(): void
         $gym = hydrate_gym_row($gym);
     }
 
+    // Platform Admin Password Gate: require admin account password per gym access
+    if ($isPlatformAdmin) {
+        $unlockedGymId = (int)($_SESSION['platform_admin_unlocked_gym_id'] ?? 0);
+        $gateError = '';
+
+        if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (post('admin_gate_action') === 'verify_password' || isset($_GET['ajax_unlock']))) {
+            $isAjaxUnlock = isset($_GET['ajax_unlock']);
+            $enteredPassword = (string)($_POST['admin_password'] ?? '');
+            $hashStmt = $pdo->prepare('SELECT password_hash FROM users WHERE user_id = ? LIMIT 1');
+            $hashStmt->execute([(int)$user['user_id']]);
+            $adminRow = $hashStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($enteredPassword !== '' && $adminRow && password_verify($enteredPassword, (string)$adminRow['password_hash'])) {
+                $_SESSION['platform_admin_unlocked_gym_id'] = (int)$gym['gym_id'];
+                $unlockedGymId = (int)$gym['gym_id'];
+                audit_log(
+                    (int)$user['user_id'],
+                    'gym_profile_unlocked',
+                    'gym',
+                    (string)$gym['gym_id'],
+                    json_encode(['gym_name' => $gym['name'] ?? '']),
+                    (int)$gym['gym_id']
+                );
+                if ($isAjaxUnlock) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => true]);
+                    exit;
+                }
+                $redirParams = ['gym_id' => (int)$gym['gym_id']];
+                if (!empty($_GET['tab'])) {
+                    $redirParams['tab'] = (string)$_GET['tab'];
+                }
+                redirect('gym_profile', $redirParams);
+            } else {
+                if ($isAjaxUnlock) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['ok' => false, 'error' => 'Incorrect password. Please try again.']);
+                    exit;
+                }
+                $gateError = 'Incorrect password. Please try again.';
+            }
+        }
+
+        if ($unlockedGymId !== (int)$gym['gym_id']) {
+            render_header('Verify Access — Gym Profile', $user);
+            ?>
+            <div style="min-height: calc(100vh - 140px); display: flex; align-items: center; justify-content: center; padding: 24px 16px;">
+                <div style="width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px 24px; box-shadow: 0 18px 40px rgba(0,0,0,0.12);">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+                        <div style="width: 42px; height: 42px; border-radius: 12px; background: color-mix(in srgb, var(--lime, #84cc16) 16%, transparent); color: var(--lime, #84cc16); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </div>
+                        <div>
+                            <h2 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: var(--ink);">Confirm Admin Password</h2>
+                            <p style="margin: 2px 0 0; font-size: 12px; color: var(--muted);">Sensitive facility &amp; compliance records</p>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 16px;">
+                        Enter your Platform Admin password to view <strong style="color: var(--ink);"><?= h($gym['name'] ?? 'this gym') ?></strong>'s profile, payouts, and verification documents.
+                    </p>
+
+                    <?php if ($gateError !== ''): ?>
+                        <div style="margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); color: #ef4444; font-size: 12.5px; font-weight: 600;">
+                            <?= h($gateError) ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="post" autocomplete="off">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="admin_gate_action" value="verify_password">
+                        <input type="hidden" name="gym_id" value="<?= (int)$gym['gym_id'] ?>">
+                        <div style="margin-bottom: 16px;">
+                            <label for="admin-gate-password" style="display: block; font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px;">Admin Password</label>
+                            <div style="position: relative;">
+                                <input type="password" id="admin-gate-password" name="admin_password" required autofocus
+                                       placeholder="Enter your password"
+                                       style="width: 100%; padding: 10px 40px 10px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-soft); color: var(--ink); font-size: 13.5px; outline: none;">
+                                <button type="button" onclick="const inp = document.getElementById('admin-gate-password'); inp.type = inp.type === 'password' ? 'text' : 'password';"
+                                        title="Show / Hide Password"
+                                        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px;">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <a href="index.php?page=gyms" class="btn btn-secondary" style="flex: 1; justify-content: center; text-align: center; padding: 10px 12px; font-size: 13px;">
+                                ← Back to All Gyms
+                            </a>
+                            <button type="submit" class="btn btn-primary" style="flex: 1.3; justify-content: center; padding: 10px 14px; font-size: 13px; font-weight: 700;">
+                                Unlock Profile
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <?php
+            render_footer();
+            return;
+        }
+    }
+
     $canCustomBrand = gym_has_feature('custom_branding', $gym);
     $canEodSummary = gym_has_feature('eod_summary', $gym);
     $canStaffPermissions = gym_has_feature('staff_permissions', $gym);
@@ -127,6 +230,10 @@ function gym_profile_page(): void
         }
 
         if ($diditAction === 'start') {
+            if ($isPlatformAdmin) {
+                flash('Only the gym owner can complete automated ID verification.', 'warning');
+                redirect('gym_profile', $redirParams, '#sec-documents');
+            }
             try {
                 $callbackUrl = app_base_url() . '?page=gym_profile&tab=documents'
                     . ($isPlatformAdmin ? '&gym_id=' . (int)$gym['gym_id'] : '')
@@ -271,75 +378,81 @@ function gym_profile_page(): void
             $eodEmailSummary = (int)($gym['eod_email_summary'] ?? 1);
         }
 
-        // Business Permit
+        // Legal / Compliance Documents (only the gym owner may upload or replace these)
         $permitUrl = $gym['business_permit_url'];
-        if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
-            try {
-                $uploadedPermit = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$gym['gym_id']);
-                if ($permitUrl && $permitUrl !== $uploadedPermit) {
-                    FileUpload::deletePermitDocument($permitUrl);
-                }
-                $permitUrl = $uploadedPermit;
-            } catch (RuntimeException $e) {
-                flash('Permit upload failed: ' . $e->getMessage(), 'danger');
-            }
-        }
-
-        // Owner's Valid ID
         $validIdUrl = $gym['valid_id_url'] ?? null;
-        $validIdType = post('valid_id_type') ?: ($gym['valid_id_type'] ?? null);
-        if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
-            try {
-                $uploadedValidId = FileUpload::storeValidId($_FILES['valid_id'], (int)$gym['gym_id']);
-                if ($validIdUrl && $validIdUrl !== $uploadedValidId) {
-                    FileUpload::deletePermitDocument($validIdUrl);
-                }
-                $validIdUrl = $uploadedValidId;
-            } catch (RuntimeException $e) {
-                flash('Valid ID upload failed: ' . $e->getMessage(), 'danger');
-            }
-        }
-
-        // Secondary Valid ID (Optional)
+        $validIdType = $gym['valid_id_type'] ?? null;
         $secValidIdUrl = $gym['secondary_valid_id_url'] ?? null;
-        $secValidIdType = post('secondary_valid_id_type') ?: ($gym['secondary_valid_id_type'] ?? null);
-        if (isset($_FILES['secondary_valid_id']) && $_FILES['secondary_valid_id']['error'] === UPLOAD_ERR_OK) {
-            try {
-                $uploadedSecId = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$gym['gym_id'], 'supporting');
-                if ($secValidIdUrl && $secValidIdUrl !== $uploadedSecId) {
-                    FileUpload::deletePermitDocument($secValidIdUrl);
-                }
-                $secValidIdUrl = $uploadedSecId;
-            } catch (RuntimeException $e) {
-                flash('Supporting Valid ID upload failed: ' . $e->getMessage(), 'danger');
-            }
-        }
-
-        // Barangay Clearance
+        $secValidIdType = $gym['secondary_valid_id_type'] ?? null;
         $brgyUrl = $gym['barangay_clearance_url'] ?? null;
-        if (isset($_FILES['barangay_clearance']) && $_FILES['barangay_clearance']['error'] === UPLOAD_ERR_OK) {
-            try {
-                $uploadedBrgy = FileUpload::storeBarangayClearance($_FILES['barangay_clearance'], (int)$gym['gym_id']);
-                if ($brgyUrl && $brgyUrl !== $uploadedBrgy) {
-                    FileUpload::deletePermitDocument($brgyUrl);
-                }
-                $brgyUrl = $uploadedBrgy;
-            } catch (RuntimeException $e) {
-                flash('Barangay Clearance upload failed: ' . $e->getMessage(), 'danger');
-            }
-        }
-
-        // Fire Safety Inspection Certificate
         $fireSafetyUrl = $gym['fire_safety_cert_url'] ?? null;
-        if (isset($_FILES['fire_safety_cert']) && $_FILES['fire_safety_cert']['error'] === UPLOAD_ERR_OK) {
-            try {
-                $uploadedFireSafety = FileUpload::storeFireSafetyCert($_FILES['fire_safety_cert'], (int)$gym['gym_id']);
-                if ($fireSafetyUrl && $fireSafetyUrl !== $uploadedFireSafety) {
-                    FileUpload::deletePermitDocument($fireSafetyUrl);
+
+        if (!$isPlatformAdmin) {
+            // Business Permit
+            if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
+                try {
+                    $uploadedPermit = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$gym['gym_id']);
+                    if ($permitUrl && $permitUrl !== $uploadedPermit) {
+                        FileUpload::deletePermitDocument($permitUrl);
+                    }
+                    $permitUrl = $uploadedPermit;
+                } catch (RuntimeException $e) {
+                    flash('Permit upload failed: ' . $e->getMessage(), 'danger');
                 }
-                $fireSafetyUrl = $uploadedFireSafety;
-            } catch (RuntimeException $e) {
-                flash('Fire Safety Certificate upload failed: ' . $e->getMessage(), 'danger');
+            }
+
+            // Owner's Valid ID
+            $validIdType = post('valid_id_type') ?: $validIdType;
+            if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
+                try {
+                    $uploadedValidId = FileUpload::storeValidId($_FILES['valid_id'], (int)$gym['gym_id']);
+                    if ($validIdUrl && $validIdUrl !== $uploadedValidId) {
+                        FileUpload::deletePermitDocument($validIdUrl);
+                    }
+                    $validIdUrl = $uploadedValidId;
+                } catch (RuntimeException $e) {
+                    flash('Valid ID upload failed: ' . $e->getMessage(), 'danger');
+                }
+            }
+
+            // Secondary Valid ID (Optional)
+            $secValidIdType = post('secondary_valid_id_type') ?: $secValidIdType;
+            if (isset($_FILES['secondary_valid_id']) && $_FILES['secondary_valid_id']['error'] === UPLOAD_ERR_OK) {
+                try {
+                    $uploadedSecId = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$gym['gym_id'], 'supporting');
+                    if ($secValidIdUrl && $secValidIdUrl !== $uploadedSecId) {
+                        FileUpload::deletePermitDocument($secValidIdUrl);
+                    }
+                    $secValidIdUrl = $uploadedSecId;
+                } catch (RuntimeException $e) {
+                    flash('Supporting Valid ID upload failed: ' . $e->getMessage(), 'danger');
+                }
+            }
+
+            // Barangay Clearance
+            if (isset($_FILES['barangay_clearance']) && $_FILES['barangay_clearance']['error'] === UPLOAD_ERR_OK) {
+                try {
+                    $uploadedBrgy = FileUpload::storeBarangayClearance($_FILES['barangay_clearance'], (int)$gym['gym_id']);
+                    if ($brgyUrl && $brgyUrl !== $uploadedBrgy) {
+                        FileUpload::deletePermitDocument($brgyUrl);
+                    }
+                    $brgyUrl = $uploadedBrgy;
+                } catch (RuntimeException $e) {
+                    flash('Barangay Clearance upload failed: ' . $e->getMessage(), 'danger');
+                }
+            }
+
+            // Fire Safety Inspection Certificate
+            if (isset($_FILES['fire_safety_cert']) && $_FILES['fire_safety_cert']['error'] === UPLOAD_ERR_OK) {
+                try {
+                    $uploadedFireSafety = FileUpload::storeFireSafetyCert($_FILES['fire_safety_cert'], (int)$gym['gym_id']);
+                    if ($fireSafetyUrl && $fireSafetyUrl !== $uploadedFireSafety) {
+                        FileUpload::deletePermitDocument($fireSafetyUrl);
+                    }
+                    $fireSafetyUrl = $uploadedFireSafety;
+                } catch (RuntimeException $e) {
+                    flash('Fire Safety Certificate upload failed: ' . $e->getMessage(), 'danger');
+                }
             }
         }
 
@@ -409,15 +522,17 @@ function gym_profile_page(): void
             $pdo->prepare('UPDATE gyms SET name = ?, address = ?, contact_info = ?, fb_page_url = ?, walk_in_fee = ?, logo_url = ?, cover_image_url = ?, public_description = ?, brand_color = ?, latitude = ?, longitude = ?, geofence_radius_meters = ? WHERE gym_id = ?')
                 ->execute([$name, $address, $contactInfoVal, $fbPageUrl, $walkInFee, $logoUrl, $coverImageUrl, $publicDescription, $brandColor, $latitude, $longitude, $geofenceRadius, $gym['gym_id']]);
 
-            save_gym_verification_documents((int)$gym['gym_id'], [
-                'business_permit_url'     => $permitUrl,
-                'valid_id_url'            => $validIdUrl,
-                'valid_id_type'           => $validIdType,
-                'secondary_valid_id_url'  => $secValidIdUrl,
-                'secondary_valid_id_type' => $secValidIdType,
-                'barangay_clearance_url'  => $brgyUrl,
-                'fire_safety_cert_url'    => $fireSafetyUrl,
-            ]);
+            if (!$isPlatformAdmin) {
+                save_gym_verification_documents((int)$gym['gym_id'], [
+                    'business_permit_url'     => $permitUrl,
+                    'valid_id_url'            => $validIdUrl,
+                    'valid_id_type'           => $validIdType,
+                    'secondary_valid_id_url'  => $secValidIdUrl,
+                    'secondary_valid_id_type' => $secValidIdType,
+                    'barangay_clearance_url'  => $brgyUrl,
+                    'fire_safety_cert_url'    => $fireSafetyUrl,
+                ]);
+            }
 
             $payoutData = [
                 'payout_channel'        => $payoutChannel,
@@ -675,8 +790,9 @@ function gym_profile_page(): void
 
             <div class="profile-actions-bar">
                 <?php if ($isPlatformAdmin): ?>
-                    <a href="index.php?page=gyms" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; font-weight:600;">
-                        <span>← Back to All Gyms</span>
+                    <a href="index.php?page=gyms" class="btn btn-secondary action-btn-back" style="display: inline-flex; align-items: center; gap: 6px; font-weight:600;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                        <span>Back to All Gyms</span>
                     </a>
                 <?php endif; ?>
                 <a href="index.php?page=view_gym&gym_id=<?= (int)$gym['gym_id'] ?>" target="_blank" class="btn btn-secondary action-btn-preview" style="display: inline-flex; align-items: center; gap: 6px;">
@@ -1379,7 +1495,7 @@ function gym_profile_page(): void
                                             Refresh Status
                                         </button>
                                     <?php endif; ?>
-                                    <?php if ($diditConfigured): ?>
+                                    <?php if (!$isPlatformAdmin && $diditConfigured): ?>
                                         <button type="button" class="btn btn-primary btn-sm" onclick="submitDiditAction('start')" style="font-size: 11.5px; padding: 5px 12px; display: inline-flex; align-items: center; gap: 5px;">
                                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                                             <?= $diditRecord ? (strtolower($diditStatus) === 'approved' ? 'Re-verify ID' : 'Retry / Complete Verification') : 'Verify ID with Didit' ?>
@@ -1421,7 +1537,7 @@ function gym_profile_page(): void
                             <?php else: ?>
                                 <div style="margin-top: 8px; font-size: 11.5px; color: var(--muted);">
                                     <?= $isPlatformAdmin
-                                        ? 'Owner has not completed automated Didit ID verification yet. Click "Verify ID with Didit" to generate a verification link.'
+                                        ? 'Owner has not completed automated Didit ID verification yet.'
                                         : 'Verify your government ID and selfie via Didit so platform admins can instantly confirm your document is genuine.'
                                     ?>
                                 </div>
@@ -1429,10 +1545,16 @@ function gym_profile_page(): void
                         </div>
                     </div>
 
-                    <button type="button" class="btn-manage-section" onclick="openCustomModal('modal-documents')">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        <span>Manage Documents</span>
-                    </button>
+                    <?php if (!$isPlatformAdmin): ?>
+                        <button type="button" class="btn-manage-section" onclick="openCustomModal('modal-documents')">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            <span>Manage Documents</span>
+                        </button>
+                    <?php else: ?>
+                        <div style="margin-top: 12px; font-size: 12px; color: var(--muted);">
+                            Read-only for Platform Admins. Only the gym owner can upload or replace compliance documents.
+                        </div>
+                    <?php endif; ?>
                 </section>
 
                                     <!-- ONLINE PAYMENTS & SETTLEMENT PAYOUTS -->
@@ -1961,6 +2083,7 @@ function gym_profile_page(): void
             </button>
         </div>
 
+        <?php if (!$isPlatformAdmin): ?>
         <!-- ======================================================== -->
         <!-- MODAL 1: MANAGE BUSINESS DOCUMENTS                      -->
         <!-- ======================================================== -->
@@ -2006,66 +2129,6 @@ function gym_profile_page(): void
                             </span>
                             <span style="font-size: 10.5px; color: var(--muted);">PDF, JPG, PNG (Max 10MB)</span>
                             <input type="file" name="business_permit" id="permit-file-input" accept=".pdf,.jpg,.jpeg,.png">
-                        </label>
-                    </div>
-
-                    <!-- Owner's Valid ID -->
-                    <div style="background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                            <div>
-                                <strong style="font-size: 13px; color: var(--ink); display: block;">Owner's Valid Government ID</strong>
-                                <span style="font-size: 11.5px; color: var(--muted);">Primary proof of owner identification.</span>
-                            </div>
-                            <?php if (!empty($gym['valid_id_url'])): ?>
-                                <span style="font-size: 10.5px; font-weight: 700; color: var(--teal, #10b981); background: color-mix(in srgb, var(--teal, #10b981) 14%, transparent); border: 1px solid color-mix(in srgb, var(--teal, #10b981) 28%, transparent); padding: 2px 7px; border-radius: 5px;">
-                                    ✅ On File
-                                </span>
-                            <?php endif; ?>
-                        </div>
-
-                        <div>
-                            <label style="font-size: 11.5px; font-weight: 600; color: var(--muted); margin-bottom: 4px; display: block;">Valid ID Type</label>
-                            <select name="valid_id_type" class="form-control" style="font-size: 12px; height: 36px;">
-                                <?php
-                                $validIdOptions = [
-                                    'Philippine National ID (PhilSys ID)',
-                                    "Driver's License",
-                                    'Passport',
-                                    'UMID (Unified Multi-Purpose ID)',
-                                    'PRC ID',
-                                    'SSS ID',
-                                    'GSIS ID',
-                                    'Postal ID',
-                                    'TIN ID',
-                                    'Other Valid Government ID'
-                                ];
-                                $curIdType = $gym['valid_id_type'] ?? '';
-                                ?>
-                                <option value="">Select ID Type...</option>
-                                <?php foreach ($validIdOptions as $opt): ?>
-                                    <option value="<?= h($opt) ?>" <?= (strcasecmp($curIdType, $opt) === 0) ? 'selected' : '' ?>><?= h($opt) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-
-                        <?php if (!empty($gym['valid_id_url'])): ?>
-                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px;">
-                                <span style="font-size: 12px; color: var(--ink); font-weight: 600;" title="<?= h($gym['valid_id_url']) ?>">
-                                    <?= h(clean_doc_name($gym['valid_id_url'])) ?>
-                                </span>
-                                <a href="<?= h(upload_url($gym['valid_id_url'], 'permits')) ?>" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 3px 8px; border-radius: 5px;">
-                                    View
-                                </a>
-                            </div>
-                        <?php endif; ?>
-
-                        <label class="modern-dropzone" id="valid-id-dropzone" style="padding: 12px;">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                            <span id="valid-id-label-text" style="font-size: 12.5px; font-weight: 700; color: var(--ink);">
-                                <?= !empty($gym['valid_id_url']) ? 'Click to Replace Valid ID' : 'Click or Drag to Upload Valid ID' ?>
-                            </span>
-                            <span style="font-size: 10.5px; color: var(--muted);">PDF, JPG, PNG (Max 10MB)</span>
-                            <input type="file" name="valid_id" id="valid-id-file-input" accept=".pdf,.jpg,.jpeg,.png">
                         </label>
                     </div>
 
@@ -2172,6 +2235,7 @@ function gym_profile_page(): void
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- ======================================================== -->
         <!-- MODAL 2: MANAGE GYM PHOTOS                              -->

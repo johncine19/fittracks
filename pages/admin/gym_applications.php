@@ -6,6 +6,7 @@ function gym_applications_page(): void
 {
     $user = require_roles(['platform_admin']);
     $pdo = db();
+    unset($_SESSION['platform_admin_unlocked_gym_id'], $_SESSION['platform_admin_gym_profile_verified_at']);
 
     require_once __DIR__ . '/../../core/file_handler.php';
     FileUpload::ensureDatabaseAssetsSynced($pdo);
@@ -2262,6 +2263,73 @@ function gym_applications_page(): void
     if (document.readyState === 'interactive' || document.readyState === 'complete') {
         initAppPagination();
     }
+
+    (function() {
+        const csrfToken = <?= json_encode(csrf_token()) ?>;
+
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a[href*="page=gym_profile"]');
+            if (!link) return;
+            if (typeof Swal === 'undefined') return;
+
+            e.preventDefault();
+            const targetUrl = link.getAttribute('href');
+            const targetWin = link.getAttribute('target');
+            let gymId = '';
+            try {
+                gymId = new URL(targetUrl, window.location.origin).searchParams.get('gym_id') || '';
+            } catch (err) {}
+
+            Swal.fire({
+                title: 'Confirm Admin Password',
+                text: 'Enter your Platform Admin password to view this gym\'s profile & compliance records.',
+                input: 'password',
+                inputPlaceholder: 'Enter your password',
+                inputAttributes: { autocomplete: 'current-password' },
+                showCancelButton: true,
+                confirmButtonText: 'Unlock Profile',
+                confirmButtonColor: '#65a30d',
+                showLoaderOnConfirm: true,
+                background: 'var(--panel, var(--bg, #ffffff))',
+                color: 'var(--ink, #0f172a)',
+                preConfirm: async (password) => {
+                    if (!password) {
+                        Swal.showValidationMessage('Please enter your password.');
+                        return false;
+                    }
+                    try {
+                        const res = await fetch('index.php?page=gym_profile&ajax_unlock=1', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: new URLSearchParams({
+                                csrf_token: csrfToken,
+                                gym_id: gymId,
+                                admin_password: password
+                            })
+                        });
+                        const data = await res.json();
+                        if (!data.ok) {
+                            Swal.showValidationMessage(data.error || 'Incorrect password.');
+                            return false;
+                        }
+                        return true;
+                    } catch (err) {
+                        Swal.showValidationMessage('Network error verifying password.');
+                        return false;
+                    }
+                },
+                allowOutsideClick: () => !Swal.isLoading()
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    if (targetWin === '_blank') {
+                        window.open(targetUrl, '_blank', 'noopener');
+                    } else {
+                        window.location.href = targetUrl;
+                    }
+                }
+            });
+        });
+    })();
     </script>
 <?php
     render_footer();
