@@ -511,7 +511,18 @@ function expenses_page(): void
                         <tr>
                             <td><span style="font-size:12.5px;color:var(--muted);"><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?></span></td>
                             <td><span class="badge"><?= h($r['category']) ?></span></td>
-                            <td style="max-width:280px;overflow-wrap:anywhere;"><span style="font-size:12.5px;"><?= h($r['description']) ?></span></td>
+                            <td style="max-width:280px;overflow-wrap:anywhere;">
+                                <?php $descText = (string)$r['description']; ?>
+                                <?php if (strlen($descText) > 60): ?>
+                                    <span style="font-size:12.5px;">
+                                        <span class="exp-desc-short"><?= h(rtrim(substr($descText, 0, 60))) ?>&hellip;</span>
+                                        <span class="exp-desc-full" style="display:none;"><?= h($descText) ?></span>
+                                        <button type="button" class="exp-see-more-btn" onclick="toggleExpenseDesc(this)">See more</button>
+                                    </span>
+                                <?php else: ?>
+                                    <span style="font-size:12.5px;"><?= h($descText) ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td><span style="color:var(--muted);font-size:12.5px;"><?= h($paymentMethods[$r['payment_method']] ?? ucfirst((string)$r['payment_method'])) ?></span></td>
                             <td>
                                 <?php if ($isStaffRestricted && (int)$r['recorded_by'] !== (int)$user['user_id']): ?>
@@ -553,7 +564,16 @@ function expenses_page(): void
                                 <strong style="color:#f87171;font-size:15px;">−<?= h(money((float)$r['amount'])) ?></strong>
                             <?php endif; ?>
                         </div>
-                        <div class="exp-mobile-card-desc"><?= h($r['description']) ?></div>
+                        <div class="exp-mobile-card-desc">
+                            <?php $descText = (string)$r['description']; ?>
+                            <?php if (strlen($descText) > 60): ?>
+                                <span class="exp-desc-short"><?= h(rtrim(substr($descText, 0, 60))) ?>&hellip;</span>
+                                <span class="exp-desc-full" style="display:none;"><?= h($descText) ?></span>
+                                <button type="button" class="exp-see-more-btn" onclick="toggleExpenseDesc(this)">See more</button>
+                            <?php else: ?>
+                                <?= h($descText) ?>
+                            <?php endif; ?>
+                        </div>
                         <div class="exp-mobile-card-meta">
                             <span><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?> &bull; <?= h($methodLabel) ?></span>
                         </div>
@@ -707,9 +727,42 @@ function expenses_page(): void
         input.required = isNew;
         if (isNew) input.focus();
     }
+    function toggleExpenseDesc(btn) {
+        const wrap = btn.parentElement;
+        if (!wrap) return;
+        const shortEl = wrap.querySelector('.exp-desc-short');
+        const fullEl = wrap.querySelector('.exp-desc-full');
+        if (!shortEl || !fullEl) return;
+        const isExpanded = fullEl.style.display !== 'none';
+        shortEl.style.display = isExpanded ? 'inline' : 'none';
+        fullEl.style.display = isExpanded ? 'none' : 'inline';
+        btn.textContent = isExpanded ? 'See more' : 'See less';
+    }
     </script>
 
     <style>
+        .exp-see-more-btn {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            height: auto !important;
+            margin-left: 4px;
+            color: var(--lime) !important;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: underline;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .exp-see-more-btn:hover,
+        .exp-see-more-btn:focus {
+            background: transparent !important;
+            color: var(--ink) !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
         .exp-header-actions {
             display: flex;
             gap: 8px;

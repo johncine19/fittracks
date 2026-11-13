@@ -1822,10 +1822,10 @@ function memberships_page(): void
                                                     <span><?= h($row['member']) ?></span>
                                                 </div>
                                             </td>
-                                            <td><strong><?= h($row['plan_name']) ?></strong></td>
-                                            <td><?= h(money($row['price'])) ?></td>
-                                            <td><?= h(date('M j, Y', strtotime($row['start_date']))) ?></td>
-                                            <td><?= h(date('M j, Y', strtotime($row['end_date']))) ?></td>
+                                            <td><strong style="font-size:12px;"><?= h($row['plan_name']) ?></strong></td>
+                                            <td><span style="font-size:12px;"><?= h(money($row['price'])) ?></span></td>
+                                            <td><span style="font-size:12px;color:var(--muted);"><?= h(date('M j, Y', strtotime($row['start_date']))) ?></span></td>
+                                            <td><span style="font-size:12px;color:var(--muted);"><?= h(date('M j, Y', strtotime($row['end_date']))) ?></span></td>
                                             <td>
                                                 <span class="<?= $statusClass ?>"><?= h($rowStatus) ?></span>
                                                 <?php if ($rowStatus === 'expired' && $hasActivePlan): ?>
@@ -1989,9 +1989,9 @@ function memberships_page(): void
                                                     <span><?= h($prow['member']) ?></span>
                                                 </div>
                                             </td>
-                                            <td><?= h($prow['plan_name']) ?></td>
-                                            <td><strong><?= h(money($prow['amount'])) ?></strong></td>
-                                            <td><?= h(date('M j, Y', strtotime($prow['payment_date']))) ?></td>
+                                            <td><span style="font-size:12px;"><?= h($prow['plan_name']) ?></span></td>
+                                            <td><strong style="font-size:12px;"><?= h(money($prow['amount'])) ?></strong></td>
+                                            <td><span style="font-size:12px;color:var(--muted);"><?= h(date('M j, Y', strtotime($prow['payment_date']))) ?></span></td>
                                             <td><span style="color:var(--muted);font-size:12px"><?= ($methodIcons[$prow['payment_method']] ?? '') . ' ' . h(ucfirst($prow['payment_method'])) ?></span></td>
                                             <td><span class="<?= $statusClass ?>"><?= h(ucfirst($prow['status'])) ?></span></td>
                                             <td><span style="color:var(--muted);font-size:12px;font-family:monospace"><?= h($prow['receipt_number']) ?></span></td>
