@@ -1229,6 +1229,62 @@ function gym_onboarding_page(): void
             .onboarding-card .onboarding-payout-box {
                 padding: 10px !important;
             }
+            #didit-onboarding-card {
+                padding: 12px 13px !important;
+            }
+            .didit-onb-header {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 10px !important;
+            }
+            .didit-onb-actions {
+                width: 100%;
+            }
+            .didit-onb-actions button {
+                flex: 1 1 auto;
+                justify-content: center;
+                padding: 9px 12px !important;
+            }
+        }
+        .didit-onb-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .didit-onb-lead {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-width: 0;
+            flex: 1 1 240px;
+        }
+        .didit-onb-title-row {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            line-height: 1.35;
+        }
+        .didit-onb-env-badge {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: rgba(15,23,42,0.08);
+            color: #475569;
+            white-space: nowrap;
+        }
+        .didit-onb-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
         }
     </style>
     <div class="split-login-viewport">
@@ -1583,22 +1639,20 @@ function gym_onboarding_page(): void
                             ?>
                             <!-- Automated ID Authenticity Check (Didit) -->
                             <div id="didit-onboarding-card" style="margin: 4px 0 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid <?= h($diditOnbBadge['border']) ?>; background: <?= h($diditOnbBadge['bg']) ?>;">
-                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-                                    <div style="display: flex; align-items: center; gap: 9px;">
-                                        <span id="didit-onb-icon" style="font-size: 16px;"><?= $diditOnbBadge['icon'] ?></span>
-                                        <div>
-                                            <div style="font-size: 13px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px;">
-                                                Owner Identity Verification (Didit)<span class="req-star">*</span>
-                                                <span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: rgba(15,23,42,0.08); color: #475569;">
-                                                    <?= h(didit_environment()) ?>
-                                                </span>
+                                <div class="didit-onb-header">
+                                    <div class="didit-onb-lead">
+                                        <span id="didit-onb-icon" style="font-size: 16px; line-height: 1.25; flex-shrink: 0;"><?= $diditOnbBadge['icon'] ?></span>
+                                        <div style="min-width: 0;">
+                                            <div class="didit-onb-title-row">
+                                                <span>Owner Identity Verification (Didit)<span class="req-star">*</span></span>
+                                                <span class="didit-onb-env-badge"><?= h(didit_environment()) ?></span>
                                             </div>
-                                            <div id="didit-onb-status" style="font-size: 11.5px; font-weight: 600; color: <?= h($diditOnbBadge['color']) ?>; margin-top: 2px;">
+                                            <div id="didit-onb-status" style="font-size: 11.5px; font-weight: 600; color: <?= h($diditOnbBadge['color']) ?>; margin-top: 3px;">
                                                 Status: <?= h($diditOnbBadge['label']) ?>
                                             </div>
                                         </div>
                                     </div>
-                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                    <div class="didit-onb-actions">
                                         <button type="button" id="didit-onb-refresh-btn" onclick="refreshDiditOnboardingStatus()" style="<?= $onboardingDiditSessionId !== '' && strtolower($diditOnbStatus) !== 'approved' ? '' : 'display:none;' ?> background: #ffffff; border: 1px solid #cbd5e1; color: #334155; border-radius: 7px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer;">
                                             Refresh Status
                                         </button>
