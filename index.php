@@ -12,8 +12,8 @@ if (preg_match('#(?:^|/)\.(?:env|git|htaccess|htpasswd|ssh|aws|docker|kilo|svn)#
 require __DIR__ . '/core/bootstrap.php';
 
 try {
-    // Xendit calls this public callback directly; it is authenticated with its callback token.
-    if (($_GET['page'] ?? '') !== 'xendit_webhook') {
+    // Xendit & Didit call these public callbacks directly; they are authenticated via their own headers/API sync.
+    if (!in_array($_GET['page'] ?? '', ['xendit_webhook', 'didit_webhook'], true)) {
         verify_csrf();
     }
 
@@ -205,6 +205,7 @@ try {
         'gym_rejected' => ['file' => 'pages/gym_owner/gym_rejected.php', 'handler' => 'gym_rejected_page'],
         'gym_subscription' => ['file' => 'pages/gym_owner/gym_subscription.php', 'handler' => 'gym_subscription_page'],
         'xendit_webhook' => ['file' => 'pages/shared/xendit_webhook.php', 'handler' => 'xendit_webhook_page'],
+        'didit_webhook' => ['file' => 'pages/shared/didit_webhook.php', 'handler' => 'didit_webhook_page'],
 
         'notification_action' => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_actions'],
         'notification_click'  => ['file' => 'pages/shared/notifications.php', 'handler' => 'handle_notification_click'],
