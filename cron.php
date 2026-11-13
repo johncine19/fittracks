@@ -64,6 +64,12 @@ if (!$isFrequentOnly) {
     $cleanupResults = cleanup_old_notifications(30, 60);
     echo "Notification cleanup completed: {$cleanupResults['read_deleted']} read and {$cleanupResults['unread_deleted']} unread ({$cleanupResults['total']} total purged).\n";
 
+    // 3b. Document Retention & Disposal (Purge rejected gym verification docs after retention window)
+    $docRetentionDays = max(1, (int)(app_env('DOC_RETENTION_DAYS') ?: 30));
+    echo "Purging expired verification documents (Rejected apps > {$docRetentionDays} days)...\n";
+    $docCleanup = cleanup_expired_verification_documents($docRetentionDays);
+    echo "Document retention cleanup completed: {$docCleanup['purged']} file(s) purged.\n";
+
     // 4. Auto-expire lapsed partner gym subscriptions and member plans
     echo "Checking for expired partner gym subscriptions...\n";
     $expiredGymsCount = auto_expire_lapsed_gym_subscriptions();

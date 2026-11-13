@@ -187,7 +187,7 @@ function formatPortionQty(qty) {
     const manualCarbs       = document.getElementById('manual-macro-carbs');
     const manualFat         = document.getElementById('manual-macro-fat');
 
-    let activeLoggerTab = 'ai';
+    let activeLoggerTab = 'manual';
 
     window.setLoggerMealSlot = function(slot) {
         const input = document.getElementById('macro-input-meal-type');
@@ -1566,9 +1566,7 @@ function formatPortionQty(qty) {
             if (manualCals) manualCals.value = inCals.value;
         }
 
-        const foodNameVal = (activeLoggerTab === 'manual')
-            ? (manualFoodName?.value?.trim() || '')
-            : (inFoodItems?.value?.trim() || ninjaInput?.value?.trim() || '');
+        const foodNameVal = manualFoodName?.value?.trim() || inFoodItems?.value?.trim() || '';
         currentSubmittedFoodName = foodNameVal;
 
         const mealTypeVal = document.getElementById('macro-input-meal-type')?.value || 'Snack';
@@ -3055,9 +3053,7 @@ function toggleMobileMealLogger(forceOpen = null, targetMode = null) {
         }
 
         setTimeout(() => {
-            const activeInput = (typeof activeLoggerTab !== 'undefined' && activeLoggerTab === 'manual')
-                ? document.getElementById('manual-food-name')
-                : document.getElementById('smart-ninja-input');
+            const activeInput = document.getElementById('manual-food-name');
             if (activeInput && typeof activeInput.focus === 'function' && window.innerWidth <= 768 && forceOpen === null) {
                 activeInput.focus();
             }

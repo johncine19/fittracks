@@ -81,6 +81,37 @@ function gym_applications_page(): void
                 Emails::sendGymApplicationRejected($gym['email'], $ownerName, $gym['gym_name']);
                 
                 flash('Gym application rejected.', 'success');
+            } elseif ($action === 'ocr_scan') {
+                verify_csrf();
+                if (!doc_ocr_is_configured()) {
+                    flash('OCR.space API key is not configured in .env.', 'danger');
+                } else {
+                    $hydrated = hydrate_gym_rows([['gym_id' => $gymId]])[0] ?? [];
+                    $docsToScan = [
+                        'business_permit'    => (string)($hydrated['business_permit_url'] ?? ''),
+                        'barangay_clearance' => (string)($hydrated['barangay_clearance_url'] ?? ''),
+                        'fire_safety_cert'   => (string)($hydrated['fire_safety_cert_url'] ?? ''),
+                    ];
+                    $scanned = 0;
+                    $passed = 0;
+                    $flagged = 0;
+                    foreach ($docsToScan as $dType => $dUrl) {
+                        if (trim($dUrl) === '') continue;
+                        $res = doc_ocr_scan_gym_document($gymId, $dType, $dUrl, (string)$gym['gym_name'], $ownerName);
+                        $scanned++;
+                        if (($res['verdict'] ?? '') === 'verified') $passed++;
+                        elseif (($res['verdict'] ?? '') === 'flagged') $flagged++;
+                    }
+                    if ($scanned === 0) {
+                        flash("No compliance documents found for {$gym['gym_name']} to scan.", 'warning');
+                    } elseif ($flagged > 0) {
+                        flash("OCR Scan for {$gym['gym_name']}: {$passed} passed, {$flagged} flagged for review.", 'warning');
+                    } else {
+                        flash("OCR Scan for {$gym['gym_name']}: {$passed}/{$scanned} document(s) passed automated checks.", 'success');
+                    }
+                }
+                $redirStatus = strtolower(trim((string) ($_GET['status'] ?? 'pending')));
+                redirect('gym_applications', $redirStatus !== 'pending' ? ['status' => $redirStatus] : []);
             }
         }
         redirect('gym_applications');
@@ -117,13 +148,19 @@ function gym_applications_page(): void
     }
 
     foreach ($applications as &$app) {
+        $diditRecord = function_exists('didit_get_latest_for_gym') ? didit_get_latest_for_gym((int)$app['gym_id']) : null;
+        $ocrChecks = function_exists('doc_ocr_get_for_gym') ? doc_ocr_get_for_gym((int)$app['gym_id']) : [];
+        $app['didit'] = $diditRecord;
+        $app['ocr_checks'] = $ocrChecks;
+
         $docs = [];
         if (!empty($app['business_permit_url'])) {
             $docs[] = [
                 'name' => 'Business Permit',
                 'url' => upload_url($app['business_permit_url'], 'permits'),
                 'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
-                'type' => 'doc'
+                'type' => 'doc',
+                'ocr' => $ocrChecks['business_permit'] ?? null,
             ];
         }
         if (!empty($app['barangay_clearance_url'])) {
@@ -131,7 +168,8 @@ function gym_applications_page(): void
                 'name' => 'Barangay Clearance',
                 'url' => upload_url($app['barangay_clearance_url'], 'permits'),
                 'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
-                'type' => 'doc'
+                'type' => 'doc',
+                'ocr' => $ocrChecks['barangay_clearance'] ?? null,
             ];
         }
         if (!empty($app['valid_id_url'])) {
@@ -142,7 +180,17 @@ function gym_applications_page(): void
                 'name' => "Valid ID ({$idLabel}) - {$badge}",
                 'url' => upload_url($app['valid_id_url'], 'permits'),
                 'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>',
-                'type' => 'doc'
+                'type' => 'doc',
+                'didit' => $diditRecord,
+            ];
+        } elseif ($diditRecord) {
+            $dDocType = !empty($diditRecord['document_type']) ? $diditRecord['document_type'] : 'Identity Check';
+            $docs[] = [
+                'name' => "Didit ID ({$dDocType})",
+                'url' => 'index.php?page=gym_profile&gym_id=' . (int)$app['gym_id'] . '&tab=documents#sec-documents',
+                'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+                'type' => 'link',
+                'didit' => $diditRecord,
             ];
         }
         if (!empty($app['secondary_valid_id_url'])) {
@@ -159,7 +207,8 @@ function gym_applications_page(): void
                 'name' => 'Fire Safety Cert. (FSIC)',
                 'url' => upload_url($app['fire_safety_cert_url'], 'permits'),
                 'icon' => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
-                'type' => 'doc'
+                'type' => 'doc',
+                'ocr' => $ocrChecks['fire_safety_cert'] ?? null,
             ];
         }
         if (!empty($app['fb_page_url'])) {
@@ -173,7 +222,7 @@ function gym_applications_page(): void
         $app['docs'] = $docs;
         $app['doc_count'] = count($docs);
         $app['has_permit'] = !empty($app['business_permit_url']) ? 1 : 0;
-        $app['has_id'] = !empty($app['valid_id_url']) ? 1 : 0;
+        $app['has_id'] = (!empty($app['valid_id_url']) || strtolower((string)($diditRecord['status'] ?? '')) === 'approved') ? 1 : 0;
         $app['has_fire'] = !empty($app['fire_safety_cert_url']) ? 1 : 0;
         $app['has_brgy'] = !empty($app['barangay_clearance_url']) ? 1 : 0;
         $app['doc_complete'] = ($app['has_permit'] && $app['has_id']) ? 1 : 0;
@@ -1368,20 +1417,43 @@ function gym_applications_page(): void
                                         <span class="muted" style="font-size:11.5px;">No docs</span>
                                     <?php endif; ?>
                                 <?php else: ?>
+                                    <?php
+                                        $diditRec = $app['didit'] ?? null;
+                                        $diditSt = strtolower((string)($diditRec['status'] ?? ''));
+                                        $ocrMap = $app['ocr_checks'] ?? [];
+                                        $hasAnyFlag = ($diditSt === 'declined');
+                                        foreach ($ocrMap as $ocrRow) {
+                                            if (($ocrRow['verdict'] ?? '') === 'flagged') {
+                                                $hasAnyFlag = true;
+                                            }
+                                        }
+                                        $hasAllVerified = ($diditSt === 'approved');
+                                    ?>
                                     <div class="doc-pill-dropdown" id="dropdown-<?= (int)$app['gym_id'] ?>">
-                                        <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View <?= $docCount ?> attached documents">
+                                        <button type="button" class="doc-pill-trigger" onclick="toggleDocDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View <?= $docCount ?> attached documents" style="<?= $hasAnyFlag ? 'border-color:rgba(239,68,68,0.5);' : ($hasAllVerified ? 'border-color:rgba(16,185,129,0.45);' : '') ?>">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                                 <polyline points="14 2 14 8 20 8"></polyline>
                                             </svg>
                                             <span><?= $docCount ?> <?= $docCount === 1 ? 'Doc' : 'Docs' ?></span>
+                                            <?php if ($hasAnyFlag): ?>
+                                                <span title="Flagged by automated check" style="font-size:10px;">🔴</span>
+                                            <?php elseif ($hasAllVerified): ?>
+                                                <span title="Didit ID Verified" style="font-size:10px;">🟢</span>
+                                            <?php endif; ?>
                                             <svg class="doc-pill-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                                 <polyline points="6 9 12 15 18 9"></polyline>
                                             </svg>
                                         </button>
-                                        <div class="doc-pill-menu" id="menu-<?= (int)$app['gym_id'] ?>">
-                                            <div class="doc-menu-header">
+                                        <div class="doc-pill-menu" id="menu-<?= (int)$app['gym_id'] ?>" style="min-width: 285px;">
+                                            <div class="doc-menu-header" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                                                 <span>Attached Documents (<?= $docCount ?>)</span>
+                                                <?php if ($diditRec): ?>
+                                                    <?php $dBadge = didit_status_badge((string)$diditRec['status']); ?>
+                                                    <span title="<?= !empty($diditRec['extracted_name']) ? 'Didit Verified Name: ' . h($diditRec['extracted_name']) : '' ?>" style="font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; background:<?= h($dBadge['bg']) ?>; color:<?= h($dBadge['color']) ?>; border:1px solid <?= h($dBadge['border']) ?>;">
+                                                        <?= $dBadge['icon'] ?> Didit: <?= h($diditRec['status']) ?>
+                                                    </span>
+                                                <?php endif; ?>
                                             </div>
                                             <?php foreach ($docs as $doc): ?>
                                                 <?php if ($doc['type'] === 'link'): ?>
@@ -1391,13 +1463,51 @@ function gym_applications_page(): void
                                                         <span class="doc-item-badge link">Visit ↗</span>
                                                     </a>
                                                 <?php else: ?>
-                                                    <button type="button" class="doc-menu-item" onclick="viewDocument('<?= h($doc['url']) ?>', '<?= h(addslashes($doc['name'])) ?>'); closeAllDocDropdowns();">
+                                                    <?php
+                                                        $ocrRow = $doc['ocr'] ?? null;
+                                                        $diditRow = $doc['didit'] ?? null;
+                                                        $statusTag = '';
+                                                        $statusTitle = '';
+                                                        $previewMeta = null;
+                                                        if ($ocrRow) {
+                                                            $ob = doc_ocr_badge((string)($ocrRow['verdict'] ?? 'warning'));
+                                                            $statusTag = $ob['icon'] . ' ' . $ob['label'];
+                                                            $statusTitle = (string)($ocrRow['summary_note'] ?? '');
+                                                            $previewMeta = [
+                                                                'label' => $ob['icon'] . ' ' . $ob['label'],
+                                                                'note'  => $statusTitle,
+                                                                'color' => $ob['color'],
+                                                                'bg'    => $ob['bg'],
+                                                                'border'=> $ob['border'],
+                                                            ];
+                                                        } elseif ($diditRow) {
+                                                            $db = didit_status_badge((string)($diditRow['status'] ?? 'Not Started'));
+                                                            $statusTag = $db['icon'] . ' ' . (string)($diditRow['status'] ?? '');
+                                                            $statusTitle = !empty($diditRow['extracted_name']) ? 'Extracted: ' . $diditRow['extracted_name'] : '';
+                                                        }
+                                                    ?>
+                                                    <button type="button" class="doc-menu-item" title="<?= h($statusTitle) ?>" onclick='viewDocument(<?= json_encode($doc['url']) ?>, <?= json_encode($doc['name']) ?>, <?= json_encode($previewMeta) ?>); closeAllDocDropdowns();'>
                                                         <span class="doc-item-icon"><?= $doc['icon'] ?></span>
-                                                        <span class="doc-item-title"><?= h($doc['name']) ?></span>
+                                                        <span class="doc-item-title" style="display:flex; flex-direction:column; align-items:flex-start; gap:1px;">
+                                                            <span><?= h($doc['name']) ?></span>
+                                                            <?php if ($statusTag !== ''): ?>
+                                                                <span style="font-size:10px; opacity:0.85; font-weight:600;"><?= h($statusTag) ?></span>
+                                                            <?php endif; ?>
+                                                        </span>
                                                         <span class="doc-item-badge">Preview</span>
                                                     </button>
                                                 <?php endif; ?>
                                             <?php endforeach; ?>
+                                            <?php if (function_exists('doc_ocr_is_configured') && doc_ocr_is_configured()): ?>
+                                                <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin: 6px 6px 2px; padding-top: 6px; border-top: 1px solid rgba(148,163,184,0.2);" onsubmit="closeAllDocDropdowns(); showOcrScanLoader();">
+                                                    <?= csrf_field() ?>
+                                                    <input type="hidden" name="gym_id" value="<?= (int)$app['gym_id'] ?>">
+                                                    <input type="hidden" name="action" value="ocr_scan">
+                                                    <button type="submit" style="width:100%; padding:6px 10px; border-radius:7px; border:1px solid rgba(132,204,22,0.35); background:rgba(132,204,22,0.1); color:var(--ink); font-size:11.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                                                        <span>🔍 Run OCR Document Scan</span>
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 <?php endif; ?>
@@ -1573,8 +1683,14 @@ function gym_applications_page(): void
 
                         <?php if ($docCount > 0): ?>
                             <div class="app-card-docs">
-                                <div class="app-card-docs-header">
+                                <div class="app-card-docs-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                                     <span>Attached Documents (<?= $docCount ?>)</span>
+                                    <?php if (!empty($app['didit'])): ?>
+                                        <?php $dBadgeMob = didit_status_badge((string)$app['didit']['status']); ?>
+                                        <span style="font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; background:<?= h($dBadgeMob['bg']) ?>; color:<?= h($dBadgeMob['color']) ?>; border:1px solid <?= h($dBadgeMob['border']) ?>;">
+                                            <?= $dBadgeMob['icon'] ?> Didit: <?= h($app['didit']['status']) ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="app-card-docs-list">
                                     <?php foreach ($docs as $doc): ?>
@@ -1584,12 +1700,40 @@ function gym_applications_page(): void
                                                 <span><?= h($doc['name']) ?> ↗</span>
                                             </a>
                                         <?php else: ?>
-                                            <button type="button" class="app-card-doc-pill" onclick="viewDocument('<?= h($doc['url']) ?>', '<?= h(addslashes($doc['name'])) ?>')">
+                                            <?php
+                                                $mobTag = '';
+                                                $mobMeta = null;
+                                                if (!empty($doc['ocr'])) {
+                                                    $obM = doc_ocr_badge((string)($doc['ocr']['verdict'] ?? 'warning'));
+                                                    $mobTag = ' ' . $obM['icon'];
+                                                    $mobMeta = [
+                                                        'label' => $obM['icon'] . ' ' . $obM['label'],
+                                                        'note'  => (string)($doc['ocr']['summary_note'] ?? ''),
+                                                        'color' => $obM['color'],
+                                                        'bg'    => $obM['bg'],
+                                                        'border'=> $obM['border'],
+                                                    ];
+                                                } elseif (!empty($doc['didit'])) {
+                                                    $dbM = didit_status_badge((string)($doc['didit']['status'] ?? 'Not Started'));
+                                                    $mobTag = ' ' . $dbM['icon'];
+                                                }
+                                            ?>
+                                            <button type="button" class="app-card-doc-pill" onclick='viewDocument(<?= json_encode($doc['url']) ?>, <?= json_encode($doc['name']) ?>, <?= json_encode($mobMeta) ?>)'>
                                                 <?= $doc['icon'] ?>
-                                                <span><?= h($doc['name']) ?></span>
+                                                <span><?= h($doc['name']) . $mobTag ?></span>
                                             </button>
                                         <?php endif; ?>
                                     <?php endforeach; ?>
+                                    <?php if (function_exists('doc_ocr_is_configured') && doc_ocr_is_configured()): ?>
+                                        <form method="post" action="index.php?page=gym_applications<?= $currentStatus !== 'pending' ? '&status=' . urlencode($currentStatus) : '' ?>" style="display:inline;" onsubmit="showOcrScanLoader();">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="gym_id" value="<?= (int)$app['gym_id'] ?>">
+                                            <input type="hidden" name="action" value="ocr_scan">
+                                            <button type="submit" class="app-card-doc-pill" style="border-color:rgba(132,204,22,0.4); font-weight:700;">
+                                                🔍 Scan Docs (OCR)
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php elseif ($app['status'] === 'approved'): ?>
@@ -1750,17 +1894,39 @@ function gym_applications_page(): void
         }
     });
 
-    function viewDocument(url, docTitle = 'Document') {
+    function showOcrScanLoader() {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Scanning Compliance Documents…',
+                text: 'Running OCR text & year checks on this applicant\'s permits and clearances.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => Swal.showLoading()
+            });
+        }
+    }
+
+    function viewDocument(url, docTitle = 'Document', ocrInfo = null) {
         let clean = url.split('#')[0];
         if (clean.includes('file=')) {
             clean = decodeURIComponent(clean.split('file=').pop().split('&')[0]);
         }
         const ext = clean.split('.').pop().toLowerCase().split('?')[0].split('&')[0];
-        
+
+        let ocrBannerHtml = '';
+        if (ocrInfo && ocrInfo.label) {
+            const esc = (v) => String(v || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+            ocrBannerHtml = `<div style="margin-bottom:12px; padding:10px 14px; border-radius:8px; background:${esc(ocrInfo.bg)}; border:1px solid ${esc(ocrInfo.border)}; text-align:left; font-size:12.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">`
+                + `<strong style="color:${esc(ocrInfo.color)};">${esc(ocrInfo.label)}</strong>`
+                + (ocrInfo.note ? `<span style="color:#e2e8f0;">${esc(ocrInfo.note)}</span>` : '')
+                + `</div>`;
+        }
+
         if (ext === 'pdf') {
             Swal.fire({
                 title: docTitle,
-                html: `<iframe src="${url}" style="width:100%; height:70vh; border:none;"></iframe>`,
+                html: `${ocrBannerHtml}<iframe src="${url}" style="width:100%; height:68vh; border:none;"></iframe>`,
                 width: '80%',
                 showCloseButton: true,
                 showConfirmButton: false,
@@ -1770,7 +1936,7 @@ function gym_applications_page(): void
         } else {
             Swal.fire({
                 title: docTitle,
-                html: `<div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 70vh;"><img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px;" alt="${docTitle}"></div>`,
+                html: `${ocrBannerHtml}<div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 68vh;"><img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px;" alt="${docTitle}"></div>`,
                 width: '80%',
                 showCloseButton: true,
                 showConfirmButton: false,

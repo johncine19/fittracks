@@ -236,6 +236,8 @@
             }
 
             const source = window._lastSubmitSource || '';
+            const diditActionVal = document.getElementById('didit_action_input')?.value || '';
+            const isDiditSubmit = source === 'didit' || diditActionVal !== '';
             const isDocModalOpen = Boolean((document.getElementById('modal-documents') && document.getElementById('modal-documents').classList.contains('is-open')) || source === 'documents');
             const isGalleryModalOpen = Boolean((document.getElementById('modal-gallery') && document.getElementById('modal-gallery').classList.contains('is-open')) || source === 'gallery');
 
@@ -249,7 +251,24 @@
 
             const spinnerSvg = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 0.8s linear infinite; display:inline-block; vertical-align:middle; margin-right:6px;"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg>';
 
-            if (isDocModalOpen) {
+            if (isDiditSubmit) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: diditActionVal === 'refresh' ? 'Checking Didit Status…' : 'Connecting to Didit Verification…',
+                        text: diditActionVal === 'refresh'
+                            ? 'Fetching the latest verification decision from Didit.'
+                            : 'Preparing your secure identity verification session.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        background: 'var(--panel)',
+                        color: 'var(--ink)',
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                }
+            } else if (isDocModalOpen) {
                 const docSaveBtn = document.getElementById('doc-modal-save-btn');
                 if (docSaveBtn) {
                     docSaveBtn.disabled = true;
@@ -343,6 +362,17 @@
                 }
             }
             return true;
+        }
+
+        function submitDiditAction(action) {
+            const actionInput = document.getElementById('didit_action_input');
+            const form = document.getElementById('gym-profile-form');
+            if (!actionInput || !form) return;
+            actionInput.value = action;
+            window._lastSubmitSource = 'didit';
+            if (handleFormSubmit(form, null)) {
+                form.submit();
+            }
         }
 
         function confirmGalleryDelete(imageId) {

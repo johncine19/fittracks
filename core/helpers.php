@@ -1254,6 +1254,57 @@ function save_gym_verification_documents(int $gymId, array $docs): void
 }
 
 /**
+ * Purges expired verification documents from Cloudinary/local storage and database
+ * for rejected gym applications past the retention window.
+ */
+function cleanup_expired_verification_documents(int $rejectedRetentionDays = 30): array
+{
+    $rejectedRetentionDays = max(1, $rejectedRetentionDays);
+    $pdo = db();
+
+    $stmt = $pdo->prepare("
+        SELECT gvd.document_id, gvd.gym_id, gvd.document_type, gvd.file_url
+        FROM gym_verification_documents gvd
+        INNER JOIN gyms g ON g.gym_id = gvd.gym_id
+        WHERE g.status = 'rejected'
+          AND COALESCE(g.updated_at, gvd.updated_at, gvd.created_at) < (NOW() - INTERVAL ? DAY)
+    ");
+    $stmt->execute([$rejectedRetentionDays]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $deletedCount = 0;
+    $delStmt = $pdo->prepare('DELETE FROM gym_verification_documents WHERE document_id = ?');
+
+    foreach ($rows as $row) {
+        $fileUrl = (string)($row['file_url'] ?? '');
+        if ($fileUrl !== '' && class_exists('FileUpload')) {
+            FileUpload::deletePermitDocument($fileUrl);
+        }
+        $delStmt->execute([(int)$row['document_id']]);
+        $deletedCount++;
+
+        audit_log(
+            0,
+            'retention_disposal',
+            'gym_verification_documents',
+            (string)$row['document_id'],
+            json_encode([
+                'gym_id' => (int)$row['gym_id'],
+                'document_type' => $row['document_type'],
+                'retention_days' => $rejectedRetentionDays,
+                'reason' => 'rejected_application_retention_expired',
+            ]),
+            (int)$row['gym_id']
+        );
+    }
+
+    return [
+        'purged' => $deletedCount,
+        'retention_days' => $rejectedRetentionDays,
+    ];
+}
+
+/**
  * Upserts payout account settings for a gym into gym_payout_accounts.
  */
 function save_gym_payout_account(int $gymId, array $payout): void

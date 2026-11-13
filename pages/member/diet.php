@@ -1452,41 +1452,10 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         </div>
                         <div class="mobile-logger-title-wrap">
                             <span class="mobile-logger-main-title">Live Macro Logger</span>
-                            <span class="mobile-logger-sub-title" id="mobile-logger-sub-title">Quick Parse &amp; Natural Language</span>
+                            <span class="mobile-logger-sub-title" id="mobile-logger-sub-title">Direct Manual Macro Logging</span>
                         </div>
                     </div>
                     <span id="mobile-logger-btn-label" class="mobile-logger-badge-btn">+ Log Food</span>
-                </button>
-
-                <button type="button" 
-                        id="btn-mobile-logger-dropdown" 
-                        class="mobile-logger-dropdown-trigger" 
-                        onclick="toggleMobileLoggerDropdown(event)" 
-                        title="Choose Logging Method"
-                        aria-label="Choose Logging Method">
-                    <svg class="mobile-logger-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                </button>
-            </div>
-
-            <!-- Dropdown Menu for Mobile + Log Food -->
-            <div id="mobile-logger-dropdown-menu" class="mobile-logger-dropdown-menu" style="display: none;">
-                <button type="button" class="mobile-logger-menu-item" onclick="openLoggerWithMode('ai')">
-                    <div class="menu-item-icon-ai">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                    </div>
-                    <div class="menu-item-text">
-                        <strong>Quick Parse Log</strong>
-                        <span>Type what you ate in natural language</span>
-                    </div>
-                </button>
-                <button type="button" class="mobile-logger-menu-item" onclick="openLoggerWithMode('manual')">
-                    <div class="menu-item-icon-manual">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                    </div>
-                    <div class="menu-item-text">
-                        <strong>Custom / Manual Log</strong>
-                        <span>Enter food name, calories &amp; macros directly</span>
-                    </div>
                 </button>
             </div>
         </div>
@@ -1503,8 +1472,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         </svg>
                         <span>Live Macro Logger</span>
                     </h3>
-                    <span class="smart-api-badge" id="logger-badge-mode">
-                        <span id="logger-badge-mode-text">Quick Parse</span>
+                    <span class="smart-api-badge manual-mode" id="logger-badge-mode">
+                        <span id="logger-badge-mode-text">Manual Entry</span>
                     </span>
                 </div>
 
@@ -1517,86 +1486,10 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 </div>
             </div>
 
-            <!-- Mode Switch Tabs: Quick Parse vs Manual Entry -->
-            <div class="logger-nav-tabs" role="tablist" aria-label="Logging Mode">
-                <button type="button" id="tab-logger-ai" class="logger-tab-pill active" onclick="switchLoggerTab('ai')" role="tab" aria-selected="true">
-                    <span>Quick Parse</span>
-                </button>
-                <button type="button" id="tab-logger-manual" class="logger-tab-pill" onclick="switchLoggerTab('manual')" role="tab" aria-selected="false">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                    <span>Manual Entry</span>
-                </button>
-            </div>
-
             <!-- Assistant Body -->
             <div class="meal-logger-body">
-                <!-- PANEL A: QUICK PARSE -->
-                <div id="panel-logger-ai" class="logger-tab-panel active">
-                    <div class="smart-meal-input-wrap">
-                        <input type="text" id="smart-ninja-input" class="smart-meal-textarea" placeholder="Type what you ate (e.g., 2 eggs, 1 slice wheat toast, 1 glass milk)..." autocomplete="off">
-                        <div class="smart-meal-btn-group">
-                            <button type="button" id="btn-clear-smart-ninja" class="smart-meal-clear-btn" onclick="clearSmartMealAssistant()" title="Clear">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                <span>Clear</span>
-                            </button>
-                            <!-- Photo scan button (hidden for now) -->
-                            <button type="button" id="btn-scan-meal-photo" class="smart-meal-scan-btn" onclick="triggerMealPhotoScan()" title="Scan Nutrition Label, Menu, or Recipe" style="display:none;">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                                <span id="btn-scan-meal-photo-txt">Scan Label / Menu</span>
-                            </button>
-                            <input type="file" id="meal-photo-file-input" accept="image/*" style="display:none;" onchange="handleMealPhotoSelected(event)">
-                            <button type="button" id="btn-analyze-ninja" class="smart-meal-action-btn">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                <span id="btn-analyze-ninja-txt">Analyze &amp; Fill</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Guidance tip for photo scanning (hidden for now) -->
-                    <div class="smart-photo-guide-chip" style="display:none;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                        <span><strong>Photo Scan:</strong> Reads <strong>printed text</strong> (nutrition labels, menus, receipts, or recipe cards). <em>Does not analyze actual food on a plate.</em></span>
-                    </div>
-
-                    <!-- Quick Suggestion Pills -->
-                    <div class="smart-quick-pills">
-                        <span class="quick-pill-label">Quick:</span>
-                        <button type="button" class="smart-pill" onclick="setQuickMealText('2 boiled eggs and 1 slice whole wheat bread')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
-                            <span>2 Eggs &amp; Toast</span>
-                        </button>
-                        <button type="button" class="smart-pill" onclick="setQuickMealText('150g grilled chicken breast and 1 cup white rice')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a5 5 0 0 1 5 5c0 2.5-1.5 4.5-3.5 5.5l1.5 6.5-3-1-3 1 1.5-6.5C8.5 11.5 7 9.5 7 7a5 5 0 0 1 5-5z"/></svg>
-                            <span>150g Chicken &amp; Rice</span>
-                        </button>
-                        <button type="button" class="smart-pill" onclick="setQuickMealText('1 scoop whey protein and 1 cup milk')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 2h12v3l-2 15a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2L6 5V2z"/><line x1="6" y1="7" x2="18" y2="7"/></svg>
-                            <span>Whey &amp; Milk</span>
-                        </button>
-                        <button type="button" class="smart-pill" onclick="setQuickMealText('1 can tuna and 1 medium banana')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>
-                            <span>Tuna &amp; Banana</span>
-                        </button>
-                    </div>
-
-                    <!-- CalorieNinjas Breakdown Container -->
-                    <div id="ninja-breakdown-wrap" style="display: none;" class="smart-breakdown-card">
-                        <div class="smart-breakdown-header">
-                            <span class="smart-breakdown-title">Meal Breakdown</span>
-                            <span class="smart-breakdown-badge">✓ Applied to values below</span>
-                        </div>
-                        <div id="ninja-breakdown-items" class="smart-breakdown-list"></div>
-                        <div class="smart-breakdown-totals-bar">
-                            <div id="ninja-breakdown-totals" class="smart-totals-grid"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- PANEL B: MANUAL ENTRY -->
-                <div id="panel-logger-manual" class="logger-tab-panel" style="display: none;">
+                <!-- MANUAL ENTRY -->
+                <div id="panel-logger-manual" class="logger-tab-panel active">
                     <div class="manual-log-wrap">
                         <div class="manual-food-row">
                             <div class="manual-food-input-group">

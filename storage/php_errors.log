@@ -1,0 +1,18 @@
+[2026-11-13 08:10:49] Application Error: syntax error, unexpected token "}", expecting "elseif" or "else" or "endif" in C:\xampp\htdocs\Fittracks_before_test\pages\gym_owner\gym_onboarding.php:3171 [URI: /fittracks_before_test/index.php?page=gym_onboarding&ajax_didit=check]
+#0 {main}
+[2026-11-13 08:10:51] Application Error: syntax error, unexpected token "}", expecting "elseif" or "else" or "endif" in C:\xampp\htdocs\Fittracks_before_test\pages\gym_owner\gym_onboarding.php:3171 [URI: /fittracks_before_test/index.php?page=gym_onboarding]
+#0 {main}
+[2026-11-13 08:11:00] Application Error: syntax error, unexpected token "}", expecting "elseif" or "else" or "endif" in C:\xampp\htdocs\Fittracks_before_test\pages\gym_owner\gym_onboarding.php:3171 [URI: /fittracks_before_test/index.php?page=gym_onboarding]
+#0 {main}
+[2026-11-13 08:35:00] PHP Warning/Notice (2): Undefined variable $renderOcrLine in C:\xampp\htdocs\Fittracks_before_test\pages\admin\gym_profile.php:1314 [URI: /fittracks_before_test/index.php?page=gym_profile]
+[2026-11-13 08:35:00] Application Error: Value of type null is not callable in C:\xampp\htdocs\Fittracks_before_test\pages\admin\gym_profile.php:1314 [URI: /fittracks_before_test/index.php?page=gym_profile]
+#0 C:\xampp\htdocs\Fittracks_before_test\index.php(277): gym_profile_page()
+#1 {main}
+[2026-11-13 08:35:10] PHP Warning/Notice (2): Undefined variable $renderOcrLine in C:\xampp\htdocs\Fittracks_before_test\pages\admin\gym_profile.php:1314 [URI: /fittracks_before_test/index.php?page=gym_profile]
+[2026-11-13 08:35:10] Application Error: Value of type null is not callable in C:\xampp\htdocs\Fittracks_before_test\pages\admin\gym_profile.php:1314 [URI: /fittracks_before_test/index.php?page=gym_profile]
+#0 C:\xampp\htdocs\Fittracks_before_test\index.php(277): gym_profile_page()
+#1 {main}
+[2026-11-13 08:35:33] PHP Warning/Notice (2): Undefined variable $renderOcrLine in C:\xampp\htdocs\Fittracks_before_test\pages\admin\gym_profile.php:1314 [URI: /fittracks_before_test/index.php?page=gym_profile]
+[2026-11-13 08:35:33] Application Error: Value of type null is not callable in C:\xampp\htdocs\Fittracks_before_test\pages\admin\gym_profile.php:1314 [URI: /fittracks_before_test/index.php?page=gym_profile]
+#0 C:\xampp\htdocs\Fittracks_before_test\index.php(277): gym_profile_page()
+#1 {main}

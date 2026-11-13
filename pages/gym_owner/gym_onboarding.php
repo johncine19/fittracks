@@ -25,6 +25,84 @@ function gym_onboarding_page(): void
         }
     }
 
+    // Didit AJAX endpoints & popup completion callback for onboarding
+    $ajaxDidit = trim((string)($_GET['ajax_didit'] ?? ''));
+    if ($ajaxDidit === 'start' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            verify_csrf();
+            if (!didit_is_configured()) {
+                echo json_encode(['ok' => false, 'error' => 'Didit is not configured.']);
+                exit;
+            }
+            $callbackUrl = app_base_url() . '?page=gym_onboarding&didit_popup_done=1';
+            $session = didit_create_onboarding_session((int)$user['user_id'], $callbackUrl, [
+                'owner_email' => (string)($user['email'] ?? ''),
+            ]);
+            $_SESSION['onboarding_didit_session_id'] = (string)($session['session_id'] ?? '');
+            $_SESSION['onboarding_didit_token']      = (string)($session['session_token'] ?? '');
+            $_SESSION['onboarding_didit_url']        = (string)($session['url'] ?? '');
+            $_SESSION['onboarding_didit_summary']    = ['status' => (string)($session['status'] ?? 'Not Started')];
+
+            echo json_encode([
+                'ok'         => true,
+                'session_id' => $_SESSION['onboarding_didit_session_id'],
+                'url'        => $_SESSION['onboarding_didit_url'],
+            ]);
+        } catch (Throwable $e) {
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($ajaxDidit === 'check') {
+        header('Content-Type: application/json; charset=utf-8');
+        $sessionId = trim((string)($_SESSION['onboarding_didit_session_id'] ?? ''));
+        if ($sessionId === '') {
+            echo json_encode(['ok' => false, 'error' => 'No active Didit verification session.']);
+            exit;
+        }
+        try {
+            $decision = didit_get_decision($sessionId);
+            $summary = didit_extract_summary($decision);
+            $_SESSION['onboarding_didit_summary'] = $summary;
+            $badge = didit_status_badge((string)($summary['status'] ?? 'Not Started'));
+            echo json_encode([
+                'ok'      => true,
+                'status'  => $summary['status'],
+                'summary' => $summary,
+                'badge'   => $badge,
+            ]);
+        } catch (Throwable $e) {
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if (isset($_GET['didit_popup_done'])) {
+        $sessionId = trim((string)($_GET['verificationSessionId'] ?? $_GET['session_id'] ?? $_SESSION['onboarding_didit_session_id'] ?? ''));
+        if ($sessionId !== '') {
+            $_SESSION['onboarding_didit_session_id'] = $sessionId;
+            try {
+                $decision = didit_get_decision($sessionId);
+                $_SESSION['onboarding_didit_summary'] = didit_extract_summary($decision);
+            } catch (Throwable $e) {
+                error_log('[Didit Onboarding Callback] ' . $e->getMessage());
+            }
+        }
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Verification Complete</title>'
+            . '<style>body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;}'
+            . '.card{background:#1e293b;border:1px solid rgba(132,204,22,0.35);border-radius:14px;padding:28px 32px;max-width:400px;}'
+            . 'h2{margin:0 0 8px;color:#84cc16;font-size:20px;}p{margin:0 0 18px;font-size:14px;color:#cbd5e1;line-height:1.5;}'
+            . 'button{background:#84cc16;color:#0f172a;border:none;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:14px;}</style></head><body>'
+            . '<div class="card"><h2>Verification Submitted</h2>'
+            . '<p>Your Didit identity verification step is finished. You can close this tab and return to your Gym Onboarding wizard.</p>'
+            . '<button onclick="window.close()">Close This Tab</button></div>'
+            . '<script>try{if(window.opener&&typeof window.opener.refreshDiditOnboardingStatus==="function"){window.opener.refreshDiditOnboardingStatus();}}catch(e){} setTimeout(function(){window.close();},1200);</script>'
+            . '</body></html>';
+        exit;
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         $gymName = trim((string) post('gym_name'));
@@ -34,6 +112,7 @@ function gym_onboarding_page(): void
         $province = trim((string) post('province'));
         $zipcode = substr(preg_replace('/[^0-9]/', '', (string) post('zipcode')), 0, 4);
         $gymContact = preg_replace('/[^0-9]/', '', (string) post('gym_contact_info'));
+        $useDiditOnly = didit_is_configured();
         $validIdType = trim((string) post('valid_id_type'));
         $validIdTypeOther = trim((string) post('valid_id_type_other'));
         $secondaryValidIdType = trim((string) post('secondary_valid_id_type'));
@@ -46,7 +125,25 @@ function gym_onboarding_page(): void
         $addressParts = array_filter([$street, $barangay, $city, $province, $zipcode], fn($val) => $val !== '');
         $gymAddress = implode(', ', $addressParts);
 
-        $isSecondary = is_secondary_id($validIdType);
+        $isSecondary = $useDiditOnly ? false : is_secondary_id($validIdType);
+
+        $diditApproved = false;
+        if ($useDiditOnly) {
+            $onbDiditSid = trim((string)($_SESSION['onboarding_didit_session_id'] ?? ''));
+            $onbDiditSum = $_SESSION['onboarding_didit_summary'] ?? [];
+            if ($onbDiditSid !== '' && strtolower((string)($onbDiditSum['status'] ?? '')) !== 'approved') {
+                try {
+                    $dec = didit_get_decision($onbDiditSid);
+                    $onbDiditSum = didit_extract_summary($dec);
+                    $_SESSION['onboarding_didit_summary'] = $onbDiditSum;
+                } catch (Throwable) {
+                }
+            }
+            $diditApproved = ($onbDiditSid !== '' && strtolower((string)($onbDiditSum['status'] ?? '')) === 'approved');
+            if ($diditApproved) {
+                $validIdType = trim((string)($onbDiditSum['document_type'] ?? '')) ?: 'Didit Verified ID';
+            }
+        }
 
         if (!$gymName || !$street || !$barangay || !$city || !$province || !$zipcode) {
             flash('Facility name and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
@@ -58,11 +155,13 @@ function gym_onboarding_page(): void
             flash('Bank account number must be between 10 and 18 digits.', 'danger');
         } elseif (strlen($zipcode) !== 4) {
             flash('ZIP code must be exactly 4 digits (e.g. 7214).', 'danger');
-        } elseif (empty($validIdType)) {
+        } elseif ($useDiditOnly && !$diditApproved) {
+            flash('Please complete the Automated ID Authenticity Check (Didit) before submitting your application.', 'danger');
+        } elseif (!$useDiditOnly && empty($validIdType)) {
             flash('Please select your Valid Government ID type.', 'danger');
-        } elseif ($isSecondary && empty($secondaryValidIdType)) {
+        } elseif (!$useDiditOnly && $isSecondary && empty($secondaryValidIdType)) {
             flash('Under FitTrack policy, selecting a Secondary ID requires one additional supporting government ID.', 'danger');
-        } elseif ($isSecondary && strcasecmp($validIdType, $secondaryValidIdType) === 0) {
+        } elseif (!$useDiditOnly && $isSecondary && strcasecmp($validIdType, $secondaryValidIdType) === 0) {
             flash('Your supporting ID must be a different ID type from your first selection.', 'danger');
         } else {
             if ($validIdType === 'Other Valid Government ID' && !empty($validIdTypeOther)) {
@@ -110,17 +209,21 @@ function gym_onboarding_page(): void
                     throw new Exception('Barangay Clearance is required.');
                 }
 
-                // 3. Required: Main Valid ID
+                // 3. Main Valid ID (Bypassed when verified via Didit)
                 $validIdFilename = null;
-                if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
+                if (!$useDiditOnly) {
+                    if (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
+                        $validIdFilename = FileUpload::storeValidId($_FILES['valid_id'], (int)$user['user_id']);
+                    } else {
+                        throw new Exception('Valid Government ID upload is required.');
+                    }
+                } elseif (isset($_FILES['valid_id']) && $_FILES['valid_id']['error'] === UPLOAD_ERR_OK) {
                     $validIdFilename = FileUpload::storeValidId($_FILES['valid_id'], (int)$user['user_id']);
-                } else {
-                    throw new Exception('Valid Government ID upload is required.');
                 }
 
                 // 3b. Required if Secondary: Supporting Government ID
                 $secondaryValidIdFilename = null;
-                if ($isSecondary) {
+                if (!$useDiditOnly && $isSecondary) {
                     if (isset($_FILES['secondary_valid_id']) && $_FILES['secondary_valid_id']['error'] === UPLOAD_ERR_OK) {
                         $secondaryValidIdFilename = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$user['user_id'], 'supporting');
                     } else {
@@ -245,6 +348,20 @@ function gym_onboarding_page(): void
                 }
                 if (function_exists('save_gym_settings')) {
                     save_gym_settings($newGymId, []);
+                }
+                if (!empty($_SESSION['onboarding_didit_session_id'])) {
+                    didit_attach_onboarding_session(
+                        $newGymId,
+                        (string)$_SESSION['onboarding_didit_session_id'],
+                        $_SESSION['onboarding_didit_token'] ?? null,
+                        $_SESSION['onboarding_didit_url'] ?? null
+                    );
+                    unset(
+                        $_SESSION['onboarding_didit_session_id'],
+                        $_SESSION['onboarding_didit_token'],
+                        $_SESSION['onboarding_didit_url'],
+                        $_SESSION['onboarding_didit_summary']
+                    );
                 }
 
                 audit_log($user['user_id'], 'submit_application', 'gym_owner', (string)$user['user_id']);
@@ -1309,7 +1426,8 @@ function gym_onboarding_page(): void
                         <div class="split-step-pane step-hidden" id="onboarding-pane-2">
                             <div class="onboarding-section-title">Verification Documents</div>
 
-                            <!-- Row 1: Valid ID Type & Valid ID Upload -->
+                            <?php if (!didit_is_configured()): ?>
+                            <!-- Row 1: Valid ID Type & Valid ID Upload (Fallback when Didit is not configured) -->
                             <div class="split-form-row-2col">
                                 <div class="split-form-group">
                                     <label>Valid ID Type<span class="req-star">*</span></label>
@@ -1452,6 +1570,57 @@ function gym_onboarding_page(): void
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+
+                            <?php
+                            $onboardingDiditSummary = $_SESSION['onboarding_didit_summary'] ?? null;
+                            $onboardingDiditSessionId = trim((string)($_SESSION['onboarding_didit_session_id'] ?? ''));
+                            $diditOnbStatus = (string)($onboardingDiditSummary['status'] ?? ($onboardingDiditSessionId !== '' ? 'In Progress' : 'Not Started'));
+                            $diditOnbBadge = didit_status_badge($diditOnbStatus);
+                            $diditOnbConfigured = didit_is_configured();
+                            ?>
+                            <!-- Automated ID Authenticity Check (Didit) -->
+                            <div id="didit-onboarding-card" style="margin: 4px 0 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid <?= h($diditOnbBadge['border']) ?>; background: <?= h($diditOnbBadge['bg']) ?>;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                                    <div style="display: flex; align-items: center; gap: 9px;">
+                                        <span id="didit-onb-icon" style="font-size: 16px;"><?= $diditOnbBadge['icon'] ?></span>
+                                        <div>
+                                            <div style="font-size: 13px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 6px;">
+                                                Owner Identity Verification (Didit)<span class="req-star">*</span>
+                                                <span style="font-size: 9.5px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: rgba(15,23,42,0.08); color: #475569;">
+                                                    <?= h(didit_environment()) ?>
+                                                </span>
+                                            </div>
+                                            <div id="didit-onb-status" style="font-size: 11.5px; font-weight: 600; color: <?= h($diditOnbBadge['color']) ?>; margin-top: 2px;">
+                                                Status: <?= h($diditOnbBadge['label']) ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <button type="button" id="didit-onb-refresh-btn" onclick="refreshDiditOnboardingStatus()" style="<?= $onboardingDiditSessionId !== '' && strtolower($diditOnbStatus) !== 'approved' ? '' : 'display:none;' ?> background: #ffffff; border: 1px solid #cbd5e1; color: #334155; border-radius: 7px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                                            Refresh Status
+                                        </button>
+                                        <?php if ($diditOnbConfigured): ?>
+                                            <button type="button" id="didit-onb-start-btn" onclick="startDiditOnboarding()" style="background: #4f46e5; color: #ffffff; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                                <span><?= $onboardingDiditSessionId !== '' ? (strtolower($diditOnbStatus) === 'approved' ? 'Re-verify ID' : 'Verify / Retry with Didit') : 'Verify ID with Didit' ?></span>
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <div id="didit-onb-details" style="margin-top: 8px; font-size: 11.5px; color: #475569;">
+                                    <?php if ($onboardingDiditSummary && !empty($onboardingDiditSummary['extracted_name'])): ?>
+                                        <strong>Verified Name:</strong> <?= h($onboardingDiditSummary['extracted_name']) ?>
+                                        <?php if (!empty($onboardingDiditSummary['document_type'])): ?> &bull; <strong>ID:</strong> <?= h($onboardingDiditSummary['document_type']) ?><?php endif; ?>
+                                        <?php if (!empty($onboardingDiditSummary['liveness_status'])): ?> &bull; <strong>Liveness:</strong> <?= h($onboardingDiditSummary['liveness_status']) ?><?php endif; ?>
+                                        <?php if (!empty($onboardingDiditSummary['decline_reasons'])): ?>
+                                            <div style="color: #dc2626; margin-top: 4px;"><strong>Reason:</strong> <?= h($onboardingDiditSummary['decline_reasons']) ?></div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        Verify your government ID and selfie with Didit so our team can confirm your documents are genuine and speed up approval.
+                                    <?php endif; ?>
                                 </div>
                             </div>
 
@@ -1599,61 +1768,6 @@ function gym_onboarding_page(): void
                                 </div>
                             </div>
 
-                            <!-- Online Settlement & Payout Information Box -->
-                            <div class="onboarding-payout-box">
-                                <div class="onboarding-payout-header">
-                                    <div class="onboarding-payout-title">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                        <span>Payout Destination</span>
-                                        <span class="opt-label">(Optional)</span>
-                                    </div>
-                                    <span class="onboarding-payout-badge">For Member Payments</span>
-                                </div>
-                                <p class="onboarding-payout-desc">
-                                    Where member payments (GCash, Maya, cards) will be deposited.
-                                </p>
-
-                                <div class="onboarding-payout-grid">
-                                    <div class="split-form-group">
-                                        <label>Payout Method</label>
-                                        <div class="split-input-wrap auth-input-group">
-                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                            <select name="payout_channel" id="payout_channel" onchange="updatePayoutFields()">
-                                                <option value="gcash" <?= post('payout_channel') === 'gcash' || !post('payout_channel') ? 'selected' : '' ?>>GCash</option>
-                                                <option value="maya" <?= post('payout_channel') === 'maya' ? 'selected' : '' ?>>Maya</option>
-                                                <option value="bank_transfer" <?= post('payout_channel') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div class="split-form-group">
-                                        <label id="payout_number_label">Account / GCash No.</label>
-                                        <div class="split-input-wrap auth-input-group">
-                                            <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                            <input type="tel" name="payout_account_number" id="payout_account_number"
-                                                   inputmode="numeric" maxlength="11"
-                                                   pattern="09[0-9]{9}"
-                                                   placeholder="09171234567"
-                                                   title="Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567)"
-                                                   value="<?= h(post('payout_account_number')) ?>"
-                                                   oninput="this.value = this.value.replace(/\D/g, '').slice(0, document.getElementById('payout_channel')?.value === 'bank_transfer' ? 18 : 11); this.setCustomValidity('');">
-                                        </div>
-                                        <span class="payout-field-hint" id="payout_number_hint">11-digit GCash/Maya number starting with 09</span>
-                                    </div>
-                                </div>
-
-                                <div class="split-form-group" style="margin-top: 1px;">
-                                    <label>Account Holder Name</label>
-                                    <div class="split-input-wrap auth-input-group">
-                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                        <input type="text" name="payout_account_name" id="payout_account_name"
-                                               placeholder="e.g. Juan Dela Cruz"
-                                               value="<?= h(post('payout_account_name')) ?>">
-                                    </div>
-                                    <span class="payout-field-hint">Must match verified account name</span>
-                                </div>
-                            </div>
-
                             <!-- Step 2 Navigation Row -->
                             <div class="onboarding-nav-row">
                                 <button type="button" class="split-back-btn" onclick="goToStep(1)">
@@ -1750,12 +1864,6 @@ function gym_onboarding_page(): void
                                             <span class="review-label">Facebook Page:</span>
                                             <span class="review-value">
                                                 <span id="rev-fb-page">None (Optional)</span>
-                                            </span>
-                                        </div>
-                                        <div class="review-row review-payout-row align-top">
-                                            <span class="review-label">Payout Destination:</span>
-                                            <span class="review-value">
-                                                <span id="rev-payout-dest">Not specified</span>
                                             </span>
                                         </div>
                                     </div>
@@ -2549,77 +2657,91 @@ function gym_onboarding_page(): void
 
         // Moving forward to Step 3: Validate Step 2
         if (targetStep >= 3) {
-            const idTypeVal = window.validIdFitDropdown ? window.validIdFitDropdown.getValue() : (document.getElementById('valid_id_type')?.value || '');
-            const idFile = document.getElementById('input-valid-id');
             const permitFile = document.getElementById('input-business-permit');
             const brgyFile = document.getElementById('input-barangay-clearance');
 
-            if (!idTypeVal.trim()) {
-                goToStepDirect(2);
-                if (window.validIdFitDropdown) {
-                    window.validIdFitDropdown.setError(true);
-                    window.validIdFitDropdown.trigger?.focus();
-                    window.validIdFitDropdown.open();
-                }
-                return;
-            }
-
-            const idOther = document.getElementById('valid_id_type_other');
-            if (idTypeVal === 'Other Valid Government ID' && idOther && !idOther.value.trim()) {
-                goToStepDirect(2);
-                idOther.focus();
-                idOther.reportValidity();
-                return;
-            }
-
-            if (idFile && (!idFile.files || !idFile.files.length)) {
-                goToStepDirect(2);
-                idFile.focus();
-                idFile.reportValidity();
-                return;
-            }
-
-            // Secondary ID requirement check
-            const category = getIdTypeCategory(idTypeVal);
-            if (category === 'secondary') {
-                const secIdVal = window.secondaryValidIdFitDropdown ? window.secondaryValidIdFitDropdown.getValue() : (document.getElementById('secondary_valid_id_type')?.value || '');
-                const secIdOther = document.getElementById('secondary_valid_id_type_other');
-                const secIdFile = document.getElementById('input-secondary-id');
-
-                if (!secIdVal.trim()) {
+            if (DIDIT_REQUIRED) {
+                if (!diditOnboardingApproved) {
                     goToStepDirect(2);
-                    if (window.secondaryValidIdFitDropdown) {
-                        window.secondaryValidIdFitDropdown.setError(true);
-                        window.secondaryValidIdFitDropdown.trigger?.focus();
-                        window.secondaryValidIdFitDropdown.open();
+                    const dCard = document.getElementById('didit-onboarding-card');
+                    if (dCard) {
+                        dCard.style.borderColor = '#ef4444';
+                        dCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    alert('Please complete the Owner Identity Verification (Didit) first before continuing.');
+                    return;
+                }
+            } else {
+                const idTypeVal = window.validIdFitDropdown ? window.validIdFitDropdown.getValue() : (document.getElementById('valid_id_type')?.value || '');
+                const idFile = document.getElementById('input-valid-id');
+
+                if (!idTypeVal.trim()) {
+                    goToStepDirect(2);
+                    if (window.validIdFitDropdown) {
+                        window.validIdFitDropdown.setError(true);
+                        window.validIdFitDropdown.trigger?.focus();
+                        window.validIdFitDropdown.open();
                     }
                     return;
                 }
 
-                if (secIdVal.toLowerCase() === idTypeVal.toLowerCase()) {
+                const idOther = document.getElementById('valid_id_type_other');
+                if (idTypeVal === 'Other Valid Government ID' && idOther && !idOther.value.trim()) {
                     goToStepDirect(2);
-                    if (window.secondaryValidIdFitDropdown) {
-                        window.secondaryValidIdFitDropdown.setError(true);
-                        window.secondaryValidIdFitDropdown.trigger?.focus();
-                        window.secondaryValidIdFitDropdown.open();
+                    idOther.focus();
+                    idOther.reportValidity();
+                    return;
+                }
+
+                if (idFile && (!idFile.files || !idFile.files.length)) {
+                    goToStepDirect(2);
+                    idFile.focus();
+                    idFile.reportValidity();
+                    return;
+                }
+
+                // Secondary ID requirement check
+                const category = getIdTypeCategory(idTypeVal);
+                if (category === 'secondary') {
+                    const secIdVal = window.secondaryValidIdFitDropdown ? window.secondaryValidIdFitDropdown.getValue() : (document.getElementById('secondary_valid_id_type')?.value || '');
+                    const secIdOther = document.getElementById('secondary_valid_id_type_other');
+                    const secIdFile = document.getElementById('input-secondary-id');
+
+                    if (!secIdVal.trim()) {
+                        goToStepDirect(2);
+                        if (window.secondaryValidIdFitDropdown) {
+                            window.secondaryValidIdFitDropdown.setError(true);
+                            window.secondaryValidIdFitDropdown.trigger?.focus();
+                            window.secondaryValidIdFitDropdown.open();
+                        }
+                        return;
                     }
-                    return;
-                }
 
-                if (secIdVal === 'Other Valid Government ID' && secIdOther && !secIdOther.value.trim()) {
-                    goToStepDirect(2);
-                    secIdOther.focus();
-                    secIdOther.setCustomValidity('Please specify your other supporting valid ID type.');
-                    secIdOther.reportValidity();
-                    return;
-                }
+                    if (secIdVal.toLowerCase() === idTypeVal.toLowerCase()) {
+                        goToStepDirect(2);
+                        if (window.secondaryValidIdFitDropdown) {
+                            window.secondaryValidIdFitDropdown.setError(true);
+                            window.secondaryValidIdFitDropdown.trigger?.focus();
+                            window.secondaryValidIdFitDropdown.open();
+                        }
+                        return;
+                    }
 
-                if (!secIdFile || !secIdFile.files || !secIdFile.files.length) {
-                    goToStepDirect(2);
-                    secIdFile.focus();
-                    secIdFile.setCustomValidity('Please upload your supporting government ID document.');
-                    secIdFile.reportValidity();
-                    return;
+                    if (secIdVal === 'Other Valid Government ID' && secIdOther && !secIdOther.value.trim()) {
+                        goToStepDirect(2);
+                        secIdOther.focus();
+                        secIdOther.setCustomValidity('Please specify your other supporting valid ID type.');
+                        secIdOther.reportValidity();
+                        return;
+                    }
+
+                    if (!secIdFile || !secIdFile.files || !secIdFile.files.length) {
+                        goToStepDirect(2);
+                        secIdFile.focus();
+                        secIdFile.setCustomValidity('Please upload your supporting government ID document.');
+                        secIdFile.reportValidity();
+                        return;
+                    }
                 }
             }
 
@@ -2635,28 +2757,6 @@ function gym_onboarding_page(): void
                 brgyFile.focus();
                 brgyFile.reportValidity();
                 return;
-            }
-
-            // Payout account validation if provided
-            const pChanVal = document.getElementById('payout_channel')?.value || 'gcash';
-            const pNumEl = document.getElementById('payout_account_number');
-            const pNumVal = pNumEl ? pNumEl.value.trim().replace(/\D/g, '') : '';
-            if (pNumVal !== '') {
-                if ((pChanVal === 'gcash' || pChanVal === 'maya') && !/^09\d{9}$/.test(pNumVal)) {
-                    goToStepDirect(2);
-                    pNumEl.focus();
-                    pNumEl.setCustomValidity('Please enter a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).');
-                    pNumEl.reportValidity();
-                    return;
-                } else if (pChanVal === 'bank_transfer' && !/^\d{10,18}$/.test(pNumVal)) {
-                    goToStepDirect(2);
-                    pNumEl.focus();
-                    pNumEl.setCustomValidity('Please enter a valid bank account number (10 to 18 digits).');
-                    pNumEl.reportValidity();
-                    return;
-                } else if (pNumEl) {
-                    pNumEl.setCustomValidity('');
-                }
             }
 
             // Populate Step 3 Review details
@@ -2738,18 +2838,30 @@ function gym_onboarding_page(): void
         const revSecIdFile = document.getElementById('rev-sec-id-file');
 
         if (revIdType) {
-            const badgeLabel = category === 'primary' ? ' (Primary ID)' : ' (Secondary ID)';
-            revIdType.textContent = fullIdType + badgeLabel;
-            revIdType.title = fullIdType;
+            if (DIDIT_REQUIRED) {
+                revIdType.textContent = (diditExtractedDocType || 'Didit Verified ID') + ' (Didit KYC)';
+                revIdType.title = revIdType.textContent;
+            } else {
+                const badgeLabel = category === 'primary' ? ' (Primary ID)' : ' (Secondary ID)';
+                revIdType.textContent = fullIdType + badgeLabel;
+                revIdType.title = fullIdType;
+            }
         }
         if (revIdFile) {
-            revIdFile.textContent = '✓ ' + idFile;
-            revIdFile.title = 'Click to preview ' + idFile;
-            revIdFile.classList.add('clickable');
-            revIdFile.onclick = (e) => openDocPreview('input-valid-id', e);
+            if (DIDIT_REQUIRED) {
+                revIdFile.textContent = diditOnboardingApproved ? '✓ Verified Genuine (Didit)' : '⏳ Pending Didit Verification';
+                revIdFile.title = revIdFile.textContent;
+                revIdFile.classList.remove('clickable');
+                revIdFile.onclick = null;
+            } else {
+                revIdFile.textContent = '✓ ' + idFile;
+                revIdFile.title = 'Click to preview ' + idFile;
+                revIdFile.classList.add('clickable');
+                revIdFile.onclick = (e) => openDocPreview('input-valid-id', e);
+            }
         }
 
-        if (category === 'secondary') {
+        if (!DIDIT_REQUIRED && category === 'secondary') {
             if (revSecRow) revSecRow.style.display = 'flex';
             const secIdTypeVal = document.getElementById('secondary_valid_id_type')?.value || '—';
             const secIdOtherVal = document.getElementById('secondary_valid_id_type_other')?.value || '';
@@ -2892,6 +3004,118 @@ function gym_onboarding_page(): void
         restoreDraftData();
         updatePayoutFields();
     }
+
+    const DIDIT_REQUIRED = <?= didit_is_configured() ? 'true' : 'false' ?>;
+    let diditOnboardingSessionStarted = <?= !empty($_SESSION['onboarding_didit_session_id']) ? 'true' : 'false' ?>;
+    let diditOnboardingApproved = <?= strtolower((string)($_SESSION['onboarding_didit_summary']['status'] ?? '')) === 'approved' ? 'true' : 'false' ?>;
+    let diditExtractedDocType = <?= json_encode((string)($_SESSION['onboarding_didit_summary']['document_type'] ?? '')) ?>;
+
+    async function startDiditOnboarding() {
+        const btn = document.getElementById('didit-onb-start-btn');
+        const refreshBtn = document.getElementById('didit-onb-refresh-btn');
+        const statusEl = document.getElementById('didit-onb-status');
+        const csrfInput = document.querySelector('input[name="csrf_token"]');
+        if (!btn) return;
+
+        const origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.textContent = 'Connecting to Didit...';
+
+        try {
+            const fd = new FormData();
+            if (csrfInput) fd.append('csrf_token', csrfInput.value);
+
+            const res = await fetch('index.php?page=gym_onboarding&ajax_didit=start', {
+                method: 'POST',
+                body: fd
+            });
+            const data = await res.json();
+            if (data.ok && data.url) {
+                diditOnboardingSessionStarted = true;
+                if (refreshBtn) refreshBtn.style.display = 'inline-block';
+                if (statusEl) statusEl.textContent = 'Status: Verification Window Opened – Complete steps in the new tab';
+                window.open(data.url, '_blank');
+            } else {
+                alert(data.error || 'Could not start Didit verification.');
+            }
+        } catch (err) {
+            alert('Network error starting Didit verification.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+
+    async function refreshDiditOnboardingStatus() {
+        const refreshBtn = document.getElementById('didit-onb-refresh-btn');
+        const startBtn = document.getElementById('didit-onb-start-btn');
+        const card = document.getElementById('didit-onboarding-card');
+        const iconEl = document.getElementById('didit-onb-icon');
+        const statusEl = document.getElementById('didit-onb-status');
+        const detailsEl = document.getElementById('didit-onb-details');
+        if (!card) return;
+
+        if (refreshBtn) {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = 'Checking...';
+        }
+
+        try {
+            const res = await fetch('index.php?page=gym_onboarding&ajax_didit=check');
+            const data = await res.json();
+            if (data.ok && data.badge) {
+                card.style.borderColor = data.badge.border;
+                card.style.background = data.badge.bg;
+                if (iconEl) iconEl.textContent = data.badge.icon;
+                if (statusEl) {
+                    statusEl.style.color = data.badge.color;
+                    statusEl.textContent = 'Status: ' + data.badge.label;
+                }
+                const norm = String(data.status || '').toLowerCase();
+                diditOnboardingApproved = (norm === 'approved');
+                if (data.summary && data.summary.document_type) {
+                    diditExtractedDocType = data.summary.document_type;
+                }
+                if (refreshBtn) {
+                    refreshBtn.style.display = norm === 'approved' ? 'none' : 'inline-block';
+                }
+                if (startBtn) {
+                    const span = startBtn.querySelector('span');
+                    if (span) span.textContent = norm === 'approved' ? 'Re-verify ID' : 'Verify / Retry with Didit';
+                }
+                if (detailsEl && data.summary) {
+                    const s = data.summary;
+                    let html = '';
+                    if (s.extracted_name) html += '<strong>Verified Name:</strong> ' + escapeHtml(s.extracted_name);
+                    if (s.document_type) html += (html ? ' &bull; ' : '') + '<strong>ID:</strong> ' + escapeHtml(s.document_type);
+                    if (s.liveness_status) html += (html ? ' &bull; ' : '') + '<strong>Liveness:</strong> ' + escapeHtml(s.liveness_status);
+                    if (s.decline_reasons) {
+                        html += '<div style="color:#dc2626;margin-top:4px;"><strong>Reason:</strong> ' + escapeHtml(s.decline_reasons) + '</div>';
+                    }
+                    if (html) detailsEl.innerHTML = html;
+                }
+            }
+        } catch (err) {
+            console.warn('Didit status check error:', err);
+        } finally {
+            if (refreshBtn) {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = 'Refresh Status';
+            }
+        }
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
+    window.addEventListener('focus', () => {
+        if (diditOnboardingSessionStarted) {
+            refreshDiditOnboardingStatus();
+        }
+    });
     </script>
     <?php
     render_footer();

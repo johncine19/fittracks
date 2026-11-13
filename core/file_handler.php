@@ -823,23 +823,36 @@ final class FileUpload
             return false;
         }
 
+        // Determine Cloudinary resource_type from URL path (defaults to image)
+        $resourceType = 'image';
+        if (str_contains($url, '/raw/upload/')) {
+            $resourceType = 'raw';
+        } elseif (str_contains($url, '/video/upload/')) {
+            $resourceType = 'video';
+        }
+
         // Extract public_id from Cloudinary URL: .../upload/(?:v\d+/)?(.+?)(?:\.[a-zA-Z0-9]+)?$
         $publicId = $url;
         if (preg_match('#/upload/(?:v\d+/)?(.+?)(?:\.[a-zA-Z0-9]+)?$#', $url, $matches)) {
             $publicId = rawurldecode($matches[1]);
         }
+        // Raw uploads in Cloudinary retain their file extension in public_id
+        if ($resourceType === 'raw' && preg_match('#/raw/upload/(?:v\d+/)?(.+)$#', $url, $rawMatches)) {
+            $publicId = rawurldecode($rawMatches[1]);
+        }
 
         $timestamp = time();
-        $signatureStr = "public_id={$publicId}&timestamp={$timestamp}{$apiSecret}";
+        $signatureStr = "invalidate=true&public_id={$publicId}&timestamp={$timestamp}{$apiSecret}";
         $signature = sha1($signatureStr);
 
-        $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/image/destroy");
+        $ch = curl_init("https://api.cloudinary.com/v1_1/{$cloudName}/{$resourceType}/destroy");
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, [
-            'public_id' => $publicId,
-            'api_key' => $apiKey,
-            'timestamp' => $timestamp,
-            'signature' => $signature,
+            'public_id'  => $publicId,
+            'invalidate' => 'true',
+            'api_key'    => $apiKey,
+            'timestamp'  => $timestamp,
+            'signature'  => $signature,
         ]);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 15);
@@ -899,6 +912,26 @@ final class FileUpload
         rename($destPath, $finalLocalPath);
 
         return $filename;
+    }
+
+    /**
+     * Deletes a verification/permit document from Cloudinary or the local permits directory.
+     */
+    public static function deletePermitDocument(string $filename): void
+    {
+        if (str_starts_with($filename, 'http://') || str_starts_with($filename, 'https://')) {
+            if (str_contains($filename, 'cloudinary.com')) {
+                self::deleteFromCloudinary($filename);
+            }
+            return;
+        }
+
+        $cleanName = basename($filename);
+        foreach ([__DIR__ . '/../assets/uploads/permits/' . $cleanName, __DIR__ . '/../assets/uploads/' . $cleanName] as $filePath) {
+            if (file_exists($filePath) && is_file($filePath)) {
+                @unlink($filePath);
+            }
+        }
     }
 
     /**

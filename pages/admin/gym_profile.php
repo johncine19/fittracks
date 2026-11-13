@@ -83,6 +83,91 @@ function gym_profile_page(): void
     $canEodSummary = gym_has_feature('eod_summary', $gym);
     $canStaffPermissions = gym_has_feature('staff_permissions', $gym);
 
+    // Handle Didit return callback or manual status refresh
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['didit_callback']) || isset($_GET['refresh_didit']))) {
+        $sessionId = trim((string)($_GET['verificationSessionId'] ?? $_GET['session_id'] ?? ''));
+        if ($sessionId === '') {
+            $latestDidit = didit_get_latest_for_gym((int)$gym['gym_id']);
+            $sessionId = trim((string)($latestDidit['session_id'] ?? ''));
+        }
+        if ($sessionId !== '') {
+            try {
+                $summary = didit_sync_decision($sessionId);
+                $st = strtolower((string)($summary['status'] ?? ''));
+                if ($st === 'approved') {
+                    flash('Didit ID Verification Approved! Owner identity and document authenticity confirmed.', 'success');
+                } elseif ($st === 'declined') {
+                    $reasonTxt = !empty($summary['decline_reasons']) ? ' Reason: ' . $summary['decline_reasons'] : '';
+                    flash('Didit ID Verification Declined / Flagged.' . $reasonTxt, 'danger');
+                } else {
+                    flash('Didit verification status updated: ' . ($summary['status'] ?? 'Pending'), 'info');
+                }
+            } catch (Throwable $e) {
+                flash('Could not sync Didit status: ' . $e->getMessage(), 'warning');
+            }
+        }
+        $redirParams = ['tab' => 'documents'];
+        if ($isPlatformAdmin) {
+            $redirParams['gym_id'] = (int)$gym['gym_id'];
+        }
+        redirect('gym_profile', $redirParams, '#sec-documents');
+    }
+
+    // Handle Didit Start / Refresh POST actions without touching other profile fields
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && in_array(post('didit_action'), ['start', 'refresh'], true)) {
+        $diditAction = (string)post('didit_action');
+        $redirParams = ['tab' => 'documents'];
+        if ($isPlatformAdmin) {
+            $redirParams['gym_id'] = (int)$gym['gym_id'];
+        }
+
+        if (!didit_is_configured()) {
+            flash('Didit verification is not configured yet. Please check DIDIT_API_KEY and DIDIT_WORKFLOW_ID in .env.', 'danger');
+            redirect('gym_profile', $redirParams, '#sec-documents');
+        }
+
+        if ($diditAction === 'start') {
+            try {
+                $callbackUrl = app_base_url() . '?page=gym_profile&tab=documents'
+                    . ($isPlatformAdmin ? '&gym_id=' . (int)$gym['gym_id'] : '')
+                    . '&didit_callback=1';
+                $session = didit_create_session((int)$gym['gym_id'], $callbackUrl, [
+                    'gym_name' => (string)($gym['name'] ?? ''),
+                ]);
+                if (!empty($session['url'])) {
+                    header('Location: ' . $session['url']);
+                    exit;
+                }
+                flash('Didit session created, but no verification URL was returned.', 'warning');
+            } catch (Throwable $e) {
+                flash('Could not start Didit verification: ' . $e->getMessage(), 'danger');
+            }
+            redirect('gym_profile', $redirParams, '#sec-documents');
+        }
+
+        if ($diditAction === 'refresh') {
+            $latestDidit = didit_get_latest_for_gym((int)$gym['gym_id']);
+            if ($latestDidit && !empty($latestDidit['session_id'])) {
+                try {
+                    $summary = didit_sync_decision((string)$latestDidit['session_id']);
+                    $st = strtolower((string)($summary['status'] ?? ''));
+                    if ($st === 'approved') {
+                        flash('Didit ID Verification Approved! Document is genuine.', 'success');
+                    } elseif ($st === 'declined') {
+                        flash('Didit ID Verification Declined / Flagged.', 'danger');
+                    } else {
+                        flash('Didit status: ' . ($summary['status'] ?? 'In Progress'), 'info');
+                    }
+                } catch (Throwable $e) {
+                    flash('Could not refresh Didit status: ' . $e->getMessage(), 'warning');
+                }
+            } else {
+                flash('No Didit verification session found for this facility yet.', 'warning');
+            }
+            redirect('gym_profile', $redirParams, '#sec-documents');
+        }
+    }
+
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !isset($_POST['delete_gallery_image'])) {
         $name = trim((string) post('name'));
         $address = trim((string) post('address'));
@@ -192,7 +277,7 @@ function gym_profile_page(): void
             try {
                 $uploadedPermit = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$gym['gym_id']);
                 if ($permitUrl && $permitUrl !== $uploadedPermit) {
-                    FileUpload::deleteGymGalleryImage($permitUrl);
+                    FileUpload::deletePermitDocument($permitUrl);
                 }
                 $permitUrl = $uploadedPermit;
             } catch (RuntimeException $e) {
@@ -207,7 +292,7 @@ function gym_profile_page(): void
             try {
                 $uploadedValidId = FileUpload::storeValidId($_FILES['valid_id'], (int)$gym['gym_id']);
                 if ($validIdUrl && $validIdUrl !== $uploadedValidId) {
-                    FileUpload::deleteGymGalleryImage($validIdUrl);
+                    FileUpload::deletePermitDocument($validIdUrl);
                 }
                 $validIdUrl = $uploadedValidId;
             } catch (RuntimeException $e) {
@@ -222,7 +307,7 @@ function gym_profile_page(): void
             try {
                 $uploadedSecId = FileUpload::storeValidId($_FILES['secondary_valid_id'], (int)$gym['gym_id'], 'supporting');
                 if ($secValidIdUrl && $secValidIdUrl !== $uploadedSecId) {
-                    FileUpload::deleteGymGalleryImage($secValidIdUrl);
+                    FileUpload::deletePermitDocument($secValidIdUrl);
                 }
                 $secValidIdUrl = $uploadedSecId;
             } catch (RuntimeException $e) {
@@ -236,7 +321,7 @@ function gym_profile_page(): void
             try {
                 $uploadedBrgy = FileUpload::storeBarangayClearance($_FILES['barangay_clearance'], (int)$gym['gym_id']);
                 if ($brgyUrl && $brgyUrl !== $uploadedBrgy) {
-                    FileUpload::deleteGymGalleryImage($brgyUrl);
+                    FileUpload::deletePermitDocument($brgyUrl);
                 }
                 $brgyUrl = $uploadedBrgy;
             } catch (RuntimeException $e) {
@@ -250,7 +335,7 @@ function gym_profile_page(): void
             try {
                 $uploadedFireSafety = FileUpload::storeFireSafetyCert($_FILES['fire_safety_cert'], (int)$gym['gym_id']);
                 if ($fireSafetyUrl && $fireSafetyUrl !== $uploadedFireSafety) {
-                    FileUpload::deleteGymGalleryImage($fireSafetyUrl);
+                    FileUpload::deletePermitDocument($fireSafetyUrl);
                 }
                 $fireSafetyUrl = $uploadedFireSafety;
             } catch (RuntimeException $e) {
@@ -1114,6 +1199,11 @@ function gym_profile_page(): void
                         <?php endif; ?>
                     </div>
 
+                    <?php
+                    $diditRecord = didit_get_latest_for_gym((int)$gym['gym_id']);
+                    $diditStatus = (string)($diditRecord['status'] ?? 'Not Started');
+                    $isDiditApproved = strtolower($diditStatus) === 'approved';
+                    ?>
                     <!-- Clean overview list of files -->
                     <div class="overview-doc-list">
                         <!-- Business Permit -->
@@ -1143,7 +1233,7 @@ function gym_profile_page(): void
                         <!-- Owner's Valid ID -->
                         <div class="overview-doc-item">
                             <div class="overview-doc-left">
-                                <div class="overview-doc-icon <?= !empty($gym['valid_id_url']) ? 'is-verified' : 'is-missing' ?>">
+                                <div class="overview-doc-icon <?= (!empty($gym['valid_id_url']) || $isDiditApproved) ? 'is-verified' : 'is-missing' ?>">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><line x1="15" y1="8" x2="17" y2="8"/><line x1="15" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg>
                                 </div>
                                 <div class="overview-doc-info">
@@ -1151,6 +1241,8 @@ function gym_profile_page(): void
                                     <div class="overview-doc-status" title="<?= h($gym['valid_id_url'] ?? '') ?>">
                                         <?php if (!empty($gym['valid_id_url'])): ?>
                                             <span style="color: var(--teal, #10b981); font-weight: 600;">✅ <?= h(clean_doc_name($gym['valid_id_url'])) ?></span>
+                                        <?php elseif ($isDiditApproved): ?>
+                                            <span style="color: var(--teal, #10b981); font-weight: 600;">✅ Verified via Didit<?= !empty($diditRecord['extracted_name']) ? ' (' . h($diditRecord['extracted_name']) . ')' : '' ?></span>
                                         <?php else: ?>
                                             <span style="color: var(--danger, #ef4444); font-weight: 600;">⚠️ Missing</span>
                                         <?php endif; ?>
@@ -1254,6 +1346,85 @@ function gym_profile_page(): void
                                     <span>Visit</span>
                                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                 </a>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php
+                        $diditRecord = didit_get_latest_for_gym((int)$gym['gym_id']);
+                        $diditStatus = (string)($diditRecord['status'] ?? 'Not Started');
+                        $diditBadge = didit_status_badge($diditStatus);
+                        $diditEnv = didit_environment();
+                        $diditConfigured = didit_is_configured();
+                        ?>
+                        <input type="hidden" name="didit_action" id="didit_action_input" value="">
+                        <div style="margin-top: 14px; padding: 14px; border-radius: 10px; border: 1px solid <?= h($diditBadge['border']) ?>; background: <?= h($diditBadge['bg']) ?>;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 16px;"><?= $diditBadge['icon'] ?></span>
+                                    <div>
+                                        <div style="font-size: 13px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 6px;">
+                                            Automated ID Authenticity Check (Didit)
+                                            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: rgba(148,163,184,0.18); color: var(--muted);">
+                                                <?= h($diditEnv) ?>
+                                            </span>
+                                        </div>
+                                        <div style="font-size: 11.5px; color: <?= h($diditBadge['color']) ?>; font-weight: 600; margin-top: 2px;">
+                                            Status: <?= h($diditBadge['label']) ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <?php if ($diditRecord && strtolower($diditStatus) !== 'approved'): ?>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="submitDiditAction('refresh')" style="font-size: 11.5px; padding: 5px 10px;">
+                                            Refresh Status
+                                        </button>
+                                    <?php endif; ?>
+                                    <?php if ($diditConfigured): ?>
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="submitDiditAction('start')" style="font-size: 11.5px; padding: 5px 12px; display: inline-flex; align-items: center; gap: 5px;">
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                            <?= $diditRecord ? (strtolower($diditStatus) === 'approved' ? 'Re-verify ID' : 'Retry / Complete Verification') : 'Verify ID with Didit' ?>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
+                            <?php if ($diditRecord && (!empty($diditRecord['extracted_name']) || !empty($diditRecord['document_type']) || !empty($diditRecord['decline_reasons']))): ?>
+                                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(148,163,184,0.3); display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; font-size: 11.5px;">
+                                    <?php if (!empty($diditRecord['extracted_name'])): ?>
+                                        <div><span style="color: var(--muted);">Extracted Name:</span> <strong style="color: var(--ink);"><?= h($diditRecord['extracted_name']) ?></strong></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($diditRecord['document_type'])): ?>
+                                        <div><span style="color: var(--muted);">Document Type:</span> <strong style="color: var(--ink);"><?= h($diditRecord['document_type']) ?></strong></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($diditRecord['document_number_masked'])): ?>
+                                        <div><span style="color: var(--muted);">ID Number:</span> <strong style="color: var(--ink);"><?= h($diditRecord['document_number_masked']) ?></strong></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($diditRecord['expiration_date'])): ?>
+                                        <div><span style="color: var(--muted);">Expires:</span> <strong style="color: var(--ink);"><?= h($diditRecord['expiration_date']) ?></strong></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($diditRecord['liveness_status'])): ?>
+                                        <div><span style="color: var(--muted);">Liveness:</span> <strong style="color: var(--ink);"><?= h($diditRecord['liveness_status']) ?></strong></div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($diditRecord['face_match_status'])): ?>
+                                        <div><span style="color: var(--muted);">Face Match:</span> <strong style="color: var(--ink);"><?= h($diditRecord['face_match_status']) ?></strong></div>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!empty($diditRecord['decline_reasons'])): ?>
+                                    <div style="margin-top: 8px; font-size: 11.5px; color: #ef4444;">
+                                        <strong>Flag / Reason:</strong> <?= h($diditRecord['decline_reasons']) ?>
+                                    </div>
+                                <?php endif; ?>
+                            <?php elseif (!$diditConfigured): ?>
+                                <div style="margin-top: 8px; font-size: 11.5px; color: var(--muted);">
+                                    Configure <code>DIDIT_API_KEY</code> and <code>DIDIT_WORKFLOW_ID</code> in <code>.env</code> to enable automated ID authenticity checks.
+                                </div>
+                            <?php else: ?>
+                                <div style="margin-top: 8px; font-size: 11.5px; color: var(--muted);">
+                                    <?= $isPlatformAdmin
+                                        ? 'Owner has not completed automated Didit ID verification yet. Click "Verify ID with Didit" to generate a verification link.'
+                                        : 'Verify your government ID and selfie via Didit so platform admins can instantly confirm your document is genuine.'
+                                    ?>
+                                </div>
                             <?php endif; ?>
                         </div>
                     </div>
