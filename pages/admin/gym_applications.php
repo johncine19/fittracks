@@ -1839,10 +1839,11 @@ function gym_applications_page(): void
         let ocrBannerHtml = '';
         if (ocrInfo && ocrInfo.label) {
             const esc = (v) => String(v || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-            ocrBannerHtml = `<div style="margin-bottom:12px; padding:10px 14px; border-radius:8px; background:${esc(ocrInfo.bg)}; border:1px solid ${esc(ocrInfo.border)}; text-align:left; font-size:12.5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">`
-                + `<strong style="color:${esc(ocrInfo.color)};">${esc(ocrInfo.label)}</strong>`
-                + (ocrInfo.note ? `<span style="color:#e2e8f0;">${esc(ocrInfo.note)}</span>` : '')
-                + `</div>`;
+            ocrBannerHtml = `<div style="display:flex; justify-content:center; margin-bottom:12px;">`
+                + `<div style="padding:8px 14px; border-radius:8px; background:${esc(ocrInfo.bg)}; border:1px solid ${esc(ocrInfo.border)}; text-align:left; font-size:12.5px; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; max-width:680px;">`
+                + `<strong style="color:${esc(ocrInfo.color)}; white-space:nowrap;">${esc(ocrInfo.label)}</strong>`
+                + (ocrInfo.note ? `<span style="color:var(--ink, #1e293b); font-weight:500;">${esc(ocrInfo.note)}</span>` : '')
+                + `</div></div>`;
         }
 
         if (ext === 'pdf') {
