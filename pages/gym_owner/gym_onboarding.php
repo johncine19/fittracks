@@ -1237,6 +1237,10 @@ function gym_onboarding_page(): void
                 align-items: stretch !important;
                 gap: 10px !important;
             }
+            .didit-onb-lead {
+                flex: 0 0 auto !important;
+                width: 100%;
+            }
             .didit-onb-actions {
                 width: 100%;
             }
