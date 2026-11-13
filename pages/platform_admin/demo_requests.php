@@ -310,6 +310,9 @@ function platform_demo_requests_page(): void
         select.demo-status-pill:focus {
             box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
         }
+        span.demo-status-pill {
+            background-image: none !important;
+        }
         .status-new {
             background-color: rgba(199, 255, 34, 0.15) !important;
             color: var(--lime) !important;
