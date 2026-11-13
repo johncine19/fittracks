@@ -1235,11 +1235,14 @@ function gym_applications_page(): void
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text"
+                <input type="search"
                        id="appSearchInput"
+                       name="app_search_filter"
                        class="app-search-input"
                        placeholder="Search by gym, owner, email, address, phone..."
-                       autocomplete="off">
+                       autocomplete="off"
+                       data-lpignore="true"
+                       data-1p-ignore="true">
                 <button type="button"
                         id="appSearchClear"
                         class="app-search-clear"
@@ -2207,7 +2210,7 @@ function gym_applications_page(): void
                 text: 'Enter your Platform Admin password to view this gym\'s profile & compliance records.',
                 input: 'password',
                 inputPlaceholder: 'Enter your password',
-                inputAttributes: { autocomplete: 'current-password' },
+                inputAttributes: { autocomplete: 'new-password', 'data-lpignore': 'true', 'data-1p-ignore': 'true' },
                 showCancelButton: true,
                 confirmButtonText: 'Unlock Profile',
                 confirmButtonColor: '#65a30d',

@@ -2460,7 +2460,7 @@ function gyms_page(): void
                 text: 'Enter your Platform Admin password to view this gym\'s profile & compliance records.',
                 input: 'password',
                 inputPlaceholder: 'Enter your password',
-                inputAttributes: { autocomplete: 'current-password' },
+                inputAttributes: { autocomplete: 'new-password', 'data-lpignore': 'true', 'data-1p-ignore': 'true' },
                 showCancelButton: true,
                 confirmButtonText: 'Unlock Profile',
                 confirmButtonColor: '#65a30d',
