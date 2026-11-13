@@ -14,13 +14,25 @@ function platform_demo_requests_page(): void
 
         if ($action === 'update_status' && $requestId > 0) {
             $newStatus = trim((string) post('status'));
-            $allowedStatuses = ['new', 'contacted', 'demo_scheduled', 'closed'];
-            if (in_array($newStatus, $allowedStatuses, true)) {
+            $nextStatusMap = [
+                'new'            => 'contacted',
+                'contacted'      => 'demo_scheduled',
+                'demo_scheduled' => 'closed',
+            ];
+            $curStatus = (string) scalar('SELECT status FROM demo_requests WHERE id = ?', [$requestId]);
+            if ($curStatus === 'closed') {
+                flash('Closed demo requests cannot be updated further.', 'warning');
+            } elseif (isset($nextStatusMap[$curStatus]) && $newStatus === $nextStatusMap[$curStatus]) {
                 $stmt = $pdo->prepare('UPDATE demo_requests SET status = ?, updated_at = NOW() WHERE id = ?');
                 $stmt->execute([$newStatus, $requestId]);
+                foreach (array_keys($_SESSION) as $sk) {
+                    if (str_starts_with((string)$sk, 'sidebar_badges_' . (int)$user['user_id'] . '_')) {
+                        unset($_SESSION[$sk]);
+                    }
+                }
                 flash('Demo request status updated to ' . ucfirst(str_replace('_', ' ', $newStatus)) . '.', 'success');
             } else {
-                flash('Invalid status selected.', 'danger');
+                flash('Invalid status transition.', 'danger');
             }
             redirect('demo_requests' . (!empty($_GET['status']) ? '&status=' . urlencode($_GET['status']) : ''));
         }
@@ -36,6 +48,11 @@ function platform_demo_requests_page(): void
         if ($action === 'delete' && $requestId > 0) {
             $stmt = $pdo->prepare('DELETE FROM demo_requests WHERE id = ?');
             $stmt->execute([$requestId]);
+            foreach (array_keys($_SESSION) as $sk) {
+                if (str_starts_with((string)$sk, 'sidebar_badges_' . (int)$user['user_id'] . '_')) {
+                    unset($_SESSION[$sk]);
+                }
+            }
             flash('Demo request removed.', 'info');
             redirect('demo_requests' . (!empty($_GET['status']) ? '&status=' . urlencode($_GET['status']) : ''));
         }
@@ -589,17 +606,34 @@ function platform_demo_requests_page(): void
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <form method="post" action="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
-                                            <?= csrf_field() ?>
-                                            <input type="hidden" name="action" value="update_status">
-                                            <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
-                                            <select name="status" class="demo-status-pill <?= $statusCls ?>" onchange="this.form.submit()" title="Change Inquiry Status">
-                                                <option value="new" <?= $req['status'] === 'new' ? 'selected' : '' ?>>New</option>
-                                                <option value="contacted" <?= $req['status'] === 'contacted' ? 'selected' : '' ?>>Contacted</option>
-                                                <option value="demo_scheduled" <?= $req['status'] === 'demo_scheduled' ? 'selected' : '' ?>>Demo Scheduled</option>
-                                                <option value="closed" <?= $req['status'] === 'closed' ? 'selected' : '' ?>>Closed</option>
-                                            </select>
-                                        </form>
+                                        <?php
+                                            $reqStatus = (string)$req['status'];
+                                            $statusLabels = [
+                                                'new'            => 'New',
+                                                'contacted'      => 'Contacted',
+                                                'demo_scheduled' => 'Demo Scheduled',
+                                                'closed'         => 'Closed',
+                                            ];
+                                            $nextMap = [
+                                                'new'            => 'contacted',
+                                                'contacted'      => 'demo_scheduled',
+                                                'demo_scheduled' => 'closed',
+                                            ];
+                                            $nextOpt = $nextMap[$reqStatus] ?? null;
+                                        ?>
+                                        <?php if ($reqStatus === 'closed' || $nextOpt === null): ?>
+                                            <span class="demo-status-pill status-closed" style="display:inline-flex;align-items:center;gap:4px;cursor:default;" title="Closed (Final Status)">Closed</span>
+                                        <?php else: ?>
+                                            <form method="post" action="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0;">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="action" value="update_status">
+                                                <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
+                                                <select name="status" class="demo-status-pill <?= $statusCls ?>" onchange="this.form.submit()" title="Advance Inquiry Status">
+                                                    <option value="<?= h($reqStatus) ?>" selected><?= h($statusLabels[$reqStatus] ?? ucfirst($reqStatus)) ?></option>
+                                                    <option value="<?= h($nextOpt) ?>"><?= h($statusLabels[$nextOpt]) ?></option>
+                                                </select>
+                                            </form>
+                                        <?php endif; ?>
                                     </td>
                                     <td style="text-align:right; white-space:nowrap;">
                                         <div style="display:inline-flex; align-items:center; gap:6px;">
@@ -630,8 +664,10 @@ function platform_demo_requests_page(): void
                 </div>
             <?php else: ?>
                 <?php foreach ($demoRequests as $req): 
-                    $statusCls = 'status-' . $req['status'];
-                    $statusLabel = ucfirst(str_replace('_', ' ', $req['status']));
+                    $reqStatus = (string)$req['status'];
+                    $statusCls = 'status-' . $reqStatus;
+                    $statusLabel = ucfirst(str_replace('_', ' ', $reqStatus));
+                    $nextOpt = $nextMap[$reqStatus] ?? null;
                 ?>
                     <article class="demo-req-card">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
@@ -680,17 +716,21 @@ function platform_demo_requests_page(): void
                         <?php endif; ?>
 
                         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; pt:8px; border-top:1px solid rgba(255,255,255,0.05); margin-top:4px;">
-                            <form method="post" action="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0; flex:1;">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="action" value="update_status">
-                                <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
-                                <select name="status" class="form-control" onchange="this.form.submit()" style="height:36px; font-size:12px; border-radius:8px;">
-                                    <option value="new" <?= $req['status'] === 'new' ? 'selected' : '' ?>>New</option>
-                                    <option value="contacted" <?= $req['status'] === 'contacted' ? 'selected' : '' ?>>Contacted</option>
-                                    <option value="demo_scheduled" <?= $req['status'] === 'demo_scheduled' ? 'selected' : '' ?>>Demo Scheduled</option>
-                                    <option value="closed" <?= $req['status'] === 'closed' ? 'selected' : '' ?>>Closed</option>
-                                </select>
-                            </form>
+                            <?php if ($reqStatus === 'closed' || $nextOpt === null): ?>
+                                <div style="flex:1;">
+                                    <span class="demo-status-pill status-closed" style="display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 12px;cursor:default;">Closed</span>
+                                </div>
+                            <?php else: ?>
+                                <form method="post" action="index.php?page=demo_requests<?= $currentStatus !== 'all' ? '&status=' . urlencode($currentStatus) : '' ?>" style="margin:0; flex:1;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="update_status">
+                                    <input type="hidden" name="id" value="<?= (int)$req['id'] ?>">
+                                    <select name="status" class="form-control" onchange="this.form.submit()" style="height:36px; font-size:12px; border-radius:8px;">
+                                        <option value="<?= h($reqStatus) ?>" selected><?= h($statusLabels[$reqStatus] ?? ucfirst($reqStatus)) ?></option>
+                                        <option value="<?= h($nextOpt) ?>"><?= h($statusLabels[$nextOpt]) ?></option>
+                                    </select>
+                                </form>
+                            <?php endif; ?>
 
                             <button type="button" class="btn btn-sm btn-ghost" onclick="openNotesModal(<?= (int)$req['id'] ?>, <?= htmlspecialchars(json_encode($req['admin_notes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>)" style="padding:6px 10px; font-size:12px;">
                                 Note

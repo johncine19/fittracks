@@ -156,7 +156,7 @@ function expenses_page(): void
             flash('Please select a valid expense category.', 'danger');
             redirect('expenses');
         }
-        $description = trim((string)post('description'));
+        $description = substr(trim((string)post('description')), 0, 255);
         $amount = round((float)post('amount'), 2);
         $method = trim((string)post('payment_method'));
         if (!array_key_exists($method, $paymentMethods)) {
@@ -387,14 +387,14 @@ function expenses_page(): void
             <div>
                 <p style="margin:0;color:var(--muted);">Log operational costs for <strong><?= h($gymName) ?></strong> and track net profit against revenue.</p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div class="exp-header-actions">
                 <?php if (!$isStaffRestricted && $tableReady): ?>
                     <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'expenses', 'gym_id' => $gymId, 'from' => $filterFrom, 'to' => $filterTo, 'category' => $filterCategory, 'q' => $search, 'preset' => $isAllPreset ? 'all' : '', 'export' => 'csv']))) ?>" class="btn btn-secondary">Export CSV</a>
                 <?php endif; ?>
                 <?php if ($canManageCategories && $catTableReady): ?>
                     <button type="button" class="btn btn-secondary" onclick="document.getElementById('manageCategoriesModal').showModal()">Manage Categories</button>
                 <?php endif; ?>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('logExpenseModal').showModal()" <?= !$tableReady ? 'disabled' : '' ?>>+ Log Expense</button>
+                <button type="button" class="btn btn-primary exp-desktop-log-btn" onclick="document.getElementById('logExpenseModal').showModal()" <?= !$tableReady ? 'disabled' : '' ?>>+ Log Expense</button>
             </div>
         </div>
 
@@ -490,7 +490,7 @@ function expenses_page(): void
                 <p>No expenses recorded for this period.<br>Click <strong>+ Log Expense</strong> to add your first entry.</p>
             </div>
         <?php else: ?>
-            <div class="table-wrap">
+            <div class="table-wrap exp-desktop-table">
                 <table>
                     <thead>
                         <tr>
@@ -509,15 +509,15 @@ function expenses_page(): void
                             || ((int)$r['recorded_by'] === (int)$user['user_id']);
                     ?>
                         <tr>
-                            <td><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?></td>
+                            <td><span style="font-size:12.5px;color:var(--muted);"><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?></span></td>
                             <td><span class="badge"><?= h($r['category']) ?></span></td>
-                            <td><?= h($r['description']) ?></td>
-                            <td><span style="color:var(--muted);font-size:12px;"><?= h($paymentMethods[$r['payment_method']] ?? ucfirst((string)$r['payment_method'])) ?></span></td>
+                            <td style="max-width:280px;overflow-wrap:anywhere;"><span style="font-size:12.5px;"><?= h($r['description']) ?></span></td>
+                            <td><span style="color:var(--muted);font-size:12.5px;"><?= h($paymentMethods[$r['payment_method']] ?? ucfirst((string)$r['payment_method'])) ?></span></td>
                             <td>
                                 <?php if ($isStaffRestricted && (int)$r['recorded_by'] !== (int)$user['user_id']): ?>
-                                    <span style="color:var(--muted);letter-spacing:2px;">••••••</span>
+                                    <span style="color:var(--muted);font-size:12.5px;letter-spacing:2px;">••••••</span>
                                 <?php else: ?>
-                                    <strong style="color:#f87171;">−<?= h(money((float)$r['amount'])) ?></strong>
+                                    <strong style="color:#f87171;font-size:12.5px;">−<?= h(money((float)$r['amount'])) ?></strong>
                                 <?php endif; ?>
                             </td>
                             <td><span style="color:var(--muted);font-size:12.5px;"><?= h($r['recorded_by_name'] ?: 'System') ?></span></td>
@@ -535,6 +535,41 @@ function expenses_page(): void
                     <?php endforeach; ?>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile Cards View -->
+            <div class="exp-mobile-cards">
+                <?php foreach ($rows as $r):
+                    $canDel = in_array($user['role'], ['platform_admin', 'gym_owner'], true)
+                        || ((int)$r['recorded_by'] === (int)$user['user_id']);
+                    $methodLabel = $paymentMethods[$r['payment_method']] ?? ucfirst((string)$r['payment_method']);
+                ?>
+                    <div class="exp-mobile-card">
+                        <div class="exp-mobile-card-top">
+                            <span class="badge"><?= h($r['category']) ?></span>
+                            <?php if ($isStaffRestricted && (int)$r['recorded_by'] !== (int)$user['user_id']): ?>
+                                <span style="color:var(--muted);font-size:14px;font-weight:700;letter-spacing:2px;">••••••</span>
+                            <?php else: ?>
+                                <strong style="color:#f87171;font-size:15px;">−<?= h(money((float)$r['amount'])) ?></strong>
+                            <?php endif; ?>
+                        </div>
+                        <div class="exp-mobile-card-desc"><?= h($r['description']) ?></div>
+                        <div class="exp-mobile-card-meta">
+                            <span><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?> &bull; <?= h($methodLabel) ?></span>
+                        </div>
+                        <div class="exp-mobile-card-footer">
+                            <span class="exp-mobile-card-by">By <?= h($r['recorded_by_name'] ?: 'System') ?></span>
+                            <?php if ($canDel): ?>
+                                <form method="post" onsubmit="return confirm('Delete this expense entry?');" style="margin:0;">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete_expense">
+                                    <input type="hidden" name="expense_id" value="<?= (int)$r['expense_id'] ?>">
+                                    <button type="submit" class="btn-sm btn-ghost" style="color:#f87171;">Delete</button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             </div>
             <?php if ($expenseCount > 0):
                 $expPagParams = ['page' => 'expenses'];
@@ -558,6 +593,11 @@ function expenses_page(): void
             <?php endif; ?>
         <?php endif; ?>
     </section>
+
+    <!-- Mobile FAB for Logging Expense -->
+    <button type="button" class="exp-mobile-fab" onclick="document.getElementById('logExpenseModal').showModal()" title="Log Expense" aria-label="Log Expense" <?= !$tableReady ? 'disabled' : '' ?>>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    </button>
 
     <!-- Log Expense Modal -->
     <dialog id="logExpenseModal" class="modal" style="max-width:480px;width:92%;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:0;">
@@ -670,6 +710,104 @@ function expenses_page(): void
     </script>
 
     <style>
+        .exp-header-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .exp-mobile-fab {
+            display: none;
+        }
+        .exp-mobile-cards {
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .exp-desktop-table {
+                display: none !important;
+            }
+            .exp-mobile-cards {
+                display: grid;
+                gap: 10px;
+                margin-bottom: 14px;
+            }
+            .exp-mobile-card {
+                background: var(--surface);
+                border: 1px solid var(--line);
+                border-radius: 12px;
+                padding: 14px;
+                display: grid;
+                gap: 8px;
+            }
+            .exp-mobile-card-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 8px;
+            }
+            .exp-mobile-card-desc {
+                font-size: 13.5px;
+                font-weight: 600;
+                color: var(--ink);
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+            }
+            .exp-mobile-card-meta {
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .exp-mobile-card-footer {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding-top: 8px;
+                border-top: 1px solid var(--line);
+            }
+            .exp-mobile-card-by {
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .exp-header-actions {
+                width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            .exp-header-actions .btn {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+                box-sizing: border-box;
+            }
+            .exp-desktop-log-btn {
+                display: none !important;
+            }
+            .exp-mobile-fab {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: fixed;
+                bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+                right: calc(20px + env(safe-area-inset-right, 0px));
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                border: none;
+                background: var(--lime);
+                color: var(--bg);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.15);
+                cursor: pointer;
+                z-index: 999;
+                -webkit-tap-highlight-color: transparent;
+                transition: transform 0.2s ease;
+            }
+            .exp-mobile-fab:active {
+                transform: scale(0.92);
+            }
+            .exp-mobile-fab:disabled {
+                opacity: 0.45;
+                pointer-events: none;
+            }
+        }
         .exp-kpi-grid {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
