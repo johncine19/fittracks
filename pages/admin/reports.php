@@ -499,7 +499,7 @@ function reports_page(): void
     $saasPlanMix = [];
     $saasLedger = [];
     $saasTotalCount = 0;
-    $saasPerPage = 20;
+    $saasPerPage = 10;
     $saasPage = 1;
     $saasTotalPages = 1;
     $saasOffset = 0;
@@ -555,7 +555,7 @@ function reports_page(): void
         $saasRawMonthly = query_all("SELECT DATE_FORMAT(sp.payment_date, '%Y-%m') AS month, SUM(sp.amount) AS revenue, COUNT(*) AS transactions FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter GROUP BY month ORDER BY month DESC LIMIT 12");
         $saasPlanMix = query_all("SELECT sp.plan_name, COUNT(*) AS count, COALESCE(SUM(sp.amount), 0) AS revenue FROM gym_subscription_payments sp WHERE sp.status = 'paid' $saasGymFilter GROUP BY sp.plan_name ORDER BY revenue DESC");
         
-        $saasPerPage = 20;
+        $saasPerPage = 10;
         $saasTotalCount = (int) scalar("
             SELECT COUNT(*) 
             FROM gym_subscription_payments sp
