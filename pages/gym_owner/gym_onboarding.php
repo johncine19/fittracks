@@ -2726,7 +2726,17 @@ function gym_onboarding_page(): void
                         dCard.style.borderColor = '#ef4444';
                         dCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
-                    alert('Please complete the Owner Identity Verification (Didit) first before continuing.');
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Identity Verification Required',
+                            text: 'Please complete the Owner Identity Verification (Didit) first before continuing.',
+                            confirmButtonColor: '#65a30d',
+                            confirmButtonText: 'OK'
+                        });
+                    } else {
+                        alert('Please complete the Owner Identity Verification (Didit) first before continuing.');
+                    }
                     return;
                 }
             } else {
@@ -3094,10 +3104,19 @@ function gym_onboarding_page(): void
                 if (statusEl) statusEl.textContent = 'Status: Verification Window Opened – Complete steps in the new tab';
                 window.open(data.url, '_blank');
             } else {
-                alert(data.error || 'Could not start Didit verification.');
+                const errMsg = data.error || 'Could not start Didit verification.';
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({ icon: 'error', title: 'Verification Error', text: errMsg, confirmButtonColor: '#65a30d' });
+                } else {
+                    alert(errMsg);
+                }
             }
         } catch (err) {
-            alert('Network error starting Didit verification.');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'error', title: 'Network Error', text: 'Network error starting Didit verification.', confirmButtonColor: '#65a30d' });
+            } else {
+                alert('Network error starting Didit verification.');
+            }
         } finally {
             btn.disabled = false;
             btn.innerHTML = origHtml;
