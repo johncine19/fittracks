@@ -1336,6 +1336,37 @@ function attendance_page(): void
     </style>
     
     <script>
+    (function() {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.attendance-summary-strip .attendance-stat-value').forEach(function(el) {
+                const textNode = el.firstChild;
+                if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return;
+                const raw = textNode.nodeValue || '';
+                const match = raw.match(/^(\s*)([0-9][0-9,]*)(\s*)$/);
+                if (!match) return;
+                const lead = match[1];
+                const target = parseInt(match[2].replace(/,/g, ''), 10);
+                const trail = match[3];
+                if (!isFinite(target) || target === 0) return;
+                const duration = 1000;
+                const start = performance.now();
+
+                function tick(now) {
+                    const progress = Math.min((now - start) / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    textNode.nodeValue = lead + Math.round(target * eased).toLocaleString('en-US') + trail;
+                    if (progress < 1) {
+                        requestAnimationFrame(tick);
+                    } else {
+                        textNode.nodeValue = raw;
+                    }
+                }
+                requestAnimationFrame(tick);
+            });
+        });
+    })();
+
     window.checkinMembersData = <?= json_encode($checkinMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.checkinEquipmentData = <?= json_encode($checkinEquipmentData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.checkinSessionsData = <?= json_encode($checkinSessionsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;

@@ -187,6 +187,44 @@ function platform_admin_dashboard(PDO $pdo, array $user): void
             </div>
         </article>
     </section>
+    <script>
+    (function() {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.stats-row .dash-stat > strong').forEach(function(el) {
+                const raw = (el.textContent || '').trim();
+                if (!raw || raw.includes('•') || raw === '—') return;
+                const match = raw.match(/^([^0-9.-]*?)([0-9][0-9,]*(?:\.[0-9]+)?)(.*)$/);
+                if (!match) return;
+                const prefix = match[1];
+                const numStr = match[2];
+                const suffix = match[3];
+                const target = parseFloat(numStr.replace(/,/g, ''));
+                if (!isFinite(target) || target === 0) return;
+                const decMatch = numStr.split('.');
+                const decimals = decMatch.length > 1 ? decMatch[1].length : 0;
+                const duration = 1000;
+                const start = performance.now();
+
+                function tick(now) {
+                    const progress = Math.min((now - start) / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const formatted = (target * eased).toLocaleString('en-US', {
+                        minimumFractionDigits: decimals,
+                        maximumFractionDigits: decimals
+                    });
+                    el.textContent = prefix + formatted + suffix;
+                    if (progress < 1) {
+                        requestAnimationFrame(tick);
+                    } else {
+                        el.textContent = raw;
+                    }
+                }
+                requestAnimationFrame(tick);
+            });
+        });
+    })();
+    </script>
 
 <?php
 }
