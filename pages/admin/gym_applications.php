@@ -1247,13 +1247,6 @@ function gym_applications_page(): void
                         title="Clear search">✕</button>
             </div>
             <div class="app-toolbar-right">
-                <select id="appPayoutFilter" class="app-filter-select" title="Filter by payout channel">
-                    <option value="all">All Payouts</option>
-                    <option value="gcash">GCash</option>
-                    <option value="maya">Maya</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                </select>
-
                 <select id="appDocFilter" class="app-filter-select" title="Filter by document status">
                     <option value="all">All Documents</option>
                     <option value="complete">Complete (Permit + ID)</option>
@@ -1288,7 +1281,7 @@ function gym_applications_page(): void
         <?php 
         $hasActionable = ($statusCounts['pending'] > 0 || $statusCounts['rejected'] > 0);
         $showActionsColumn = ($currentStatus === 'pending' || $currentStatus === 'rejected' || ($currentStatus === 'all' && $hasActionable));
-        $tableColspan = $showActionsColumn ? 9 : 8;
+        $tableColspan = $showActionsColumn ? 8 : 7;
         ?>
         <div class="app-desktop-table table-container">
             <table>
@@ -1299,7 +1292,6 @@ function gym_applications_page(): void
                         <th>Email</th>
                         <th>Address</th>
                         <th>Contact Info</th>
-                        <th>Payout Account</th>
                         <th>Documents</th>
                         <th>Status</th>
                         <?php if ($showActionsColumn): ?>
@@ -1339,77 +1331,6 @@ function gym_applications_page(): void
                                 </div>
                             </td>
                             <td class="app-col-contact" title="<?= h($app['contact_info'] ?? '') ?>"><?= h($app['contact_info'] ?? '—') ?></td>
-                            <td style="white-space: nowrap;">
-                                <?php if (!empty($app['payout_account_number'])): ?>
-                                    <div class="doc-pill-dropdown payout-pill-dropdown" id="payout-dropdown-<?= (int)$app['gym_id'] ?>">
-                                        <button type="button" class="doc-pill-trigger payout-pill-trigger" onclick="togglePayoutDropdown(<?= (int)$app['gym_id'] ?>, event)" title="View payout destination details">
-                                            <span style="width: 6px; height: 6px; border-radius: 50%; background: #16a34a; display: inline-block; flex-shrink: 0;"></span>
-                                            <span class="payout-pill-chan" style="font-weight: 700; color: var(--accent, #c7ff22);"><?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?></span>
-                                            <span style="font-size: 11px; opacity: 0.92; font-family: monospace; letter-spacing: -0.2px;"><?= h($app['payout_account_number']) ?></span>
-                                            <svg class="doc-pill-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                <polyline points="6 9 12 15 18 9"></polyline>
-                                            </svg>
-                                        </button>
-                                        <div class="doc-pill-menu payout-pill-menu" id="payout-menu-<?= (int)$app['gym_id'] ?>" style="min-width: 275px;">
-                                            <div class="doc-menu-header">
-                                                <span>Payout Destination</span>
-                                            </div>
-                                            <div class="payout-detail-card">
-                                                <div class="payout-detail-item">
-                                                    <div class="payout-detail-icon">
-                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-                                                    </div>
-                                                    <div class="payout-detail-content">
-                                                        <div class="payout-detail-label">Payment Channel</div>
-                                                        <div class="payout-detail-val">
-                                                            <span class="payout-channel-badge">
-                                                                <?= strtoupper(h($app['payout_channel'] ?? 'GCash')) ?>
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div class="payout-detail-item">
-                                                    <div class="payout-detail-icon">
-                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                                    </div>
-                                                    <div class="payout-detail-content" style="flex: 1; min-width: 0;">
-                                                        <div class="payout-detail-label">Account Number</div>
-                                                        <div class="payout-detail-val" style="font-family: monospace; font-size: 13px; font-weight: 700;">
-                                                            <?= h($app['payout_account_number']) ?>
-                                                        </div>
-                                                    </div>
-                                                    <button type="button" class="payout-copy-btn" onclick="copyPayoutText('<?= h($app['payout_account_number']) ?>', this, event)" title="Copy account number">
-                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                                                        <span>Copy</span>
-                                                    </button>
-                                                </div>
-
-                                                <?php if (!empty($app['payout_account_name'])): ?>
-                                                <div class="payout-detail-item">
-                                                    <div class="payout-detail-icon">
-                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                                                    </div>
-                                                    <div class="payout-detail-content">
-                                                        <div class="payout-detail-label">Account Holder Name</div>
-                                                        <div class="payout-detail-val" style="font-weight: 600;">
-                                                            <?= h($app['payout_account_name']) ?>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <?php endif; ?>
-
-                                                <div class="payout-detail-footer">
-                                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                                                    <span>Verified destination for member payouts</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php else: ?>
-                                    <span class="muted" style="font-size:11.5px;">Not provided</span>
-                                <?php endif; ?>
-                            </td>
                             <td style="white-space: nowrap;">
                                 <?php if ($docCount === 0): ?>
                                     <?php if ($app['status'] === 'approved'): ?>
