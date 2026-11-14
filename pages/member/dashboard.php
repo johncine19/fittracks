@@ -1158,7 +1158,7 @@ function member_dashboard(PDO $pdo, array $user): void
             </section>
 
             <!-- My Badges -->
-            <section id="my-badges-section" class="panel missions-panel-card" style="padding: 20px;">
+            <section id="my-badges-section" class="panel missions-panel-card" style="padding: 20px; position: relative;">
                 <h3 style="margin: 0 0 16px; color: var(--ink); display: flex; align-items: center; gap: 8px;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--lime);"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
                     My Badges
@@ -1238,7 +1238,8 @@ function member_dashboard(PDO $pdo, array $user): void
                             'name' => 'Unknown',
                             'desc' => 'Achievement Unlocked'
                         ];
-                        echo '<div style="text-align: center; background: color-mix(in srgb, var(--panel-soft) 45%, transparent); padding: 14px 10px; border-radius: 12px; border: 1px solid var(--line); transition: all 0.2s ease;" title="'.h($def['desc']).' - Unlocked '.date('M j', strtotime($b['unlocked_at'])).'">';
+                        $badgeNote = h($def['desc'] . ' - Unlocked ' . date('M j', strtotime($b['unlocked_at'])));
+                        echo '<div class="member-badge-card" tabindex="0" role="button" data-badge-note="'.$badgeNote.'" style="text-align: center; background: color-mix(in srgb, var(--panel-soft) 45%, transparent); padding: 14px 10px; border-radius: 12px; border: 1px solid var(--line); transition: all 0.2s ease; cursor: pointer;" title="'.$badgeNote.'">';
                         echo '<div style="margin-bottom: 8px; display: flex; align-items: center; justify-content: center;">'.$def['icon'].'</div>';
                         echo '<div style="font-size: 11px; font-weight: bold; color: var(--ink); line-height: 1.2;">'.$def['name'].'</div>';
                         echo '</div>';
@@ -1250,6 +1251,105 @@ function member_dashboard(PDO $pdo, array $user): void
                     echo '</div>';
                 }
                 ?>
+                <div id="member-badge-tooltip" class="member-badge-tooltip" role="tooltip" aria-hidden="true"></div>
+                <style>
+                    .member-badge-card.active-badge {
+                        border-color: var(--lime) !important;
+                        background: color-mix(in srgb, var(--lime) 10%, var(--panel-soft)) !important;
+                    }
+                    .member-badge-tooltip {
+                        position: absolute;
+                        z-index: 40;
+                        background: #1e2430;
+                        color: #f1f5f9;
+                        border: 1px solid rgba(255, 255, 255, 0.25);
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        line-height: 1.35;
+                        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+                        max-width: calc(100% - 24px);
+                        width: max-content;
+                        pointer-events: none;
+                        opacity: 0;
+                        visibility: hidden;
+                        transition: opacity 0.15s ease;
+                    }
+                    .member-badge-tooltip.visible {
+                        opacity: 1;
+                        visibility: visible;
+                    }
+                </style>
+                <script>
+                    (function () {
+                        const section = document.getElementById('my-badges-section');
+                        const tooltip = document.getElementById('member-badge-tooltip');
+                        if (!section || !tooltip) return;
+
+                        let activeCard = null;
+
+                        function hideBadgeTooltip() {
+                            if (activeCard) {
+                                activeCard.classList.remove('active-badge');
+                                activeCard = null;
+                            }
+                            tooltip.classList.remove('visible');
+                            tooltip.setAttribute('aria-hidden', 'true');
+                        }
+
+                        function showBadgeTooltip(card) {
+                            const note = card.getAttribute('data-badge-note');
+                            if (!note) return;
+
+                            if (activeCard === card && tooltip.classList.contains('visible')) {
+                                hideBadgeTooltip();
+                                return;
+                            }
+
+                            if (activeCard) {
+                                activeCard.classList.remove('active-badge');
+                            }
+                            activeCard = card;
+                            card.classList.add('active-badge');
+
+                            tooltip.textContent = note;
+                            tooltip.classList.add('visible');
+                            tooltip.setAttribute('aria-hidden', 'false');
+
+                            const sectionRect = section.getBoundingClientRect();
+                            const cardRect = card.getBoundingClientRect();
+                            const tipWidth = tooltip.offsetWidth;
+                            const maxLeft = Math.max(12, section.clientWidth - tipWidth - 12);
+                            const idealLeft = (cardRect.left - sectionRect.left) + (cardRect.width / 2) - (tipWidth / 2);
+                            const clampedLeft = Math.max(12, Math.min(idealLeft, maxLeft));
+
+                            tooltip.style.left = clampedLeft + 'px';
+                            tooltip.style.top = (cardRect.bottom - sectionRect.top + 6) + 'px';
+                        }
+
+                        section.querySelectorAll('.member-badge-card').forEach(function (card) {
+                            card.addEventListener('click', function (e) {
+                                e.stopPropagation();
+                                showBadgeTooltip(card);
+                            });
+                            card.addEventListener('keydown', function (e) {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    showBadgeTooltip(card);
+                                }
+                            });
+                        });
+
+                        document.addEventListener('click', function (e) {
+                            if (activeCard && !e.target.closest('.member-badge-card')) {
+                                hideBadgeTooltip();
+                            }
+                        });
+
+                        window.addEventListener('resize', hideBadgeTooltip);
+                    })();
+                </script>
             </section>
         </div>
 

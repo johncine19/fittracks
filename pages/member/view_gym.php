@@ -307,10 +307,10 @@ function view_gym_page(): void
                                     <span style="font-size: 12px; color: var(--muted); font-weight: 600;">/ <?= (int)$p['duration_days'] ?> days</span>
                                 </div>
                                 
-                                <?php if (!empty($p['description'])): ?>
+                                <?php $planFeatures = get_membership_plan_features($p); if (!empty($planFeatures)): ?>
                                     <div class="gym-plan-features">
                                         <?php 
-                                        $lines = array_filter(array_map('trim', explode("\n", $p['description'])));
+                                        $lines = $planFeatures;
                                         foreach ($lines as $line): 
                                         ?>
                                             <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--muted); margin-bottom: 6px;">

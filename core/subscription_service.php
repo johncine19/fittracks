@@ -148,13 +148,43 @@ function get_platform_subscription_plans(): array
     return $plans;
 }
 
+function sync_plan_trainer_feature_lines(array $lines, bool $allowTrainer): array
+{
+    $cleaned = [];
+    foreach ($lines as $line) {
+        $trimmed = trim((string) $line);
+        if ($trimmed === '') {
+            continue;
+        }
+        $lower = strtolower($trimmed);
+        if ($lower === 'personal trainer included' || $lower === 'no trainer included') {
+            continue;
+        }
+        $cleaned[] = $trimmed;
+    }
+
+    $cleaned[] = $allowTrainer ? 'Personal Trainer Included' : 'No Trainer Included';
+    return $cleaned;
+}
+
+function sync_plan_trainer_feature_text(string $description, bool $allowTrainer): string
+{
+    $trimmed = trim($description);
+    if ($trimmed === '') {
+        return '';
+    }
+    $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $trimmed));
+    return implode("\n", sync_plan_trainer_feature_lines($lines, $allowTrainer));
+}
+
 function get_membership_plan_features(array $plan): array
 {
+    $allowTrainer = !isset($plan['allow_trainer_commission']) || (int) $plan['allow_trainer_commission'] === 1;
     $desc = trim((string)($plan['description'] ?? ''));
     if ($desc !== '') {
         $lines = array_filter(array_map('trim', explode("\n", $desc)));
         if (count($lines) >= 3) {
-            return array_values($lines);
+            return sync_plan_trainer_feature_lines(array_values($lines), $allowTrainer);
         }
     }
     
@@ -163,34 +193,32 @@ function get_membership_plan_features(array $plan): array
     $name = strtolower((string)($plan['plan_name'] ?? ''));
     
     if ($days >= 360 || str_contains($type, 'annual') || str_contains($name, 'annual') || str_contains($name, 'elite')) {
-        return [
+        return sync_plan_trainer_feature_lines([
             "Full Gym & Equipment Access (" . $days . " Days)",
-            "Unlimited Group Fitness & Classes",
-            "1-on-1 Personal Trainer Consultation",
-            "Priority Equipment & Queue Pass",
-            "Complimentary Guest Passes (1/month)",
-            "Dedicated Locker & Full Amenities",
-        ];
+            "QR Code Check-in & Attendance History",
+            "Group Class Scheduling & Booking",
+            "Equipment Usage & Queue Access",
+            "Workout, Diet & Progress Tracking",
+        ], $allowTrainer);
     }
     
     if ($days >= 90 || str_contains($type, 'quarter') || str_contains($name, 'quarter') || str_contains($name, 'plus')) {
-        return [
+        return sync_plan_trainer_feature_lines([
             "Full Gym & Equipment Access (" . $days . " Days)",
-            "Priority Class Scheduling & Booking",
-            "Free Fitness & Body Composition Assessment",
-            "Discounted Personal Training Sessions",
-            "Locker Room & Shower Access",
-            "Automated Workout & Progress Tracking",
-        ];
+            "QR Code Check-in & Attendance History",
+            "Group Class Scheduling & Booking",
+            "Equipment Usage & Queue Access",
+            "Workout & Progress Tracking",
+        ], $allowTrainer);
     }
     
-    return [
+    return sync_plan_trainer_feature_lines([
         "Full Gym & Equipment Access (" . $days . " Days)",
-        "Standard Group Class Bookings",
-        "Walk-in Pass & QR Code Check-in",
-        "Locker Room & Shower Access",
-        "Basic Workout & Habit Tracking",
-    ];
+        "QR Code Check-in & Attendance History",
+        "Group Class Bookings",
+        "Equipment Queue Access",
+        "Workout & Progress Tracking",
+    ], $allowTrainer);
 }
 
 /**

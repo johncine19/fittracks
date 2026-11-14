@@ -22,12 +22,13 @@ function plans_page(): void
                 $pdo->prepare('UPDATE membership_plans SET is_popular = 0 WHERE gym_id = ?')->execute([$gymId]);
             }
             $allowCommission = post('allow_trainer_commission') ? 1 : 0;
+            $description = sync_plan_trainer_feature_text((string) post('description'), $allowCommission === 1);
             $pdo->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ?, allow_trainer_commission = ?, is_popular = ? WHERE plan_id = ? AND gym_id = ?')->execute([
                 post('plan_name'),
                 post('plan_type'),
                 post('duration_days'),
                 $price,
-                post('description'),
+                $description,
                 post('is_active', 0) ? 1 : 0,
                 post('commission_rate', 5.0),
                 $allowCommission,
@@ -58,13 +59,14 @@ function plans_page(): void
                 $pdo->prepare('UPDATE membership_plans SET is_popular = 0 WHERE gym_id = ?')->execute([$gymId]);
             }
             $allowCommission = post('allow_trainer_commission') ? 1 : 0;
+            $description = sync_plan_trainer_feature_text((string) post('description'), $allowCommission === 1);
             $pdo->prepare('INSERT INTO membership_plans (gym_id, plan_name, plan_type, duration_days, price, description, is_active, commission_rate, allow_trainer_commission, is_popular) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
                 $gymId,
                 post('plan_name'),
                 post('plan_type'),
                 post('duration_days'),
                 $price,
-                post('description'),
+                $description,
                 post('is_active', 0) ? 1 : 0,
                 post('commission_rate', 5.0),
                 $allowCommission,
@@ -192,7 +194,7 @@ function plans_page(): void
                             <label class="plan-label">
                                 Feature Bullet Points
                                 <span class="field-hint">Enter one feature per line. Checkmarks (✓) will be auto-rendered.</span>
-                                <textarea name="description" rows="6" class="form-control plan-input plan-textarea" placeholder="Full Gym Access&#10;Group Class Bookings&#10;Locker Room Access"><?= h($plan['description'] ?? '') ?></textarea>
+                                <textarea name="description" rows="6" class="form-control plan-input plan-textarea" placeholder="Full Gym Access&#10;Group Class Bookings&#10;Locker Room Access"><?= h(sync_plan_trainer_feature_text((string)($plan['description'] ?? ''), (bool)($plan['allow_trainer_commission'] ?? 1))) ?></textarea>
                             </label>
 
                             <div style="display: flex; gap: 10px; align-items: center; margin-top: 8px;">
@@ -716,19 +718,55 @@ function plans_page(): void
                 cancelButtonColor: 'var(--line)',
                 background: 'var(--bg)',
                 color: 'var(--ink)',
+                didOpen: () => {
+                    const form = document.getElementById('addPlanForm');
+                    if (!form) return;
+                    const cb = form.querySelector('input[name="allow_trainer_commission"]');
+                    const ta = form.querySelector('textarea[name="description"]');
+                    if (cb && ta) {
+                        cb.addEventListener('change', () => syncTrainerFeatureInTextarea(ta, cb.checked));
+                    }
+                },
                 preConfirm: () => {
                     const form = document.getElementById('addPlanForm');
                     if (!form.plan_name.value || !form.duration_days.value || !form.price.value) {
                         Swal.showValidationMessage('Please fill all required fields');
                         return false;
                     }
+                    const cb = form.querySelector('input[name="allow_trainer_commission"]');
+                    const ta = form.querySelector('textarea[name="description"]');
+                    if (cb && ta && ta.value.trim() !== '') {
+                        syncTrainerFeatureInTextarea(ta, cb.checked);
+                    }
                     form.submit();
                 }
             });
         }
 
-        // Dynamic UI feedback when checking "Highlight as Most Popular Plan"
+        function syncTrainerFeatureInTextarea(textarea, allowTrainer) {
+            if (!textarea) return;
+            const lines = textarea.value
+                .replace(/\r\n?/g, '\n')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => {
+                    if (!line) return false;
+                    const lower = line.toLowerCase();
+                    return lower !== 'personal trainer included' && lower !== 'no trainer included';
+                });
+            lines.push(allowTrainer ? 'Personal Trainer Included' : 'No Trainer Included');
+            textarea.value = lines.join('\n');
+        }
+
+        // Dynamic UI feedback when checking "Highlight as Most Popular Plan" or "Allow Trainer Commission"
         document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.plan-edit-form input[name="allow_trainer_commission"]').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const form = this.closest('.plan-edit-form');
+                    const textarea = form ? form.querySelector('textarea[name="description"]') : null;
+                    syncTrainerFeatureInTextarea(textarea, this.checked);
+                });
+            });
             document.querySelectorAll('.plan-popular-toggle').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     if (this.checked) {

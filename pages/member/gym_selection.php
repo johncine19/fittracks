@@ -153,7 +153,7 @@ function gym_selection_page(): void
                             </div>
                             <p class="addr-row">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                <span><?= h($gym['address']) ?></span>
+                                <span class="gym-addr-text" title="<?= h($gym['address']) ?>"><?= h($gym['address']) ?></span>
                                 <span class="gym-distance-badge" id="dist-badge-<?= (int)$gym['gym_id'] ?>" style="display: none;"></span>
                             </p>
                             <div class="gym-chip-row">

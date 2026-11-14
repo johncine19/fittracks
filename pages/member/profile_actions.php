@@ -154,10 +154,83 @@ function handle_profile_post_actions(array $user, ?array $profile, bool $is_memb
             $newGoal = post('primary_goal');
             $oldDiet = strtolower(trim((string)($profile['dietary_restrictions'] ?? 'none')));
             $newDiet = strtolower(trim((string)post('dietary_restrictions', 'none')));
+            $normalizeDays = static function ($raw): array {
+                $nums = array_filter(array_map('intval', explode(',', (string)$raw)), static fn($d) => $d >= 1 && $d <= 7);
+                $nums = array_values(array_unique($nums));
+                sort($nums);
+                return $nums;
+            };
+            $oldFreq = (int)($profile['weekly_workout_target'] ?? 0);
+            $oldDays = $normalizeDays($profile['preferred_workout_days'] ?? '');
             
             save_member_profile((int) $user['user_id']);
             
             $memberUserId = (int) $user['user_id'];
+            $updatedProfile = member_profile($memberUserId) ?: [];
+            $newFreq = (int)($updatedProfile['weekly_workout_target'] ?? 0);
+            $newDays = $normalizeDays($updatedProfile['preferred_workout_days'] ?? '');
+
+            if ($oldFreq !== $newFreq || $oldDays !== $newDays) {
+                $recipientRows = query_all("
+                    SELECT DISTINCT tp.user_id
+                    FROM trainer_profiles tp
+                    WHERE tp.user_id IS NOT NULL
+                      AND tp.user_id > 0
+                      AND (
+                          EXISTS (
+                              SELECT 1 FROM training_plans trp
+                              WHERE trp.trainer_id = tp.trainer_id
+                                AND trp.member_user_id = ?
+                                AND trp.status IN ('active', 'paused')
+                          )
+                          OR EXISTS (
+                              SELECT 1 FROM trainer_assignments ta
+                              WHERE ta.trainer_id = tp.trainer_id
+                                AND ta.member_user_id = ?
+                                AND ta.status = 'active'
+                          )
+                      )
+                ", [$memberUserId, $memberUserId]);
+
+                if (!empty($recipientRows)) {
+                    $dayNamesMap = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+                    $dayLabels = array_values(array_filter(array_map(static fn($d) => $dayNamesMap[$d] ?? null, $newDays)));
+                    $daysText = !empty($dayLabels) ? ' (' . implode(', ', $dayLabels) . ')' : '';
+                    $freqText = $newFreq > 0 ? ($newFreq . ' Workouts/Week') : 'an updated schedule';
+                    $clientName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Your client';
+
+                    $notifTitle = mb_substr('Client Workout Schedule Updated', 0, 100);
+                    $notifMsg = mb_substr(
+                        "{$clientName} updated their workout frequency to {$freqText}{$daysText}. Please review and adjust their routine if needed.",
+                        0,
+                        500
+                    );
+
+                    $placeholders = [];
+                    $params = [];
+                    foreach ($recipientRows as $r) {
+                        $tUid = (int)($r['user_id'] ?? 0);
+                        if ($tUid > 0) {
+                            $placeholders[] = '(?, ?, ?, ?, ?)';
+                            $params[] = $tUid;
+                            $params[] = 'system';
+                            $params[] = $notifTitle;
+                            $params[] = $notifMsg;
+                            $params[] = $memberUserId;
+                        }
+                    }
+
+                    if (!empty($placeholders)) {
+                        try {
+                            db()->prepare(
+                                'INSERT INTO notifications (user_id, type, title, message, reference_id) VALUES ' . implode(', ', $placeholders)
+                            )->execute($params);
+                        } catch (Throwable) {
+                            // Non-blocking.
+                        }
+                    }
+                }
+            }
             if (is_member_self_guided($memberUserId)) {
                 $dietChanged = ($oldDiet !== $newDiet && $newDiet !== '');
                 if ($dietChanged) {

@@ -63,10 +63,10 @@ try {
         if ($user && ($user['role'] ?? '') === 'member') {
             $targetGymId = (int) $_GET['switch_active_gym'];
             if ($targetGymId > 0) {
-                // Verify member has affiliation or active plan at this gym
+                // Verify member has affiliation or any membership history at this gym
                 $isAffiliated = (bool) scalar('SELECT 1 FROM gym_members WHERE user_id = ? AND gym_id = ? LIMIT 1', [$user['user_id'], $targetGymId]);
                 if (!$isAffiliated) {
-                    $isAffiliated = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? AND m.status = "active" LIMIT 1', [$user['user_id'], $targetGymId]);
+                    $isAffiliated = (bool) scalar('SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? AND mp.gym_id = ? LIMIT 1', [$user['user_id'], $targetGymId]);
                     if ($isAffiliated) {
                         db()->prepare('INSERT IGNORE INTO gym_members (user_id, gym_id) VALUES (?, ?)')->execute([$user['user_id'], $targetGymId]);
                         clear_member_gyms_cache((int) $user['user_id']);

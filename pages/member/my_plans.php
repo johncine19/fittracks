@@ -156,6 +156,23 @@ function my_plans_page(): void
     $workoutPlans = array_values(array_filter($workoutPlans, fn($p) => ($p['status'] ?? '') !== 'draft'));
     $dietaryPlans = array_values(array_filter($dietaryPlans, fn($p) => ($p['status'] ?? '') !== 'draft'));
 
+    // Per-gym membership status map so paused gym-issued plans link directly to renew at that gym
+    $gymMembershipState = [];
+    $mGymRows = query_all("
+        SELECT mp.gym_id,
+               MAX(CASE WHEN m.status IN ('active', 'pending') AND m.end_date >= CURDATE() THEN 1 ELSE 0 END) AS has_active
+        FROM memberships m
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE m.user_id = ?
+        GROUP BY mp.gym_id
+    ", [$userId]);
+    foreach ($mGymRows as $mg) {
+        $gymMembershipState[(int)$mg['gym_id']] = [
+            'had' => true,
+            'has_active' => ((int)$mg['has_active'] === 1),
+        ];
+    }
+
     $workoutConflicts = function_exists('detect_workout_schedule_conflicts') ? detect_workout_schedule_conflicts($userId) : [];
     $dietConflicts = function_exists('detect_dietary_plan_conflicts') ? detect_dietary_plan_conflicts($userId) : ['has_conflict' => false];
     $calendar = function_exists('get_consolidated_workout_calendar') ? get_consolidated_workout_calendar($userId) : [];
@@ -481,7 +498,7 @@ function my_plans_page(): void
                                         <?= plan_icon('calendar', 14) ?>
                                         <span>Plan Archived</span>
                                     </div>
-                                <?php else: ?>
+                                <?php elseif ($status !== 'paused'): ?>
                                     <a href="index.php?page=my_workout&plan_id=<?= (int)$plan['plan_id'] ?>" class="plan-btn-primary">
                                         <span>Open Routine</span>
                                         <?= plan_icon('arrow-right', 14) ?>
@@ -500,12 +517,27 @@ function my_plans_page(): void
                                                 <?= plan_icon('pause', 13) ?>
                                                 <span>Pause</span>
                                             </button>
-                                        <?php elseif ($status === 'paused'): ?>
-                                            <input type="hidden" name="new_status" value="active">
-                                            <button type="submit" class="plan-btn-secondary" title="Resume routine">
-                                                <?= plan_icon('play', 13) ?>
-                                                <span>Resume</span>
-                                            </button>
+                                        <?php elseif ($status === 'paused'):
+                                            $planGymId = (int)($plan['gym_id'] ?? 0);
+                                            $isGymMembershipEnded = $planGymId > 0
+                                                && !empty($plan['trainer_id'])
+                                                && !empty($gymMembershipState[$planGymId]['had'])
+                                                && empty($gymMembershipState[$planGymId]['has_active']);
+                                        ?>
+                                            <?php if ($isGymMembershipEnded): ?>
+                                                <a href="index.php?page=memberships&amp;switch_active_gym=<?= $planGymId ?>"
+                                                   class="plan-btn-secondary plan-btn-renew"
+                                                   title="Your membership at <?= h($plan['gym_name'] ?? 'this gym') ?> has ended. Renew to resume this routine.">
+                                                    <?= plan_icon('play', 13) ?>
+                                                    <span>Renew to Resume</span>
+                                                </a>
+                                            <?php else: ?>
+                                                <input type="hidden" name="new_status" value="active">
+                                                <button type="submit" class="plan-btn-secondary" title="Resume routine">
+                                                    <?= plan_icon('play', 13) ?>
+                                                    <span>Resume</span>
+                                                </button>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </form>
                                 </div>
@@ -666,12 +698,27 @@ function my_plans_page(): void
                                                 <?= plan_icon('pause', 13) ?>
                                                 <span>Pause</span>
                                             </button>
-                                        <?php elseif ($status === 'paused'): ?>
-                                            <input type="hidden" name="new_status" value="active">
-                                            <button type="submit" class="plan-btn-secondary" title="Resume nutrition plan">
-                                                <?= plan_icon('play', 13) ?>
-                                                <span>Resume</span>
-                                            </button>
+                                        <?php elseif ($status === 'paused'):
+                                            $planGymId = (int)($plan['gym_id'] ?? 0);
+                                            $isGymMembershipEnded = $planGymId > 0
+                                                && !empty($plan['trainer_id'])
+                                                && !empty($gymMembershipState[$planGymId]['had'])
+                                                && empty($gymMembershipState[$planGymId]['has_active']);
+                                        ?>
+                                            <?php if ($isGymMembershipEnded): ?>
+                                                <a href="index.php?page=memberships&amp;switch_active_gym=<?= $planGymId ?>"
+                                                   class="plan-btn-secondary plan-btn-renew"
+                                                   title="Your membership at <?= h($plan['gym_name'] ?? 'this gym') ?> has ended. Renew to resume this nutrition plan.">
+                                                    <?= plan_icon('play', 13) ?>
+                                                    <span>Renew to Resume</span>
+                                                </a>
+                                            <?php else: ?>
+                                                <input type="hidden" name="new_status" value="active">
+                                                <button type="submit" class="plan-btn-secondary" title="Resume nutrition plan">
+                                                    <?= plan_icon('play', 13) ?>
+                                                    <span>Resume</span>
+                                                </button>
+                                            <?php endif; ?>
                                         <?php endif; ?>
                                     </form>
                                 </div>
