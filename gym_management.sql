@@ -259,7 +259,7 @@ CREATE TABLE `diet_rules` (
   `rule_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `experience_level` int NOT NULL DEFAULT '1',
   `biological_sex` enum('male','female','any') NOT NULL DEFAULT 'any',
-  `primary_goal` enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL,
+  `primary_goal` enum('fat_loss','muscle_gain','strength','endurance','maintenance','general_health','casual') NOT NULL,
   `activity_level` enum('sedentary','lightly_active','moderately_active','very_active','extra_active','any') NOT NULL DEFAULT 'any',
   `protein_pct` tinyint UNSIGNED NOT NULL DEFAULT 35,
   `carbs_pct` tinyint UNSIGNED NOT NULL DEFAULT 35,
@@ -278,7 +278,15 @@ INSERT INTO `diet_rules` (`rule_id`, `experience_level`, `biological_sex`, `prim
 (4, 2, 'any', 'fat_loss', 'any', 40, 30, 30, 'Higher protein to preserve muscle mass in a deficit.'),
 (5, 2, 'any', 'muscle_gain', 'any', 30, 50, 20, 'Higher carbs to fuel intense training sessions.'),
 (6, 3, 'any', 'fat_loss', 'any', 40, 30, 30, 'Aggressive deficit with refeed days.'),
-(7, 3, 'any', 'muscle_gain', 'any', 30, 50, 20, 'Carefully tracked surplus to minimize fat gain.');
+(7, 3, 'any', 'muscle_gain', 'any', 30, 50, 20, 'Carefully tracked surplus to minimize fat gain.'),
+(8, 1, 'any', 'strength', 'any', 30, 45, 25, 'Moderate surplus (+200 kcal) with balanced carbs and protein for strength recovery.'),
+(9, 2, 'any', 'strength', 'any', 30, 45, 25, 'Moderate surplus (+200 kcal) supporting heavy compound lifting.'),
+(10, 3, 'any', 'strength', 'any', 30, 45, 25, 'Controlled surplus (+200 kcal) for peak strength performance.'),
+(11, 1, 'any', 'endurance', 'any', 20, 55, 25, 'High-carb fueling (55%+) to replenish muscle glycogen for endurance.'),
+(12, 2, 'any', 'endurance', 'any', 20, 60, 20, 'High-carbohydrate split for sustained aerobic and stamina training.'),
+(13, 3, 'any', 'endurance', 'any', 20, 60, 20, 'High-carbohydrate split for high-volume endurance athletes.'),
+(14, 1, 'any', 'maintenance', 'any', 35, 35, 30, 'Maintenance calories with elevated protein for body recomposition.'),
+(15, 1, 'any', 'casual', 'any', 25, 45, 30, 'Balanced maintenance split within standard AMDR guidelines.');
 
 -- --------------------------------------------------------
 
@@ -949,7 +957,7 @@ CREATE TABLE `workout_rules` (
   `rule_id` int UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `experience_level` int NOT NULL DEFAULT '1' COMMENT 'Maps to fitness_tier (1=Beginner, 2=Intermediate, 3=Advanced)',
   `biological_sex` enum('male','female','any') NOT NULL DEFAULT 'any',
-  `primary_goal` enum('fat_loss','muscle_gain','maintenance','general_health') NOT NULL,
+  `primary_goal` enum('fat_loss','muscle_gain','strength','endurance','maintenance','general_health','casual') NOT NULL,
   `activity_level` enum('sedentary','lightly_active','moderately_active','very_active','extra_active','any') NOT NULL DEFAULT 'any',
   `recommended_workout_structure` text NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -114,14 +114,14 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
                 ? 'muscle_gain'
                 : 'general_health'));
 
-    // 3. Calculate BMR (Mifflin-St Jeor formula)
+    // 3. Calculate BMR using Mifflin-St Jeor formula (defaults: 70kg, 170cm, age 25, male if profile fields missing)
     $w = (float) ($profile['weight_kg'] ?: 70);
     $h = (float) ($profile['height_cm'] ?: 170);
     $a = (int) ($profile['age'] ?: 25);
     $bmr = 10 * $w + 6.25 * $h - 5 * $a;
     $bmr += (($profile['biological_sex'] ?? 'male') === 'female') ? -161 : 5;
 
-    // 4. Calculate TDEE
+    // 4. Calculate TDEE (Total Daily Energy Expenditure = BMR * activity multiplier)
     $multipliers = [
         'sedentary' => 1.2,
         'lightly_active' => 1.375,
@@ -131,19 +131,27 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     ];
     $tdee = $bmr * ($multipliers[$profile['activity_level'] ?? 'moderately_active'] ?? 1.375);
 
-    // 5. Goal Calorie Adjustment
+    // 5. Goal Calorie Adjustment (-500 deficit fat_loss, +300 surplus muscle_gain, +200 strength, +150 endurance, 0 maintenance; 1200 kcal floor)
     $targetCals = $tdee;
     if ($basicGoal === 'fat_loss') {
         $targetCals -= 500;
     } elseif ($basicGoal === 'muscle_gain') {
         $targetCals += 300;
+    } elseif ($basicGoal === 'strength') {
+        $targetCals += 200;
+    } elseif ($basicGoal === 'endurance') {
+        $targetCals += 150;
     }
     $targetCals = max(1200, (int) round($targetCals));
 
-    // 6. Macro Split
+    // 6. Macro Split: fetch goal + experience_level ratios from `diet_rules` (tries goal level 1 before general_health fallback)
     $dRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct FROM diet_rules WHERE primary_goal = ? AND experience_level = ? LIMIT 1');
     $dRule->execute([$basicGoal, $expLevel]);
     $rule = $dRule->fetch(PDO::FETCH_ASSOC);
+    if (!$rule && $expLevel !== 1) {
+        $dRule->execute([$basicGoal, 1]);
+        $rule = $dRule->fetch(PDO::FETCH_ASSOC);
+    }
     if (!$rule) {
         $dRule->execute(['general_health', 1]);
         $rule = $dRule->fetch(PDO::FETCH_ASSOC);
@@ -152,6 +160,7 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     $c_pct = ((int)($rule['carbs_pct'] ?? 35)) / 100;
     $f_pct = ((int)($rule['fat_pct'] ?? 30)) / 100;
 
+    // Convert macro calories to daily grams (Protein = 4 kcal/g, Carbs = 4 kcal/g, Fat = 9 kcal/g)
     $p_g = (int) round(($targetCals * $p_pct) / 4);
     $c_g = (int) round(($targetCals * $c_pct) / 4);
     $f_g = (int) round(($targetCals * $f_pct) / 9);
@@ -190,7 +199,8 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
         log_plan_change('diet', $planId, $scopedGymId, $logUserId, 'created', 'Generated tailored nutrition plan');
     }
 
-    // 9. Fetch foods filtered by gym scope and dietary restriction
+    // 9. Food Selection: filter active `food_items` by compatible dietary restrictions & gym scope
+    //    (prioritizes gym-custom foods over global staples, randomized via RAND() for variety)
     $memberGymId = (int) scalar('SELECT gym_id FROM gym_members WHERE user_id = ? LIMIT 1', [$memberUserId]);
     $compatibleDiets = get_compatible_dietary_restrictions($restriction);
 
@@ -258,7 +268,10 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
         }
     }
 
-    // 10. Generate 7-day meal schedule
+    // 10. Generate 7-day meal schedule:
+    //     - Daily calorie split: Breakfast 25%, Lunch 35%, Dinner 30%, Snack ~10% (remainder so total === $targetCals)
+    //     - Rotates through the randomized food pool per day ($d - 1 % count) for variety
+    //     - Scales the chosen food's protein/carbs/fat to match the meal's calorie target ($scale = $mCals / $baseCals)
     $dist = ['Breakfast' => 0.25, 'Lunch' => 0.35, 'Dinner' => 0.30, 'Snack' => 0.10];
     $stmtMeal = $pdo->prepare('INSERT INTO dietary_plan_meals (plan_id, day_of_week, meal_type, food_items, image_url, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
@@ -272,12 +285,14 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
 
         foreach ($mealTargets as $mType => $mCals) {
             $pct = $dist[$mType];
+            // Estimate portion grams (~1.5 kcal/g baseline, minimum 50g) and pick a daily rotating food
             $portionGrams = max(50, (int) round($mCals / 1.5));
 
             $options = $foodsByType[$mType];
             $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
 
             if ($selectedFood) {
+                // Scale the selected food's base protein/carbs/fat to match this meal's calorie target ($mCals)
                 $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
                 $scale = $mCals / $baseCals;
                 $mP = (int) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale);

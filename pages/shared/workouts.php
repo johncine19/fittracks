@@ -90,6 +90,14 @@ function _get_secondary_focus_targets(?string $secFocus): array
     return [array_values(array_unique($targetMuscles)), array_values(array_unique($targetCategories)), array_values(array_unique($targetNames))];
 }
 
+/**
+ * Selects the daily exercise flow for a single training day.
+ *
+ * When a member has a secondary_focus (e.g., Arms, Chest, Six-Pack Abs), exercises
+ * matching those target muscles/categories are picked first (balanced across groups),
+ * and remaining slots up to $targetCount are filled with general exercises.
+ * Otherwise, it takes the top-scored $targetCount exercises in sequence order.
+ */
 function _select_daily_exercises(array $dayExercises, array $profile, string $goal, int $targetCount): array
 {
     $secFocus = trim((string)($profile['secondary_focus'] ?? ''));
@@ -143,6 +151,17 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
     return array_slice($dayExercises, 0, $numExercises);
 }
 
+/**
+ * Resolves database-driven exercise pool, training days, experience level, and mapped goal.
+ *
+ * 1. Maps detailed primary_goal to core training categories via map_detailed_goal_to_basic()
+ *    (strength, muscle_gain, fat_loss, general_health/maintenance/endurance/casual).
+ * 2. Maps fitness_tier (1-2 Starter, 3-4 Intermediate, 5+ Advanced) and queries the `exercises`
+ *    table for difficulty_level <= $expLevel within the member's gym or universal catalog.
+ * 3. Scores and sorts exercises by secondary_focus (muscle_group +10, name +8, category +6)
+ *    and primary goal affinity (+2 for strength/cardio).
+ * 4. Resolves weekly schedule priority: preferred_workout_days -> weekly_workout_target -> activity_level.
+ */
 function _get_workout_parameters(array $profile, PDO $pdo): array
 {
     $goal = map_detailed_goal_to_basic($profile['primary_goal']);
@@ -239,6 +258,15 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     return [$exercises, $days, $expLevel, $goal];
 }
 
+/**
+ * Rule-based prescription matrix for sets, reps, rest_seconds, tempo, RPE, and coaching notes.
+ *
+ * Prescribes training volume and intensity based on:
+ *   - Exercise category ('cardio' -> fixed 3x15 mins, Steady Pace, RPE 7)
+ *   - Mapped primary goal ('strength', 'muscle_gain'/'hypertrophy', 'fat_loss'/'weight_loss', or general health)
+ *   - Experience level (1 = Starter, 2 = Intermediate, 3 = Advanced)
+ * Uses the exercise's DB description as notes when present, falling back to a goal/level form cue.
+ */
 function _assign_exercise_details(string $goal, int $expLevel, array $ex): array
 {
     $cat = $ex['category'] ?? 'strength';
@@ -253,36 +281,95 @@ function _assign_exercise_details(string $goal, int $expLevel, array $ex): array
         $cue = 'Keep cadence steady in target aerobic zone.';
     } elseif ($goal === 'strength' || $goal === 'strength_power') {
         if ($expLevel === 1) {
-            $sets = 3; $reps = '6-8'; $rest = 120; $tempo = '2-1-1-0'; $rpe = 'RPE 7-8'; $cue = 'Focus on bar path, brace core tightly.';
+            $sets = 3; $reps = '6-8';
+            $rest = 120;
+            $tempo = '2-1-1-0';
+            $rpe = 'RPE 7-8';
+            $cue = 'Focus on bar path, brace core tightly.';
         } elseif ($expLevel === 2) {
-            $sets = 4; $reps = '5-6'; $rest = 150; $tempo = '2-1-1-0'; $rpe = 'RPE 8'; $cue = 'Control the eccentric, explode upward with full intent.';
+            $sets = 4; 
+            $reps = '5-6'; 
+            $rest = 150; 
+            $tempo = '2-1-1-0'; 
+            $rpe = 'RPE 8'; 
+            $cue = 'Control the eccentric, explode upward with full intent.';
         } else {
-            $sets = 5; $reps = '3-5'; $rest = 180; $tempo = '2-1-1-0'; $rpe = 'RPE 8-9'; $cue = 'Competition form. Rest fully between work sets.';
+            $sets = 5; 
+            $reps = '3-5'; 
+            $rest = 180; 
+            $tempo = '2-1-1-0'; 
+            $rpe = 'RPE 8-9'; 
+            $cue = 'Competition form. Rest fully between work sets.';
         }
     } elseif ($goal === 'muscle_gain' || $goal === 'hypertrophy') {
         if ($expLevel === 1) {
-            $sets = 3; $reps = '10-12'; $rest = 60; $tempo = '3-0-1-0'; $rpe = 'RPE 7'; $cue = 'Control the negative (3s down), feel target muscle stretch.';
+            $sets = 3; 
+            $reps = '10-12'; 
+            $rest = 60; 
+            $tempo = '3-0-1-0'; 
+            $rpe = 'RPE 7'; 
+            $cue = 'Control the negative (3s down), feel target muscle stretch.';
         } elseif ($expLevel === 2) {
-            $sets = 4; $reps = '8-10'; $rest = 90; $tempo = '3-0-1-0'; $rpe = 'RPE 8'; $cue = 'Squeeze peak contraction for 1 second on each rep.';
+            $sets = 4; 
+            $reps = '8-10'; 
+            $rest = 90; 
+            $tempo = '3-0-1-0'; 
+            $rpe = 'RPE 8'; 
+            $cue = 'Squeeze peak contraction for 1 second on each rep.';
         } else {
-            $sets = 4; $reps = '6-10'; $rest = 90; $tempo = '3-0-1-1'; $rpe = 'RPE 8-9'; $cue = 'Train close to failure with strict form.';
+            $sets = 4; 
+            $reps = '6-10'; 
+            $rest = 90; 
+            $tempo = '3-0-1-1'; 
+            $rpe = 'RPE 8-9'; 
+            $cue = 'Train close to failure with strict form.';
         }
     } elseif ($goal === 'fat_loss' || $goal === 'weight_loss') {
         if ($expLevel === 1) {
-            $sets = 3; $reps = '12-15'; $rest = 45; $tempo = '2-0-2-0'; $rpe = 'RPE 6-7'; $cue = 'Smooth continuous cadence, minimize rest.';
+            $sets = 3; 
+            $reps = '12-15'; 
+            $rest = 45; 
+            $tempo = '2-0-2-0'; 
+            $rpe = 'RPE 6-7'; 
+            $cue = 'Smooth continuous cadence, minimize rest.';
         } elseif ($expLevel === 2) {
-            $sets = 4; $reps = '12-15'; $rest = 60; $tempo = '2-0-2-0'; $rpe = 'RPE 7-8'; $cue = 'Maintain high output density and rhythmic breathing.';
+            $sets = 4; 
+            $reps = '12-15'; 
+            $rest = 60; 
+            $tempo = '2-0-2-0'; 
+            $rpe = 'RPE 7-8'; 
+            $cue = 'Maintain high output density and rhythmic breathing.';
         } else {
-            $sets = 4; $reps = '10-12'; $rest = 60; $tempo = '2-0-1-0'; $rpe = 'RPE 8'; $cue = 'High metabolic demand, short rest between sets.';
+            $sets = 4; 
+            $reps = '10-12'; 
+            $rest = 60; 
+            $tempo = '2-0-1-0'; 
+            $rpe = 'RPE 8'; 
+            $cue = 'High metabolic demand, short rest between sets.';
         }
     } else {
         // General health / Maintenance
         if ($expLevel === 1) {
-            $sets = 3; $reps = '10-12'; $rest = 60; $tempo = '2-0-2-0'; $rpe = 'RPE 6'; $cue = 'Focus on posture alignment and smooth technique.';
+            $sets = 3; 
+            $reps = '10-12'; 
+            $rest = 60; 
+            $tempo = '2-0-2-0'; 
+            $rpe = 'RPE 6'; 
+            $cue = 'Focus on posture alignment and smooth technique.';
         } elseif ($expLevel === 2) {
-            $sets = 3; $reps = '8-12'; $rest = 60; $tempo = '2-0-1-0'; $rpe = 'RPE 7'; $cue = 'Solid mechanical tension and full range of motion.';
+            $sets = 3; 
+            $reps = '8-12'; 
+            $rest = 60; 
+            $tempo = '2-0-1-0'; 
+            $rpe = 'RPE 7'; 
+            $cue = 'Solid mechanical tension and full range of motion.';
         } else {
-            $sets = 4; $reps = '8-10'; $rest = 90; $tempo = '2-0-1-0'; $rpe = 'RPE 7-8'; $cue = 'Maintain balanced strength across all planes.';
+            $sets = 4; 
+            $reps = '8-10'; 
+            $rest = 90; 
+            $tempo = '2-0-1-0'; 
+            $rpe = 'RPE 7-8'; 
+            $cue = 'Maintain balanced strength across all planes.';
         }
     }
 
@@ -373,6 +460,17 @@ function can_recalculate_workout(int $memberUserId): bool
     return is_member_self_guided($memberUserId);
 }
 
+/**
+ * Generates a 4-week workout plan for self-guided members (or when triggered by a coach).
+ *
+ * Flow:
+ *   1. Safety guard: if $coachId === null and member has an active coach, preserves the coach's plan.
+ *   2. Archives previous system-generated plans for the scoped gym to keep history intact.
+ *   3. Loads DB-filtered exercises & schedule via _get_workout_parameters().
+ *   4. Sets daily exercise count from preferred_duration_mins (<=35m: 3-4, 45-60m: 4-5, >=65m: 5-6),
+ *      picks daily exercises via _select_daily_exercises(), and assigns sets/reps/rest/tempo/RPE
+ *      via _assign_exercise_details() in sequence_order (1..N) into `training_plan_exercises`.
+ */
 function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gymId = null): int
 {
     $pdo = db();
@@ -453,6 +551,11 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gy
             shuffle($dayExercises);
         }
 
+        // Number of exercises per day ($targetCount) is controlled by preferred_duration_mins:
+        //   <= 35 mins       -> 3-4 exercises
+        //   45-60 mins (def) -> 4-5 exercises
+        //   >= 65 mins       -> 5-6 exercises
+        // (Experience level $expLevel instead scales exercise difficulty_level and sets/reps/rest/tempo/RPE.)
         $prefDuration = (int) ($profile['preferred_duration_mins'] ?? 45);
         $targetCount = match(true) {
             $prefDuration <= 35 => rand(3, 4),
@@ -494,6 +597,11 @@ function auto_populate_plan(int $planId, int $memberUserId): void
             shuffle($dayExercises);
         }
 
+        // Number of exercises per day ($targetCount) is controlled by preferred_duration_mins:
+        //   <= 35 mins       -> 3-4 exercises
+        //   45-60 mins (def) -> 4-5 exercises
+        //   >= 65 mins       -> 5-6 exercises
+        // (Experience level $expLevel instead scales exercise difficulty_level and sets/reps/rest/tempo/RPE.)
         $prefDuration = (int) ($profile['preferred_duration_mins'] ?? 45);
         $targetCount = match(true) {
             $prefDuration <= 35 => rand(3, 4),
@@ -543,409 +651,6 @@ function auto_populate_day(int $planId, int $memberUserId, int $dayOfWeek): void
         $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds, tempo, rpe, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([$planId, (int) $ex['exercise_id'], $dayOfWeek, $order++, $sets, $reps, $rest, $tempo, $rpe, $notes]);
     }
-}
-
-/**
- * Curated Workout Templates Library
- */
-function get_workout_templates(): array
-{
-    return [
-        'full_body' => [
-            'name' => 'Full Body 3-Day',
-            'badge' => '3 Days / Week',
-            'goal' => 'muscle_gain',
-            'description' => 'Comprehensive total-body workout covering major compound movement patterns across three non-consecutive days. Maximizes frequency and balanced development.',
-            'days' => [
-                1 => [
-                    'focus' => 'Full Body A (Squat & Push Focus)',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Keep chest tall, drive knees out over toes.'],
-                        ['name' => 'Bench press', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Retract scapulae and press evenly with stable base.'],
-                        ['name' => 'Lat pulldown', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 7', 'notes' => 'Pull with elbows down and back, squeeze lats.'],
-                        ['name' => 'Plank', 'sets' => 3, 'reps' => '45-60s', 'rest' => 45, 'tempo' => 'Isometric', 'rpe' => 'RPE 7', 'notes' => 'Engage glutes and brace abdominal wall rigidly.']
-                    ]
-                ],
-                3 => [
-                    'focus' => 'Full Body B (Hinge & Vertical Press)',
-                    'exercises' => [
-                        ['name' => 'Deadlift', 'sets' => 3, 'reps' => '6-8', 'rest' => 120, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8', 'notes' => 'Neutral spine, drive forcefully through mid-foot.'],
-                        ['name' => 'Overhead press', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Squeeze glutes to protect lumbar spine.'],
-                        ['name' => 'Dumbbell lunges', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7', 'notes' => 'Keep torso upright, controlled 90-degree knee bend.'],
-                        ['name' => 'Bicep curls', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Pin elbows to sides, complete full curl contraction.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Full Body C (Hypertrophy & Core)',
-                    'exercises' => [
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '10-12', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Do not lock out knees at peak extension.'],
-                        ['name' => 'Barbell row', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 7-8', 'notes' => 'Hinge at hips, pull barbell toward lower ribcage.'],
-                        ['name' => 'Tricep pushdown', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Full triceps lockout with flared rope finish.'],
-                        ['name' => 'Russian twists', 'sets' => 3, 'reps' => '15-20', 'rest' => 45, 'tempo' => 'Controlled', 'rpe' => 'RPE 7', 'notes' => 'Rotate from torso, keeping hip alignment square.']
-                    ]
-                ]
-            ]
-        ],
-        'upper_lower' => [
-            'name' => 'Upper / Lower 4-Day',
-            'badge' => '4 Days / Week',
-            'goal' => 'muscle_gain',
-            'description' => 'Classic 4-day periodization alternating upper body and lower body days. Exceptional for progressive overload and muscle building with adequate recovery.',
-            'days' => [
-                1 => [
-                    'focus' => 'Upper Body Power (A)',
-                    'exercises' => [
-                        ['name' => 'Bench press', 'sets' => 4, 'reps' => '6-8', 'rest' => 120, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Arch upper back slightly, tuck elbows 45 degrees.'],
-                        ['name' => 'Barbell row', 'sets' => 4, 'reps' => '6-8', 'rest' => 120, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Explosive pull, controlled 2-second negative.'],
-                        ['name' => 'Overhead press', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Lock out elbows directly overhead in line with ears.'],
-                        ['name' => 'Tricep pushdown', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Squeeze triceps for 1s at bottom lockout.']
-                    ]
-                ],
-                2 => [
-                    'focus' => 'Lower Body Quad Focus (A)',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 4, 'reps' => '6-8', 'rest' => 120, 'tempo' => '3-1-1-0', 'rpe' => 'RPE 8', 'notes' => 'Break at hips and knees simultaneously.'],
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '10-12', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Feet shoulder-width on platform center.'],
-                        ['name' => 'Dumbbell lunges', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7', 'notes' => 'Decelerate smoothly into bottom lunge step.'],
-                        ['name' => 'Plank', 'sets' => 3, 'reps' => '60s', 'rest' => 45, 'tempo' => 'Isometric', 'rpe' => 'RPE 7', 'notes' => 'Hold solid rigid line from head to heels.']
-                    ]
-                ],
-                4 => [
-                    'focus' => 'Upper Body Hypertrophy (B)',
-                    'exercises' => [
-                        ['name' => 'Lat pulldown', 'sets' => 4, 'reps' => '10-12', 'rest' => 90, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Wide grip, pull chest up toward the bar.'],
-                        ['name' => 'Bench press', 'sets' => 3, 'reps' => '10-12', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Moderate load, focus on chest stretch and pump.'],
-                        ['name' => 'Lateral raise', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Slight forward lean, raise using lateral delts.'],
-                        ['name' => 'Bicep curls', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Supinate wrists firmly at contraction peak.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Lower Body Posterior Focus (B)',
-                    'exercises' => [
-                        ['name' => 'Deadlift', 'sets' => 4, 'reps' => '6-8', 'rest' => 120, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8', 'notes' => 'Engage lats to lock bar close to shins.'],
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '12-15', 'rest' => 90, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Higher foot placement for hamstring emphasis.'],
-                        ['name' => 'Hanging leg raise', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Avoid swinging, curl pelvis forward on ascent.'],
-                        ['name' => 'Russian twists', 'sets' => 3, 'reps' => '20', 'rest' => 45, 'tempo' => 'Controlled', 'rpe' => 'RPE 7', 'notes' => 'Keep heels elevated for added challenge.']
-                    ]
-                ]
-            ]
-        ],
-        'push_pull_legs' => [
-            'name' => 'Push / Pull / Legs (PPL)',
-            'badge' => '3 Days / Week',
-            'goal' => 'muscle_gain',
-            'description' => 'The premier athletic split categorizing muscles by mechanical movement pattern: Push (Chest, Shoulders, Triceps), Pull (Back, Biceps), Legs (Quads, Hamstrings, Core).',
-            'days' => [
-                1 => [
-                    'focus' => 'Push Day (Chest, Shoulders, Triceps)',
-                    'exercises' => [
-                        ['name' => 'Bench press', 'sets' => 4, 'reps' => '8-10', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Keep shoulder blades retracted and planted.'],
-                        ['name' => 'Overhead press', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Brace core, head through the window at top.'],
-                        ['name' => 'Lateral raise', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Lead with elbows, pause 1 second at top.'],
-                        ['name' => 'Tricep pushdown', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Lock out elbows without swaying upper body.']
-                    ]
-                ],
-                3 => [
-                    'focus' => 'Pull Day (Back, Rear Delts, Biceps)',
-                    'exercises' => [
-                        ['name' => 'Deadlift', 'sets' => 3, 'reps' => '6-8', 'rest' => 120, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8', 'notes' => 'Tight grip, engage posterior chain and drive hips.'],
-                        ['name' => 'Barbell row', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 7-8', 'notes' => 'Pull elbows high toward torso ribs.'],
-                        ['name' => 'Lat pulldown', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 7', 'notes' => 'Squeeze lats down, controlled return.'],
-                        ['name' => 'Bicep curls', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Slow eccentric negative on descent.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Legs & Core Day',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 4, 'reps' => '8-10', 'rest' => 120, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Hit parallel depth with strong core brace.'],
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '10-12', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Smooth rhythmic cadence without locking knees.'],
-                        ['name' => 'Dumbbell lunges', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7', 'notes' => 'Control descent, push off front heel.'],
-                        ['name' => 'Hanging leg raise', 'sets' => 3, 'reps' => '10-15', 'rest' => 45, 'tempo' => 'Controlled', 'rpe' => 'RPE 8', 'notes' => 'Lift with lower abs, controlled descent.']
-                    ]
-                ]
-            ]
-        ],
-        'strength_power' => [
-            'name' => 'Strength & Heavy Compounds',
-            'badge' => '3 Days / Week',
-            'goal' => 'muscle_gain',
-            'description' => 'Heavy linear progression program targeting maximum force production on the "Big 3" lifts (Squat, Bench, Deadlift) and key overhead assistance.',
-            'days' => [
-                1 => [
-                    'focus' => 'Heavy Squat & Upper Press',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 5, 'reps' => '5', 'rest' => 180, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8-9', 'notes' => 'High intensity work sets. Rest fully between sets.'],
-                        ['name' => 'Overhead press', 'sets' => 4, 'reps' => '6', 'rest' => 120, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Explosive drive from clavicles to full lockout.'],
-                        ['name' => 'Tricep pushdown', 'sets' => 3, 'reps' => '8-10', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Auxiliary triceps work for lock-out power.']
-                    ]
-                ],
-                3 => [
-                    'focus' => 'Heavy Bench & Upper Pull',
-                    'exercises' => [
-                        ['name' => 'Bench press', 'sets' => 5, 'reps' => '5', 'rest' => 180, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8-9', 'notes' => 'Pause 1 second on chest before pressing.'],
-                        ['name' => 'Barbell row', 'sets' => 4, 'reps' => '6', 'rest' => 120, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Strict form, no excessive torso heave.'],
-                        ['name' => 'Bicep curls', 'sets' => 3, 'reps' => '8-10', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 7-8', 'notes' => 'Elbow joint stability support.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Heavy Deadlift & Posterior Chain',
-                    'exercises' => [
-                        ['name' => 'Deadlift', 'sets' => 5, 'reps' => '5', 'rest' => 180, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8-9', 'notes' => 'Reset at each rep. Pull slack out of bar.'],
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '8-10', 'rest' => 120, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Quad hypertrophy volume overload.'],
-                        ['name' => 'Plank', 'sets' => 3, 'reps' => '60-75s', 'rest' => 60, 'tempo' => 'Isometric', 'rpe' => 'RPE 8', 'notes' => 'Maximal intra-abdominal bracing endurance.']
-                    ]
-                ]
-            ]
-        ],
-        'general_fitness' => [
-            'name' => 'General Fitness & Conditioning',
-            'badge' => '3 Days / Week',
-            'goal' => 'general_health',
-            'description' => 'A well-rounded, athletic routine that balances functional resistance training, aerobic intervals, and core stabilization for daily vitality.',
-            'days' => [
-                1 => [
-                    'focus' => 'Circuit Resistance & Conditioning',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 3, 'reps' => '12', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 7', 'notes' => 'Smooth continuous tempo, controlled cadence.'],
-                        ['name' => 'Bench press', 'sets' => 3, 'reps' => '12', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 7', 'notes' => 'Controlled reps, full chest expansion.'],
-                        ['name' => 'Treadmill intervals', 'sets' => 3, 'reps' => '10 mins', 'rest' => 60, 'tempo' => 'Interval', 'rpe' => 'RPE 8', 'notes' => '1 min fast jog / 1 min brisk recovery walk.'],
-                        ['name' => 'Plank', 'sets' => 3, 'reps' => '45s', 'rest' => 45, 'tempo' => 'Isometric', 'rpe' => 'RPE 6', 'notes' => 'Steady nose breathing throughout.']
-                    ]
-                ],
-                3 => [
-                    'focus' => 'Pull Strength & Ergometer Endurance',
-                    'exercises' => [
-                        ['name' => 'Lat pulldown', 'sets' => 3, 'reps' => '12', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 7', 'notes' => 'Focus on upright posture and lat squeeze.'],
-                        ['name' => 'Dumbbell lunges', 'sets' => 3, 'reps' => '12', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 7', 'notes' => 'Balance and single-leg stability.'],
-                        ['name' => 'Rowing machine', 'sets' => 3, 'reps' => '10 mins', 'rest' => 60, 'tempo' => 'Cadence 24', 'rpe' => 'RPE 7-8', 'notes' => 'Legs, body, arms sequence on stroke.'],
-                        ['name' => 'Dead bug', 'sets' => 3, 'reps' => '12', 'rest' => 45, 'tempo' => 'Slow', 'rpe' => 'RPE 6', 'notes' => 'Keep lower back glued to floor.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Functional Stamina & Agility',
-                    'exercises' => [
-                        ['name' => 'Overhead press', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 7', 'notes' => 'Maintain neutral spine and tight core.'],
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 7', 'notes' => 'Moderate resistance, continuous movement.'],
-                        ['name' => 'Jump rope', 'sets' => 3, 'reps' => '3 mins', 'rest' => 45, 'tempo' => 'Rhythm', 'rpe' => 'RPE 7', 'notes' => 'Stay light on balls of feet.'],
-                        ['name' => 'Bicycle crunches', 'sets' => 3, 'reps' => '15-20', 'rest' => 45, 'tempo' => 'Controlled', 'rpe' => 'RPE 7', 'notes' => 'Elbow to opposite knee with shoulder elevation.']
-                    ]
-                ]
-            ]
-        ],
-        'beginner_3day' => [
-            'name' => 'Beginner 3-Day Foundation',
-            'badge' => '3 Days / Week',
-            'goal' => 'general_health',
-            'description' => 'Designed for gym newcomers. Emphasizes foundational motor patterns, safe machine exercises, higher repetitions (12-15), and moderate rest to build neuromuscular confidence.',
-            'days' => [
-                1 => [
-                    'focus' => 'Foundations A (Push & Quads)',
-                    'exercises' => [
-                        ['name' => 'Leg press', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 6-7', 'notes' => 'Safe starter movement. Focus on steady controlled descent.'],
-                        ['name' => 'Bench press', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 6-7', 'notes' => 'Use light dumbbells or empty barbell to learn bar path.'],
-                        ['name' => 'Lat pulldown', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-2-0', 'rpe' => 'RPE 6', 'notes' => 'Pull gently to upper chest without leaning backwards.'],
-                        ['name' => 'Plank', 'sets' => 3, 'reps' => '30-40s', 'rest' => 45, 'tempo' => 'Isometric', 'rpe' => 'RPE 6', 'notes' => 'Focus on holding steady form without sagging hips.']
-                    ]
-                ],
-                3 => [
-                    'focus' => 'Foundations B (Pull & Hamstrings)',
-                    'exercises' => [
-                        ['name' => 'Dumbbell lunges', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 6', 'notes' => 'Use bodyweight or light dumbbells to establish balance.'],
-                        ['name' => 'Barbell row', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 6-7', 'notes' => 'Light weight, practice the hip-hinge position.'],
-                        ['name' => 'Lateral raise', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 6', 'notes' => 'Light dumbbells, raise smoothly to shoulder level.'],
-                        ['name' => 'Dead bug', 'sets' => 3, 'reps' => '10-12', 'rest' => 45, 'tempo' => 'Slow', 'rpe' => 'RPE 6', 'notes' => 'Exhale as arm and opposite leg extend.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Foundations C (Compound & Conditioning)',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 3, 'reps' => '10-12', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 6-7', 'notes' => 'Goblet squat with light dumbbell or bodyweight.'],
-                        ['name' => 'Overhead press', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 6', 'notes' => 'Maintain neutral neck and spine alignment.'],
-                        ['name' => 'Bicep curls', 'sets' => 3, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7', 'notes' => 'Control the weight down, do not swing shoulders.'],
-                        ['name' => 'Stationary bike', 'sets' => 2, 'reps' => '10 mins', 'rest' => 60, 'tempo' => 'Easy Spin', 'rpe' => 'RPE 5-6', 'notes' => 'Low-impact cool-down and aerobic capacity builder.']
-                    ]
-                ]
-            ]
-        ],
-        'bro_split_4day' => [
-            'name' => '4-Day Muscle Split',
-            'badge' => '4 Days / Week',
-            'goal' => 'muscle_gain',
-            'description' => 'Targeted high-volume body part split: Chest & Triceps, Back & Biceps, Shoulders & Abs, Legs. Outstanding pump and hypertrophy isolation.',
-            'days' => [
-                1 => [
-                    'focus' => 'Day 1: Chest & Triceps',
-                    'exercises' => [
-                        ['name' => 'Bench press', 'sets' => 4, 'reps' => '8-10', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Main compound press. Retract shoulder blades.'],
-                        ['name' => 'Tricep pushdown', 'sets' => 4, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Flare ropes at contraction for tricep peak.'],
-                        ['name' => 'Plank', 'sets' => 3, 'reps' => '60s', 'rest' => 45, 'tempo' => 'Isometric', 'rpe' => 'RPE 7', 'notes' => 'Anti-extension core finisher.']
-                    ]
-                ],
-                2 => [
-                    'focus' => 'Day 2: Back & Biceps',
-                    'exercises' => [
-                        ['name' => 'Deadlift', 'sets' => 4, 'reps' => '6-8', 'rest' => 120, 'tempo' => '2-1-1-0', 'rpe' => 'RPE 8', 'notes' => 'Heavy hinge builder. Keep bar against shins.'],
-                        ['name' => 'Barbell row', 'sets' => 3, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Row to belly button, squeeze shoulder blades.'],
-                        ['name' => 'Lat pulldown', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 7-8', 'notes' => 'Full lat stretch at top without shrugging.'],
-                        ['name' => 'Bicep curls', 'sets' => 4, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Isolate biceps with 2s eccentric descent.']
-                    ]
-                ],
-                4 => [
-                    'focus' => 'Day 3: Shoulders & Abs',
-                    'exercises' => [
-                        ['name' => 'Overhead press', 'sets' => 4, 'reps' => '8-10', 'rest' => 90, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Strict vertical bar path. Squeeze glutes.'],
-                        ['name' => 'Lateral raise', 'sets' => 4, 'reps' => '12-15', 'rest' => 60, 'tempo' => '2-0-1-1', 'rpe' => 'RPE 8', 'notes' => 'Side delt isolation with controlled tempo.'],
-                        ['name' => 'Hanging leg raise', 'sets' => 3, 'reps' => '12-15', 'rest' => 45, 'tempo' => 'Controlled', 'rpe' => 'RPE 8', 'notes' => 'Posterior pelvic tilt to target lower abs.'],
-                        ['name' => 'Russian twists', 'sets' => 3, 'reps' => '20', 'rest' => 45, 'tempo' => 'Controlled', 'rpe' => 'RPE 7', 'notes' => 'Oblique rotation with stable torso.']
-                    ]
-                ],
-                5 => [
-                    'focus' => 'Day 4: Quad & Hamstring Dominance',
-                    'exercises' => [
-                        ['name' => 'Squat', 'sets' => 4, 'reps' => '8-10', 'rest' => 120, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'Drive up forcefully out of the hole.'],
-                        ['name' => 'Leg press', 'sets' => 4, 'reps' => '10-12', 'rest' => 90, 'tempo' => '3-0-1-0', 'rpe' => 'RPE 8', 'notes' => 'High volume leg finisher, controlled cadence.'],
-                        ['name' => 'Dumbbell lunges', 'sets' => 3, 'reps' => '10-12', 'rest' => 60, 'tempo' => '2-0-1-0', 'rpe' => 'RPE 7-8', 'notes' => 'Keep vertical shin angle on lead leg.']
-                    ]
-                ]
-            ]
-        ]
-    ];
-}
-
-/**
- * Helper to fetch available workout templates formatted for UI selectors & builders
- */
-function get_available_workout_templates(): array
-{
-    $raw = get_workout_templates();
-    $result = [];
-    foreach ($raw as $key => $t) {
-        $daysCount = isset($t['days']) && is_array($t['days']) ? count($t['days']) : 3;
-        $title = $t['title'] ?? $t['name'] ?? ucfirst(str_replace('_', ' ', $key));
-        $result[$key] = array_merge($t, [
-            'key' => $key,
-            'title' => $title,
-            'name' => $t['name'] ?? $title,
-            'days_per_week' => $t['days_per_week'] ?? $daysCount,
-            'split_name' => $t['split_name'] ?? $title,
-            'primary_goal' => $t['primary_goal'] ?? $t['goal'] ?? 'general_health',
-            'goal' => $t['goal'] ?? $t['primary_goal'] ?? 'general_health',
-            'badge' => $t['badge'] ?? "{$daysCount} Days / Week",
-            'description' => $t['description'] ?? '',
-            'days' => $t['days'] ?? []
-        ]);
-    }
-    return $result;
-}
-
-/**
- * Exercise search helper with intelligent name & muscle group matching
- */
-function _find_exercise_id(PDO $pdo, int $gymId, string $targetName, ?string $fallbackMuscle = null): ?int
-{
-    // 1. Exact match in gym
-    if ($gymId > 0) {
-        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) = LOWER(?) LIMIT 1');
-        $stmt->execute([$gymId, $targetName]);
-        $id = $stmt->fetchColumn();
-        if ($id) return (int) $id;
-    }
-
-    // 2. Exact match in global library
-    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = 0 OR gym_id IS NULL) AND LOWER(name) = LOWER(?) LIMIT 1');
-    $stmt->execute([$targetName]);
-    $id = $stmt->fetchColumn();
-    if ($id) return (int) $id;
-
-    // 3. Substring / LIKE match in gym
-    if ($gymId > 0) {
-        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(name) LIKE LOWER(?) LIMIT 1');
-        $stmt->execute([$gymId, '%' . $targetName . '%']);
-        $id = $stmt->fetchColumn();
-        if ($id) return (int) $id;
-    }
-
-    // 4. Substring / LIKE match in global library
-    $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = 0 OR gym_id IS NULL) AND LOWER(name) LIKE LOWER(?) LIMIT 1');
-    $stmt->execute(['%' . $targetName . '%']);
-    $id = $stmt->fetchColumn();
-    if ($id) return (int) $id;
-
-    // 5. Fallback by muscle group if provided in gym
-    if ($fallbackMuscle) {
-        if ($gymId > 0) {
-            $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE gym_id = ? AND LOWER(muscle_group) = LOWER(?) LIMIT 1');
-            $stmt->execute([$gymId, $fallbackMuscle]);
-            $id = $stmt->fetchColumn();
-            if ($id) return (int) $id;
-        }
-
-        $stmt = $pdo->prepare('SELECT exercise_id FROM exercises WHERE (gym_id = 0 OR gym_id IS NULL) AND LOWER(muscle_group) = LOWER(?) LIMIT 1');
-        $stmt->execute([$fallbackMuscle]);
-        $id = $stmt->fetchColumn();
-        if ($id) return (int) $id;
-    }
-
-    return null;
-}
-
-/**
- * Applies a full workout template to a plan
- */
-function apply_workout_template(int $planId, string $templateKey, int $gymId): bool
-{
-    $templates = get_workout_templates();
-    if (!isset($templates[$templateKey])) {
-        return false;
-    }
-
-    $template = $templates[$templateKey];
-    $pdo = db();
-
-    // Clear existing exercises in draft plan
-    $pdo->prepare('DELETE FROM training_plan_exercises WHERE plan_id = ?')->execute([$planId]);
-
-    // Update plan title and goal
-    $pdo->prepare('UPDATE training_plans SET title = CONCAT("Workout Plan - ", ?), goal = ? WHERE plan_id = ?')
-        ->execute([$template['name'], $template['goal'], $planId]);
-
-    $insertStmt = $pdo->prepare('
-        INSERT INTO training_plan_exercises 
-        (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ');
-
-    foreach ($template['days'] as $dayNum => $dayData) {
-        $order = 1;
-        foreach ($dayData['exercises'] as $exDef) {
-            $exId = _find_exercise_id($pdo, $gymId, $exDef['name']);
-            if (!$exId) continue;
-
-            $sets = (int) ($exDef['sets'] ?? 3);
-            $reps = (string) ($exDef['reps'] ?? '10-12');
-            $weight = isset($exDef['weight']) && $exDef['weight'] > 0 ? (float) $exDef['weight'] : null;
-            $rest = (int) ($exDef['rest'] ?? 60);
-            $notes = (string) ($exDef['notes'] ?? '');
-            $tempo = (string) ($exDef['tempo'] ?? '2-0-2-0');
-            $rpe = (string) ($exDef['rpe'] ?? 'RPE 7-8');
-
-            $insertStmt->execute([
-                $planId,
-                $exId,
-                $dayNum,
-                $order++,
-                $sets,
-                $reps,
-                $weight,
-                $rest,
-                $notes,
-                $tempo,
-                $rpe
-            ]);
-        }
-    }
-
-    return true;
 }
 
 function normalize_muscle_group_key(string $mg): string
