@@ -48,6 +48,34 @@ function mask_payout_name(?string $name): string
     return $first . $middle . $last;
 }
 
+function mask_xendit_subaccount(?string $subId): string
+{
+    if (!$subId) {
+        return '';
+    }
+    $str = trim($subId);
+    $len = strlen($str);
+    if ($len <= 6) {
+        return $str;
+    }
+    if ($len <= 10) {
+        return substr($str, 0, 2) . str_repeat('*', max(1, $len - 4)) . substr($str, -2);
+    }
+    return substr($str, 0, 6) . str_repeat('*', max(1, $len - 10)) . substr($str, -4);
+}
+
+function render_payout_eye_toggle(string $fieldId, bool $isMasked, string $ariaLabel): string
+{
+    $showStyle = $isMasked ? 'display:inline-block;' : 'display:none;';
+    $hideStyle = $isMasked ? 'display:none;' : 'display:inline-block;';
+    return '<button type="button" class="field-eye-toggle" onclick="togglePayoutFieldMask(\'' . h($fieldId) . '\', this)" aria-label="' . h($ariaLabel) . '" title="Show / Hide">'
+        . '<svg class="eye-show" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="' . $showStyle . '">'
+        . '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>'
+        . '<svg class="eye-hide" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="' . $hideStyle . '">'
+        . '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
+        . '</button>';
+}
+
 function gym_profile_page(): void
 {
     $user = require_roles(['gym_owner', 'platform_admin']);
@@ -332,8 +360,13 @@ function gym_profile_page(): void
         } else {
             $payoutAccountName = $payoutAccountNameRaw !== '' ? $payoutAccountNameRaw : null;
         }
-        $xenditSubaccountId = post('xendit_subaccount_id') !== null ? trim((string) post('xendit_subaccount_id')) : ($gym['xendit_subaccount_id'] ?? null);
-        $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
+        $xenditSubaccountRaw = post('xendit_subaccount_id') !== null ? trim((string) post('xendit_subaccount_id')) : ($gym['xendit_subaccount_id'] ?? null);
+        if ($xenditSubaccountRaw !== null && strpos($xenditSubaccountRaw, '*') !== false) {
+            // Unchanged masked value submitted; preserve existing database record
+            $xenditSubaccountId = $gym['xendit_subaccount_id'] ?? null;
+        } else {
+            $xenditSubaccountId = $xenditSubaccountRaw !== '' ? $xenditSubaccountRaw : null;
+        }
         
         $pendingGateTime = $gym['pending_eod_gate_time'] ?? null;
         $pendingGateEffectiveDate = $gym['eod_gate_effective_date'] ?? null;
@@ -598,7 +631,12 @@ function gym_profile_page(): void
                 $redirectTab = 'payout';
             } elseif (isset($_POST['submit_xendit_kyc'])) {
                 $kycEmail = trim((string) post('xendit_kyc_email'));
-                $subAccountId = trim((string) post('xendit_subaccount_id_submission'));
+                $subAccountIdRaw = trim((string) post('xendit_subaccount_id_submission'));
+                if ($subAccountIdRaw !== '' && strpos($subAccountIdRaw, '*') !== false) {
+                    $subAccountId = trim((string)($gym['pending_subaccount_id'] ?? $gym['xendit_subaccount_id'] ?? ''));
+                } else {
+                    $subAccountId = $subAccountIdRaw;
+                }
 
                 if (empty($kycEmail) || !filter_var($kycEmail, FILTER_VALIDATE_EMAIL)) {
                     flash('Please provide a valid registered Xendit account email address.', 'danger');
@@ -1568,7 +1606,7 @@ function gym_profile_page(): void
                                 <?php if (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(132, 204, 22, 0.15); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.35);">
                                         <span style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e;"></span>
-                                        Gateway Active (<?= h($gym['xendit_subaccount_id']) ?>)
+                                        Gateway Active (<?= h(mask_xendit_subaccount($gym['xendit_subaccount_id'])) ?>)
                                     </span>
                                 <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">
@@ -1727,13 +1765,29 @@ function gym_profile_page(): void
                             </div>
 
                             <?php if ($isPlatformAdmin): ?>
+                                <?php
+                                $rawSubId = (string)($gym['xendit_subaccount_id'] ?? '');
+                                $maskedSubId = mask_xendit_subaccount($rawSubId);
+                                ?>
                                 <div>
                                     <label class="field-label" for="xendit_subaccount_id">Xendit Sub-Account ID (Platform Admin Only)</label>
                                     <div class="input-icon-wrap">
                                         <span class="input-icon">
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                                         </span>
-                                        <input type="text" name="xendit_subaccount_id" id="xendit_subaccount_id" class="input-with-icon" value="<?= h($gym['xendit_subaccount_id'] ?? '') ?>" placeholder="e.g. user_6492a5...">
+                                        <input type="text"
+                                               name="xendit_subaccount_id"
+                                               id="xendit_subaccount_id"
+                                               class="input-with-icon has-toggle"
+                                               value="<?= h(!empty($maskedSubId) ? $maskedSubId : $rawSubId) ?>"
+                                               data-raw="<?= h($rawSubId) ?>"
+                                               data-masked="<?= h($maskedSubId) ?>"
+                                               data-is-masked="<?= !empty($maskedSubId) ? '1' : '0' ?>"
+                                               placeholder="e.g. user_6492a5..."
+                                               autocomplete="off"
+                                               spellcheck="false"
+                                               data-lpignore="true">
+                                        <?= render_payout_eye_toggle('xendit_subaccount_id', !empty($maskedSubId), 'Toggle Xendit Sub-Account ID visibility') ?>
                                     </div>
                                     <span class="field-hint">Xendit XenPlatform account ID created for this facility. When populated, online checkout is activated.</span>
                                 </div>
@@ -1746,7 +1800,7 @@ function gym_profile_page(): void
                                                 Owner Submitted KYC For Review
                                             </strong>
                                             <p style="font-size: 12px; color: var(--ink); margin: 4px 0 0;">
-                                                Sub-Account: <code style="font-weight: 700; color: var(--ink);"><?= h($gym['pending_subaccount_id']) ?></code> &bull; Registered Email: <span style="font-weight: 600;"><?= h($gym['kyc_email'] ?? 'Not provided') ?></span>
+                                                Sub-Account: <code style="font-weight: 700; color: var(--ink);"><?= h(mask_xendit_subaccount($gym['pending_subaccount_id'])) ?></code> &bull; Registered Email: <span style="font-weight: 600;"><?= h($gym['kyc_email'] ?? 'Not provided') ?></span>
                                             </p>
                                         </div>
                                         <div style="display: flex; gap: 8px;">
@@ -1762,26 +1816,50 @@ function gym_profile_page(): void
                                     </div>
                                 <?php endif; ?>
 
-                            <?php elseif (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
+                            <?php elseif (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'):
+                                $rawLinkedSubId = (string)$gym['xendit_subaccount_id'];
+                                $maskedLinkedSubId = mask_xendit_subaccount($rawLinkedSubId);
+                            ?>
                                 <div>
-                                    <label class="field-label">Linked Xendit Sub-Account</label>
+                                    <label class="field-label" for="linked_xendit_subaccount_id">Linked Xendit Sub-Account</label>
                                     <div class="input-icon-wrap">
                                         <span class="input-icon">
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                                         </span>
-                                        <input type="text" class="input-with-icon" value="<?= h($gym['xendit_subaccount_id']) ?>" readonly style="opacity: 0.75; cursor: not-allowed; background: rgba(255,255,255,0.04);">
+                                        <input type="text"
+                                               id="linked_xendit_subaccount_id"
+                                               class="input-with-icon has-toggle"
+                                               value="<?= h($maskedLinkedSubId ?: $rawLinkedSubId) ?>"
+                                               data-raw="<?= h($rawLinkedSubId) ?>"
+                                               data-masked="<?= h($maskedLinkedSubId) ?>"
+                                               data-is-masked="<?= !empty($maskedLinkedSubId) ? '1' : '0' ?>"
+                                               readonly
+                                               style="opacity: 0.75; cursor: not-allowed; background: rgba(255,255,255,0.04);">
+                                        <?= render_payout_eye_toggle('linked_xendit_subaccount_id', !empty($maskedLinkedSubId), 'Toggle Linked Xendit Sub-Account visibility') ?>
                                     </div>
                                     <span class="field-hint" style="color: var(--lime);">Verified and ready to receive member online payments.</span>
                                 </div>
 
-                            <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
+                            <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])):
+                                $rawPendingSubId = (string)($gym['pending_subaccount_id'] ?? '');
+                                $maskedPendingSubId = mask_xendit_subaccount($rawPendingSubId);
+                            ?>
                                 <div>
-                                    <label class="field-label">Submitted Sub-Account ID (Awaiting Admin Review)</label>
+                                    <label class="field-label" for="pending_xendit_subaccount_id">Submitted Sub-Account ID (Awaiting Admin Review)</label>
                                     <div class="input-icon-wrap">
                                         <span class="input-icon">
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                                         </span>
-                                        <input type="text" class="input-with-icon" value="<?= h($gym['pending_subaccount_id']) ?>" readonly style="opacity: 0.9; cursor: not-allowed; background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.35); color: var(--ink);">
+                                        <input type="text"
+                                               id="pending_xendit_subaccount_id"
+                                               class="input-with-icon has-toggle"
+                                               value="<?= h($maskedPendingSubId ?: $rawPendingSubId) ?>"
+                                               data-raw="<?= h($rawPendingSubId) ?>"
+                                               data-masked="<?= h($maskedPendingSubId) ?>"
+                                               data-is-masked="<?= !empty($maskedPendingSubId) ? '1' : '0' ?>"
+                                               readonly
+                                               style="opacity: 0.9; cursor: not-allowed; background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.35); color: var(--ink);">
+                                        <?= render_payout_eye_toggle('pending_xendit_subaccount_id', !empty($maskedPendingSubId), 'Toggle Submitted Sub-Account ID visibility') ?>
                                     </div>
                                     <span class="field-hint" style="color: #f59e0b;">
                                         ⏳ Submitted for verification (Email: <?= h($gym['kyc_email'] ?? '') ?>). Platform administrators have been notified and must verify your account before online payments become active.
@@ -2351,6 +2429,10 @@ function gym_profile_page(): void
                         <span class="field-hint"><?= $isPlatformAdmin ? 'Registered email address of the gym owner on Xendit.' : 'The email address you used to complete KYC on Xendit.' ?></span>
                     </div>
 
+                    <?php
+                    $rawModalSubId = (string)($gym['pending_subaccount_id'] ?? $gym['xendit_subaccount_id'] ?? '');
+                    $maskedModalSubId = mask_xendit_subaccount($rawModalSubId);
+                    ?>
                     <div>
                         <label class="field-label" for="xendit_subaccount_id_submission"><?= $isPlatformAdmin ? 'XenPlatform Sub-Account ID' : 'Xendit Sub-Account ID' ?> <span style="color: #ef4444;">*</span></label>
                         <div class="input-icon-wrap">
@@ -2360,9 +2442,16 @@ function gym_profile_page(): void
                             <input type="text"
                                    name="xendit_subaccount_id_submission"
                                    id="xendit_subaccount_id_submission"
-                                   class="input-with-icon"
-                                   value="<?= h($gym['pending_subaccount_id'] ?? $gym['xendit_subaccount_id'] ?? '') ?>"
-                                   placeholder="e.g. user_6492a5b6c...">
+                                   class="input-with-icon has-toggle"
+                                   value="<?= h(!empty($maskedModalSubId) ? $maskedModalSubId : $rawModalSubId) ?>"
+                                   data-raw="<?= h($rawModalSubId) ?>"
+                                   data-masked="<?= h($maskedModalSubId) ?>"
+                                   data-is-masked="<?= !empty($maskedModalSubId) ? '1' : '0' ?>"
+                                   placeholder="e.g. user_6492a5b6c..."
+                                   autocomplete="off"
+                                   spellcheck="false"
+                                   data-lpignore="true">
+                            <?= render_payout_eye_toggle('xendit_subaccount_id_submission', !empty($maskedModalSubId), 'Toggle Xendit Sub-Account ID visibility') ?>
                         </div>
                         <span class="field-hint"><?= $isPlatformAdmin ? 'Unique XenPlatform sub-account ID generated for this facility.' : 'Your unique XenPlatform sub-account ID provided after KYC onboarding.' ?></span>
                     </div>

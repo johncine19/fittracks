@@ -61,13 +61,6 @@ function expenses_page(): void
         $categories = array_map(static fn(array $c): string => (string)$c['name'], $categoryRows);
     }
 
-    $paymentMethods = [
-        'cash' => 'Cash',
-        'gcash' => 'GCash',
-        'bank' => 'Bank Transfer',
-        'other' => 'Other',
-    ];
-
     // -------------------------------------------------------------
     // POST: Create Expense Category (Gym Owner / Platform Admin)
     // -------------------------------------------------------------
@@ -158,10 +151,6 @@ function expenses_page(): void
         }
         $description = substr(trim((string)post('description')), 0, 255);
         $amount = round((float)post('amount'), 2);
-        $method = trim((string)post('payment_method'));
-        if (!array_key_exists($method, $paymentMethods)) {
-            $method = 'cash';
-        }
         $expenseDate = trim((string)post('expense_date'));
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $expenseDate)) {
             $expenseDate = date('Y-m-d');
@@ -177,10 +166,10 @@ function expenses_page(): void
         }
 
         $stmt = db()->prepare(
-            'INSERT INTO gym_expenses (gym_id, category, description, amount, payment_method, expense_date, recorded_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO gym_expenses (gym_id, category, description, amount, expense_date, recorded_by)
+             VALUES (?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$gymId, $category, $description, $amount, $method, $expenseDate, (int)$user['user_id']]);
+        $stmt->execute([$gymId, $category, $description, $amount, $expenseDate, (int)$user['user_id']]);
         $newId = (string)db()->lastInsertId();
 
         audit_log((int)$user['user_id'], 'create', 'expense', $newId, json_encode([
@@ -275,7 +264,7 @@ function expenses_page(): void
             redirect('expenses');
         }
         $expStmt = db()->prepare(
-            "SELECT e.expense_date, e.category, e.description, e.amount, e.payment_method,
+            "SELECT e.expense_date, e.category, e.description, e.amount,
                     CONCAT(u.first_name, ' ', u.last_name) AS recorded_by_name
              FROM gym_expenses e
              LEFT JOIN users u ON u.user_id = e.recorded_by
@@ -292,13 +281,12 @@ function expenses_page(): void
         header('Content-Disposition: attachment; filename="expenses_' . date('Y-m-d') . '.csv"');
         $out = fopen('php://output', 'w');
         fwrite($out, "\xEF\xBB\xBF");
-        fputcsv($out, ['Date', 'Category', 'Description', 'Payment Method', 'Amount (PHP)', 'Recorded By']);
+        fputcsv($out, ['Date', 'Category', 'Description', 'Amount (PHP)', 'Recorded By']);
         foreach ($expRows as $er) {
             fputcsv($out, [
                 date('M j, Y', strtotime((string)$er['expense_date'])),
                 $er['category'],
                 $er['description'],
-                $paymentMethods[$er['payment_method']] ?? ucfirst((string)$er['payment_method']),
                 number_format((float)$er['amount'], 2, '.', ''),
                 $er['recorded_by_name'] ?: 'System',
             ]);
@@ -497,7 +485,6 @@ function expenses_page(): void
                             <th>Date</th>
                             <th>Category</th>
                             <th>Description</th>
-                            <th>Method</th>
                             <th>Amount</th>
                             <th>Recorded By</th>
                             <th></th>
@@ -523,7 +510,6 @@ function expenses_page(): void
                                     <span style="font-size:12.5px;"><?= h($descText) ?></span>
                                 <?php endif; ?>
                             </td>
-                            <td><span style="color:var(--muted);font-size:12.5px;"><?= h($paymentMethods[$r['payment_method']] ?? ucfirst((string)$r['payment_method'])) ?></span></td>
                             <td>
                                 <?php if ($isStaffRestricted && (int)$r['recorded_by'] !== (int)$user['user_id']): ?>
                                     <span style="color:var(--muted);font-size:12.5px;letter-spacing:2px;">••••••</span>
@@ -553,7 +539,6 @@ function expenses_page(): void
                 <?php foreach ($rows as $r):
                     $canDel = in_array($user['role'], ['platform_admin', 'gym_owner'], true)
                         || ((int)$r['recorded_by'] === (int)$user['user_id']);
-                    $methodLabel = $paymentMethods[$r['payment_method']] ?? ucfirst((string)$r['payment_method']);
                 ?>
                     <div class="exp-mobile-card">
                         <div class="exp-mobile-card-top">
@@ -575,7 +560,7 @@ function expenses_page(): void
                             <?php endif; ?>
                         </div>
                         <div class="exp-mobile-card-meta">
-                            <span><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?> &bull; <?= h($methodLabel) ?></span>
+                            <span><?= h(date('M j, Y', strtotime((string)$r['expense_date']))) ?></span>
                         </div>
                         <div class="exp-mobile-card-footer">
                             <span class="exp-mobile-card-by">By <?= h($r['recorded_by_name'] ?: 'System') ?></span>
@@ -662,14 +647,6 @@ function expenses_page(): void
                     <input type="date" name="expense_date" value="<?= h($todayYmd) ?>" max="<?= h($todayYmd) ?>" class="exp-input" required>
                 </label>
             </div>
-            <label class="exp-filter-group">
-                Payment Method *
-                <select name="payment_method" class="exp-input" required>
-                    <?php foreach ($paymentMethods as $val => $lbl): ?>
-                        <option value="<?= h($val) ?>"><?= h($lbl) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
             <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px;">
                 <button type="button" class="btn btn-secondary" onclick="document.getElementById('logExpenseModal').close()">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Expense</button>

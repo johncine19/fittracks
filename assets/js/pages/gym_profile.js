@@ -809,6 +809,16 @@
             return first + '*'.repeat(middleLen) + last;
         }
 
+        function maskXenditSubaccount(subId) {
+            if (!subId) return '';
+            const str = String(subId).trim();
+            if (str.length <= 6) return str;
+            if (str.length <= 10) {
+                return str.slice(0, 2) + '*'.repeat(Math.max(1, str.length - 4)) + str.slice(-2);
+            }
+            return str.slice(0, 6) + '*'.repeat(Math.max(1, str.length - 10)) + str.slice(-4);
+        }
+
         function togglePayoutFieldMask(fieldId, btnEl) {
             const input = document.getElementById(fieldId);
             if (!input) return;
@@ -824,9 +834,13 @@
                 // User wants to mask value
                 if (!input.value.includes('*')) {
                     input.dataset.raw = input.value;
-                    input.dataset.masked = (fieldId === 'payout_account_number')
-                        ? maskAccountNumber(input.value)
-                        : maskAccountName(input.value);
+                    if (fieldId === 'payout_account_number') {
+                        input.dataset.masked = maskAccountNumber(input.value);
+                    } else if (fieldId.includes('xendit_subaccount')) {
+                        input.dataset.masked = maskXenditSubaccount(input.value);
+                    } else {
+                        input.dataset.masked = maskAccountName(input.value);
+                    }
                 }
                 input.value = input.dataset.masked || '';
                 input.dataset.isMasked = '1';
@@ -847,3 +861,4 @@
         window.togglePayoutFieldMask = togglePayoutFieldMask;
         window.maskAccountNumber = maskAccountNumber;
         window.maskAccountName = maskAccountName;
+        window.maskXenditSubaccount = maskXenditSubaccount;
