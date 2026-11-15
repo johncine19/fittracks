@@ -86,6 +86,9 @@
 
         // -------------------------------------------------------------
         // FitTracks Offline-First Resilience & PWA Manager (IndexedDB)
+        // Stores:
+        //   - 'roster': cached active gym members/trainers for offline QR lookup
+        //   - 'queue':  pending check-in/check-out transactions awaiting online sync
         // -------------------------------------------------------------
         const DB_NAME = 'FitTracksTerminalDB';
         const DB_VERSION = 1;
@@ -165,6 +168,7 @@
             }
         }
 
+        // Step 1 (Online): Download compact active member/trainer roster and store in IndexedDB 'roster'
         window.refreshOfflineRoster = async function(showToast = false) {
             if (!navigator.onLine) {
                 if (showToast && window.Swal) {
@@ -222,6 +226,8 @@
             syncOfflineQueue(true);
         };
 
+        // Step 3 (Back Online): Read all pending items from IndexedDB 'queue', POST to sync_offline_batch,
+        // and delete only the server-confirmed synced_ids from local storage
         async function syncOfflineQueue(userTriggered = false) {
             if (isSyncingOffline) return;
             if (!navigator.onLine) {
@@ -326,6 +332,8 @@
             }
         }
 
+        // Step 2 (Offline): Look up member in local 'roster', save scan + exact timestamp to IndexedDB 'queue',
+        // toggle local is_inside state, and update HUD optimistically
         async function queueOfflineScan(scanData, method = 'qr_code', extra = {}) {
             let member = null;
             let userId = null;
@@ -848,6 +856,7 @@
 
             setHudState('processing');
 
+            // Online vs. Offline routing: queue locally in IndexedDB if offline, otherwise POST directly to server
             if (!isNetworkOnline) {
                 queueOfflineScan(qrString, method);
                 return;

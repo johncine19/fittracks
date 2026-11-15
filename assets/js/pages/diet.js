@@ -2209,10 +2209,9 @@ async function inspectPlannedMeal(mealId) {
     const contentEl = document.getElementById('inspect-content');
     const fallbackEl = document.getElementById('inspect-fallback');
     const itemsCont = document.getElementById('inspect-items-container');
-    const microBanner = document.getElementById('inspect-micro-banner');
 
     title.textContent = `${currentInspectingMeal.type} Breakdown`;
-    subtitle.textContent = `Ingredient inspection & micronutrient profile`;
+    subtitle.textContent = `Ingredient inspection & portion breakdown`;
     nameEl.textContent = currentInspectingMeal.food;
     chipCals.textContent = `${currentInspectingMeal.cals} kcal`;
     chipPro.textContent = `${currentInspectingMeal.pro}g P`;
@@ -2254,7 +2253,6 @@ async function inspectPlannedMeal(mealId) {
     const seeMoreWrapReset = document.getElementById('inspect-see-more-wrap');
     if (seeMoreWrapReset) seeMoreWrapReset.style.display = 'none';
     isInspectIngredientsExpanded = false;
-    microBanner.style.display = 'none';
     fallbackEl.style.display = 'none';
     contentEl.style.display = 'none';
     loadingEl.style.display = 'block';
@@ -2265,7 +2263,6 @@ async function inspectPlannedMeal(mealId) {
 
     try {
         let items = [];
-        let totFiber = 0, totSugar = 0, totSodium = 0, totPotassium = 0;
 
         // 1. Prioritize Gym Owner's Food Library & Verified Recipe Database FIRST
         let decData = null;
@@ -2334,11 +2331,6 @@ async function inspectPlannedMeal(mealId) {
             isInspectIngredientsExpanded = false;
 
             itemsCont.innerHTML = currentInspectingMeal.items.map((item, idx) => {
-                totFiber += (item.fiber_g || 0);
-                totSugar += (item.sugar_g || 0);
-                totSodium += (item.sodium_mg || 0);
-                totPotassium += (item.potassium_mg || 0);
-
                 const isExtra = idx >= INSPECT_INITIAL_LIMIT;
                 const extraClass = isExtra ? ' inspect-item-extra' : '';
                 const extraStyle = isExtra ? ' style="display: none;"' : '';
@@ -2417,29 +2409,6 @@ async function inspectPlannedMeal(mealId) {
 
             // Recalculate based on default checked status
             recalculateInspectedIngredients();
-
-            // Micronutrient banner if available
-            if (totFiber > 0 || totSodium > 0 || totSugar > 0 || totPotassium > 0) {
-                microBanner.style.display = 'flex';
-                microBanner.innerHTML = `
-                    <div class="inspect-micro-stat">
-                        <span class="inspect-micro-stat-label">Dietary Fiber</span>
-                        <span class="inspect-micro-stat-val">${totFiber.toFixed(1)}g</span>
-                    </div>
-                    <div class="inspect-micro-stat">
-                        <span class="inspect-micro-stat-label">Sugars</span>
-                        <span class="inspect-micro-stat-val">${totSugar.toFixed(1)}g</span>
-                    </div>
-                    <div class="inspect-micro-stat">
-                        <span class="inspect-micro-stat-label">Sodium</span>
-                        <span class="inspect-micro-stat-val">${Math.round(totSodium)}mg</span>
-                    </div>
-                    <div class="inspect-micro-stat">
-                        <span class="inspect-micro-stat-label">Potassium</span>
-                        <span class="inspect-micro-stat-val">${Math.round(totPotassium)}mg</span>
-                    </div>
-                `;
-            }
         } else {
             // Graceful fallback to planned targets
             fallbackEl.style.display = 'block';

@@ -199,7 +199,7 @@ function scanner_page(): void
         exit;
     }
 
-    // AJAX: Fetch compact roster for offline cache
+    // 1. Offline Cache Endpoint: returns active gym members/trainers & current is_inside status for IndexedDB 'roster'
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'get_offline_roster') {
         header('Content-Type: application/json');
 
@@ -259,7 +259,8 @@ function scanner_page(): void
         exit;
     }
 
-    // AJAX: Sync batch of offline attendance logs
+    // 2. Offline Batch Sync Endpoint: commits queued IndexedDB transactions using original scanned_at timestamps,
+    //    enforces idempotency (skips duplicate user_id + timestamp), and logs audit_log entries
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'sync_offline_batch') {
         header('Content-Type: application/json');
 

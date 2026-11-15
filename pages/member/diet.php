@@ -2220,9 +2220,6 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                         <svg class="inspect-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
                     </button>
                 </div>
-                
-                <!-- Micronutrient Highlights Banner -->
-                <div id="inspect-micro-banner" class="inspect-micro-banner" style="display:none; margin-top: 14px;"></div>
 
                 <!-- Health Benefits & Notes -->
                 <div id="inspect-recipe-notes" style="display:none; margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: rgba(199,255,34,0.04); border-left: 3px solid var(--lime);">

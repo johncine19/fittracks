@@ -91,17 +91,13 @@ function _get_secondary_focus_targets(?string $secFocus): array
 }
 
 /**
- * Selects the daily exercise flow for a single training day.
- *
- * When a member has a secondary_focus (e.g., Arms, Chest, Six-Pack Abs), exercises
- * matching those target muscles/categories are picked first (balanced across groups),
- * and remaining slots up to $targetCount are filled with general exercises.
- * Otherwise, it takes the top-scored $targetCount exercises in sequence order.
+ * Selects the daily exercise flow for a single training day up to $targetCount.
  */
 function _select_daily_exercises(array $dayExercises, array $profile, string $goal, int $targetCount): array
 {
     $secFocus = trim((string)($profile['secondary_focus'] ?? ''));
     if ($secFocus !== '') {
+        // Prioritize exercises matching secondary_focus first (balanced across muscle groups), then fill remaining slots
         [$targetMuscles, $targetCategories] = _get_secondary_focus_targets($secFocus);
         $assigned = [];
         $secExercises = [];
@@ -147,27 +143,20 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
         }
     }
 
+    // Default flow: take the top-scored $targetCount exercises in sequence order
     $numExercises = min(count($dayExercises), $targetCount);
     return array_slice($dayExercises, 0, $numExercises);
 }
 
 /**
  * Resolves database-driven exercise pool, training days, experience level, and mapped goal.
- *
- * 1. Maps detailed primary_goal to core training categories via map_detailed_goal_to_basic()
- *    (strength, muscle_gain, fat_loss, general_health/maintenance/endurance/casual).
- * 2. Maps fitness_tier (1-2 Starter, 3-4 Intermediate, 5+ Advanced) and queries the `exercises`
- *    table for difficulty_level <= $expLevel within the member's gym or universal catalog.
- * 3. Scores and sorts exercises by secondary_focus (muscle_group +10, name +8, category +6)
- *    and primary goal affinity (+2 for strength/cardio).
- * 4. Resolves weekly schedule priority: preferred_workout_days -> weekly_workout_target -> activity_level.
  */
 function _get_workout_parameters(array $profile, PDO $pdo): array
 {
+    // 1. Map detailed primary_goal to core category & fitness_tier to experience_level (1=Starter, 2=Intermediate, 3=Advanced)
     $goal = map_detailed_goal_to_basic($profile['primary_goal']);
     $tier = (int) ($profile['fitness_tier'] ?? 1);
     
-    // Map fitness_tier to experience_level (1=Starter, 2=Intermediate, 3=Advanced)
     $expLevel = 1;
     if ($tier >= 3 && $tier <= 4) $expLevel = 2;
     if ($tier >= 5) $expLevel = 3;
@@ -175,7 +164,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     // Fetch member's gym_id
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . (int)($profile['user_id'] ?? 0))->fetchColumn();
 
-    // Filter exercises by difficulty_level <= experience_level AND gym_id (including universal catalog gym_id = 0)
+    // 2. Filter exercises by difficulty_level <= experience_level AND gym_id (including universal catalog gym_id = 0)
     $stmt = $pdo->prepare('SELECT * FROM exercises WHERE difficulty_level <= ? AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)');
     $stmt->execute([$expLevel, $memberGymId]);
     $exercises = $stmt->fetchAll();
@@ -186,7 +175,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
         $exercises = $stmt->fetchAll();
     }
 
-    // Secondary focus & primary goal prioritization
+    // 3. Score & sort exercises by secondary_focus (muscle_group +10, name +8, category +6) and goal affinity (+2)
     [$targetMuscles, $targetCategories, $targetNames] = _get_secondary_focus_targets($profile['secondary_focus'] ?? null);
 
     if (!empty($targetMuscles) || !empty($targetCategories) || !empty($targetNames)) {
@@ -228,7 +217,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
         }
     }
 
-    // Member's specific selected training days take absolute precedence
+    // 4. Resolve weekly schedule priority: preferred_workout_days -> weekly_workout_target -> activity_level
     $preferredDaysRaw = trim((string)($profile['preferred_workout_days'] ?? ''));
     $days = [];
     if ($preferredDaysRaw !== '') {
@@ -462,14 +451,6 @@ function can_recalculate_workout(int $memberUserId): bool
 
 /**
  * Generates a 4-week workout plan for self-guided members (or when triggered by a coach).
- *
- * Flow:
- *   1. Safety guard: if $coachId === null and member has an active coach, preserves the coach's plan.
- *   2. Archives previous system-generated plans for the scoped gym to keep history intact.
- *   3. Loads DB-filtered exercises & schedule via _get_workout_parameters().
- *   4. Sets daily exercise count from preferred_duration_mins (<=35m: 3-4, 45-60m: 4-5, >=65m: 5-6),
- *      picks daily exercises via _select_daily_exercises(), and assigns sets/reps/rest/tempo/RPE
- *      via _assign_exercise_details() in sequence_order (1..N) into `training_plan_exercises`.
  */
 function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gymId = null): int
 {
