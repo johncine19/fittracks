@@ -1,9 +1,63 @@
 <?php
 declare(strict_types=1);
 
-function xendit_api_request(string $method, string $path, ?array $body = null, array $headers = []): array
+function xendit_platform_secret_key(): string
 {
-    $secretKey = (string) app_env('XENDIT_SECRET_KEY');
+    return trim((string) app_env('XENDIT_SECRET_KEY'));
+}
+
+function xendit_has_dedicated_member_key(): bool
+{
+    return trim((string) app_env('XENDIT_MEMBER_SECRET_KEY')) !== '';
+}
+
+function xendit_member_secret_key(): string
+{
+    $memberKey = trim((string) app_env('XENDIT_MEMBER_SECRET_KEY'));
+    return $memberKey !== '' ? $memberKey : xendit_platform_secret_key();
+}
+
+function xendit_member_online_enabled(?string $subaccountId = null): bool
+{
+    if (xendit_has_dedicated_member_key()) {
+        return true;
+    }
+    return xendit_platform_secret_key() !== '' && trim((string) $subaccountId) !== '';
+}
+
+function xendit_member_for_user_id(?string $subaccountId = null): ?string
+{
+    if (xendit_has_dedicated_member_key()) {
+        return null;
+    }
+    $trimmed = trim((string) $subaccountId);
+    return $trimmed !== '' ? $trimmed : null;
+}
+
+function xendit_build_customer_payload(array $customer, string $customerRef, string $customerEmail): array
+{
+    $givenNames = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string) ($customer['first_name'] ?? 'Member')) ?: 'Member');
+    $surname = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string) ($customer['last_name'] ?? '')));
+    $individualDetail = [
+        'given_names' => $givenNames,
+    ];
+    if ($surname !== '') {
+        $individualDetail['surname'] = $surname;
+    }
+
+    return [
+        'reference_id' => $customerRef,
+        'type' => 'INDIVIDUAL',
+        'email' => $customerEmail,
+        'individual_detail' => $individualDetail,
+    ];
+}
+
+function xendit_api_request(string $method, string $path, ?array $body = null, array $headers = [], ?string $secretKeyOverride = null): array
+{
+    $secretKey = ($secretKeyOverride !== null && trim($secretKeyOverride) !== '')
+        ? trim($secretKeyOverride)
+        : xendit_platform_secret_key();
     if ($secretKey === '') {
         throw new RuntimeException('Xendit is not configured.');
     }
@@ -62,7 +116,7 @@ function xendit_api_request(string $method, string $path, ?array $body = null, a
     return $response;
 }
 
-function xendit_find_customer_id(string $referenceId, array $headers = []): ?string
+function xendit_find_customer_id(string $referenceId, array $headers = [], ?string $secretKeyOverride = null): ?string
 {
     if ($referenceId === '') {
         return null;
@@ -91,7 +145,8 @@ function xendit_find_customer_id(string $referenceId, array $headers = []): ?str
             'GET',
             '/customers?reference_id=' . rawurlencode($referenceId),
             null,
-            array_merge(['api-version: 2020-10-31'], $headers)
+            array_merge(['api-version: 2020-10-31'], $headers),
+            $secretKeyOverride
         );
         $list = $res['data'] ?? $res;
         if (is_array($list)) {
@@ -124,7 +179,8 @@ function xendit_create_checkout_session(
     array $customer,
     string $merchantName,
     ?string $forUserId = null,
-    string $returnPage = 'gym_subscription'
+    string $returnPage = 'gym_subscription',
+    ?string $secretKeyOverride = null
 ): array
 {
     $referenceId = (string) ($payment['xendit_reference_id'] ?? '');
@@ -132,6 +188,10 @@ function xendit_create_checkout_session(
     if ($referenceId === '' || $amount <= 0) {
         throw new RuntimeException('Invalid subscription payment details.');
     }
+
+    $secretKey = ($secretKeyOverride !== null && trim($secretKeyOverride) !== '')
+        ? trim($secretKeyOverride)
+        : ($returnPage === 'memberships' ? xendit_member_secret_key() : xendit_platform_secret_key());
 
     $billingCycle = (string) ($payment['billing_cycle'] ?? 'monthly');
     $description = 'FitTrack ' . (string) ($payment['plan_name'] ?? 'subscription') . ' plan for ' . $merchantName
@@ -169,30 +229,16 @@ function xendit_create_checkout_session(
     $customerRef = 'user-' . $userId;
 
     if ($customerEmail !== '') {
-        $existingCustId = $userId > 0 ? xendit_find_customer_id($customerRef, $requestHeaders) : null;
+        $existingCustId = $userId > 0 ? xendit_find_customer_id($customerRef, $requestHeaders, $secretKey) : null;
         if ($existingCustId !== null) {
             $payload['customer_id'] = $existingCustId;
         } else {
-            $givenNames = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['first_name'] ?? 'Member')) ?: 'Member');
-            $surname = trim(preg_replace('/[^\p{L}\p{N} .\-]/u', '', (string)($customer['last_name'] ?? '')));
-            $individualDetail = [
-                'given_names' => $givenNames,
-            ];
-            if ($surname !== '') {
-                $individualDetail['surname'] = $surname;
-            }
-
-            $payload['customer'] = [
-                'reference_id' => $customerRef,
-                'type' => 'INDIVIDUAL',
-                'email' => $customerEmail,
-                'individual_detail' => $individualDetail,
-            ];
+            $payload['customer'] = xendit_build_customer_payload($customer, $customerRef, $customerEmail);
         }
     }
 
     try {
-        $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+        $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders, $secretKey);
     } catch (RuntimeException $e) {
         $msg = $e->getMessage();
         // If Xendit reports that the customer reference_id already exists, recover automatically
@@ -200,7 +246,7 @@ function xendit_create_checkout_session(
             error_log('Xendit reported duplicate customer reference_id. Attempting automatic recovery...');
             $fallbackCustId = null;
             try {
-                $rawRes = xendit_api_request('GET', '/customers?reference_id=' . rawurlencode($customerRef), null, $requestHeaders);
+                $rawRes = xendit_api_request('GET', '/customers?reference_id=' . rawurlencode($customerRef), null, $requestHeaders, $secretKey);
                 $rawList = $rawRes['data'] ?? $rawRes;
                 if (is_array($rawList) && !empty($rawList)) {
                     $first = reset($rawList);
@@ -220,14 +266,26 @@ function xendit_create_checkout_session(
                     } catch (Throwable) {
                     }
                 }
-                $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+                $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders, $secretKey);
             } elseif (isset($payload['customer'])) {
                 // Ensure customer reference_id is unique per session if lookup could not find existing ID
                 $payload['customer']['reference_id'] = $customerRef . '-' . time() . '-' . substr(bin2hex(random_bytes(3)), 0, 6);
-                $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders);
+                $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders, $secretKey);
             } else {
                 throw $e;
             }
+        } elseif (isset($payload['customer_id']) && $customerEmail !== '') {
+            // Cached xendit_customer_id may belong to a different Xendit account (e.g. Live vs Test)
+            if ($userId > 0) {
+                try {
+                    db()->prepare('UPDATE users SET xendit_customer_id = NULL WHERE user_id = ?')->execute([$userId]);
+                } catch (Throwable) {
+                }
+            }
+            unset($payload['customer_id']);
+            $uniqueRef = $customerRef . '-' . time() . '-' . substr(bin2hex(random_bytes(3)), 0, 6);
+            $payload['customer'] = xendit_build_customer_payload($customer, $uniqueRef, $customerEmail);
+            $session = xendit_api_request('POST', '/sessions', $payload, $requestHeaders, $secretKey);
         } else {
             throw $e;
         }
@@ -270,13 +328,16 @@ function handle_xendit_subscription_webhook(): void
         return;
     }
 
-    $expectedToken = (string) app_env('XENDIT_WEBHOOK_TOKEN');
-    $providedToken = (string) ($_SERVER['HTTP_X_CALLBACK_TOKEN'] ?? $_SERVER['REDIRECT_HTTP_X_CALLBACK_TOKEN'] ?? '');
+    $platformToken = trim((string) app_env('XENDIT_WEBHOOK_TOKEN'));
+    $memberToken = trim((string) app_env('XENDIT_MEMBER_WEBHOOK_TOKEN'));
+    $providedToken = trim((string) ($_SERVER['HTTP_X_CALLBACK_TOKEN'] ?? $_SERVER['REDIRECT_HTTP_X_CALLBACK_TOKEN'] ?? ''));
     if ($providedToken === '' && function_exists('getallheaders')) {
         $headers = array_change_key_case(getallheaders(), CASE_LOWER);
-        $providedToken = (string) ($headers['x-callback-token'] ?? '');
+        $providedToken = trim((string) ($headers['x-callback-token'] ?? ''));
     }
-    if ($expectedToken === '' || $providedToken === '' || !hash_equals($expectedToken, $providedToken)) {
+    $matchesPlatform = ($platformToken !== '' && $providedToken !== '' && hash_equals($platformToken, $providedToken));
+    $matchesMember = ($memberToken !== '' && $providedToken !== '' && hash_equals($memberToken, $providedToken));
+    if (!$matchesPlatform && !$matchesMember) {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
         return;
@@ -327,12 +388,23 @@ function handle_xendit_subscription_webhook(): void
             $memberLookup->execute([$sessionId]);
             $memberPayment = $memberLookup->fetch(PDO::FETCH_ASSOC);
             if ($memberPayment) {
+                if (!$matchesMember && !($memberToken === '' && $matchesPlatform)) {
+                    http_response_code(401);
+                    echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
+                    return;
+                }
                 xendit_handle_membership_payment_webhook($pdo, $memberPayment, $event, $data, $sessionId);
                 return;
             }
             error_log('Xendit webhook referenced an unknown subscription session.');
             http_response_code(200);
             echo json_encode(['success' => true, 'ignored' => true]);
+            return;
+        }
+
+        if (!$matchesPlatform) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
             return;
         }
 
@@ -360,7 +432,8 @@ function handle_xendit_subscription_webhook(): void
             'GET',
             '/v3/payment_requests/' . rawurlencode($paymentRequestId),
             null,
-            ['api-version: 2024-11-11']
+            ['api-version: 2024-11-11'],
+            xendit_platform_secret_key()
         );
         if ((string) ($verifiedPayment['status'] ?? '') !== 'SUCCEEDED'
             || (string) ($verifiedPayment['reference_id'] ?? '') !== $referenceId
@@ -407,16 +480,18 @@ function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, stri
     }
 
     $referenceId = trim((string)($data['reference_id'] ?? ''));
-    $subaccountId = trim((string)($payment['xendit_subaccount_id'] ?? ''));
-    if ($referenceId === '' || !hash_equals((string)$payment['xendit_reference_id'], $referenceId) || $subaccountId === '') {
+    $forUserId = xendit_member_for_user_id($payment['xendit_subaccount_id'] ?? null);
+    if ($referenceId === '' || !hash_equals((string)$payment['xendit_reference_id'], $referenceId) || (!xendit_has_dedicated_member_key() && $forUserId === null)) {
         throw new RuntimeException('Xendit membership payment details did not match the pending payment.');
     }
 
+    $headers = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
     $verifiedSession = xendit_api_request(
         'GET',
         '/sessions/' . rawurlencode($sessionId),
         null,
-        ['for-user-id: ' . $subaccountId]
+        $headers,
+        xendit_member_secret_key()
     );
     if ((string)($verifiedSession['status'] ?? '') !== 'COMPLETED'
         || (string)($verifiedSession['payment_session_id'] ?? '') !== $sessionId
@@ -426,7 +501,14 @@ function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, stri
         throw new RuntimeException('Xendit membership payment status or amount did not match.');
     }
 
-    $xenditPaymentId = trim((string)($data['payment_id'] ?? $verifiedSession['payment_id'] ?? ''));
+    $xenditPaymentId = trim((string)(
+        $data['payment_id']
+        ?? $verifiedSession['payment_id']
+        ?? $verifiedSession['latest_payment_id']
+        ?? $verifiedSession['payment_requests'][0]['latest_payment_id']
+        ?? $verifiedSession['payment_requests'][0]['payment_id']
+        ?? ('SES-' . $sessionId)
+    ));
     if ($xenditPaymentId === '') {
         throw new RuntimeException('Xendit did not include a completed membership payment ID.');
     }
@@ -891,8 +973,9 @@ function xendit_sync_membership_payment(?string $referenceId = null, ?int $userI
 
     $sessionId = trim((string)($payment['xendit_session_id'] ?? ''));
     $refId = trim((string)($payment['xendit_reference_id'] ?? ''));
-    $subaccountId = trim((string)($payment['xendit_subaccount_id'] ?? ''));
-    $headers = $subaccountId !== '' ? ['for-user-id: ' . $subaccountId] : [];
+    $forUserId = xendit_member_for_user_id($payment['xendit_subaccount_id'] ?? null);
+    $headers = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
+    $memberSecretKey = xendit_member_secret_key();
     $apiErrors = [];
     $isPaid = false;
     $xenditPaymentId = '';
@@ -900,7 +983,7 @@ function xendit_sync_membership_payment(?string $referenceId = null, ?int $userI
     // Step 1: Query Checkout Session
     if ($sessionId !== '') {
         try {
-            $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId), null, $headers);
+            $session = xendit_api_request('GET', '/sessions/' . rawurlencode($sessionId), null, $headers, $memberSecretKey);
             $sessStatus = strtoupper((string)($session['status'] ?? ''));
             $sessPayStatus = strtoupper((string)($session['payment_status'] ?? ''));
             if ($sessStatus === 'COMPLETED' || $sessPayStatus === 'PAID' || $sessPayStatus === 'SUCCEEDED') {
@@ -928,7 +1011,8 @@ function xendit_sync_membership_payment(?string $referenceId = null, ?int $userI
                 'GET',
                 '/v3/payment_requests?reference_id=' . rawurlencode($refId),
                 null,
-                array_merge(['api-version: 2024-11-11'], $headers)
+                array_merge(['api-version: 2024-11-11'], $headers),
+                $memberSecretKey
             );
             $prList = $prRes['data'] ?? $prRes;
             if (is_array($prList)) {

@@ -612,7 +612,7 @@ function memberships_page(): void
 
             if ($paymentMethod === 'xendit') {
                 $subaccountId = trim((string)($plan['xendit_subaccount_id'] ?? ''));
-                if ((string)app_env('XENDIT_SECRET_KEY') === '' || $subaccountId === '') {
+                if (!xendit_member_online_enabled($subaccountId)) {
                     flash('Online payment is not configured for this gym yet. Please contact the gym owner.', 'warning');
                     redirect('gym_selection');
                 }
@@ -637,7 +637,7 @@ function memberships_page(): void
                         'amount' => $finalPrice,
                         'plan_name' => $plan['plan_name'],
                         'billing_cycle' => 'monthly',
-                    ], $user, (string)$plan['gym_name'], $subaccountId, 'memberships');
+                    ], $user, (string)$plan['gym_name'], xendit_member_for_user_id($subaccountId), 'memberships', xendit_member_secret_key());
                     $pdo->prepare('UPDATE payments SET xendit_session_id = ? WHERE payment_id = ? AND status = "pending"')
                         ->execute([$checkout['payment_session_id'], $paymentId]);
                     header('Location: ' . $checkout['payment_link_url'], true, 303);
@@ -766,8 +766,8 @@ function memberships_page(): void
         if ($memberGymId > 0) {
             $gymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$memberGymId]);
             $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 AND mp.gym_id = ' . $memberGymId . ' ORDER BY mp.price')->fetchAll();
-            $memberXenditEnabled = (string)app_env('XENDIT_SECRET_KEY') !== ''
-                && (string)scalar('SELECT xendit_subaccount_id FROM gym_payout_accounts WHERE gym_id = ?', [$memberGymId]) !== '';
+            $gymSubaccountId = (string)scalar('SELECT xendit_subaccount_id FROM gym_payout_accounts WHERE gym_id = ?', [$memberGymId]);
+            $memberXenditEnabled = xendit_member_online_enabled($gymSubaccountId);
         } else {
             $plans = [];
             $memberXenditEnabled = false;

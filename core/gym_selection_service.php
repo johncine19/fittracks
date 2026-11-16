@@ -176,15 +176,13 @@ function load_gym_selection_data(array $gyms, ?int $userId = null): array
         error_log('Failed to load gym selection rating totals: ' . $e->getMessage());
     }
 
-    $xenditConfigured = (string) app_env('XENDIT_SECRET_KEY') !== '';
     foreach ($eligibleGyms as &$gym) {
         $gymId = (int) $gym['gym_id'];
         $gym['classes'] = $classesByGym[$gymId] ?? [];
         $gym['plans'] = $plansByGym[$gymId] ?? [];
         $gym['images'] = $imagesByGym[$gymId] ?? [];
         $gym['rating_stats'] = $ratingsByGym[$gymId];
-        $gym['xendit_enabled'] = $xenditConfigured
-            && trim((string) ($gym['xendit_subaccount_id'] ?? '')) !== '';
+        $gym['xendit_enabled'] = xendit_member_online_enabled($gym['xendit_subaccount_id'] ?? null);
         $gym['is_affiliated'] = !empty($affiliatedGymMap[$gymId]);
         if (!gym_has_feature('custom_branding', $gym)) {
             $gym['brand_color'] = null;
