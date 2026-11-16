@@ -573,9 +573,9 @@ function gym_subscription_page(): void
                             </tr>
                             <tr>
                                 <td>Automated Renewal Reminders</td>
-                                <td><span class="dist-pill muted">7-Day Alert</span></td>
-                                <td class="col-popular"><span class="dist-pill sky">Automated (30d/14d/7d/1d)</span></td>
-                                <td><span class="dist-pill purple">Automated (30d/14d/7d/1d)</span></td>
+                                <td><span class="status-access">✓ Included</span></td>
+                                <td class="col-popular"><span class="status-access">✓ Included</span></td>
+                                <td><span class="status-access">✓ Included</span></td>
                             </tr>
                             <tr>
                                 <td>Member Engagement Scores & Inactivity Alerts</td>

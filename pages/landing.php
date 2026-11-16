@@ -285,7 +285,7 @@ function landing_page(): void
         'price_label' => '₱599',
         'desc' => 'Ideal for boutique fitness studios and single-location facilities.',
         'popular' => false,
-        'features' => ['Up to 100 Active Members', 'Solo Gym Owner Model (0 Trainers)', 'Walk-in Management & Daily Pass', 'Dynamic QR Check-in & Scanner', 'Membership Plans & GCash / Online Pay', 'Basic Expiration Reminders (7-Day Notice)', 'Basic Financial Reports & CSV Export', 'Basic Activity History']
+        'features' => ['Up to 100 Active Members', 'Solo Gym Owner Model (0 Trainers)', 'Walk-in Management & Daily Pass', 'Dynamic QR Check-in & Scanner', 'Membership Plans & GCash / Online Pay', 'Automated Expiration & Renewal Reminders', 'Basic Financial Reports & CSV Export', 'Basic Activity History']
     ];
     $proPlan = $platformPlans['professional'] ?? [
         'name' => 'Professional',
@@ -293,7 +293,7 @@ function landing_page(): void
         'price_label' => '₱999',
         'desc' => 'Designed for growing commercial gyms with full coaching staff.',
         'popular' => true,
-        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking', 'Automated Multi-Stage Renewal Reminders (30d/14d/7d/1d)', 'Member Engagement Scoring & Inactivity Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
+        'features' => ['Up to 500 Active Members', 'Personal Trainers & Client Assignments (Unlimited)', 'Trainer Commission Tracking & Payouts', 'Workout Plans & Exercise Library', 'Class Scheduling & Online Booking', 'Member Engagement Scoring & Inactivity Alerts', 'Advanced Analytics & Financial Growth Trends', 'Staff Activity Logs']
     ];
     $businessPlan = $platformPlans['business'] ?? [
         'name' => 'Business',
@@ -925,8 +925,8 @@ function landing_page(): void
                                 <li class="arch-feature-item">
                                     <div class="arch-feature-icon"><?= landing_icon('bell') ?></div>
                                     <div class="arch-feature-content">
-                                        <b>Multi-Stage Renewal Automation</b>
-                                        <span>Dispatches automated reminders at 30d, 14d, 7d, and 1d notices.</span>
+                                        <b>Automated Renewal Reminders</b>
+                                        <span>Dispatches automated expiration notices and in-app renewal alerts before memberships expire.</span>
                                     </div>
                                 </li>
                                 <li class="arch-feature-item">
@@ -2665,9 +2665,9 @@ function landing_page(): void
                                 </tr>
                                 <tr>
                                     <td>Automated Renewal Reminders</td>
-                                    <td><span class="dist-pill muted">7-Day Alert</span></td>
-                                    <td class="col-popular"><span class="dist-pill sky">Automated (30d/14d/7d/1d)</span></td>
-                                    <td><span class="dist-pill purple">Automated (30d/14d/7d/1d)</span></td>
+                                    <td><span class="status-access">✓ Included</span></td>
+                                    <td class="col-popular"><span class="status-access">✓ Included</span></td>
+                                    <td><span class="status-access">✓ Included</span></td>
                                 </tr>
                                 <tr>
                                     <td>Member Engagement Scores & Inactivity Alerts</td>

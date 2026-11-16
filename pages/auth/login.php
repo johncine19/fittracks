@@ -205,6 +205,12 @@ function handle_login(): void
             $_SESSION['user_id'] = $user['user_id'];
             unset($_SESSION['pending_verify_uid']);
 
+            if (!empty($_POST['remember'])) {
+                issue_remember_token((int) $user['user_id'], 30);
+            } else {
+                clear_remember_token();
+            }
+
             // Only flash "Welcome back" for approved users to avoid confusing alerts on rejected/pending/onboarding screens
             $shouldFlashWelcome = true;
             if ($user['role'] === 'gym_owner') {

@@ -8,6 +8,12 @@ function current_user(bool $forceRefresh = false): ?array
 
     $sessionUserId = $_SESSION['user_id'] ?? null;
     if (empty($sessionUserId)) {
+        $restored = restore_user_from_remember_cookie();
+        if ($restored !== null) {
+            $cachedUser = $restored;
+            $cachedUserId = (int) $restored['user_id'];
+            return $cachedUser;
+        }
         $cachedUser = null;
         $cachedUserId = null;
         return null;
@@ -108,6 +114,7 @@ function require_roles(array $roles): array
 function handle_logout(): never
 {
     $silent = isset($_GET['silent']) || (isset($_SERVER['HTTP_REFERER']) && str_contains($_SERVER['HTTP_REFERER'], 'gym_rejected'));
+    clear_remember_token();
     unset($_SESSION['return_to']);
     session_destroy();
     session_start();
@@ -115,6 +122,167 @@ function handle_logout(): never
         flash('You have successfully logged out.', 'success');
     }
     redirect('login');
+}
+
+function remember_cookie_is_https(): bool
+{
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (int) $_SERVER['SERVER_PORT'] === 443)
+        || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+        || (isset($_SERVER['HTTP_CF_VISITOR']) && str_contains($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"'));
+}
+
+function ensure_remember_tokens_table(PDO $pdo): void
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS user_remember_tokens (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            selector CHAR(24) NOT NULL UNIQUE,
+            token_hash CHAR(64) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_remember_user (user_id),
+            INDEX idx_remember_expires (expires_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    $ensured = true;
+}
+
+function set_remember_cookie(string $value, int $expiresAt): void
+{
+    if (headers_sent()) {
+        return;
+    }
+    setcookie('ft_remember', $value, [
+        'expires' => $expiresAt,
+        'path' => '/',
+        'secure' => remember_cookie_is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+/**
+ * Issue a 30-day selector+validator remember-me token in MySQL and set the HttpOnly cookie.
+ */
+function issue_remember_token(int $userId, int $days = 30): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    try {
+        $pdo = db();
+        ensure_remember_tokens_table($pdo);
+
+        $selector = bin2hex(random_bytes(12));
+        $validator = bin2hex(random_bytes(32));
+        $tokenHash = hash('sha256', $validator);
+        $expiresTs = time() + ($days * 86400);
+        $expiresAt = date('Y-m-d H:i:s', $expiresTs);
+
+        // Clean up expired tokens opportunistically for this user in one query
+        $pdo->prepare('DELETE FROM user_remember_tokens WHERE user_id = ? AND expires_at <= NOW()')->execute([$userId]);
+        $pdo->prepare('INSERT INTO user_remember_tokens (user_id, selector, token_hash, expires_at) VALUES (?, ?, ?, ?)')
+            ->execute([$userId, $selector, $tokenHash, $expiresAt]);
+
+        set_remember_cookie($selector . ':' . $validator, $expiresTs);
+    } catch (Throwable $e) {
+        error_log('[RememberMe] Failed to issue token: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Revoke the current browser's remember-me token (if any) and clear the cookie.
+ */
+function clear_remember_token(): void
+{
+    $raw = (string) ($_COOKIE['ft_remember'] ?? '');
+    if ($raw !== '' && str_contains($raw, ':')) {
+        [$selector] = explode(':', $raw, 2);
+        if (preg_match('/^[a-f0-9]{24}$/', $selector)) {
+            try {
+                $pdo = db();
+                ensure_remember_tokens_table($pdo);
+                $pdo->prepare('DELETE FROM user_remember_tokens WHERE selector = ?')->execute([$selector]);
+            } catch (Throwable $e) {
+                // Non-fatal
+            }
+        }
+    }
+    unset($_COOKIE['ft_remember']);
+    set_remember_cookie('', time() - 3600);
+}
+
+/**
+ * Restore an authenticated session from the ft_remember cookie using a single JOIN query (no N+1).
+ */
+function restore_user_from_remember_cookie(): ?array
+{
+    $raw = (string) ($_COOKIE['ft_remember'] ?? '');
+    if ($raw === '' || !str_contains($raw, ':')) {
+        return null;
+    }
+
+    [$selector, $validator] = explode(':', $raw, 2);
+    if (!preg_match('/^[a-f0-9]{24}$/', $selector) || !preg_match('/^[a-f0-9]{64}$/', $validator)) {
+        clear_remember_token();
+        return null;
+    }
+
+    try {
+        $pdo = db();
+        ensure_remember_tokens_table($pdo);
+
+        // Single JOIN query fetches both token and user row in one round-trip
+        $stmt = $pdo->prepare('
+            SELECT t.id AS _remember_id, t.token_hash AS _remember_hash, t.expires_at AS _remember_expires, u.*
+            FROM user_remember_tokens t
+            JOIN users u ON u.user_id = t.user_id
+            WHERE t.selector = ?
+            LIMIT 1
+        ');
+        $stmt->execute([$selector]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row || ($row['status'] ?? '') !== 'active' || strtotime((string) $row['_remember_expires']) <= time()) {
+            if ($row) {
+                $pdo->prepare('DELETE FROM user_remember_tokens WHERE id = ?')->execute([(int) $row['_remember_id']]);
+            }
+            clear_remember_token();
+            return null;
+        }
+
+        if (!hash_equals((string) $row['_remember_hash'], hash('sha256', $validator))) {
+            // Possible token theft/mismatch: revoke this selector immediately
+            $pdo->prepare('DELETE FROM user_remember_tokens WHERE id = ?')->execute([(int) $row['_remember_id']]);
+            clear_remember_token();
+            return null;
+        }
+
+        // Rotate validator on use to prevent replay attacks
+        $newValidator = bin2hex(random_bytes(32));
+        $newHash = hash('sha256', $newValidator);
+        $expiresTs = time() + (30 * 86400);
+        $pdo->prepare('UPDATE user_remember_tokens SET token_hash = ?, expires_at = ? WHERE id = ?')
+            ->execute([$newHash, date('Y-m-d H:i:s', $expiresTs), (int) $row['_remember_id']]);
+        set_remember_cookie($selector . ':' . $newValidator, $expiresTs);
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+        $_SESSION['user_id'] = (int) $row['user_id'];
+
+        unset($row['_remember_id'], $row['_remember_hash'], $row['_remember_expires']);
+        return $row;
+    } catch (Throwable $e) {
+        error_log('[RememberMe] Failed to restore session: ' . $e->getMessage());
+        return null;
+    }
 }
 
 /**
