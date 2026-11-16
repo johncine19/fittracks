@@ -120,9 +120,9 @@ function admin_dashboard(PDO $pdo, array $user): void
         'checkins' => ['labels' => array_keys($week), 'values' => array_values($week)],
     ];
 ?>
-    <?php if (!$isPlatformAdmin): ?>
+    <?php if (!$isPlatformAdmin && consume_first_login_welcome_banner($user)): ?>
     <script>
-        if (localStorage.getItem('fittrack_gym_owner_tour_completed') === '1') {
+        if (localStorage.getItem('fittrack_gym_tour_completed') === '1') {
             document.write('<style>#gym-tour-welcome-banner, #sk-tour-banner { display: none !important; }</style>');
         }
     </script>

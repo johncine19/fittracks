@@ -814,13 +814,13 @@
             !!document.getElementById('member-tour-trigger')
         );
 
-        if (isDashboard && isGymOwner && !hasCompletedTour) {
+        if (isDashboard && isGymOwner && !hasCompletedTour && banner) {
             setTimeout(function () {
                 if (localStorage.getItem(TOUR_STORAGE_KEY) !== '1') {
                     window.startGymOwnerTour();
                 }
             }, 1000);
-        } else if (isDashboard && isMember && !hasCompletedMemberTour) {
+        } else if (isDashboard && isMember && !hasCompletedMemberTour && memberBanner) {
             setTimeout(function () {
                 if (localStorage.getItem(MEMBER_TOUR_STORAGE_KEY) !== '1') {
                     window.startMemberTour();

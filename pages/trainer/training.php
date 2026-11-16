@@ -480,6 +480,11 @@ function training_page(): void
             ?>
 
             <!-- Desktop View: Standard Rich Table -->
+            <style>
+                .plans-desktop-table td {
+                    font-size: 12px;
+                }
+            </style>
             <div class="plans-desktop-table">
                 <?= render_simple_table($tableRows, ['member', 'title', 'start_date', 'end_date', 'status', 'progress', 'adherence', 'feedback', 'actions']) ?>
             </div>
@@ -717,7 +722,7 @@ function training_page(): void
                                 $searchBlob = strtolower($row['member'] . ' ' . $row['trainer'] . ' ' . $row['title'] . ' ' . $row['goal'] . ' #' . $row['plan_id']);
                             ?>
                                 <tr class="all-workout-row" data-status="<?= h($filterStatusCategory) ?>" data-search="<?= h($searchBlob) ?>" style="border-bottom:1px solid var(--line);">
-                                    <td style="padding:12px; font-weight:700; color:var(--muted);">#<?= h((string)$row['plan_id']) ?></td>
+                                    <td style="padding:12px; font-size:12.5px; font-weight:700; color:var(--muted);">#<?= h((string)$row['plan_id']) ?></td>
                                     <td style="padding:12px;">
                                         <div style="display: flex; align-items: center; gap: 9px;">
                                             <?php if ($row['member_pic']): ?>
@@ -725,7 +730,7 @@ function training_page(): void
                                             <?php else: ?>
                                                 <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--muted);"><?= h(substr($row['member'] ?? 'M', 0, 1)) ?></div>
                                             <?php endif; ?>
-                                            <strong style="color:var(--ink); font-size:13.5px;"><?= h($row['member']) ?></strong>
+                                            <strong style="color:var(--ink); font-size:12.5px;"><?= h($row['member']) ?></strong>
                                         </div>
                                     </td>
                                     <td style="padding:12px;">
@@ -735,11 +740,11 @@ function training_page(): void
                                             <?php else: ?>
                                                 <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted);"><?= h(substr($row['trainer'] ?? 'T', 0, 1)) ?></div>
                                             <?php endif; ?>
-                                            <span style="font-size:13px; color:var(--ink);"><?= h($row['trainer'] ?: 'Assigned Coach') ?></span>
+                                            <span style="font-size:12.5px; color:var(--ink);"><?= h($row['trainer'] ?: 'Assigned Coach') ?></span>
                                         </div>
                                     </td>
                                     <td style="padding:12px;">
-                                        <strong style="display:block; font-size:13px; color:var(--ink);"><?= h($row['title'] ?: 'Workout Plan') ?></strong>
+                                        <strong style="display:block; font-size:12.5px; color:var(--ink);"><?= h($row['title'] ?: 'Workout Plan') ?></strong>
                                         <span class="muted" style="font-size:11.5px;"><?= h(ucwords(str_replace('_', ' ', (string)$row['goal']))) ?></span>
                                     </td>
                                     <td style="padding:12px;">
@@ -754,7 +759,7 @@ function training_page(): void
                                     <td style="padding:12px; font-size:12.5px; color:var(--muted);">
                                         <?= (int) $row['exercise_count'] ?> movements
                                     </td>
-                                    <td style="padding:12px; font-size:12px; color:var(--muted); white-space:nowrap;">
+                                    <td style="padding:12px; font-size:12.5px; color:var(--muted); white-space:nowrap;">
                                         <?= $row['start_date'] ? date('m/d/Y', strtotime($row['start_date'])) : 'Pending' ?>
                                     </td>
                                     <td style="padding:12px; text-align:right;">

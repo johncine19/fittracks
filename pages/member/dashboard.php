@@ -640,6 +640,7 @@ function member_dashboard(PDO $pdo, array $user): void
     </script>
     <?php endif; ?>
 
+    <?php if (consume_first_login_welcome_banner($user)): ?>
     <!-- Welcome Guided Tour Banner for Members -->
     <script>
         if (localStorage.getItem('fittrack_member_tour_completed') === '1') {
@@ -667,6 +668,7 @@ function member_dashboard(PDO $pdo, array $user): void
             <button type="button" class="btn-dismiss-tour" onclick="if(window.dismissMemberTourBanner){window.dismissMemberTourBanner();}" title="Dismiss banner">&times;</button>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Top View Switcher with Vector SVG Icons & Responsive Labels -->
     <nav class="member-dashboard-nav skeleton-content sk-display-flex" aria-label="Dashboard Views">

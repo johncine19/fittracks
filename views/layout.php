@@ -1767,6 +1767,14 @@ function render_header(string $title, ?array $user = null): void
             color: #fff;
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
+        [data-theme="light"] .trial-banner-btn.btn-free {
+            background: rgba(15, 23, 42, 0.06);
+            color: var(--ink, #0f172a);
+            border: 1px solid var(--line, rgba(15, 23, 42, 0.16));
+        }
+        [data-theme="light"] .trial-banner-btn.btn-free:hover {
+            background: rgba(15, 23, 42, 0.1);
+        }
         .trial-banner-btn .btn-text-short {
             display: none;
         }

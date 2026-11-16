@@ -117,4 +117,46 @@ function handle_logout(): never
     redirect('login');
 }
 
+/**
+ * Show the dashboard welcome banner only on a user's first login and mark it seen.
+ */
+function consume_first_login_welcome_banner(array $user): bool
+{
+    $userId = (int) ($user['user_id'] ?? 0);
+    if ($userId <= 0) {
+        return false;
+    }
+
+    $pdo = db();
+    if (!array_key_exists('welcome_banner_seen', $user)) {
+        try {
+            $cols = $pdo->query('SHOW COLUMNS FROM users LIKE "welcome_banner_seen"')->fetchAll();
+            if (empty($cols)) {
+                $pdo->exec('ALTER TABLE users ADD COLUMN welcome_banner_seen TINYINT(1) NOT NULL DEFAULT 0');
+            }
+            $stmt = $pdo->prepare('SELECT welcome_banner_seen FROM users WHERE user_id = ?');
+            $stmt->execute([$userId]);
+            $seen = (int) $stmt->fetchColumn();
+        } catch (Throwable $e) {
+            return false;
+        }
+    } else {
+        $seen = (int) $user['welcome_banner_seen'];
+    }
+
+    if ($seen === 1) {
+        return false;
+    }
+
+    try {
+        $pdo->prepare('UPDATE users SET welcome_banner_seen = 1 WHERE user_id = ?')->execute([$userId]);
+        current_user(true);
+    } catch (Throwable $e) {
+        // Non-fatal; client-side storage still prevents repeat prompts in the same browser.
+    }
+
+    return true;
+}
+
+
 
