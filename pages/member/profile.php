@@ -500,398 +500,690 @@ function profile_page(): void
                         </button>
                     </div>
 
-                    <!-- Body Measurements -->
-                    <h3 class="settings-group-title">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                        </svg>
-                        Body Measurements
-                    </h3>
-                    <div class="settings-stat-grid">
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 20h0M12 4h0M12 12h0M4 8l2.5 2L4 12M20 8l-2.5 2L20 12" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Height</span>
-                                <span class="settings-stat-value"><?= h($profile['height_cm'] ?? '—') ?> <small>cm</small></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <path d="M12 6v6l4 2" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Weight</span>
-                                <span class="settings-stat-value"><?= h($profile['weight_kg'] ?? '—') ?> <small>kg</small></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                                    <line x1="16" x2="16" y1="2" y2="6" />
-                                    <line x1="8" x2="8" y1="2" y2="6" />
-                                    <line x1="3" x2="21" y1="10" y2="10" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Age</span>
-                                <span class="settings-stat-value"><?= h($profile['age'] ?? '—') ?> <small>yrs</small></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                    <circle cx="12" cy="7" r="4" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Sex</span>
-                                <span class="settings-stat-value"><?= h(ucwords($profile['biological_sex'] ?? '—')) ?></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="2" x2="22" y1="12" y2="12" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Neck</span>
-                                <span class="settings-stat-value"><?= !empty($profile['neck_cm']) ? h($profile['neck_cm']) . ' <small>cm</small>' : '—' ?></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
-                                    <path d="M12 8v8" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Waist</span>
-                                <span class="settings-stat-value"><?= !empty($profile['waist_cm']) ? h($profile['waist_cm']) . ' <small>cm</small>' : '—' ?></span>
-                            </div>
-                        </div>
-                        <?php if (!empty($profile['chest_cm'])): ?>
-                            <div class="settings-stat-card">
-                                <div class="settings-stat-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <line x1="2" x2="22" y1="12" y2="12" />
-                                    </svg>
-                                </div>
-                                <div class="settings-stat-body">
-                                    <span class="settings-stat-label">Chest</span>
-                                    <span class="settings-stat-value"><?= h(number_format((float)$profile['chest_cm'], 1)) ?> <small>cm</small></span>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                        <?php if (!empty($profile['arm_cm'])): ?>
-                            <div class="settings-stat-card">
-                                <div class="settings-stat-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
-                                        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
-                                    </svg>
-                                </div>
-                                <div class="settings-stat-body">
-                                    <span class="settings-stat-label">Arm</span>
-                                    <span class="settings-stat-value"><?= h(number_format((float)$profile['arm_cm'], 1)) ?> <small>cm</small></span>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                        <?php if (($profile['biological_sex'] ?? '') === 'female'): ?>
-                            <div class="settings-stat-card">
-                                <div class="settings-stat-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
-                                        <path d="M12 8v8" />
-                                    </svg>
-                                </div>
-                                <div class="settings-stat-body">
-                                    <span class="settings-stat-label">Hip</span>
-                                    <span class="settings-stat-value"><?= !empty($profile['hip_cm']) ? h($profile['hip_cm']) . ' <small>cm</small>' : '—' ?></span>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Fitness Goals -->
-                    <h3 class="settings-group-title" style="margin-top: 2rem;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                        </svg>
-                        Fitness Goals
-                    </h3>
-                    <div class="settings-stat-grid settings-stat-grid-goals">
-                        <div class="settings-stat-card settings-stat-card-wide settings-stat-card-highlight">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <path d="m9 12 2 2 4-4" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Primary Goal</span>
-                                <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['primary_goal'] ?? '—'))) ?></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card settings-stat-card-wide">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <circle cx="12" cy="12" r="6" />
-                                    <circle cx="12" cy="12" r="2" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Secondary Focus</span>
-                                <span class="settings-stat-value"><?= !empty($profile['secondary_focus']) ? h(ucwords(str_replace('_', ' ', $profile['secondary_focus']))) : '—' ?></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Activity Level</span>
-                                <span class="settings-stat-value"><?= h(ucwords(str_replace('_', ' ', $profile['activity_level'] ?? '—'))) ?></span>
-                            </div>
-                        </div>
-                        <div class="settings-stat-card">
-                            <div class="settings-stat-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
-                                    <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
-                                    <line x1="6" x2="6" y1="1" y2="4" />
-                                    <line x1="10" x2="10" y1="1" y2="4" />
-                                    <line x1="14" x2="14" y1="1" y2="4" />
-                                </svg>
-                            </div>
-                            <div class="settings-stat-body">
-                                <span class="settings-stat-label">Dietary Preference</span>
-                                <span class="settings-stat-value"><?= h(ucwords(str_replace('-', ' ', $profile['dietary_restrictions'] ?? 'None'))) ?></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Targets & Objectives -->
                     <?php
+                    $fmtNum = static function ($val, int $decimals = 2): string {
+                        if ($val === null || $val === '' || !is_numeric((string)$val)) {
+                            return '—';
+                        }
+                        $formatted = number_format((float)$val, $decimals, '.', '');
+                        return str_contains($formatted, '.') ? rtrim(rtrim($formatted, '0'), '.') : $formatted;
+                    };
+
+                    $heightCm = (float)($profile['height_cm'] ?? 0);
+                    $weightKg = (float)($profile['weight_kg'] ?? 0);
+                    $bmiVal = null;
+                    $bmiLabel = '—';
+                    $bmiClass = 'is-neutral';
+                    if ($heightCm > 0 && $weightKg > 0) {
+                        $hMeters = $heightCm / 100.0;
+                        $bmiVal = $weightKg / ($hMeters * $hMeters);
+                        if ($bmiVal < 18.5) {
+                            $bmiLabel = 'Underweight';
+                            $bmiClass = 'is-info';
+                        } elseif ($bmiVal < 25.0) {
+                            $bmiLabel = 'Normal';
+                            $bmiClass = 'is-good';
+                        } elseif ($bmiVal < 30.0) {
+                            $bmiLabel = 'Overweight';
+                            $bmiClass = 'is-warn';
+                        } else {
+                            $bmiLabel = 'Obese';
+                            $bmiClass = 'is-alert';
+                        }
+                    }
+
+                    $prefDayNums = [];
+                    if (!empty($profile['preferred_workout_days'])) {
+                        $prefDayNums = array_values(array_unique(array_filter(
+                            array_map('intval', explode(',', (string)$profile['preferred_workout_days'])),
+                            static fn(int $d): bool => $d >= 1 && $d <= 7
+                        )));
+                        sort($prefDayNums);
+                    }
+                    $weekDaysMap = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+
                     $hasAnyTarget = !empty($profile['target_strength_max_kg']) ||
                         !empty($profile['target_weight_kg']) ||
                         !empty($profile['target_body_fat_percent']) ||
                         !empty($profile['weekly_workout_target']) ||
                         !empty($profile['preferred_workout_days']) ||
+                        !empty($profile['preferred_duration_mins']) ||
                         !empty($profile['target_endurance_distance_km']) ||
                         !empty($profile['target_endurance_time_mins']) ||
                         !empty($profile['target_arm_cm']) ||
                         !empty($profile['target_chest_cm']) ||
                         !empty($profile['target_waist_cm']);
-                    if ($hasAnyTarget):
                     ?>
-                        <h3 class="settings-group-title" style="margin-top: 2rem;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <circle cx="12" cy="6" r="6" />
-                                <circle cx="12" cy="2" r="2" />
-                            </svg>
-                            Targets & Objectives
-                        </h3>
-                        <div class="settings-stat-grid">
-                            <?php if (!empty($profile['target_strength_max_kg'])):
-                                $stEx = $profile['target_exercise'] ?? 'Bench Press';
-                            ?>
-                                <div class="settings-stat-card settings-stat-card-wide">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="m6.5 6.5 11 11" />
-                                            <path d="m21 21-1-1" />
-                                            <path d="m3 3 1 1" />
-                                            <path d="m18 22 4-4" />
-                                            <path d="m2 6 4-4" />
-                                            <path d="m3 10 7-7" />
-                                            <path d="m14 21 7-7" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Strength Target (<?= h($stEx) ?>)</span>
-                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_strength_max_kg'], 1)) ?> <small>kg PR</small></span>
-                                        <?php if (!empty($profile['current_strength_max_kg'])): ?>
-                                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);">Current: <?= h(number_format((float)$profile['current_strength_max_kg'], 1)) ?> kg</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
 
-                            <?php if (!empty($profile['target_weight_kg'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <circle cx="12" cy="12" r="10" />
-                                            <path d="M12 6v6l4 2" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Target Weight</span>
-                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_weight_kg'], 1)) ?> <small>kg</small></span>
-                                        <?php if (!empty($profile['weight_kg'])):
-                                            $diff = (float)$profile['target_weight_kg'] - (float)$profile['weight_kg'];
-                                        ?>
-                                            <span class="settings-stat-hint" style="font-size: 11px; color: var(--muted);"><?= $diff > 0 ? '+' : '' ?><?= number_format($diff, 1) ?> kg from current</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
+                    <style>
+                        .phys-bento-stack {
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                            margin-top: 6px;
+                        }
+                        .phys-vitals-strip {
+                            display: grid;
+                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                            background: color-mix(in srgb, var(--panel-soft, #f8fafc) 72%, var(--panel, #ffffff));
+                            border: 1px solid var(--line, #e2e8f0);
+                            border-radius: 16px;
+                            padding: 16px 6px;
+                        }
+                        .phys-vital-item {
+                            padding: 4px 16px;
+                            border-right: 1px solid var(--line, #e2e8f0);
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                            gap: 4px;
+                            min-width: 0;
+                        }
+                        .phys-vital-item:last-child {
+                            border-right: none;
+                        }
+                        .phys-vital-label {
+                            font-size: 11px;
+                            font-weight: 700;
+                            letter-spacing: 0.06em;
+                            text-transform: uppercase;
+                            color: var(--muted, #64748b);
+                        }
+                        .phys-vital-value-row {
+                            display: flex;
+                            align-items: baseline;
+                            gap: 5px;
+                            flex-wrap: wrap;
+                        }
+                        .phys-vital-value {
+                            font-size: 1.32rem;
+                            font-weight: 800;
+                            color: var(--ink, #0f172a);
+                            line-height: 1.15;
+                            letter-spacing: -0.02em;
+                        }
+                        .phys-vital-unit {
+                            font-size: 12px;
+                            font-weight: 600;
+                            color: var(--muted, #64748b);
+                        }
+                        .phys-vital-sub {
+                            font-size: 11.5px;
+                            color: var(--muted, #64748b);
+                        }
+                        .phys-bmi-pill {
+                            display: inline-flex;
+                            align-items: center;
+                            padding: 2px 8px;
+                            border-radius: 999px;
+                            font-size: 10.5px;
+                            font-weight: 700;
+                            letter-spacing: 0.02em;
+                        }
+                        .phys-bmi-pill.is-good { background: rgba(16, 185, 129, 0.14); color: #059669; }
+                        .phys-bmi-pill.is-info { background: rgba(59, 130, 246, 0.14); color: #2563eb; }
+                        .phys-bmi-pill.is-warn { background: rgba(245, 158, 11, 0.16); color: #d97706; }
+                        .phys-bmi-pill.is-alert { background: rgba(239, 68, 68, 0.14); color: #dc2626; }
+                        .phys-bmi-pill.is-neutral { background: rgba(148, 163, 184, 0.16); color: var(--muted, #64748b); }
+                        [data-theme="dark"] .phys-bmi-pill.is-good { color: #34d399; }
+                        [data-theme="dark"] .phys-bmi-pill.is-info { color: #60a5fa; }
+                        [data-theme="dark"] .phys-bmi-pill.is-warn { color: #fbbf24; }
+                        [data-theme="dark"] .phys-bmi-pill.is-alert { color: #f87171; }
 
-                            <?php if (!empty($profile['target_body_fat_percent'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Target Body Fat</span>
-                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_body_fat_percent'], 1)) ?> <small>%</small></span>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
+                        .phys-bento-grid {
+                            display: grid;
+                            grid-template-columns: 1fr 1.3fr;
+                            gap: 16px;
+                            align-items: stretch;
+                        }
+                        .phys-bento-card {
+                            background: color-mix(in srgb, var(--panel-soft, #f8fafc) 65%, var(--panel, #ffffff));
+                            border: 1px solid var(--line, #e2e8f0);
+                            border-radius: 16px;
+                            padding: 20px;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 16px;
+                        }
+                        .phys-card-head {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 12px;
+                            flex-wrap: wrap;
+                        }
+                        .phys-card-head-left {
+                            display: flex;
+                            align-items: center;
+                            gap: 11px;
+                        }
+                        .phys-card-icon {
+                            width: 36px;
+                            height: 36px;
+                            border-radius: 10px;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            flex-shrink: 0;
+                        }
+                        .phys-card-icon.is-blue {
+                            background: rgba(59, 130, 246, 0.12);
+                            color: #2563eb;
+                        }
+                        .phys-card-icon.is-lime {
+                            background: color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
+                            color: #4d7c0f;
+                        }
+                        .phys-card-icon.is-indigo {
+                            background: rgba(99, 102, 241, 0.12);
+                            color: #4f46e5;
+                        }
+                        [data-theme="dark"] .phys-card-icon.is-blue { color: #60a5fa; }
+                        [data-theme="dark"] .phys-card-icon.is-lime { color: var(--lime, #a3e635); }
+                        [data-theme="dark"] .phys-card-icon.is-indigo { color: #818cf8; }
 
-                            <?php if (!empty($profile['weekly_workout_target'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                                            <line x1="16" x2="16" y1="2" y2="6" />
-                                            <line x1="8" x2="8" y1="2" y2="6" />
-                                            <line x1="3" x2="21" y1="10" y2="10" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Workout Frequency</span>
-                                        <span class="settings-stat-value"><?= (int)$profile['weekly_workout_target'] ?> <small>days / wk</small></span>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
+                        .phys-card-title {
+                            margin: 0;
+                            font-size: 0.95rem;
+                            font-weight: 700;
+                            color: var(--ink, #0f172a);
+                        }
+                        .phys-card-subtitle {
+                            margin: 2px 0 0 0;
+                            font-size: 12px;
+                            color: var(--muted, #64748b);
+                        }
+                        .phys-measure-list {
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .phys-measure-row {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 12px;
+                            padding: 10px 2px;
+                            border-bottom: 1px dashed var(--line, #e2e8f0);
+                        }
+                        .phys-measure-row:first-child { padding-top: 2px; }
+                        .phys-measure-row:last-child { border-bottom: none; padding-bottom: 2px; }
+                        .phys-measure-name {
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: var(--muted, #64748b);
+                        }
+                        .phys-measure-right {
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                        }
+                        .phys-measure-val {
+                            font-size: 15px;
+                            font-weight: 700;
+                            color: var(--ink, #0f172a);
+                        }
+                        .phys-measure-val small {
+                            font-size: 12px;
+                            font-weight: 600;
+                            color: var(--muted, #64748b);
+                        }
+                        .phys-target-chip {
+                            font-size: 11px;
+                            font-weight: 600;
+                            padding: 2px 8px;
+                            border-radius: 999px;
+                            background: color-mix(in srgb, var(--lime, #84cc16) 14%, transparent);
+                            color: #4d7c0f;
+                        }
+                        [data-theme="dark"] .phys-target-chip { color: var(--lime, #a3e635); }
 
-                            <?php
-                            $prefDaysDisplay = [];
-                            if (!empty($profile['preferred_workout_days'])) {
-                                $prefDayNums = array_filter(array_map('intval', explode(',', (string)$profile['preferred_workout_days'])), fn($d) => $d >= 1 && $d <= 7);
-                                sort($prefDayNums);
-                                $daysShortMap = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
-                                foreach ($prefDayNums as $pdn) {
-                                    if (isset($daysShortMap[$pdn])) $prefDaysDisplay[] = $daysShortMap[$pdn];
-                                }
+                        .phys-goal-hero {
+                            padding: 14px 16px;
+                            border-radius: 12px;
+                            background: color-mix(in srgb, var(--lime, #84cc16) 8%, var(--panel, #ffffff));
+                            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 30%, var(--line, #e2e8f0));
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 12px;
+                            flex-wrap: wrap;
+                        }
+                        .phys-goal-hero-label {
+                            display: block;
+                            font-size: 11px;
+                            font-weight: 700;
+                            letter-spacing: 0.06em;
+                            text-transform: uppercase;
+                            color: var(--muted, #64748b);
+                            margin-bottom: 3px;
+                        }
+                        .phys-goal-hero-val {
+                            font-size: 1.15rem;
+                            font-weight: 800;
+                            color: var(--ink, #0f172a);
+                        }
+                        .phys-goal-tag {
+                            font-size: 10.5px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                            padding: 4px 10px;
+                            border-radius: 999px;
+                            background: color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
+                            color: #4d7c0f;
+                        }
+                        [data-theme="dark"] .phys-goal-tag { color: var(--lime, #a3e635); }
+
+                        .phys-goal-subgrid {
+                            display: grid;
+                            grid-template-columns: repeat(3, minmax(0, 1fr));
+                            gap: 12px;
+                            padding-top: 4px;
+                        }
+                        .phys-goal-subitem {
+                            padding-right: 12px;
+                            border-right: 1px solid var(--line, #e2e8f0);
+                            min-width: 0;
+                        }
+                        .phys-goal-subitem:last-child {
+                            padding-right: 0;
+                            border-right: none;
+                        }
+                        .phys-subitem-label {
+                            display: block;
+                            font-size: 11px;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                            color: var(--muted, #64748b);
+                            margin-bottom: 4px;
+                        }
+                        .phys-subitem-val {
+                            display: block;
+                            font-size: 14px;
+                            font-weight: 700;
+                            color: var(--ink, #0f172a);
+                            line-height: 1.3;
+                        }
+
+                        .phys-schedule-badges {
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            flex-wrap: wrap;
+                        }
+                        .phys-meta-pill {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                            padding: 5px 11px;
+                            border-radius: 999px;
+                            font-size: 12px;
+                            font-weight: 700;
+                            background: var(--panel, #ffffff);
+                            border: 1px solid var(--line, #e2e8f0);
+                            color: var(--ink, #0f172a);
+                        }
+                        .phys-meta-pill span {
+                            color: var(--muted, #64748b);
+                            font-weight: 600;
+                        }
+                        .phys-week-row {
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 12px;
+                            flex-wrap: wrap;
+                        }
+                        .phys-week-label {
+                            font-size: 12px;
+                            font-weight: 700;
+                            color: var(--muted, #64748b);
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                        }
+                        .phys-week-pills {
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            flex-wrap: wrap;
+                        }
+                        .phys-day-pill {
+                            min-width: 44px;
+                            text-align: center;
+                            padding: 6px 10px;
+                            border-radius: 10px;
+                            font-size: 12px;
+                            font-weight: 700;
+                            border: 1px solid var(--line, #e2e8f0);
+                            background: var(--panel, #ffffff);
+                            color: var(--muted, #94a3b8);
+                            opacity: 0.65;
+                        }
+                        .phys-day-pill.is-active {
+                            opacity: 1;
+                            background: color-mix(in srgb, var(--lime, #84cc16) 18%, var(--panel, #ffffff));
+                            border-color: color-mix(in srgb, var(--lime, #84cc16) 55%, transparent);
+                            color: #3f6212;
+                        }
+                        [data-theme="dark"] .phys-day-pill.is-active {
+                            color: var(--lime, #a3e635);
+                        }
+
+                        .phys-targets-row {
+                            display: grid;
+                            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+                            gap: 12px;
+                            padding-top: 14px;
+                            border-top: 1px dashed var(--line, #e2e8f0);
+                        }
+                        .phys-target-cell {
+                            display: flex;
+                            flex-direction: column;
+                            gap: 3px;
+                        }
+                        .phys-target-hint {
+                            font-size: 11.5px;
+                            color: var(--muted, #64748b);
+                        }
+
+                        @media (max-width: 960px) {
+                            .phys-vitals-strip {
+                                grid-template-columns: repeat(3, minmax(0, 1fr));
+                                row-gap: 12px;
                             }
-                            ?>
-                            <div class="settings-stat-card">
-                                <div class="settings-stat-icon">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                    </svg>
+                            .phys-vital-item:nth-child(3) {
+                                border-right: none;
+                            }
+                            .phys-bento-grid {
+                                grid-template-columns: 1fr;
+                            }
+                        }
+                        @media (max-width: 600px) {
+                            .phys-vitals-strip {
+                                grid-template-columns: repeat(2, minmax(0, 1fr));
+                                padding: 14px 4px;
+                            }
+                            .phys-vital-item {
+                                border-right: none;
+                                padding: 6px 12px;
+                            }
+                            .phys-goal-subgrid {
+                                grid-template-columns: 1fr;
+                                gap: 10px;
+                            }
+                            .phys-goal-subitem {
+                                border-right: none;
+                                border-bottom: 1px dashed var(--line, #e2e8f0);
+                                padding-right: 0;
+                                padding-bottom: 8px;
+                            }
+                            .phys-goal-subitem:last-child {
+                                border-bottom: none;
+                                padding-bottom: 0;
+                            }
+                        }
+                    </style>
+
+                    <div class="phys-bento-stack">
+                        <!-- 1. Unified Top Vitals Strip -->
+                        <div class="phys-vitals-strip">
+                            <div class="phys-vital-item">
+                                <span class="phys-vital-label">Height</span>
+                                <div class="phys-vital-value-row">
+                                    <span class="phys-vital-value"><?= h($fmtNum($profile['height_cm'] ?? null)) ?></span>
+                                    <?php if (!empty($profile['height_cm'])): ?><span class="phys-vital-unit">cm</span><?php endif; ?>
                                 </div>
-                                <div class="settings-stat-body">
-                                    <span class="settings-stat-label">Committed Days</span>
-                                    <span class="settings-stat-value" style="font-size: 1.05rem;">
-                                        <?= !empty($prefDaysDisplay) ? h(implode(', ', $prefDaysDisplay)) : 'Flexible' ?>
-                                    </span>
+                            </div>
+                            <div class="phys-vital-item">
+                                <span class="phys-vital-label">Weight</span>
+                                <div class="phys-vital-value-row">
+                                    <span class="phys-vital-value"><?= h($fmtNum($profile['weight_kg'] ?? null)) ?></span>
+                                    <?php if (!empty($profile['weight_kg'])): ?><span class="phys-vital-unit">kg</span><?php endif; ?>
+                                </div>
+                                <?php if (!empty($profile['target_weight_kg'])): ?>
+                                    <span class="phys-vital-sub">Goal: <?= h($fmtNum($profile['target_weight_kg'], 1)) ?> kg</span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="phys-vital-item">
+                                <span class="phys-vital-label">Age</span>
+                                <div class="phys-vital-value-row">
+                                    <span class="phys-vital-value"><?= h($fmtNum($profile['age'] ?? null, 0)) ?></span>
+                                    <?php if (!empty($profile['age'])): ?><span class="phys-vital-unit">yrs</span><?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="phys-vital-item">
+                                <span class="phys-vital-label">Sex</span>
+                                <div class="phys-vital-value-row">
+                                    <span class="phys-vital-value"><?= h(!empty($profile['biological_sex']) ? ucwords((string)$profile['biological_sex']) : '—') ?></span>
+                                </div>
+                            </div>
+                            <div class="phys-vital-item">
+                                <span class="phys-vital-label">BMI</span>
+                                <div class="phys-vital-value-row">
+                                    <span class="phys-vital-value"><?= $bmiVal !== null ? h(number_format($bmiVal, 1)) : '—' ?></span>
+                                    <?php if ($bmiVal !== null): ?>
+                                        <span class="phys-bmi-pill <?= $bmiClass ?>"><?= h($bmiLabel) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Middle Bento Grid: Circumferences & Fitness Focus -->
+                        <div class="phys-bento-grid">
+                            <!-- Body Circumference Card -->
+                            <div class="phys-bento-card">
+                                <div class="phys-card-head">
+                                    <div class="phys-card-head-left">
+                                        <div class="phys-card-icon is-blue">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M21 6H3" />
+                                                <path d="M21 18H3" />
+                                                <path d="M7 6v4" />
+                                                <path d="M12 6v6" />
+                                                <path d="M17 6v4" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 class="phys-card-title">Body Circumference</h3>
+                                            <p class="phys-card-subtitle">Tape measurements in centimeters</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="phys-measure-list">
+                                    <div class="phys-measure-row">
+                                        <span class="phys-measure-name">Neck</span>
+                                        <div class="phys-measure-right">
+                                            <span class="phys-measure-val"><?= !empty($profile['neck_cm']) ? h($fmtNum($profile['neck_cm'])) . ' <small>cm</small>' : '—' ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="phys-measure-row">
+                                        <span class="phys-measure-name">Waist</span>
+                                        <div class="phys-measure-right">
+                                            <?php if (!empty($profile['target_waist_cm'])): ?>
+                                                <span class="phys-target-chip">Goal: <?= h($fmtNum($profile['target_waist_cm'], 1)) ?> cm</span>
+                                            <?php endif; ?>
+                                            <span class="phys-measure-val"><?= !empty($profile['waist_cm']) ? h($fmtNum($profile['waist_cm'])) . ' <small>cm</small>' : '—' ?></span>
+                                        </div>
+                                    </div>
+                                    <?php if (($profile['biological_sex'] ?? '') === 'female' || !empty($profile['hip_cm'])): ?>
+                                        <div class="phys-measure-row">
+                                            <span class="phys-measure-name">Hip</span>
+                                            <div class="phys-measure-right">
+                                                <span class="phys-measure-val"><?= !empty($profile['hip_cm']) ? h($fmtNum($profile['hip_cm'])) . ' <small>cm</small>' : '—' ?></span>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($profile['chest_cm']) || !empty($profile['target_chest_cm'])): ?>
+                                        <div class="phys-measure-row">
+                                            <span class="phys-measure-name">Chest</span>
+                                            <div class="phys-measure-right">
+                                                <?php if (!empty($profile['target_chest_cm'])): ?>
+                                                    <span class="phys-target-chip">Goal: <?= h($fmtNum($profile['target_chest_cm'], 1)) ?> cm</span>
+                                                <?php endif; ?>
+                                                <span class="phys-measure-val"><?= !empty($profile['chest_cm']) ? h($fmtNum($profile['chest_cm'], 1)) . ' <small>cm</small>' : '—' ?></span>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                    <?php if (!empty($profile['arm_cm']) || !empty($profile['target_arm_cm'])): ?>
+                                        <div class="phys-measure-row">
+                                            <span class="phys-measure-name">Arm</span>
+                                            <div class="phys-measure-right">
+                                                <?php if (!empty($profile['target_arm_cm'])): ?>
+                                                    <span class="phys-target-chip">Goal: <?= h($fmtNum($profile['target_arm_cm'], 1)) ?> cm</span>
+                                                <?php endif; ?>
+                                                <span class="phys-measure-val"><?= !empty($profile['arm_cm']) ? h($fmtNum($profile['arm_cm'], 1)) . ' <small>cm</small>' : '—' ?></span>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
 
-                            <?php if (!empty($profile['preferred_duration_mins'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <circle cx="12" cy="12" r="10" />
-                                            <polyline points="12 6 12 12 16 14" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Session Duration</span>
-                                        <span class="settings-stat-value"><?= (int)$profile['preferred_duration_mins'] ?> <small>mins</small></span>
+                            <!-- Fitness Focus Card -->
+                            <div class="phys-bento-card">
+                                <div class="phys-card-head">
+                                    <div class="phys-card-head-left">
+                                        <div class="phys-card-icon is-lime">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 class="phys-card-title">Fitness Focus</h3>
+                                            <p class="phys-card-subtitle">Training goal &amp; nutrition preferences</p>
+                                        </div>
                                     </div>
                                 </div>
-                            <?php endif; ?>
 
-                            <?php if (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])):
-                                $act = $profile['endurance_activity'] ?? 'Running';
-                            ?>
-                                <div class="settings-stat-card settings-stat-card-wide">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                                        </svg>
+                                <div class="phys-goal-hero">
+                                    <div>
+                                        <span class="phys-goal-hero-label">Primary Goal</span>
+                                        <span class="phys-goal-hero-val"><?= h(!empty($profile['primary_goal']) ? ucwords(str_replace('_', ' ', (string)$profile['primary_goal'])) : '—') ?></span>
                                     </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Endurance (<?= h($act) ?>)</span>
-                                        <span class="settings-stat-value">
-                                            <?= !empty($profile['target_endurance_distance_km']) ? h(number_format((float)$profile['target_endurance_distance_km'], 1)) . ' <small>km</small>' : '' ?>
-                                            <?= (!empty($profile['target_endurance_distance_km']) && !empty($profile['target_endurance_time_mins'])) ? ' / ' : '' ?>
-                                            <?= !empty($profile['target_endurance_time_mins']) ? h($profile['target_endurance_time_mins']) . ' <small>min</small>' : '' ?>
-                                        </span>
-                                    </div>
+                                    <span class="phys-goal-tag">Active Focus</span>
                                 </div>
-                            <?php endif; ?>
 
-                            <?php if (!empty($profile['target_arm_cm'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
-                                            <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
-                                        </svg>
+                                <div class="phys-goal-subgrid">
+                                    <div class="phys-goal-subitem">
+                                        <span class="phys-subitem-label">Activity Level</span>
+                                        <span class="phys-subitem-val"><?= h(!empty($profile['activity_level']) ? ucwords(str_replace('_', ' ', (string)$profile['activity_level'])) : '—') ?></span>
                                     </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Target Arm Size</span>
-                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_arm_cm'], 1)) ?> <small>cm</small></span>
+                                    <div class="phys-goal-subitem">
+                                        <span class="phys-subitem-label">Secondary Focus</span>
+                                        <span class="phys-subitem-val"><?= !empty($profile['secondary_focus']) ? h(ucwords(str_replace('_', ' ', (string)$profile['secondary_focus']))) : '—' ?></span>
                                     </div>
-                                </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($profile['target_chest_cm'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <circle cx="12" cy="12" r="10" />
-                                            <line x1="2" x2="22" y1="12" y2="12" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Target Chest Size</span>
-                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_chest_cm'], 1)) ?> <small>cm</small></span>
+                                    <div class="phys-goal-subitem">
+                                        <span class="phys-subitem-label">Dietary Preference</span>
+                                        <span class="phys-subitem-val"><?= h(ucwords(str_replace('-', ' ', (string)($profile['dietary_restrictions'] ?? 'None')))) ?></span>
                                     </div>
                                 </div>
-                            <?php endif; ?>
-
-                            <?php if (!empty($profile['target_waist_cm'])): ?>
-                                <div class="settings-stat-card">
-                                    <div class="settings-stat-icon">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0" />
-                                            <path d="M12 8v8" />
-                                        </svg>
-                                    </div>
-                                    <div class="settings-stat-body">
-                                        <span class="settings-stat-label">Target Waist Size</span>
-                                        <span class="settings-stat-value"><?= h(number_format((float)$profile['target_waist_cm'], 1)) ?> <small>cm</small></span>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
+                            </div>
                         </div>
-                    <?php endif; ?>
+
+                        <!-- 3. Bottom Bento Card: Weekly Schedule & Objectives -->
+                        <?php if ($hasAnyTarget): ?>
+                            <div class="phys-bento-card">
+                                <div class="phys-card-head">
+                                    <div class="phys-card-head-left">
+                                        <div class="phys-card-icon is-indigo">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                                                <line x1="16" x2="16" y1="2" y2="6" />
+                                                <line x1="8" x2="8" y1="2" y2="6" />
+                                                <line x1="3" x2="21" y1="10" y2="10" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h3 class="phys-card-title">Training Schedule &amp; Objectives</h3>
+                                            <p class="phys-card-subtitle">Weekly commitment and performance benchmarks</p>
+                                        </div>
+                                    </div>
+                                    <div class="phys-schedule-badges">
+                                        <?php if (!empty($profile['weekly_workout_target'])): ?>
+                                            <span class="phys-meta-pill">
+                                                <?= (int)$profile['weekly_workout_target'] ?> <span>days / week</span>
+                                            </span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($profile['preferred_duration_mins'])): ?>
+                                            <span class="phys-meta-pill">
+                                                <?= (int)$profile['preferred_duration_mins'] ?> <span>mins / session</span>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <div class="phys-week-row">
+                                    <span class="phys-week-label">Committed Days</span>
+                                    <?php if (!empty($prefDayNums)): ?>
+                                        <div class="phys-week-pills" aria-label="Committed workout days">
+                                            <?php foreach ($weekDaysMap as $dayIndex => $dayLabel):
+                                                $isActiveDay = in_array($dayIndex, $prefDayNums, true);
+                                            ?>
+                                                <span class="phys-day-pill<?= $isActiveDay ? ' is-active' : '' ?>"><?= h($dayLabel) ?></span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <span class="phys-meta-pill">Flexible Schedule</span>
+                                    <?php endif; ?>
+                                </div>
+
+                                <?php
+                                $hasPerfTargets = !empty($profile['target_strength_max_kg']) ||
+                                    !empty($profile['target_weight_kg']) ||
+                                    !empty($profile['target_body_fat_percent']) ||
+                                    !empty($profile['target_endurance_distance_km']) ||
+                                    !empty($profile['target_endurance_time_mins']);
+                                if ($hasPerfTargets):
+                                ?>
+                                    <div class="phys-targets-row">
+                                        <?php if (!empty($profile['target_strength_max_kg'])):
+                                            $stEx = $profile['target_exercise'] ?? 'Bench Press';
+                                        ?>
+                                            <div class="phys-target-cell">
+                                                <span class="phys-subitem-label">Strength Target (<?= h($stEx) ?>)</span>
+                                                <span class="phys-subitem-val"><?= h($fmtNum($profile['target_strength_max_kg'], 1)) ?> kg PR</span>
+                                                <?php if (!empty($profile['current_strength_max_kg'])): ?>
+                                                    <span class="phys-target-hint">Current: <?= h($fmtNum($profile['current_strength_max_kg'], 1)) ?> kg</span>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($profile['target_weight_kg'])): ?>
+                                            <div class="phys-target-cell">
+                                                <span class="phys-subitem-label">Target Weight</span>
+                                                <span class="phys-subitem-val"><?= h($fmtNum($profile['target_weight_kg'], 1)) ?> kg</span>
+                                                <?php if (!empty($profile['weight_kg'])):
+                                                    $diff = (float)$profile['target_weight_kg'] - (float)$profile['weight_kg'];
+                                                ?>
+                                                    <span class="phys-target-hint"><?= $diff > 0 ? '+' : '' ?><?= number_format($diff, 1) ?> kg from current</span>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($profile['target_body_fat_percent'])): ?>
+                                            <div class="phys-target-cell">
+                                                <span class="phys-subitem-label">Target Body Fat</span>
+                                                <span class="phys-subitem-val"><?= h($fmtNum($profile['target_body_fat_percent'], 1)) ?>%</span>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <?php if (!empty($profile['target_endurance_distance_km']) || !empty($profile['target_endurance_time_mins'])):
+                                            $act = $profile['endurance_activity'] ?? 'Running';
+                                        ?>
+                                            <div class="phys-target-cell">
+                                                <span class="phys-subitem-label">Endurance (<?= h($act) ?>)</span>
+                                                <span class="phys-subitem-val">
+                                                    <?= !empty($profile['target_endurance_distance_km']) ? h($fmtNum($profile['target_endurance_distance_km'], 1)) . ' km' : '' ?>
+                                                    <?= (!empty($profile['target_endurance_distance_km']) && !empty($profile['target_endurance_time_mins'])) ? ' / ' : '' ?>
+                                                    <?= !empty($profile['target_endurance_time_mins']) ? h((string)$profile['target_endurance_time_mins']) . ' min' : '' ?>
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         <?php endif; ?>
