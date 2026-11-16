@@ -193,7 +193,10 @@ function classes_page(): void
                 if (!$cls) redirect('classes&tab=schedules');
                 
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
-                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
+                if ($user['role'] === 'trainer' && (int)$cls['instructor_id'] !== (int)$user['user_id']) {
+                    flash('You can only schedule sessions for classes assigned to you.', 'danger');
+                    redirect('classes&tab=schedules');
+                }
             }
 
             $conflictErr = check_schedule_conflicts(db(), (int) $class_id, $startDatetime, $endDatetime, post('room_location'), null, $gymId);
@@ -353,7 +356,10 @@ function classes_page(): void
 
             if (!$isAdmin) {
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
-                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
+                if ($user['role'] === 'trainer' && (int)$cls['instructor_id'] !== (int)$user['user_id']) {
+                    flash('You can only edit schedules for your own classes.', 'danger');
+                    redirect('classes&tab=schedules');
+                }
             }
 
             $conflictErr = check_schedule_conflicts(db(), (int) $class_id, $startDatetime, $endDatetime, $newRoom, (int) $schedule_id, $gymId);
@@ -415,7 +421,10 @@ function classes_page(): void
 
             if (!$isAdmin) {
                 if ($user['role'] === 'gym_owner' && $cls['gym_id'] != $gymId) redirect('classes&tab=schedules');
-                if ($user['role'] === 'trainer' && $cls['instructor_id'] != $user['user_id']) redirect('classes&tab=schedules');
+                if ($user['role'] === 'trainer' && (int)$cls['instructor_id'] !== (int)$user['user_id']) {
+                    flash('You can only delete schedules for your own classes.', 'danger');
+                    redirect('classes&tab=schedules');
+                }
             }
 
             // Find all booked members before deleting schedule
@@ -654,15 +663,21 @@ function classes_page(): void
     if ($isAdmin) {
         $coaches = db()->query('SELECT user_id, CONCAT(first_name, " ", last_name) AS name FROM users WHERE role = "trainer" AND status = "active"')->fetchAll();
         $classes = db()->query('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY c.created_at DESC')->fetchAll();
-        $schedules = db()->query('SELECT s.*, c.class_name, c.capacity FROM class_schedules s JOIN classes c ON c.class_id = s.class_id ORDER BY s.start_datetime DESC')->fetchAll();
+        $schedules = db()->query('SELECT s.*, c.class_name, c.capacity, c.instructor_id, CONCAT(u.first_name, " ", u.last_name) AS instructor_name FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id ORDER BY s.start_datetime DESC')->fetchAll();
     } else {
         $coaches = db()->query('SELECT u.user_id, CONCAT(u.first_name, " ", u.last_name) AS name FROM users u JOIN trainer_profiles tp ON u.user_id = tp.user_id WHERE u.role = "trainer" AND u.status = "active" AND tp.gym_id = ' . (int)$gymId)->fetchAll();
         
-        $stmt = db()->prepare('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.gym_id = ? ORDER BY c.created_at DESC');
-        $stmt->execute([$gymId]);
-        $classes = $stmt->fetchAll();
+        if ($user['role'] === 'trainer') {
+            $stmt = db()->prepare('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.gym_id = ? AND c.instructor_id = ? ORDER BY c.created_at DESC');
+            $stmt->execute([$gymId, (int)$user['user_id']]);
+            $classes = $stmt->fetchAll();
+        } else {
+            $stmt = db()->prepare('SELECT c.*, CONCAT(u.first_name, " ", u.last_name) AS instructor FROM classes c LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.gym_id = ? ORDER BY c.created_at DESC');
+            $stmt->execute([$gymId]);
+            $classes = $stmt->fetchAll();
+        }
         
-        $stmt2 = db()->prepare('SELECT s.*, c.class_name, c.capacity FROM class_schedules s JOIN classes c ON c.class_id = s.class_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
+        $stmt2 = db()->prepare('SELECT s.*, c.class_name, c.capacity, c.instructor_id, CONCAT(u.first_name, " ", u.last_name) AS instructor_name FROM class_schedules s JOIN classes c ON c.class_id = s.class_id LEFT JOIN users u ON u.user_id = c.instructor_id WHERE c.gym_id = ? ORDER BY s.start_datetime DESC');
         $stmt2->execute([$gymId]);
         $schedules = $stmt2->fetchAll();
     }
@@ -702,9 +717,11 @@ function classes_page(): void
     render_header('Classes', $user);
     ?>
     <style>
-        .class-tabs { display: flex; gap: 8px; margin-bottom: 24px; padding: 4px; background: rgba(0,0,0,0.2); border-radius: 12px; width: fit-content; }
-        .class-tab-btn { background: transparent; color: var(--muted); border: none; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-        .class-tab-btn.active { background: var(--surface); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .class-tabs { display: inline-flex; gap: 6px; margin-bottom: 24px; padding: 5px; background: var(--panel-soft, rgba(15, 23, 42, 0.06)); border: 1px solid var(--line); border-radius: 12px; width: fit-content; }
+        [data-theme="dark"] .class-tabs { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.1); }
+        .class-tab-btn { background: transparent; color: var(--muted); border: 1px solid transparent; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .class-tab-btn:hover:not(.active) { color: var(--ink); background: rgba(148, 163, 184, 0.1); }
+        .class-tab-btn.active { background: var(--lime, #84cc16); color: var(--lime-contrast, #080b0d); font-weight: 700; box-shadow: 0 2px 10px color-mix(in srgb, var(--lime, #84cc16) 28%, transparent); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .class-card {
@@ -899,9 +916,9 @@ function classes_page(): void
         }
         .cc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; }
         .classes-banner {
-            background: linear-gradient(135deg, rgba(234, 88, 12, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
-            border: 1px solid rgba(234, 88, 12, 0.22);
-            border-left: 4px solid var(--orange, #ea580c);
+            background: linear-gradient(135deg, color-mix(in srgb, var(--lime, #84cc16) 8%, transparent) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 24%, var(--line));
+            border-left: 4px solid var(--lime, #84cc16);
             border-radius: 16px;
             padding: 24px 28px;
             margin-bottom: 24px;
@@ -914,15 +931,15 @@ function classes_page(): void
             gap: 16px;
         }
         [data-theme="light"] .classes-banner {
-            background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
-            border: 1px solid #fed7aa;
-            border-left: 4px solid var(--orange, #ea580c);
+            background: linear-gradient(135deg, #ffffff 0%, color-mix(in srgb, var(--lime, #84cc16) 9%, #ffffff) 100%);
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 26%, #e2e8f0);
+            border-left: 4px solid var(--lime, #84cc16);
             box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
         }
         [data-theme="dark"] .classes-banner {
             background: linear-gradient(135deg, rgba(26, 30, 40, 0.95) 0%, rgba(16, 19, 27, 0.95) 100%);
             border: 1px solid var(--line);
-            border-left: 4px solid var(--orange, #ea580c);
+            border-left: 4px solid var(--lime, #84cc16);
         }
         .classes-banner-title {
             margin: 0;
@@ -937,7 +954,10 @@ function classes_page(): void
             width: 28px;
             height: 28px;
             flex-shrink: 0;
-            color: var(--orange, #ea580c);
+            color: var(--lime-dark, var(--lime, #84cc16));
+        }
+        [data-theme="dark"] .classes-banner-icon {
+            color: var(--lime, #84cc16);
         }
         .classes-banner-desc {
             margin: 8px 0 0 0;
@@ -966,17 +986,20 @@ function classes_page(): void
             transition: all 0.2s;
         }
         .classes-banner-btn-secondary:hover {
-            border-color: var(--orange, #ea580c);
-            color: var(--orange, #ea580c);
+            border-color: var(--lime, #84cc16);
+            color: var(--lime-dark, var(--lime, #84cc16));
+        }
+        [data-theme="dark"] .classes-banner-btn-secondary:hover {
+            color: var(--lime, #84cc16);
         }
         [data-theme="light"] .classes-banner-btn-secondary {
             background: #ffffff;
             border-color: #cbd5e1;
         }
         .classes-banner-btn-primary {
-            background: var(--orange, #ea580c);
+            background: var(--lime, #84cc16);
             border: none;
-            color: #ffffff;
+            color: var(--lime-contrast, #080b0d);
             padding: 10px 16px;
             border-radius: 8px;
             font-weight: 600;
@@ -1705,6 +1728,7 @@ function classes_page(): void
 
                                 $shownMembers = array_slice($sMembers, 0, 2);
                                 $remainingCount = $sMemCount - count($shownMembers);
+                                $canManageSchedule = ($isAdmin || $user['role'] === 'gym_owner' || (int)($s['instructor_id'] ?? 0) === (int)$user['user_id']);
                                 $modalPayload = htmlspecialchars(json_encode([
                                     'schedule_id' => (int)$s['schedule_id'],
                                     'class_name' => $s['class_name'],
@@ -1712,6 +1736,7 @@ function classes_page(): void
                                     'location' => $s['room_location'] ?: 'Main Studio',
                                     'capacity' => (int)($s['capacity'] ?? 0),
                                     'status' => $sessionStatus,
+                                    'can_manage' => $canManageSchedule,
                                     'members' => $sMembers
                                 ]), ENT_QUOTES, 'UTF-8');
                             ?>
@@ -1720,6 +1745,9 @@ function classes_page(): void
                                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                                             <strong><?= h($s['class_name']) ?></strong>
                                             <?= $statusBadge ?>
+                                        </div>
+                                        <div style="font-size:12px; color:var(--muted); margin-top:3px;">
+                                            Instructor: <?= h(!empty($s['instructor_name']) ? $s['instructor_name'] : 'Unassigned') ?>
                                         </div>
                                     </td>
                                     <td><span style="display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><?= h($s['room_location'] ?: '—') ?></span></td>
@@ -1785,15 +1813,19 @@ function classes_page(): void
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <?php if ($sessionStatus === 'completed'): ?>
-                                            <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:6px 10px; font-size:12px; border:none; background:rgba(34,197,94,0.14); color:#22c55e; cursor:pointer; font-weight:600; border-radius:6px;">Attendance</button>
-                                        <?php elseif ($sessionStatus === 'in_progress'): ?>
-                                            <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:6px 10px; font-size:12px; border:none; background:rgba(234,88,12,0.14); color:var(--orange, #ea580c); cursor:pointer; font-weight:600; border-radius:6px;">Check-in</button>
-                                            <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                        <?php if ($canManageSchedule): ?>
+                                            <?php if ($sessionStatus === 'completed'): ?>
+                                                <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:6px 10px; font-size:12px; border:none; background:rgba(34,197,94,0.14); color:#22c55e; cursor:pointer; font-weight:600; border-radius:6px;">Attendance</button>
+                                            <?php elseif ($sessionStatus === 'in_progress'): ?>
+                                                <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:6px 10px; font-size:12px; border:none; background:rgba(234,88,12,0.14); color:var(--orange, #ea580c); cursor:pointer; font-weight:600; border-radius:6px;">Check-in</button>
+                                                <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                            <?php else: ?>
+                                                <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                            <?php endif; ?>
+                                            <button type="button" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger); cursor:pointer; border-radius:6px;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                                         <?php else: ?>
-                                            <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:6px 10px; font-size:12px; border:none; background:rgba(255,255,255,0.05); cursor:pointer;">Edit</button>
+                                            <span style="display:inline-block; padding:5px 10px; font-size:12px; font-weight:600; color:var(--muted); background:rgba(148,163,184,0.12); border-radius:6px;">View Only</span>
                                         <?php endif; ?>
-                                        <button type="button" class="btn btn-danger" style="padding:6px 10px; font-size:12px; border:none; background:rgba(239,68,68,0.1); color:var(--danger); cursor:pointer; border-radius:6px;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -1827,6 +1859,7 @@ function classes_page(): void
                         $sMemCount = count($sMembers);
                         $shownMembers = array_slice($sMembers, 0, 2);
                         $remainingCount = $sMemCount - count($shownMembers);
+                        $canManageSchedule = ($isAdmin || $user['role'] === 'gym_owner' || (int)($s['instructor_id'] ?? 0) === (int)$user['user_id']);
                         $modalPayload = htmlspecialchars(json_encode([
                             'schedule_id' => (int)$s['schedule_id'],
                             'class_name' => $s['class_name'],
@@ -1834,12 +1867,18 @@ function classes_page(): void
                             'location' => $s['room_location'] ?: 'Main Studio',
                             'capacity' => (int)($s['capacity'] ?? 0),
                             'status' => $sessionStatus,
+                            'can_manage' => $canManageSchedule,
                             'members' => $sMembers
                         ]), ENT_QUOTES, 'UTF-8');
                     ?>
                         <article class="schedule-mobile-card sched-mobile-item" data-status="<?= $sessionStatus ?>">
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
-                                <h3 class="schedule-mobile-card-title" style="margin:0;"><?= h($s['class_name']) ?></h3>
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:10px;">
+                                <div>
+                                    <h3 class="schedule-mobile-card-title" style="margin:0;"><?= h($s['class_name']) ?></h3>
+                                    <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+                                        Instructor: <?= h(!empty($s['instructor_name']) ? $s['instructor_name'] : 'Unassigned') ?>
+                                    </div>
+                                </div>
                                 <?= $statusBadge ?>
                             </div>
                             <div class="schedule-mobile-details">
@@ -1891,15 +1930,19 @@ function classes_page(): void
                                 </div>
                             </div>
                             <div class="schedule-mobile-actions">
-                                <?php if ($sessionStatus === 'completed'): ?>
-                                    <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:8px 10px; font-size:12px; cursor:pointer; background:rgba(34,197,94,0.14); color:#22c55e; font-weight:600;">Attendance</button>
-                                <?php elseif ($sessionStatus === 'in_progress'): ?>
-                                    <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:8px 10px; font-size:12px; cursor:pointer; background:rgba(234,88,12,0.14); color:var(--orange, #ea580c); font-weight:600;">Check-in</button>
-                                    <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                <?php if ($canManageSchedule): ?>
+                                    <?php if ($sessionStatus === 'completed'): ?>
+                                        <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:8px 10px; font-size:12px; cursor:pointer; background:rgba(34,197,94,0.14); color:#22c55e; font-weight:600;">Attendance</button>
+                                    <?php elseif ($sessionStatus === 'in_progress'): ?>
+                                        <button type="button" class="btn btn-secondary" onclick="openClassMembersModal(<?= $modalPayload ?>)" style="padding:8px 10px; font-size:12px; cursor:pointer; background:rgba(234,88,12,0.14); color:var(--orange, #ea580c); font-weight:600;">Check-in</button>
+                                        <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                    <?php else: ?>
+                                        <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                    <?php endif; ?>
+                                    <button type="button" class="btn btn-danger" style="padding:8px 10px; font-size:12px; cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                                 <?php else: ?>
-                                    <button onclick="editSchedule(<?= htmlspecialchars(json_encode($s)) ?>)" class="btn btn-secondary" style="padding:8px 10px; font-size:12px; cursor:pointer;">Edit</button>
+                                    <span style="display:inline-block; padding:6px 10px; font-size:12px; font-weight:600; color:var(--muted); background:rgba(148,163,184,0.12); border-radius:6px;">View Only</span>
                                 <?php endif; ?>
-                                <button type="button" class="btn btn-danger" style="padding:8px 10px; font-size:12px; cursor:pointer;" onclick="confirmDeleteSchedule(<?= (int)$s['schedule_id'] ?>, <?= htmlspecialchars(json_encode($s['class_name'])) ?>, <?= htmlspecialchars(json_encode($scheduleTimeStr)) ?>)">Delete</button>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -2044,13 +2087,15 @@ function classes_page(): void
             `;
         }
 
+        const canManage = !currentScheduleMeta || currentScheduleMeta.can_manage !== false;
+
         const markAllBtn = document.getElementById('cmm_btn_mark_all');
         if (markAllBtn) {
             markAllBtn.innerHTML = `
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 <span>${isPast ? 'Mark All Attended' : 'Check In All'}</span>
             `;
-            markAllBtn.style.display = (bookedCount > 0) ? 'inline-flex' : 'none';
+            markAllBtn.style.display = (canManage && bookedCount > 0) ? 'inline-flex' : 'none';
         }
 
         if (summary) {
@@ -2077,7 +2122,15 @@ function classes_page(): void
             const bStatus = m.booking_status || 'booked';
 
             let actionHtml = '';
-            if (bStatus === 'attended') {
+            if (!canManage) {
+                if (bStatus === 'attended') {
+                    actionHtml = `<span class="badge-att-status badge-att-attended">✓ ${attendedLabel}</span>`;
+                } else if (bStatus === 'no_show') {
+                    actionHtml = `<span class="badge-att-status badge-att-noshow">✕ No-Show</span>`;
+                } else {
+                    actionHtml = `<span class="badge-att-status badge-att-booked">Booked</span>`;
+                }
+            } else if (bStatus === 'attended') {
                 actionHtml = `
                     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
                         <span class="badge-att-status badge-att-attended">✓ ${attendedLabel}</span>

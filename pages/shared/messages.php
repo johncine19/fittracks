@@ -110,14 +110,24 @@ function messages_page(): void
                   AND (
                       (u.role IN ("admin", "gym_owner") AND EXISTS (SELECT 1 FROM gyms g WHERE g.owner_user_id = u.user_id AND g.gym_id = ?))
                       OR (u.role = "staff" AND EXISTS (SELECT 1 FROM gym_staff gs WHERE gs.user_id = u.user_id AND gs.gym_id = ?))
+                      OR (u.role = "trainer" AND EXISTS (SELECT 1 FROM trainer_profiles tp WHERE tp.user_id = u.user_id AND tp.gym_id = ?))
+                      OR (u.role = "member" AND (
+                          EXISTS (SELECT 1 FROM gym_members gm WHERE gm.user_id = u.user_id AND gm.gym_id = ?) OR
+                          EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mp.gym_id = ?)
+                      ))
                       OR u.user_id IN (
                           SELECT ta.member_user_id FROM trainer_assignments ta 
                           JOIN trainer_profiles tp ON tp.trainer_id = ta.trainer_id 
                           WHERE tp.user_id = ? AND ta.status = "active"
                       )
+                      OR EXISTS (
+                          SELECT 1 FROM trainer_messages tm
+                          WHERE (tm.sender_id = u.user_id AND tm.recipient_id = ?)
+                             OR (tm.sender_id = ? AND tm.recipient_id = u.user_id)
+                      )
                   )
                 LIMIT 1',
-                [$targetUserId, $currentGymId, $currentGymId, $user['user_id']]
+                [$targetUserId, $currentGymId, $currentGymId, $currentGymId, $currentGymId, $currentGymId, $user['user_id'], $user['user_id'], $user['user_id']]
             );
         }
 
