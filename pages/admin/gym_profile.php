@@ -572,10 +572,11 @@ function gym_profile_page(): void
                 'payout_account_number' => $payoutAccountNumber,
                 'payout_account_name'   => $payoutAccountName,
             ];
-            if ($isPlatformAdmin) {
+            if ($isPlatformAdmin || post('xendit_subaccount_id') !== null || !empty($xenditSubaccountId)) {
                 $payoutData['xendit_subaccount_id'] = $xenditSubaccountId;
                 if (!empty($xenditSubaccountId)) {
                     $payoutData['kyc_status'] = 'verified';
+                    $payoutData['pending_subaccount_id'] = null;
                 }
             }
             save_gym_payout_account((int)$gym['gym_id'], $payoutData);
@@ -605,11 +606,11 @@ function gym_profile_page(): void
                             $ownerId,
                             'system',
                             'Xendit Online Payments Activated',
-                            "Platform Administrator verified your Xendit KYC! Online payments gateway ({$approvedSubId}) is now active for '{$name}'."
+                            "Platform Administrator verified your Xendit merchant account! Online payments gateway ({$approvedSubId}) is now active for '{$name}'."
                         );
                     }
 
-                    flash("Xendit sub-account '{$approvedSubId}' approved and gateway activated for '{$name}'!", 'success');
+                    flash("Xendit merchant account '{$approvedSubId}' approved and gateway activated for '{$name}'!", 'success');
                 }
                 $redirectTab = 'payout';
             } elseif ($isPlatformAdmin && isset($_POST['reject_xendit_kyc'])) {
@@ -622,30 +623,95 @@ function gym_profile_page(): void
                     notify_user(
                         $ownerId,
                         'system',
-                        'Xendit KYC Review Update',
-                        "Platform Administrator reviewed your Xendit KYC submission for '{$name}' and requested changes. Please check your sub-account details."
+                        'Xendit Account Review Update',
+                        "Platform Administrator reviewed your Xendit merchant account submission for '{$name}' and requested changes. Please check your Xendit account details."
                     );
                 }
 
-                flash("Xendit KYC submission rejected. The gym owner has been notified.", 'warning');
+                flash("Xendit account submission rejected. The gym owner has been notified.", 'warning');
                 $redirectTab = 'payout';
             } elseif (isset($_POST['submit_xendit_kyc'])) {
+                $gatewayMode = post('xendit_gateway_mode') === 'test_sandbox' ? 'test_sandbox' : 'custom_keys';
                 $kycEmail = trim((string) post('xendit_kyc_email'));
-                $subAccountIdRaw = trim((string) post('xendit_subaccount_id_submission'));
-                if ($subAccountIdRaw !== '' && strpos($subAccountIdRaw, '*') !== false) {
-                    $subAccountId = trim((string)($gym['pending_subaccount_id'] ?? $gym['xendit_subaccount_id'] ?? ''));
-                } else {
-                    $subAccountId = $subAccountIdRaw;
+                if ($kycEmail === '' || !filter_var($kycEmail, FILTER_VALIDATE_EMAIL)) {
+                    $kycEmail = trim((string) ($gym['kyc_email'] ?? ''));
                 }
+                if ($kycEmail === '' || !filter_var($kycEmail, FILTER_VALIDATE_EMAIL)) {
+                    $kycEmail = trim((string) scalar('SELECT email FROM users WHERE user_id = ?', [(int) ($gym['owner_user_id'] ?? 0)]));
+                }
+                if ($kycEmail === '' || !filter_var($kycEmail, FILTER_VALIDATE_EMAIL)) {
+                    $kycEmail = trim((string) ($user['email'] ?? 'owner@fittrack.local'));
+                }
+                $rawSecretKey = trim((string) post('xendit_secret_key_submission'));
+                $rawWebhookToken = trim((string) post('xendit_webhook_token_submission'));
+                $useBuiltinSandbox = post('use_builtin_sandbox') === '1';
 
-                if (empty($kycEmail) || !filter_var($kycEmail, FILTER_VALIDATE_EMAIL)) {
-                    flash('Please provide a valid registered Xendit account email address.', 'danger');
-                } elseif (empty($subAccountId)) {
-                    flash('Please provide your Xendit Sub-Account ID.', 'danger');
-                } else {
-                    if ($isPlatformAdmin) {
-                        // When Platform Admin submits, directly verify and activate online payment routing
-                        save_gym_payout_account((int)$gym['gym_id'], [
+                $savedMaskedKey = (string)($gym['xendit_secret_key_masked'] ?? '');
+                $savedKeyIsLive = str_starts_with($savedMaskedKey, 'xnd_production_');
+                $savedKeyIsTest = str_starts_with($savedMaskedKey, 'xnd_development_');
+                $gymIdInt = (int)$gym['gym_id'];
+
+                if ($gatewayMode === 'test_sandbox') {
+                    if ($rawSecretKey !== '') {
+                        $keyCheck = xendit_verify_secret_key($rawSecretKey, 'test');
+                        if (!$keyCheck['valid']) {
+                            flash($keyCheck['message'], 'danger');
+                        } else {
+                            $subAccountId = 'TEST-CUSTOM-' . $gymIdInt;
+                            $savePayload = [
+                                'xendit_subaccount_id' => $subAccountId,
+                                'payout_channel'       => $payoutChannel,
+                                'payout_account_number'=> $payoutAccountNumber,
+                                'payout_account_name'  => $payoutAccountName,
+                                'kyc_status'           => 'verified',
+                                'kyc_email'            => $kycEmail,
+                                'pending_subaccount_id'=> null,
+                                'xendit_secret_key'    => $rawSecretKey,
+                            ];
+                            if ($rawWebhookToken !== '') {
+                                $savePayload['xendit_webhook_token'] = $rawWebhookToken;
+                            }
+                            save_gym_payout_account($gymIdInt, $savePayload);
+
+                            audit_log(
+                                (int)$user['user_id'],
+                                'connect_xendit_gateway',
+                                'gym',
+                                (string)$gymIdInt,
+                                json_encode([
+                                    'mode' => 'test_custom',
+                                    'kyc_email' => $kycEmail,
+                                    'account_id' => $subAccountId,
+                                    'secret_key_updated' => true,
+                                    'webhook_token_updated' => $rawWebhookToken !== '',
+                                ])
+                            );
+
+                            if ($isPlatformAdmin) {
+                                $ownerId = (int)($gym['owner_user_id'] ?? 0);
+                                if ($ownerId > 0) {
+                                    notify_user(
+                                        $ownerId,
+                                        'system',
+                                        'Xendit Test / Sandbox Mode Activated',
+                                        "Platform Administrator saved your custom Xendit Test API key for '{$name}'. Test checkouts are now active."
+                                    );
+                                }
+                            } else {
+                                $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
+                                notify_admins(
+                                    'system',
+                                    'Gym Connected Custom Xendit Test Key',
+                                    "Gym '{$name}' (Owner: {$ownerFullName}) connected their own verified Xendit Test API key (Email: {$kycEmail}).",
+                                    $gymIdInt
+                                );
+                            }
+
+                            flash("Your custom Xendit Test API Key is verified and Test / Sandbox Mode is now active for '{$name}'!", 'success');
+                        }
+                    } elseif ($savedKeyIsTest && !$useBuiltinSandbox) {
+                        $subAccountId = 'TEST-CUSTOM-' . $gymIdInt;
+                        $savePayload = [
                             'xendit_subaccount_id' => $subAccountId,
                             'payout_channel'       => $payoutChannel,
                             'payout_account_number'=> $payoutAccountNumber,
@@ -653,39 +719,168 @@ function gym_profile_page(): void
                             'kyc_status'           => 'verified',
                             'kyc_email'            => $kycEmail,
                             'pending_subaccount_id'=> null,
-                        ]);
-
-                        $ownerId = (int)($gym['owner_user_id'] ?? 0);
-                        if ($ownerId > 0) {
-                            notify_user(
-                                $ownerId,
-                                'system',
-                                'Xendit Online Payments Activated',
-                                "Platform Administrator verified and linked your Xendit sub-account ({$subAccountId})! Online payments are now active for '{$name}'."
-                            );
+                        ];
+                        if ($rawWebhookToken !== '') {
+                            $savePayload['xendit_webhook_token'] = $rawWebhookToken;
                         }
+                        save_gym_payout_account($gymIdInt, $savePayload);
 
-                        flash("Xendit sub-account '{$subAccountId}' verified and activated by Platform Administrator for '{$name}'!", 'success');
+                        audit_log(
+                            (int)$user['user_id'],
+                            'connect_xendit_gateway',
+                            'gym',
+                            (string)$gymIdInt,
+                            json_encode([
+                                'mode' => 'test_custom',
+                                'kyc_email' => $kycEmail,
+                                'account_id' => $subAccountId,
+                                'secret_key_updated' => false,
+                                'webhook_token_updated' => $rawWebhookToken !== '',
+                            ])
+                        );
+
+                        flash("Test / Sandbox settings updated using your saved Xendit Test API Key for '{$name}'!", 'success');
+                    } elseif (!xendit_is_test_fallback_allowed()) {
+                        flash('Built-in Test / Sandbox Mode is unavailable because no server Test key (xnd_development_*) is configured, and you did not enter your own Test Secret Key (xnd_development_*).', 'danger');
                     } else {
-                        // Gym Owner submission — saved as pending admin review
-                        save_gym_payout_account((int)$gym['gym_id'], [
+                        $subAccountId = 'TEST-SANDBOX-' . $gymIdInt;
+                        save_gym_payout_account($gymIdInt, [
+                            'xendit_subaccount_id' => $subAccountId,
                             'payout_channel'       => $payoutChannel,
                             'payout_account_number'=> $payoutAccountNumber,
                             'payout_account_name'  => $payoutAccountName,
-                            'kyc_status'           => 'pending',
+                            'kyc_status'           => 'verified',
                             'kyc_email'            => $kycEmail,
-                            'pending_subaccount_id'=> $subAccountId,
+                            'pending_subaccount_id'=> null,
+                            'xendit_secret_key'    => null,
+                            'xendit_webhook_token' => null,
                         ]);
 
-                        $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
-                        notify_admins(
-                            'system',
-                            'Xendit KYC Completed: Sub-Account Submitted',
-                            "Gym '{$name}' (Owner: {$ownerFullName}) submitted Xendit KYC. Registered Email: {$kycEmail}. Sub-Account ID: {$subAccountId}. Please review and approve gateway activation.",
-                            (int)$gym['gym_id']
+                        audit_log(
+                            (int)$user['user_id'],
+                            'connect_xendit_gateway',
+                            'gym',
+                            (string)$gymIdInt,
+                            json_encode([
+                                'mode' => 'test_sandbox',
+                                'kyc_email' => $kycEmail,
+                                'account_id' => $subAccountId,
+                            ])
                         );
 
-                        flash("Xendit KYC & Sub-Account details submitted! Platform administrators have been notified to review and verify your account.", 'success');
+                        if ($isPlatformAdmin) {
+                            $ownerId = (int)($gym['owner_user_id'] ?? 0);
+                            if ($ownerId > 0) {
+                                notify_user(
+                                    $ownerId,
+                                    'system',
+                                    'Xendit Test / Sandbox Mode Activated',
+                                    "Platform Administrator enabled Test / Sandbox Mode for '{$name}'. You can now test online member checkouts."
+                                );
+                            }
+                        } else {
+                            $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
+                            notify_admins(
+                                'system',
+                                'Gym Enabled Xendit Test / Sandbox Mode',
+                                "Gym '{$name}' (Owner: {$ownerFullName}) activated Test / Sandbox Mode (Email: {$kycEmail}) for testing online member checkouts.",
+                                $gymIdInt
+                            );
+                        }
+
+                        flash("Test / Sandbox Mode activated for '{$name}' using the built-in demo test gateway!", 'success');
+                    }
+                } else {
+                    if ($rawSecretKey === '' && !$savedKeyIsLive) {
+                        flash('Live Mode requires your Live Xendit Secret API Key (xnd_production_*). Please enter your Live Secret Key, or switch to Test / Sandbox Mode.', 'danger');
+                    } elseif ($rawSecretKey !== '') {
+                        $keyCheck = xendit_verify_secret_key($rawSecretKey, 'live');
+                        if (!$keyCheck['valid']) {
+                            flash($keyCheck['message'], 'danger');
+                        } else {
+                            $subAccountId = 'LIVE-XENDIT-' . $gymIdInt;
+                            $savePayload = [
+                                'xendit_subaccount_id' => $subAccountId,
+                                'payout_channel'       => $payoutChannel,
+                                'payout_account_number'=> $payoutAccountNumber,
+                                'payout_account_name'  => $payoutAccountName,
+                                'kyc_status'           => 'verified',
+                                'kyc_email'            => $kycEmail,
+                                'pending_subaccount_id'=> null,
+                                'xendit_secret_key'    => $rawSecretKey,
+                            ];
+                            if ($rawWebhookToken !== '') {
+                                $savePayload['xendit_webhook_token'] = $rawWebhookToken;
+                            }
+                            save_gym_payout_account($gymIdInt, $savePayload);
+
+                            audit_log(
+                                (int)$user['user_id'],
+                                'connect_xendit_gateway',
+                                'gym',
+                                (string)$gymIdInt,
+                                json_encode([
+                                    'mode' => 'live_custom',
+                                    'kyc_email' => $kycEmail,
+                                    'account_id' => $subAccountId,
+                                    'secret_key_updated' => true,
+                                    'webhook_token_updated' => $rawWebhookToken !== '',
+                                ])
+                            );
+
+                            if ($isPlatformAdmin) {
+                                $ownerId = (int)($gym['owner_user_id'] ?? 0);
+                                if ($ownerId > 0) {
+                                    notify_user(
+                                        $ownerId,
+                                        'system',
+                                        'Xendit Live Online Payments Activated',
+                                        "Platform Administrator verified and connected your Live Xendit merchant account for '{$name}'!"
+                                    );
+                                }
+                            } else {
+                                $ownerFullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Gym Owner';
+                                notify_admins(
+                                    'system',
+                                    'Live Xendit Merchant Account Connected',
+                                    "Gym '{$name}' (Owner: {$ownerFullName}) verified and connected their Live Xendit merchant account (Email: {$kycEmail}). Online member payments are now active.",
+                                    $gymIdInt
+                                );
+                            }
+
+                            flash("Your Live Xendit merchant account is verified and online member payments are now active for '{$name}'!", 'success');
+                        }
+                    } else {
+                        $subAccountId = 'LIVE-XENDIT-' . $gymIdInt;
+                        $savePayload = [
+                            'xendit_subaccount_id' => $subAccountId,
+                            'payout_channel'       => $payoutChannel,
+                            'payout_account_number'=> $payoutAccountNumber,
+                            'payout_account_name'  => $payoutAccountName,
+                            'kyc_status'           => 'verified',
+                            'kyc_email'            => $kycEmail,
+                            'pending_subaccount_id'=> null,
+                        ];
+                        if ($rawWebhookToken !== '') {
+                            $savePayload['xendit_webhook_token'] = $rawWebhookToken;
+                        }
+                        save_gym_payout_account($gymIdInt, $savePayload);
+
+                        audit_log(
+                            (int)$user['user_id'],
+                            'connect_xendit_gateway',
+                            'gym',
+                            (string)$gymIdInt,
+                            json_encode([
+                                'mode' => 'live_custom',
+                                'kyc_email' => $kycEmail,
+                                'account_id' => $subAccountId,
+                                'secret_key_updated' => false,
+                                'webhook_token_updated' => $rawWebhookToken !== '',
+                            ])
+                        );
+
+                        flash("Live Xendit settings updated for '{$name}'!", 'success');
                     }
                 }
                 $redirectTab = 'payout';
@@ -704,12 +899,13 @@ function gym_profile_page(): void
                             true
                         );
                     }
-                    flash("Onboarding invitation email sent to facility owner ({$ownerEmail}) with verification instructions.", 'success');
+                    flash("Independent Xendit setup guide email sent to facility owner ({$ownerEmail}).", 'success');
                 } else {
                     notify_admins(
                         'system',
-                        'Online Payment Activation Requested',
-                        "Gym '{$name}' requested Xendit online payment gateway activation for {$payoutChannel} ({$payoutAccountNumber})."
+                        'Independent Xendit Setup Guide Requested',
+                        "Gym '{$name}' requested the independent Xendit setup guide email for {$payoutChannel} ({$payoutAccountNumber}).",
+                        (int)$gym['gym_id']
                     );
 
                     $ownerEmail = (string)($user['email'] ?? '');
@@ -726,7 +922,7 @@ function gym_profile_page(): void
                         );
                     }
 
-                    flash("Payout destination saved! An activation email has been sent to {$ownerEmail} with verification instructions.", 'success');
+                    flash("Payout destination saved! An independent Xendit setup guide email has been sent to {$ownerEmail}.", 'success');
                 }
                 $redirectTab = 'payout';
             } else {
@@ -969,11 +1165,14 @@ function gym_profile_page(): void
                     <!-- 1. GENERAL INFORMATION -->
                     <section class="profile-card settings-tab-pane span-full" id="sec-general">
                         <div class="profile-card-header">
-                            <h3 class="profile-card-title">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                                General Information
-                            </h3>
-                            <small style="color: var(--muted); font-size: 11.5px;">Facility details</small>
+                            <div>
+                                <h3 class="profile-card-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                    General Information
+                                </h3>
+                                <small style="color: var(--muted); font-size: 11.5px;">Facility details</small>
+                            </div>
+                            <button type="submit" class="btn btn-lime btn-sm">Save Changes</button>
                         </div>                        <div class="general-form-grid">
                             <div>
                                 <label class="field-label">Gym Facility Name <span style="color: var(--danger, #ef4444);">*</span></label>
@@ -1597,26 +1796,49 @@ function gym_profile_page(): void
 
                                     <!-- ONLINE PAYMENTS & SETTLEMENT PAYOUTS -->
                     <section class="profile-card settings-tab-pane span-full" id="sec-payout">
-                        <div class="profile-card-header">
-                            <div>
+                        <?php
+                        $secMaskedKey = (string)($gym['xendit_secret_key_masked'] ?? '');
+                        $secKeyIsLive = str_starts_with($secMaskedKey, 'xnd_production_');
+                        $secKeyIsTest = str_starts_with($secMaskedKey, 'xnd_development_');
+                        $secOnlineActive = function_exists('xendit_member_online_enabled')
+                            ? xendit_member_online_enabled($gym['xendit_subaccount_id'] ?? null, $gym['xendit_secret_key_enc'] ?? null, (int)($gym['gym_id'] ?? 0))
+                            : (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified');
+                        $secGwState = function_exists('xendit_get_gym_gateway_state')
+                            ? xendit_get_gym_gateway_state($gym)
+                            : ($secKeyIsLive ? 'live' : ($secKeyIsTest ? 'test_custom' : 'test_sandbox'));
+                        if ($secGwState === 'live') {
+                            $secActiveBadgeLabel = 'Gateway Active (Live Mode)';
+                        } elseif ($secGwState === 'test_custom') {
+                            $secActiveBadgeLabel = 'Gateway Active (Custom Test Key)';
+                        } else {
+                            $secActiveBadgeLabel = 'Gateway Active (Sandbox Demo)';
+                        }
+                        ?>
+                        <div class="profile-card-header" style="align-items: flex-start;">
+                            <div style="flex: 1; min-width: 240px;">
                                 <h3 class="profile-card-title" style="margin-bottom: 2px;">Online Payments &amp; Settlement Payouts</h3>
-                                <p class="profile-card-desc"><?= $isPlatformAdmin ? 'Configure payout disbursement rails and manage Xendit XenPlatform sub-accounts for this facility.' : 'Receive online payments (GCash, Maya, cards, bank) from members directly into your designated settlement account through Xendit XenPlatform.' ?></p>
+                                <p class="profile-card-desc"><?= $isPlatformAdmin ? 'Configure payout disbursement rails and manage the independent Xendit merchant account for this facility.' : 'Connect your own independent Xendit merchant account (or use Test / Sandbox Mode) to receive online member payments (GCash, Maya, cards, bank).' ?></p>
                             </div>
-                            <div>
-                                <?php if (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
+                            <div style="flex-shrink: 0;">
+                                <?php if ($secOnlineActive && ($gym['kyc_status'] ?? '') === 'verified'): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(132, 204, 22, 0.15); color: var(--lime); border: 1px solid rgba(132, 204, 22, 0.35);">
                                         <span style="width: 7px; height: 7px; border-radius: 50%; background: #22c55e;"></span>
-                                        Gateway Active (<?= h(mask_xendit_subaccount($gym['xendit_subaccount_id'])) ?>)
+                                        <?= h($secActiveBadgeLabel) ?>
+                                    </span>
+                                <?php elseif (strtoupper(trim((string)($gym['xendit_subaccount_id'] ?? ''))) === 'OFF'): ?>
+                                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(148, 163, 184, 0.15); color: var(--muted); border: 1px solid rgba(148, 163, 184, 0.3);">
+                                        <span style="width: 7px; height: 7px; border-radius: 50%; background: #94a3b8;"></span>
+                                        Online Payments Off (Cash Only)
                                     </span>
                                 <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">
                                         <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;"></span>
-                                        <?= $isPlatformAdmin ? 'Owner KYC Submitted – Review Required' : 'KYC Submitted – Pending Admin Verification' ?>
+                                        <?= $isPlatformAdmin ? 'Owner Submission – Review Available' : 'Pending Linking – Connect Xendit Account' ?>
                                     </span>
                                 <?php elseif (!empty($gym['payout_account_number'])): ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.35);">
                                         <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b;"></span>
-                                        Activation Pending Linking
+                                        Payout Saved – Connect Xendit Account
                                     </span>
                                 <?php else: ?>
                                     <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(148, 163, 184, 0.15); color: var(--muted); border: 1px solid rgba(148, 163, 184, 0.3);">
@@ -1627,41 +1849,35 @@ function gym_profile_page(): void
                             </div>
                         </div>
 
-                        <!-- Explanatory Banner & XenPlatform Process -->
+                        <!-- Explanatory Banner & Independent Xendit Process -->
                         <div style="background: rgba(132, 204, 22, 0.05); border: 1px solid rgba(132, 204, 22, 0.2); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
                             <div style="font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--lime);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                Automated Split Payments with Xendit XenPlatform
+                                Independent Xendit Merchant Gateway
                             </div>
                             <p style="font-size: 12px; line-height: 1.5; color: var(--muted); margin: 0 0 10px 0;">
                                 <?= $isPlatformAdmin
-                                    ? 'FitTrack connects this facility to Xendit XenPlatform so collected dues and pass purchases disburse directly to the gym\'s settlement account. As Platform Administrator, you review owner KYC submissions and activate sub-account routing.'
-                                    : 'FitTrack connects your gym to Xendit XenPlatform so member membership fees and pass purchases are automatically disbursed directly to your GCash or Bank account. Your platform admin does not hold your funds.'
+                                    ? 'Each facility connects its own verified independent Xendit merchant account (or uses Test / Sandbox Mode for testing) so member membership fees are collected directly by the gym without XenPlatform sub-account routing.'
+                                    : 'Each gym connects its own independent Xendit merchant account (or uses Test / Sandbox Mode for testing) so member membership fees and pass purchases are collected directly by your gym without XenPlatform sub-account routing.'
                                 ?>
                             </p>
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12px;">
                                 <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
-                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">1. Enter Payout Details</strong>
-                                    <?= $isPlatformAdmin ? 'Verified GCash or Bank account details registered for facility settlements.' : 'Provide your verified GCash or Bank account number and full name below.' ?>
+                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">1. Verify Xendit Account &amp; Payout Details</strong>
+                                    <?= $isPlatformAdmin ? 'Facility owner verifies their independent Xendit merchant account and sets settlement GCash/Maya/Bank details below.' : 'Register and verify your own Xendit merchant account and enter your settlement GCash/Maya/Bank details below.' ?>
                                 </div>
-                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: space-between;">
-                                    <div>
-                                        <strong style="color: var(--ink); display: block; margin-bottom: 3px;">2. Xendit Verification</strong>
-                                        <?= $isPlatformAdmin
-                                            ? 'Facility owner completes identity verification on Xendit. Review pending submissions or provision the verified sub-account.'
-                                            : 'Click &quot;Request Activation&quot;. Once KYC is verified on Xendit, click below to submit your sub-account.'
-                                        ?>
-                                    </div>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="openCustomModal('modal-xendit-kyc')" style="margin-top: 8px; font-size: 11px; padding: 4px 8px; align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; border-color: rgba(132, 204, 22, 0.4);">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                        <?= $isPlatformAdmin ? (!empty($gym['pending_subaccount_id']) ? 'Review Submitted KYC' : 'Manage Sub-Account') : 'Submit Completed KYC' ?>
-                                    </button>
+                                <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
+                                    <strong style="color: var(--ink); display: block; margin-bottom: 3px;">2. Connect Xendit Account</strong>
+                                    <?= $isPlatformAdmin
+                                        ? 'Choose Test / Sandbox Mode or enter verified Live Xendit API keys and webhook token.'
+                                        : 'Click &quot;Connect Xendit Account&quot; below to test in Sandbox Mode or enter your own Xendit Secret API Key.'
+                                    ?>
                                 </div>
                                 <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
                                     <strong style="color: var(--ink); display: block; margin-bottom: 3px;">3. Instant Online Sales</strong>
                                     <?= $isPlatformAdmin
-                                        ? 'Once verified by you, the sub-account is active and members can purchase passes online with split disbursement.'
-                                        : 'Once verified, your sub-account ID is linked and members can instantly purchase passes online!'
+                                        ? 'Once saved, the gateway activates immediately and members can purchase memberships online via Xendit Checkout.'
+                                        : 'Your gateway activates immediately upon saving—members can purchase memberships online via Xendit Checkout!'
                                     ?>
                                 </div>
                             </div>
@@ -1674,7 +1890,7 @@ function gym_profile_page(): void
                                     <span class="input-icon">
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
                                     </span>
-                                    <select name="payout_channel" id="payout_channel" class="input-with-icon" style="padding-left: 36px; height: 38px;">
+                                    <select name="payout_channel" id="payout_channel" class="input-with-icon" style="padding-left: 36px;">
                                         <option value="gcash" <?= ($gym['payout_channel'] ?? 'gcash') === 'gcash' ? 'selected' : '' ?>>GCash (Recommended)</option>
                                         <option value="maya" <?= ($gym['payout_channel'] ?? '') === 'maya' ? 'selected' : '' ?>>Maya</option>
                                         <option value="bank_transfer" <?= ($gym['payout_channel'] ?? '') === 'bank_transfer' ? 'selected' : '' ?>>Bank Transfer</option>
@@ -1764,142 +1980,68 @@ function gym_profile_page(): void
                                 <span class="field-hint">Exact account name as registered on GCash or Bank account.</span>
                             </div>
 
-                            <?php if ($isPlatformAdmin): ?>
-                                <?php
-                                $rawSubId = (string)($gym['xendit_subaccount_id'] ?? '');
-                                $maskedSubId = mask_xendit_subaccount($rawSubId);
-                                ?>
-                                <div>
-                                    <label class="field-label" for="xendit_subaccount_id">Xendit Sub-Account ID (Platform Admin Only)</label>
-                                    <div class="input-icon-wrap">
-                                        <span class="input-icon">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                                        </span>
-                                        <input type="text"
-                                               name="xendit_subaccount_id"
-                                               id="xendit_subaccount_id"
-                                               class="input-with-icon has-toggle"
-                                               value="<?= h(!empty($maskedSubId) ? $maskedSubId : $rawSubId) ?>"
-                                               data-raw="<?= h($rawSubId) ?>"
-                                               data-masked="<?= h($maskedSubId) ?>"
-                                               data-is-masked="<?= !empty($maskedSubId) ? '1' : '0' ?>"
-                                               placeholder="e.g. user_6492a5..."
-                                               autocomplete="off"
-                                               spellcheck="false"
-                                               data-lpignore="true">
-                                        <?= render_payout_eye_toggle('xendit_subaccount_id', !empty($maskedSubId), 'Toggle Xendit Sub-Account ID visibility') ?>
+                            <div>
+                                <label class="field-label" for="xendit_api_key_status">Xendit API Credentials (Encrypted at Rest)</label>
+                                <?php if (!empty($gym['has_custom_xendit_key'])): ?>
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(132, 204, 22, 0.35); background: rgba(132, 204, 22, 0.08); font-size: 12.5px; color: var(--ink);">
+                                        <span style="color: #22c55e; font-weight: 700;">AES-256-GCM</span>
+                                        <code id="xendit_api_key_status" style="font-size: 12px; color: var(--ink);"><?= h((string)($gym['xendit_secret_key_masked'] ?? 'Configured')) ?></code>
                                     </div>
-                                    <span class="field-hint">Xendit XenPlatform account ID created for this facility. When populated, online checkout is activated.</span>
-                                </div>
-
-                                <?php if (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
-                                    <div style="grid-column: 1 / -1; margin-top: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                                        <div>
-                                            <strong style="color: #f59e0b; font-size: 13px; display: flex; align-items: center; gap: 6px;">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                                Owner Submitted KYC For Review
-                                            </strong>
-                                            <p style="font-size: 12px; color: var(--ink); margin: 4px 0 0;">
-                                                Sub-Account: <code style="font-weight: 700; color: var(--ink);"><?= h(mask_xendit_subaccount($gym['pending_subaccount_id'])) ?></code> &bull; Registered Email: <span style="font-weight: 600;"><?= h($gym['kyc_email'] ?? 'Not provided') ?></span>
-                                            </p>
-                                        </div>
-                                        <div style="display: flex; gap: 8px;">
-                                            <input type="hidden" name="approved_subaccount_id" value="<?= h($gym['pending_subaccount_id']) ?>">
-                                            <button type="submit" name="approve_xendit_kyc" value="1" class="btn btn-lime btn-sm" style="display: inline-flex; align-items: center; gap: 5px;">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                                                Approve &amp; Activate Gateway
-                                            </button>
-                                            <button type="submit" name="reject_xendit_kyc" value="1" class="btn btn-secondary btn-sm" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">
-                                                Reject
-                                            </button>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-
-                            <?php elseif (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'):
-                                $rawLinkedSubId = (string)$gym['xendit_subaccount_id'];
-                                $maskedLinkedSubId = mask_xendit_subaccount($rawLinkedSubId);
-                            ?>
-                                <div>
-                                    <label class="field-label" for="linked_xendit_subaccount_id">Linked Xendit Sub-Account</label>
-                                    <div class="input-icon-wrap">
-                                        <span class="input-icon">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                                        </span>
-                                        <input type="text"
-                                               id="linked_xendit_subaccount_id"
-                                               class="input-with-icon has-toggle"
-                                               value="<?= h($maskedLinkedSubId ?: $rawLinkedSubId) ?>"
-                                               data-raw="<?= h($rawLinkedSubId) ?>"
-                                               data-masked="<?= h($maskedLinkedSubId) ?>"
-                                               data-is-masked="<?= !empty($maskedLinkedSubId) ? '1' : '0' ?>"
-                                               readonly
-                                               style="opacity: 0.75; cursor: not-allowed; background: rgba(255,255,255,0.04);">
-                                        <?= render_payout_eye_toggle('linked_xendit_subaccount_id', !empty($maskedLinkedSubId), 'Toggle Linked Xendit Sub-Account visibility') ?>
-                                    </div>
-                                    <span class="field-hint" style="color: var(--lime);">Verified and ready to receive member online payments.</span>
-                                </div>
-
-                            <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])):
-                                $rawPendingSubId = (string)($gym['pending_subaccount_id'] ?? '');
-                                $maskedPendingSubId = mask_xendit_subaccount($rawPendingSubId);
-                            ?>
-                                <div>
-                                    <label class="field-label" for="pending_xendit_subaccount_id">Submitted Sub-Account ID (Awaiting Admin Review)</label>
-                                    <div class="input-icon-wrap">
-                                        <span class="input-icon">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                                        </span>
-                                        <input type="text"
-                                               id="pending_xendit_subaccount_id"
-                                               class="input-with-icon has-toggle"
-                                               value="<?= h($maskedPendingSubId ?: $rawPendingSubId) ?>"
-                                               data-raw="<?= h($rawPendingSubId) ?>"
-                                               data-masked="<?= h($maskedPendingSubId) ?>"
-                                               data-is-masked="<?= !empty($maskedPendingSubId) ? '1' : '0' ?>"
-                                               readonly
-                                               style="opacity: 0.9; cursor: not-allowed; background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.35); color: var(--ink);">
-                                        <?= render_payout_eye_toggle('pending_xendit_subaccount_id', !empty($maskedPendingSubId), 'Toggle Submitted Sub-Account ID visibility') ?>
-                                    </div>
-                                    <span class="field-hint" style="color: #f59e0b;">
-                                        ⏳ Submitted for verification (Email: <?= h($gym['kyc_email'] ?? '') ?>). Platform administrators have been notified and must verify your account before online payments become active.
+                                    <span class="field-hint" style="color: var(--lime);">
+                                        <?= $secKeyIsLive ? 'Custom Live key saved' : 'Custom Test key saved' ?><?= !empty($gym['has_custom_xendit_webhook']) ? ' &bull; Webhook token encrypted' : '' ?>. Never exposed in plaintext.
                                     </span>
-                                </div>
-                            <?php endif; ?>
+                                <?php elseif (function_exists('xendit_is_test_fallback_allowed') && xendit_is_test_fallback_allowed()): ?>
+                                    <div id="xendit_api_key_status" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.08); font-size: 12.5px; font-weight: 600; color: #f59e0b;">
+                                        <?= $secOnlineActive ? 'Test/Demo Fallback Key Active' : 'Test/Demo Fallback Key Ready' ?>
+                                    </div>
+                                    <span class="field-hint">Using server Test Mode fallback key (<code>xnd_development_*</code>). For Live Mode, add your own Xendit Secret Key.</span>
+                                <?php elseif (!$secOnlineActive): ?>
+                                    <div id="xendit_api_key_status" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line, rgba(148, 163, 184, 0.28)); background: rgba(148, 163, 184, 0.08); font-size: 12.5px; font-weight: 600; color: var(--muted);">
+                                        Not Connected (Cash Only)
+                                    </div>
+                                    <span class="field-hint">Online checkout is off. Click &quot;Connect Xendit Account&quot; to enable Test Mode or add Live keys.</span>
+                                <?php else: ?>
+                                    <div id="xendit_api_key_status" style="display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); font-size: 12.5px; font-weight: 600; color: #ef4444;">
+                                        API Key Required for Live Mode
+                                    </div>
+                                    <span class="field-hint" style="color: #ef4444;">Silent fallback is disabled in Live Mode. Click &quot;Connect Xendit Account&quot; to add your Xendit Secret Key.</span>
+                                <?php endif; ?>
+                            </div>
                         </div>
 
-                        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, rgba(255,255,255,0.08)); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div class="payout-actions-bar">
                             <div style="font-size: 12px; color: var(--muted);">
-                                <?php if (!empty($gym['xendit_subaccount_id']) && ($gym['kyc_status'] ?? '') === 'verified'): ?>
-                                    <?= $isPlatformAdmin
-                                        ? '🟢 Online payments are actively routed to this facility\'s verified sub-account.'
-                                        : '🟢 Online payments are actively routed to your sub-account.'
-                                    ?>
-                                <?php elseif (($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])): ?>
-                                    <?= $isPlatformAdmin
-                                        ? '🟡 Facility owner submitted KYC details. Review the pending sub-account above and approve or reject.'
-                                        : '🟡 Your Xendit KYC details were submitted and are awaiting platform admin verification.'
-                                    ?>
+                                <?php if ($secOnlineActive && ($gym['kyc_status'] ?? '') === 'verified'): ?>
+                                    <?php if ($secKeyIsLive): ?>
+                                        <?= $isPlatformAdmin
+                                            ? '🟢 Live Xendit merchant account is connected for this facility and online member checkout is active.'
+                                            : '🟢 Live Xendit merchant account is connected and online member checkout is active.'
+                                        ?>
+                                    <?php elseif ($secKeyIsTest): ?>
+                                        🟡 Test / Sandbox Mode is active using this gym&apos;s custom Xendit Test key.
+                                    <?php else: ?>
+                                        🟡 Test / Sandbox Mode is active using FitTrack&apos;s built-in demo Xendit Test gateway.
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <?= $isPlatformAdmin
-                                        ? 'Assign a verified Xendit XenPlatform sub-account ID to enable member online checkout.'
-                                        : 'Completed Xendit KYC? Click &quot;Submit Completed KYC&quot; to notify platform admins.'
+                                        ? 'Configure Test / Sandbox Mode or Live Xendit API keys to enable member online checkout.'
+                                        : 'Activate Test / Sandbox Mode or connect your Live Xendit API keys to enable online member checkout.'
                                     ?>
                                 <?php endif; ?>
                             </div>
-                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <div class="payout-actions-group">
                                 <button type="submit" class="btn btn-secondary btn-sm"><?= $isPlatformAdmin ? 'Save Payout Settings' : 'Save Payout Details' ?></button>
-                                <button type="button" class="btn btn-secondary btn-sm" onclick="openCustomModal('modal-xendit-kyc')" style="display: inline-flex; align-items: center; gap: 6px; border-color: rgba(132, 204, 22, 0.4); color: var(--ink);">
+                                <button type="button" class="btn btn-lime btn-sm" onclick="openCustomModal('modal-xendit-kyc')" style="display: inline-flex; align-items: center; gap: 6px;">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                                     <?= $isPlatformAdmin
-                                        ? ((($gym['kyc_status'] ?? '') === 'pending' || !empty($gym['pending_subaccount_id'])) ? 'Review / Edit Submitted KYC' : 'Provision / Edit Sub-Account')
-                                        : (!empty($gym['xendit_subaccount_id']) ? 'Update KYC / Sub-Account' : 'Submit Completed KYC')
+                                        ? 'Manage Xendit Account'
+                                        : (!empty($gym['xendit_subaccount_id']) ? 'Update Xendit Account' : 'Connect Xendit Account')
                                     ?>
                                 </button>
                                 <?php if (empty($gym['xendit_subaccount_id'])): ?>
-                                    <button type="submit" name="request_xendit_activation" value="1" class="btn btn-lime btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
+                                    <button type="submit" name="request_xendit_activation" value="1" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                                        <?= $isPlatformAdmin ? 'Send Onboarding Invite to Owner' : 'Save &amp; Request Xendit Activation' ?>
+                                        <?= $isPlatformAdmin ? 'Send Setup Guide to Owner' : 'Email Xendit Setup Guide' ?>
                                     </button>
                                 <?php endif; ?>
                             </div>
@@ -2383,77 +2525,118 @@ function gym_profile_page(): void
         </div>
 
         <!-- ======================================================== -->
-        <!-- MODAL 3: SUBMIT XENDIT KYC & SUB-ACCOUNT DETAILS         -->
+        <!-- MODAL 3: CONNECT INDEPENDENT XENDIT MERCHANT ACCOUNT     -->
         <!-- ======================================================== -->
         <div class="custom-modal-backdrop" id="modal-xendit-kyc" onclick="handleBackdropClick(event, 'modal-xendit-kyc')">
             <div class="custom-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-xendit-kyc-title" style="max-width: 520px;">
                 <div class="custom-modal-header">
                     <div>
-                        <h3 class="custom-modal-title" id="modal-xendit-kyc-title"><?= $isPlatformAdmin ? 'Manage Facility Xendit Sub-Account' : 'Submit Completed Xendit KYC' ?></h3>
-                        <p class="custom-modal-subtitle"><?= $isPlatformAdmin ? 'Review, assign, or verify the Xendit XenPlatform sub-account for this facility.' : 'Submit your verified Xendit account details for gateway activation.' ?></p>
+                        <h3 class="custom-modal-title" id="modal-xendit-kyc-title"><?= $isPlatformAdmin ? 'Manage Facility Xendit Account' : 'Connect Independent Xendit Account' ?></h3>
+                        <p class="custom-modal-subtitle">Link your verified Xendit merchant account to immediately activate online member payments.</p>
                     </div>
                     <button type="button" class="custom-modal-close" onclick="closeCustomModal('modal-xendit-kyc')" aria-label="Close modal">&times;</button>
                 </div>
-                <div class="custom-modal-body" style="display: flex; flex-direction: column; gap: 16px;">
-                    <?php if ($isPlatformAdmin): ?>
-                        <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.5; color: var(--ink);">
-                            <strong style="color: #3b82f6; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                                Platform Administrator Provisioning
-                            </strong>
-                            Assign or update the verified Xendit XenPlatform sub-account ID for this facility. Saving will immediately verify the account, activate online payment routing, and notify the gym owner.
-                        </div>
-                    <?php else: ?>
-                        <div style="background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.25); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; line-height: 1.5; color: var(--ink);">
-                            <strong style="color: var(--lime, #84cc16); display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                KYC Verification Completed
-                            </strong>
-                            Enter the email address registered on your Xendit account and your generated Sub-Account ID. Platform administrators will receive an in-app notification to review and activate your online payment gateway.
-                        </div>
-                    <?php endif; ?>
+                <div class="custom-modal-body">
+                    <?php
+                    $hasSavedSecretKey = !empty($gym['has_custom_xendit_key']);
+                    $maskedSavedSecretKey = (string)($gym['xendit_secret_key_masked'] ?? '');
+                    $savedKeyIsLive = str_starts_with($maskedSavedSecretKey, 'xnd_production_');
+                    $savedKeyIsTest = str_starts_with($maskedSavedSecretKey, 'xnd_development_');
+                    $hasSavedWebhookToken = !empty($gym['has_custom_xendit_webhook']);
+                    $testFallbackAvailable = function_exists('xendit_is_test_fallback_allowed') && xendit_is_test_fallback_allowed();
+                    $defaultGatewayMode = $savedKeyIsLive ? 'custom_keys' : 'test_sandbox';
+                    $savedTestPlaceholder = $savedKeyIsTest ? ('Saved (' . ($maskedSavedSecretKey ?: 'Encrypted') . ') — leave blank to keep') : '';
+                    $savedLivePlaceholder = $savedKeyIsLive ? ('Saved (' . ($maskedSavedSecretKey ?: 'Encrypted') . ') — leave blank to keep') : '';
+                    $initialSecretPlaceholder = $defaultGatewayMode === 'test_sandbox'
+                        ? ($savedTestPlaceholder !== '' ? $savedTestPlaceholder : 'xnd_development_... (leave blank to use built-in test key)')
+                        : ($savedLivePlaceholder !== '' ? $savedLivePlaceholder : 'xnd_production_...');
+                    ?>
+
+                    <input type="hidden" name="xendit_gateway_mode" id="xendit_gateway_mode" value="<?= h($defaultGatewayMode) ?>">
 
                     <div>
-                        <label class="field-label" for="xendit_kyc_email"><?= $isPlatformAdmin ? 'Facility / Xendit Registered Email' : 'Registered Xendit Account Email' ?> <span style="color: #ef4444;">*</span></label>
-                        <div class="input-icon-wrap">
-                            <span class="input-icon">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                            </span>
-                            <input type="email"
-                                   name="xendit_kyc_email"
-                                   id="xendit_kyc_email"
-                                   class="input-with-icon"
-                                   value="<?= h($gym['kyc_email'] ?? ($isPlatformAdmin ? '' : ($user['email'] ?? ''))) ?>"
-                                   placeholder="owner@yourgym.com">
+                        <label class="field-label">Payment Gateway Mode</label>
+                        <div class="xendit-mode-switcher" role="tablist" aria-label="Xendit Gateway Mode">
+                            <button type="button"
+                                    class="xendit-mode-btn <?= $defaultGatewayMode === 'test_sandbox' ? 'is-active' : '' ?>"
+                                    data-mode="test_sandbox"
+                                    onclick="switchXenditGatewayMode('test_sandbox')">
+                                <span class="xendit-mode-btn-title">Test / Sandbox Mode</span>
+                                <span class="xendit-mode-btn-sub">Built-in demo or your Test key</span>
+                            </button>
+                            <button type="button"
+                                    class="xendit-mode-btn <?= $defaultGatewayMode === 'custom_keys' ? 'is-active' : '' ?>"
+                                    data-mode="custom_keys"
+                                    onclick="switchXenditGatewayMode('custom_keys')">
+                                <span class="xendit-mode-btn-title">Live Xendit API Keys</span>
+                                <span class="xendit-mode-btn-sub">Production merchant account</span>
+                            </button>
                         </div>
-                        <span class="field-hint"><?= $isPlatformAdmin ? 'Registered email address of the gym owner on Xendit.' : 'The email address you used to complete KYC on Xendit.' ?></span>
                     </div>
 
-                    <?php
-                    $rawModalSubId = (string)($gym['pending_subaccount_id'] ?? $gym['xendit_subaccount_id'] ?? '');
-                    $maskedModalSubId = mask_xendit_subaccount($rawModalSubId);
-                    ?>
+                    <div id="xendit-sandbox-mode-banner" style="display: <?= $defaultGatewayMode === 'test_sandbox' ? 'block' : 'none' ?>; background: rgba(245, 158, 11, 0.09); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 11px 13px; font-size: 12px; line-height: 1.5; color: var(--ink);">
+                        <strong style="color: #f59e0b; display: block; margin-bottom: 3px;">Test / Sandbox Mode (Testing Only)</strong>
+                        <?php if ($testFallbackAvailable): ?>
+                            Leave the Secret Key blank to test using FitTrack&apos;s built-in Xendit Test gateway, or paste your own Xendit Test Secret Key (<code>xnd_development_...</code>) and Webhook Token to test with your own Xendit account.
+                        <?php else: ?>
+                            Enter your own Xendit Test Secret Key (<code>xnd_development_...</code>) and Webhook Token to test with your Xendit Test account (built-in server fallback is disabled).
+                        <?php endif; ?>
+                        <?php if ($savedKeyIsTest): ?>
+                            <label style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11.5px; color: var(--ink); cursor: pointer;">
+                                <input type="checkbox" name="use_builtin_sandbox" value="1">
+                                Reset to FitTrack&apos;s built-in demo test key
+                            </label>
+                        <?php endif; ?>
+                    </div>
+
+                    <div id="xendit-live-mode-banner" style="display: <?= $defaultGatewayMode === 'custom_keys' ? 'block' : 'none' ?>; background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.3); border-radius: 10px; padding: 11px 13px; font-size: 12px; line-height: 1.5; color: var(--ink);">
+                        <strong style="color: var(--lime, #84cc16); display: block; margin-bottom: 3px;">Live Production Mode</strong>
+                        Requires your own verified Live Xendit Secret API Key (<code>xnd_production_...</code>). Test keys and silent fallbacks are blocked in Live Mode.
+                    </div>
+
                     <div>
-                        <label class="field-label" for="xendit_subaccount_id_submission"><?= $isPlatformAdmin ? 'XenPlatform Sub-Account ID' : 'Xendit Sub-Account ID' ?> <span style="color: #ef4444;">*</span></label>
+                        <label class="field-label" for="xendit_secret_key_submission">
+                            Xendit Secret API Key (Money-In Only)
+                            <span id="xendit-secret-key-req" style="color: #ef4444;<?= ($defaultGatewayMode === 'test_sandbox' || $savedKeyIsLive) ? ' display: none;' : '' ?>">*</span>
+                            <span id="xendit-secret-key-opt" style="font-size: 11px; font-weight: 500; color: var(--muted);<?= $defaultGatewayMode === 'custom_keys' ? ' display: none;' : '' ?>">(Optional)</span>
+                        </label>
                         <div class="input-icon-wrap">
-                            <span class="input-icon">
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            </span>
-                            <input type="text"
-                                   name="xendit_subaccount_id_submission"
-                                   id="xendit_subaccount_id_submission"
+                            <input type="password"
+                                   name="xendit_secret_key_submission"
+                                   id="xendit_secret_key_submission"
                                    class="input-with-icon has-toggle"
-                                   value="<?= h(!empty($maskedModalSubId) ? $maskedModalSubId : $rawModalSubId) ?>"
-                                   data-raw="<?= h($rawModalSubId) ?>"
-                                   data-masked="<?= h($maskedModalSubId) ?>"
-                                   data-is-masked="<?= !empty($maskedModalSubId) ? '1' : '0' ?>"
-                                   placeholder="e.g. user_6492a5b6c..."
-                                   autocomplete="off"
+                                   style="padding-left: 14px !important;"
+                                   value=""
+                                   data-saved-test="<?= h($savedTestPlaceholder) ?>"
+                                   data-saved-live="<?= h($savedLivePlaceholder) ?>"
+                                   placeholder="<?= h($initialSecretPlaceholder) ?>"
+                                   autocomplete="new-password"
                                    spellcheck="false"
                                    data-lpignore="true">
-                            <?= render_payout_eye_toggle('xendit_subaccount_id_submission', !empty($maskedModalSubId), 'Toggle Xendit Sub-Account ID visibility') ?>
                         </div>
-                        <span class="field-hint"><?= $isPlatformAdmin ? 'Unique XenPlatform sub-account ID generated for this facility.' : 'Your unique XenPlatform sub-account ID provided after KYC onboarding.' ?></span>
+                        <span class="field-hint" id="xendit-secret-key-hint">Use a scoped <strong>Money-In Only</strong> key (Money-Out / Transfers set to <code>None</code>). Verified live with Xendit on save.</span>
+                    </div>
+
+                    <div>
+                        <label class="field-label" for="xendit_webhook_token_submission">Xendit Webhook Verification Token</label>
+                        <div class="input-icon-wrap">
+                            <input type="password"
+                                   name="xendit_webhook_token_submission"
+                                   id="xendit_webhook_token_submission"
+                                   class="input-with-icon has-toggle"
+                                   style="padding-left: 14px !important;"
+                                   value=""
+                                   placeholder="<?= $hasSavedWebhookToken ? 'Saved (Encrypted) — leave blank to keep' : 'Paste token from Xendit Webhooks (optional in Sandbox)' ?>"
+                                   autocomplete="new-password"
+                                   spellcheck="false"
+                                   data-lpignore="true">
+                        </div>
+                        <span class="field-hint">Verifies incoming Xendit <code>payment_session.completed</code> webhooks for your gym.</span>
+                    </div>
+
+                    <div style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 8px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; color: var(--muted);">
+                        <strong style="color: var(--ink);">Security &amp; Live Mode Policy:</strong>
+                        Credentials are encrypted at rest with <strong>AES-256-GCM</strong> and never displayed in plaintext. Automatic fallback only operates in <strong>Test / Sandbox Mode</strong> (<code>xnd_development_*</code>), never silently in Live Mode.
                     </div>
                 </div>
                 <div class="custom-modal-footer">
@@ -2462,7 +2645,7 @@ function gym_profile_page(): void
                     </button>
                     <button type="submit" name="submit_xendit_kyc" value="1" class="btn btn-lime" id="btn-submit-kyc-details" style="display: inline-flex; align-items: center; gap: 6px;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                        <?= $isPlatformAdmin ? 'Save &amp; Activate Sub-Account' : 'Submit for Admin Verification' ?>
+                        Save &amp; Activate Gateway
                     </button>
                 </div>
             </div>
@@ -2511,6 +2694,30 @@ function gym_profile_page(): void
         }).addTo(map);
 
         let marker = null;
+        let geofenceCircle = null;
+        const geofenceInput = document.getElementById('gym_geofence');
+
+        function getGeofenceRadius() {
+            const raw = geofenceInput ? parseFloat(geofenceInput.value) : 100;
+            if (isNaN(raw) || raw <= 0) return 100;
+            return Math.min(1000, Math.max(20, raw));
+        }
+
+        function updateGeofenceCircle(lat, lng) {
+            const radius = getGeofenceRadius();
+            if (geofenceCircle) {
+                geofenceCircle.setLatLng([lat, lng]);
+                geofenceCircle.setRadius(radius);
+            } else {
+                geofenceCircle = L.circle([lat, lng], {
+                    radius: radius,
+                    color: '#84cc16',
+                    fillColor: '#84cc16',
+                    fillOpacity: 0.14,
+                    weight: 1.5
+                }).addTo(map);
+            }
+        }
 
         function setPin(lat, lng, pan = false) {
             lat = parseFloat(lat.toFixed(8));
@@ -2535,6 +2742,8 @@ function gym_profile_page(): void
                 });
             }
 
+            updateGeofenceCircle(lat, lng);
+
             if (pan) {
                 map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.8 });
             }
@@ -2557,6 +2766,16 @@ function gym_profile_page(): void
                 }
             });
         });
+
+        if (geofenceInput) {
+            geofenceInput.addEventListener('input', function () {
+                const lat = parseFloat(latInput.value);
+                const lng = parseFloat(lngInput.value);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    updateGeofenceCircle(lat, lng);
+                }
+            });
+        }
 
         const addressInput = document.getElementById('gym_address');
         const btnAddressLoc = document.getElementById('btn-address-use-loc');

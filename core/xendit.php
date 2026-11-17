@@ -6,32 +6,207 @@ function xendit_platform_secret_key(): string
     return trim((string) app_env('XENDIT_SECRET_KEY'));
 }
 
-function xendit_has_dedicated_member_key(): bool
-{
-    return trim((string) app_env('XENDIT_MEMBER_SECRET_KEY')) !== '';
-}
-
-function xendit_member_secret_key(): string
+function xendit_get_test_fallback_secret_key(): string
 {
     $memberKey = trim((string) app_env('XENDIT_MEMBER_SECRET_KEY'));
-    return $memberKey !== '' ? $memberKey : xendit_platform_secret_key();
+    if ($memberKey !== '') {
+        if (str_starts_with($memberKey, 'xnd_development_')) {
+            return $memberKey;
+        }
+        error_log('[Xendit Security] Blocked silent fallback: XENDIT_MEMBER_SECRET_KEY is not a test key (xnd_development_*).');
+        return '';
+    }
+    // If XENDIT_MEMBER_SECRET_KEY is not set, allow falling back to XENDIT_SECRET_KEY ONLY if it is a test key (xnd_development_*)
+    $platformKey = trim((string) app_env('XENDIT_SECRET_KEY'));
+    if ($platformKey !== '' && str_starts_with($platformKey, 'xnd_development_')) {
+        return $platformKey;
+    }
+    return '';
 }
 
-function xendit_member_online_enabled(?string $subaccountId = null): bool
+function xendit_get_test_fallback_webhook_token(): string
 {
-    if (xendit_has_dedicated_member_key()) {
-        return true;
+    $memberToken = trim((string) app_env('XENDIT_MEMBER_WEBHOOK_TOKEN'));
+    if ($memberToken !== '') {
+        return $memberToken;
     }
-    return xendit_platform_secret_key() !== '' && trim((string) $subaccountId) !== '';
+    $platformKey = trim((string) app_env('XENDIT_SECRET_KEY'));
+    if ($platformKey !== '' && str_starts_with($platformKey, 'xnd_development_')) {
+        return trim((string) app_env('XENDIT_WEBHOOK_TOKEN'));
+    }
+    return '';
+}
+
+function xendit_is_test_fallback_allowed(): bool
+{
+    $toggle = strtolower(trim((string) app_env('XENDIT_ALLOW_TEST_FALLBACK', 'true')));
+    if (in_array($toggle, ['false', '0', 'no', 'off'], true)) {
+        return false;
+    }
+    return xendit_get_test_fallback_secret_key() !== '';
+}
+
+function xendit_has_dedicated_member_key(): bool
+{
+    return xendit_is_test_fallback_allowed();
+}
+
+function xendit_get_gym_gateway_state(?array $gym = null, ?int $gymId = null): string
+{
+    if ($gym === null && $gymId !== null && $gymId > 0) {
+        try {
+            if (function_exists('ensure_gym_payout_xendit_columns')) {
+                ensure_gym_payout_xendit_columns();
+            }
+            $stmt = db()->prepare('SELECT xendit_subaccount_id, xendit_secret_key_enc, kyc_status FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
+            $stmt->execute([$gymId]);
+            $gym = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable) {
+            $gym = [];
+        }
+    }
+    $sub = strtoupper(trim((string) ($gym['xendit_subaccount_id'] ?? '')));
+    if ($sub === 'OFF' || $sub === '') {
+        return 'off';
+    }
+    $masked = (string) ($gym['xendit_secret_key_masked'] ?? '');
+    if ($masked === '' && !empty($gym['xendit_secret_key_enc']) && function_exists('mask_xendit_secret_key')) {
+        $masked = mask_xendit_secret_key((string) $gym['xendit_secret_key_enc']);
+    }
+    $hasLiveKey = str_starts_with($masked, 'xnd_production_');
+    $hasTestKey = str_starts_with($masked, 'xnd_development_');
+
+    if (str_starts_with($sub, 'TEST-SANDBOX')) {
+        return xendit_is_test_fallback_allowed() ? 'test_sandbox' : 'off';
+    }
+    if (str_starts_with($sub, 'TEST-CUSTOM')) {
+        return $hasTestKey ? 'test_custom' : (xendit_is_test_fallback_allowed() ? 'test_sandbox' : 'off');
+    }
+    if (str_starts_with($sub, 'LIVE-XENDIT')) {
+        return $hasLiveKey ? 'live' : 'off';
+    }
+    if ($hasLiveKey) {
+        return 'live';
+    }
+    if ($hasTestKey) {
+        return 'test_custom';
+    }
+    return xendit_is_test_fallback_allowed() ? 'test_sandbox' : 'off';
+}
+
+function xendit_resolve_gym_secret_key(?int $gymId = null, ?string $encryptedGymKey = null, ?string $subaccountId = null): string
+{
+    if (($encryptedGymKey === null || $subaccountId === null) && $gymId !== null && $gymId > 0) {
+        try {
+            if (function_exists('ensure_gym_payout_xendit_columns')) {
+                ensure_gym_payout_xendit_columns();
+            }
+            $stmt = db()->prepare('SELECT xendit_subaccount_id, xendit_secret_key_enc FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
+            $stmt->execute([$gymId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            if ($encryptedGymKey === null) {
+                $encryptedGymKey = (string) ($row['xendit_secret_key_enc'] ?? '');
+            }
+            if ($subaccountId === null) {
+                $subaccountId = (string) ($row['xendit_subaccount_id'] ?? '');
+            }
+        } catch (Throwable) {
+            $encryptedGymKey = $encryptedGymKey ?? '';
+            $subaccountId = $subaccountId ?? '';
+        }
+    }
+
+    $subUpper = strtoupper(trim((string) $subaccountId));
+    if ($subUpper === 'OFF') {
+        return '';
+    }
+    if (str_starts_with($subUpper, 'TEST-SANDBOX')) {
+        return xendit_is_test_fallback_allowed() ? xendit_get_test_fallback_secret_key() : '';
+    }
+
+    $rawEnc = trim((string) $encryptedGymKey);
+    if ($rawEnc !== '') {
+        $decrypted = function_exists('decrypt_message') ? decrypt_message($rawEnc) : $rawEnc;
+        if (trim($decrypted) !== '') {
+            return trim($decrypted);
+        }
+    }
+
+    if (xendit_is_test_fallback_allowed()) {
+        return xendit_get_test_fallback_secret_key();
+    }
+
+    return '';
+}
+
+function xendit_resolve_gym_webhook_token(?int $gymId = null, ?string $encryptedGymToken = null, ?string $subaccountId = null): string
+{
+    if (($encryptedGymToken === null || $subaccountId === null) && $gymId !== null && $gymId > 0) {
+        try {
+            if (function_exists('ensure_gym_payout_xendit_columns')) {
+                ensure_gym_payout_xendit_columns();
+            }
+            $stmt = db()->prepare('SELECT xendit_subaccount_id, xendit_webhook_token_enc FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
+            $stmt->execute([$gymId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            if ($encryptedGymToken === null) {
+                $encryptedGymToken = (string) ($row['xendit_webhook_token_enc'] ?? '');
+            }
+            if ($subaccountId === null) {
+                $subaccountId = (string) ($row['xendit_subaccount_id'] ?? '');
+            }
+        } catch (Throwable) {
+            $encryptedGymToken = $encryptedGymToken ?? '';
+            $subaccountId = $subaccountId ?? '';
+        }
+    }
+
+    $subUpper = strtoupper(trim((string) $subaccountId));
+    if ($subUpper === 'OFF') {
+        return '';
+    }
+    if (str_starts_with($subUpper, 'TEST-SANDBOX')) {
+        return xendit_is_test_fallback_allowed() ? xendit_get_test_fallback_webhook_token() : '';
+    }
+
+    $rawEnc = trim((string) $encryptedGymToken);
+    if ($rawEnc !== '') {
+        $decrypted = function_exists('decrypt_message') ? decrypt_message($rawEnc) : $rawEnc;
+        if (trim($decrypted) !== '') {
+            return trim($decrypted);
+        }
+    }
+
+    if (xendit_is_test_fallback_allowed()) {
+        return xendit_get_test_fallback_webhook_token();
+    }
+
+    return '';
+}
+
+function xendit_member_secret_key(?int $gymId = null, ?string $encryptedGymKey = null): string
+{
+    return xendit_resolve_gym_secret_key($gymId, $encryptedGymKey);
+}
+
+function xendit_member_online_enabled(?string $subaccountId = null, ?string $encryptedGymKey = null, ?int $gymId = null): bool
+{
+    $subUpper = strtoupper(trim((string) $subaccountId));
+    if ($subUpper === 'OFF') {
+        return false;
+    }
+    if (str_starts_with($subUpper, 'TEST-SANDBOX')) {
+        return xendit_is_test_fallback_allowed();
+    }
+    if (trim((string) $subaccountId) === '' && trim((string) $encryptedGymKey) === '') {
+        return false;
+    }
+    return xendit_resolve_gym_secret_key($gymId, $encryptedGymKey, $subaccountId) !== '';
 }
 
 function xendit_member_for_user_id(?string $subaccountId = null): ?string
 {
-    if (xendit_has_dedicated_member_key()) {
-        return null;
-    }
-    $trimmed = trim((string) $subaccountId);
-    return $trimmed !== '' ? $trimmed : null;
+    return null;
 }
 
 function xendit_build_customer_payload(array $customer, string $customerRef, string $customerEmail): array
@@ -53,9 +228,96 @@ function xendit_build_customer_payload(array $customer, string $customerRef, str
     ];
 }
 
+function xendit_verify_secret_key(string $secretKey, bool|string $mode = 'live'): array
+{
+    $secretKey = trim($secretKey);
+    if ($secretKey === '') {
+        return ['valid' => false, 'message' => 'Please provide your Xendit Secret API Key.'];
+    }
+
+    if ($mode === true || $mode === 'live') {
+        $expectedMode = 'live';
+    } elseif ($mode === 'test') {
+        $expectedMode = 'test';
+    } else {
+        $expectedMode = 'any';
+    }
+
+    if ($expectedMode === 'live') {
+        if (str_starts_with($secretKey, 'xnd_development_')) {
+            return [
+                'valid' => false,
+                'message' => 'Test keys (xnd_development_*) cannot be used in Live Mode. Please enter a Live key starting with xnd_production_, or switch to Test / Sandbox Mode.',
+            ];
+        }
+        $pattern = '/^xnd_production_[A-Za-z0-9+\/=_-]{20,}$/';
+        $formatErr = 'Invalid Xendit Secret Key format. A Live key must start with xnd_production_ followed by your full secret key string.';
+    } elseif ($expectedMode === 'test') {
+        if (str_starts_with($secretKey, 'xnd_production_')) {
+            return [
+                'valid' => false,
+                'message' => 'Live keys (xnd_production_*) cannot be used in Test / Sandbox Mode. Please enter a Test key starting with xnd_development_, or switch to Live Xendit API Keys.',
+            ];
+        }
+        $pattern = '/^xnd_development_[A-Za-z0-9+\/=_-]{20,}$/';
+        $formatErr = 'Invalid Xendit Test Secret Key format. A Test key must start with xnd_development_ followed by your full secret key string.';
+    } else {
+        $pattern = '/^xnd_(development|production)_[A-Za-z0-9+\/=_-]{20,}$/';
+        $formatErr = 'Invalid Xendit Secret Key format. It must start with xnd_development_ or xnd_production_ followed by your full secret key string.';
+    }
+
+    if (!preg_match($pattern, $secretKey)) {
+        return ['valid' => false, 'message' => $formatErr];
+    }
+    if (!function_exists('curl_init')) {
+        return ['valid' => false, 'message' => 'The PHP cURL extension is required to verify Xendit keys.'];
+    }
+
+    $curl = curl_init('https://api.xendit.co/customers?reference_id=fittrack-key-check');
+    curl_setopt_array($curl, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'GET',
+        CURLOPT_USERPWD => $secretKey . ':',
+        CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+        CURLOPT_HTTPHEADER => ['Accept: application/json', 'api-version: 2020-10-31'],
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $responseBody = curl_exec($curl);
+    $httpStatus = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+
+    if ($responseBody === false || $httpStatus === 0) {
+        return [
+            'valid' => false,
+            'message' => 'Could not reach Xendit to verify your API key. Please check your internet connection and try again.',
+        ];
+    }
+
+    $decoded = json_decode((string) $responseBody, true);
+    $errorCode = is_array($decoded) ? strtoupper((string) ($decoded['error_code'] ?? '')) : '';
+    if ($httpStatus === 401 || in_array($errorCode, ['INVALID_API_KEY', 'AUTHENTICATION_ERROR'], true)) {
+        $keyLabel = $expectedMode === 'test' ? 'Test Secret Key' : 'Live Secret Key';
+        return [
+            'valid' => false,
+            'message' => "Xendit rejected this Secret API Key (invalid or revoked). Please copy the exact {$keyLabel} from your Xendit Dashboard.",
+        ];
+    }
+
+    // HTTP 200 (authenticated + read allowed) or HTTP 403 (authenticated valid key with write-only Money-In scope)
+    if (($httpStatus >= 200 && $httpStatus < 300) || $httpStatus === 403) {
+        return ['valid' => true, 'message' => 'Verified'];
+    }
+
+    return [
+        'valid' => false,
+        'message' => 'Xendit could not verify this API key (HTTP ' . $httpStatus . '). Please check your key and try again.',
+    ];
+}
+
 function xendit_api_request(string $method, string $path, ?array $body = null, array $headers = [], ?string $secretKeyOverride = null): array
 {
-    $secretKey = ($secretKeyOverride !== null && trim($secretKeyOverride) !== '')
+    $secretKey = $secretKeyOverride !== null
         ? trim($secretKeyOverride)
         : xendit_platform_secret_key();
     if ($secretKey === '') {
@@ -189,9 +451,12 @@ function xendit_create_checkout_session(
         throw new RuntimeException('Invalid subscription payment details.');
     }
 
-    $secretKey = ($secretKeyOverride !== null && trim($secretKeyOverride) !== '')
+    $secretKey = $secretKeyOverride !== null
         ? trim($secretKeyOverride)
         : ($returnPage === 'memberships' ? xendit_member_secret_key() : xendit_platform_secret_key());
+    if ($secretKey === '') {
+        throw new RuntimeException('Xendit is not configured.');
+    }
 
     $billingCycle = (string) ($payment['billing_cycle'] ?? 'monthly');
     $description = 'FitTrack ' . (string) ($payment['plan_name'] ?? 'subscription') . ' plan for ' . $merchantName
@@ -329,15 +594,13 @@ function handle_xendit_subscription_webhook(): void
     }
 
     $platformToken = trim((string) app_env('XENDIT_WEBHOOK_TOKEN'));
-    $memberToken = trim((string) app_env('XENDIT_MEMBER_WEBHOOK_TOKEN'));
+    $memberToken = xendit_get_test_fallback_webhook_token();
     $providedToken = trim((string) ($_SERVER['HTTP_X_CALLBACK_TOKEN'] ?? $_SERVER['REDIRECT_HTTP_X_CALLBACK_TOKEN'] ?? ''));
     if ($providedToken === '' && function_exists('getallheaders')) {
         $headers = array_change_key_case(getallheaders(), CASE_LOWER);
         $providedToken = trim((string) ($headers['x-callback-token'] ?? ''));
     }
-    $matchesPlatform = ($platformToken !== '' && $providedToken !== '' && hash_equals($platformToken, $providedToken));
-    $matchesMember = ($memberToken !== '' && $providedToken !== '' && hash_equals($memberToken, $providedToken));
-    if (!$matchesPlatform && !$matchesMember) {
+    if ($providedToken === '') {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
         return;
@@ -353,6 +616,13 @@ function handle_xendit_subscription_webhook(): void
     $event = (string) ($payload['event'] ?? '');
     $data = $payload['data'];
     if (!in_array($event, ['payment_session.completed', 'payment_session.expired'], true)) {
+        $matchesPlatform = ($platformToken !== '' && hash_equals($platformToken, $providedToken));
+        $matchesFallbackMember = (xendit_is_test_fallback_allowed() && $memberToken !== '' && hash_equals($memberToken, $providedToken));
+        if (!$matchesPlatform && !$matchesFallbackMember) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
+            return;
+        }
         http_response_code(200);
         echo json_encode(['success' => true, 'ignored' => true]);
         return;
@@ -367,6 +637,11 @@ function handle_xendit_subscription_webhook(): void
     }
 
     $pdo = db();
+    if (function_exists('ensure_gym_payout_xendit_columns')) {
+        ensure_gym_payout_xendit_columns();
+    }
+    $matchesPlatform = ($platformToken !== '' && hash_equals($platformToken, $providedToken));
+
     try {
         $lookup = $pdo->prepare('SELECT p.*, u.email AS owner_email, u.first_name AS owner_first_name, u.last_name AS owner_last_name, g.name AS gym_name
             FROM gym_subscription_payments p
@@ -376,7 +651,7 @@ function handle_xendit_subscription_webhook(): void
         $lookup->execute([$sessionId]);
         $payment = $lookup->fetch(PDO::FETCH_ASSOC);
         if (!$payment) {
-            $memberLookup = $pdo->prepare('SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, gpa.xendit_subaccount_id
+            $memberLookup = $pdo->prepare('SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, gpa.xendit_subaccount_id, gpa.xendit_secret_key_enc, gpa.xendit_webhook_token_enc
                 FROM payments p
                 JOIN memberships m ON m.membership_id = p.membership_id
                 JOIN membership_plans mp ON mp.plan_id = m.plan_id
@@ -388,7 +663,14 @@ function handle_xendit_subscription_webhook(): void
             $memberLookup->execute([$sessionId]);
             $memberPayment = $memberLookup->fetch(PDO::FETCH_ASSOC);
             if ($memberPayment) {
-                if (!$matchesMember && !($memberToken === '' && $matchesPlatform)) {
+                $expectedMemberToken = xendit_resolve_gym_webhook_token(
+                    (int) $memberPayment['gym_id'],
+                    $memberPayment['xendit_webhook_token_enc'] ?? null,
+                    $memberPayment['xendit_subaccount_id'] ?? null
+                );
+                $matchesGymToken = ($expectedMemberToken !== '' && hash_equals($expectedMemberToken, $providedToken));
+                $matchesTestFallback = (xendit_is_test_fallback_allowed() && $memberToken !== '' && hash_equals($memberToken, $providedToken));
+                if (!$matchesGymToken && !$matchesTestFallback) {
                     http_response_code(401);
                     echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
                     return;
@@ -396,6 +678,14 @@ function handle_xendit_subscription_webhook(): void
                 xendit_handle_membership_payment_webhook($pdo, $memberPayment, $event, $data, $sessionId);
                 return;
             }
+
+            $matchesTestFallback = (xendit_is_test_fallback_allowed() && $memberToken !== '' && hash_equals($memberToken, $providedToken));
+            if (!$matchesPlatform && !$matchesTestFallback) {
+                http_response_code(401);
+                echo json_encode(['success' => false, 'message' => 'Invalid webhook token.']);
+                return;
+            }
+
             error_log('Xendit webhook referenced an unknown subscription session.');
             http_response_code(200);
             echo json_encode(['success' => true, 'ignored' => true]);
@@ -481,8 +771,13 @@ function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, stri
 
     $referenceId = trim((string)($data['reference_id'] ?? ''));
     $forUserId = xendit_member_for_user_id($payment['xendit_subaccount_id'] ?? null);
-    if ($referenceId === '' || !hash_equals((string)$payment['xendit_reference_id'], $referenceId) || (!xendit_has_dedicated_member_key() && $forUserId === null)) {
+    if ($referenceId === '' || !hash_equals((string)$payment['xendit_reference_id'], $referenceId)) {
         throw new RuntimeException('Xendit membership payment details did not match the pending payment.');
+    }
+
+    $memberSecretKey = xendit_resolve_gym_secret_key((int) ($payment['gym_id'] ?? 0), $payment['xendit_secret_key_enc'] ?? null, $payment['xendit_subaccount_id'] ?? null);
+    if ($memberSecretKey === '') {
+        throw new RuntimeException('Xendit API key is not configured for this gym.');
     }
 
     $headers = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
@@ -491,7 +786,7 @@ function xendit_handle_membership_payment_webhook(PDO $pdo, array $payment, stri
         '/sessions/' . rawurlencode($sessionId),
         null,
         $headers,
-        xendit_member_secret_key()
+        $memberSecretKey
     );
     if ((string)($verifiedSession['status'] ?? '') !== 'COMPLETED'
         || (string)($verifiedSession['payment_session_id'] ?? '') !== $sessionId
@@ -922,7 +1217,10 @@ function xendit_sync_gym_subscription_payment(?string $referenceId = null, ?int 
 function xendit_sync_membership_payment(?string $referenceId = null, ?int $userId = null, ?int $paymentId = null): ?array
 {
     $pdo = db();
-    $sql = 'SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, gpa.xendit_subaccount_id
+    if (function_exists('ensure_gym_payout_xendit_columns')) {
+        ensure_gym_payout_xendit_columns();
+    }
+    $sql = 'SELECT p.*, m.user_id AS member_user_id, m.start_date AS membership_start_date, m.end_date AS membership_end_date, mp.plan_name, mp.gym_id, u.email AS member_email, u.first_name AS member_first_name, u.last_name AS member_last_name, g.name AS gym_name, g.owner_user_id, owner.email AS owner_email, owner.first_name AS owner_first_name, owner.last_name AS owner_last_name, gpa.xendit_subaccount_id, gpa.xendit_secret_key_enc, gpa.xendit_webhook_token_enc
         FROM payments p
         JOIN memberships m ON m.membership_id = p.membership_id
         JOIN membership_plans mp ON mp.plan_id = m.plan_id
@@ -975,7 +1273,7 @@ function xendit_sync_membership_payment(?string $referenceId = null, ?int $userI
     $refId = trim((string)($payment['xendit_reference_id'] ?? ''));
     $forUserId = xendit_member_for_user_id($payment['xendit_subaccount_id'] ?? null);
     $headers = $forUserId !== null ? ['for-user-id: ' . $forUserId] : [];
-    $memberSecretKey = xendit_member_secret_key();
+    $memberSecretKey = xendit_resolve_gym_secret_key((int) ($payment['gym_id'] ?? 0), $payment['xendit_secret_key_enc'] ?? null, $payment['xendit_subaccount_id'] ?? null);
     $apiErrors = [];
     $isPaid = false;
     $xenditPaymentId = '';

@@ -762,28 +762,82 @@
                 });
             });
 
+            window.switchXenditGatewayMode = function (mode) {
+                const resolvedMode = mode === 'test_sandbox' ? 'test_sandbox' : 'custom_keys';
+                const modeInput = document.getElementById('xendit_gateway_mode');
+                const sandboxBanner = document.getElementById('xendit-sandbox-mode-banner');
+                const liveBanner = document.getElementById('xendit-live-mode-banner');
+                const secretReq = document.getElementById('xendit-secret-key-req');
+                const secretOpt = document.getElementById('xendit-secret-key-opt');
+                const secretInput = document.getElementById('xendit_secret_key_submission');
+
+                if (modeInput) modeInput.value = resolvedMode;
+                document.querySelectorAll('.xendit-mode-btn').forEach(btn => {
+                    btn.classList.toggle('is-active', btn.dataset.mode === resolvedMode);
+                });
+                if (sandboxBanner) {
+                    sandboxBanner.style.display = resolvedMode === 'test_sandbox' ? 'block' : 'none';
+                }
+                if (liveBanner) {
+                    liveBanner.style.display = resolvedMode === 'custom_keys' ? 'block' : 'none';
+                }
+
+                const savedTest = secretInput ? (secretInput.dataset.savedTest || '') : '';
+                const savedLive = secretInput ? (secretInput.dataset.savedLive || '') : '';
+                if (secretReq) {
+                    secretReq.style.display = (resolvedMode === 'custom_keys' && !savedLive) ? 'inline' : 'none';
+                }
+                if (secretOpt) {
+                    secretOpt.style.display = resolvedMode === 'test_sandbox' ? 'inline' : 'none';
+                }
+                if (secretInput) {
+                    secretInput.placeholder = resolvedMode === 'test_sandbox'
+                        ? (savedTest || 'xnd_development_... (leave blank to use built-in test key)')
+                        : (savedLive || 'xnd_production_...');
+                }
+            };
+
             // Validate Xendit KYC Modal submission
             const kycSubmitBtn = document.getElementById('btn-submit-kyc-details');
             if (kycSubmitBtn) {
                 kycSubmitBtn.addEventListener('click', function (e) {
-                    const emailInput = document.getElementById('xendit_kyc_email');
-                    const subInput = document.getElementById('xendit_subaccount_id_submission');
-                    const emailVal = emailInput ? emailInput.value.trim() : '';
-                    const subVal = subInput ? subInput.value.trim() : '';
+                    const modeInput = document.getElementById('xendit_gateway_mode');
+                    const modeVal = modeInput ? modeInput.value : 'custom_keys';
+                    const secretInput = document.getElementById('xendit_secret_key_submission');
+                    const secretVal = secretInput ? secretInput.value.trim() : '';
 
-                    if (!emailVal || !emailVal.includes('@')) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        alert('Please enter a valid email address.');
-                        emailInput?.focus();
-                        return false;
-                    }
-                    if (!subVal) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        alert('Please enter the XenPlatform Sub-Account ID.');
-                        subInput?.focus();
-                        return false;
+                    if (secretVal !== '') {
+                        if (modeVal === 'test_sandbox') {
+                            if (secretVal.startsWith('xnd_production_')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                alert('Live keys (xnd_production_*) cannot be used in Test / Sandbox Mode. Please enter a Test key starting with xnd_development_, or switch to Live Xendit API Keys.');
+                                secretInput?.focus();
+                                return false;
+                            }
+                            if (!/^xnd_development_[A-Za-z0-9+/=_-]{20,}$/.test(secretVal)) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                alert('Invalid Xendit Test Secret Key format. A Test key must start with xnd_development_ followed by your full secret key.');
+                                secretInput?.focus();
+                                return false;
+                            }
+                        } else {
+                            if (secretVal.startsWith('xnd_development_')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                alert('Test keys (xnd_development_*) cannot be used in Live Mode. Please enter a Live key starting with xnd_production_, or switch to Test / Sandbox Mode.');
+                                secretInput?.focus();
+                                return false;
+                            }
+                            if (!/^xnd_production_[A-Za-z0-9+/=_-]{20,}$/.test(secretVal)) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                alert('Invalid Xendit Secret Key format. A Live key must start with xnd_production_ followed by your full secret key.');
+                                secretInput?.focus();
+                                return false;
+                            }
+                        }
                     }
                 });
             }

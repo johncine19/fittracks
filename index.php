@@ -181,6 +181,76 @@ try {
         redirect($targetRedirect);
     }
 
+    // --- Gym Owner Quick Switch Xendit Gateway Mode ---
+    if (isset($_POST['quick_switch_xendit_mode'])) {
+        $user = current_user();
+        $redirectTo = trim((string) ($_POST['redirect_to'] ?? ''));
+        if ($redirectTo === '' || !str_starts_with($redirectTo, 'index.php')) {
+            $redirectTo = 'index.php?page=dashboard';
+        }
+        if (!$user || ($user['role'] ?? '') !== 'gym_owner') {
+            flash('Only gym owners can switch online payment modes.', 'danger');
+            redirect($redirectTo);
+        }
+
+        $gym = get_user_gym($user);
+        if (!$gym || empty($gym['gym_id'])) {
+            flash('No gym facility found for your account.', 'danger');
+            redirect($redirectTo);
+        }
+
+        $gymId = (int) $gym['gym_id'];
+        $gymName = (string) ($gym['name'] ?? 'Your Gym');
+        $targetMode = trim((string) $_POST['quick_switch_xendit_mode']);
+        $maskedKey = (string) ($gym['xendit_secret_key_masked'] ?? '');
+        $hasLiveKey = str_starts_with($maskedKey, 'xnd_production_');
+        $hasTestKey = str_starts_with($maskedKey, 'xnd_development_');
+
+        if ($targetMode === 'off') {
+            save_gym_payout_account($gymId, [
+                'xendit_subaccount_id' => 'OFF',
+            ]);
+            audit_log((int) $user['user_id'], 'quick_switch_xendit_mode', 'gym', (string) $gymId, json_encode(['mode' => 'off']));
+            flash("Online member payments turned OFF (Cash Only) for '{$gymName}'. Any saved Xendit keys remain preserved.", 'info');
+        } elseif ($targetMode === 'test_sandbox') {
+            if (!xendit_is_test_fallback_allowed()) {
+                flash('Built-in Demo Test Mode is unavailable because no server Test key (xnd_development_*) is configured.', 'danger');
+            } else {
+                save_gym_payout_account($gymId, [
+                    'xendit_subaccount_id' => 'TEST-SANDBOX-' . $gymId,
+                    'kyc_status' => 'verified',
+                ]);
+                audit_log((int) $user['user_id'], 'quick_switch_xendit_mode', 'gym', (string) $gymId, json_encode(['mode' => 'test_sandbox']));
+                flash("Online payments switched to Built-in Demo Test Mode for '{$gymName}'.", 'success');
+            }
+        } elseif ($targetMode === 'test_custom') {
+            if (!$hasTestKey) {
+                flash('Your custom Xendit Test Key is not configured yet. Add it in Gym Profile → Online Payments.', 'warning');
+            } else {
+                save_gym_payout_account($gymId, [
+                    'xendit_subaccount_id' => 'TEST-CUSTOM-' . $gymId,
+                    'kyc_status' => 'verified',
+                ]);
+                audit_log((int) $user['user_id'], 'quick_switch_xendit_mode', 'gym', (string) $gymId, json_encode(['mode' => 'test_custom']));
+                flash("Online payments switched to Your Custom Test Key for '{$gymName}'.", 'success');
+            }
+        } elseif ($targetMode === 'live') {
+            if (!$hasLiveKey) {
+                flash('Your Live Xendit Key is not configured yet. Add it in Gym Profile → Online Payments.', 'warning');
+            } else {
+                save_gym_payout_account($gymId, [
+                    'xendit_subaccount_id' => 'LIVE-XENDIT-' . $gymId,
+                    'kyc_status' => 'verified',
+                ]);
+                audit_log((int) $user['user_id'], 'quick_switch_xendit_mode', 'gym', (string) $gymId, json_encode(['mode' => 'live']));
+                flash("Online payments switched to Live Mode for '{$gymName}'.", 'success');
+            }
+        } else {
+            flash('Invalid payment mode selected.', 'warning');
+        }
+        redirect($redirectTo);
+    }
+
     $page = $_GET['page'] ?? (current_user() ? 'dashboard' : 'landing');
 
     $routes = [

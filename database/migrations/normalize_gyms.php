@@ -51,6 +51,8 @@ function run_normalize_gyms_migration(?PDO $pdo = null): void
         CREATE TABLE IF NOT EXISTS gym_payout_accounts (
             gym_id INT UNSIGNED NOT NULL,
             xendit_subaccount_id VARCHAR(64) DEFAULT NULL,
+            xendit_secret_key_enc TEXT DEFAULT NULL,
+            xendit_webhook_token_enc TEXT DEFAULT NULL,
             payout_channel VARCHAR(30) NOT NULL DEFAULT 'gcash',
             payout_account_number VARCHAR(50) DEFAULT NULL,
             payout_account_name VARCHAR(100) DEFAULT NULL,

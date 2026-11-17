@@ -245,7 +245,10 @@ try {
         "ALTER TABLE exercises MODIFY COLUMN gym_id INT UNSIGNED NOT NULL DEFAULT 0",
         "UPDATE exercises e LEFT JOIN gyms g ON e.gym_id = g.gym_id SET e.gym_id = 0 WHERE e.gym_id IS NULL OR (e.gym_id > 0 AND g.gym_id IS NULL)",
         // ── Per-Session Fee for Trainers ──
-        "ALTER TABLE trainer_profiles ADD COLUMN session_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER commission_rate"
+        "ALTER TABLE trainer_profiles ADD COLUMN session_rate DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER commission_rate",
+        // ── Encrypted Per-Gym Independent Xendit Credentials ──
+        "ALTER TABLE gym_payout_accounts ADD COLUMN xendit_secret_key_enc TEXT DEFAULT NULL",
+        "ALTER TABLE gym_payout_accounts ADD COLUMN xendit_webhook_token_enc TEXT DEFAULT NULL"
     ];
 
     foreach ($migrations as $sql) {

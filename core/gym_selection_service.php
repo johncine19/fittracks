@@ -182,7 +182,11 @@ function load_gym_selection_data(array $gyms, ?int $userId = null): array
         $gym['plans'] = $plansByGym[$gymId] ?? [];
         $gym['images'] = $imagesByGym[$gymId] ?? [];
         $gym['rating_stats'] = $ratingsByGym[$gymId];
-        $gym['xendit_enabled'] = xendit_member_online_enabled($gym['xendit_subaccount_id'] ?? null);
+        $gym['xendit_enabled'] = xendit_member_online_enabled(
+            $gym['xendit_subaccount_id'] ?? null,
+            $gym['xendit_secret_key_enc'] ?? null,
+            $gymId
+        );
         $gym['is_affiliated'] = !empty($affiliatedGymMap[$gymId]);
         if (!gym_has_feature('custom_branding', $gym)) {
             $gym['brand_color'] = null;

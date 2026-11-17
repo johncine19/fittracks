@@ -537,7 +537,10 @@ function memberships_page(): void
         $planId = (int) post('subscribe_plan_id');
         $paymentMethod = post('payment_method') === 'xendit' ? 'xendit' : 'cash';
 
-        $stmt = db()->prepare('SELECT mp.*, g.name AS gym_name, g.owner_user_id, gpa.xendit_subaccount_id
+        if (function_exists('ensure_gym_payout_xendit_columns')) {
+            ensure_gym_payout_xendit_columns();
+        }
+        $stmt = db()->prepare('SELECT mp.*, g.name AS gym_name, g.owner_user_id, gpa.xendit_subaccount_id, gpa.xendit_secret_key_enc
             FROM membership_plans mp
             JOIN gyms g ON g.gym_id = mp.gym_id
             LEFT JOIN gym_payout_accounts gpa ON gpa.gym_id = g.gym_id
@@ -612,7 +615,8 @@ function memberships_page(): void
 
             if ($paymentMethod === 'xendit') {
                 $subaccountId = trim((string)($plan['xendit_subaccount_id'] ?? ''));
-                if (!xendit_member_online_enabled($subaccountId)) {
+                $gymSecretKeyEnc = $plan['xendit_secret_key_enc'] ?? null;
+                if (!xendit_member_online_enabled($subaccountId, $gymSecretKeyEnc, $planGymId)) {
                     flash('Online payment is not configured for this gym yet. Please contact the gym owner.', 'warning');
                     redirect('gym_selection');
                 }
@@ -637,7 +641,7 @@ function memberships_page(): void
                         'amount' => $finalPrice,
                         'plan_name' => $plan['plan_name'],
                         'billing_cycle' => 'monthly',
-                    ], $user, (string)$plan['gym_name'], xendit_member_for_user_id($subaccountId), 'memberships', xendit_member_secret_key());
+                    ], $user, (string)$plan['gym_name'], xendit_member_for_user_id($subaccountId), 'memberships', xendit_resolve_gym_secret_key($planGymId, $gymSecretKeyEnc, $subaccountId));
                     $pdo->prepare('UPDATE payments SET xendit_session_id = ? WHERE payment_id = ? AND status = "pending"')
                         ->execute([$checkout['payment_session_id'], $paymentId]);
                     header('Location: ' . $checkout['payment_link_url'], true, 303);
@@ -764,10 +768,17 @@ function memberships_page(): void
             }
         }
         if ($memberGymId > 0) {
+            if (function_exists('ensure_gym_payout_xendit_columns')) {
+                ensure_gym_payout_xendit_columns();
+            }
             $gymName = (string) scalar('SELECT name FROM gyms WHERE gym_id = ?', [$memberGymId]);
             $plans = db()->query('SELECT mp.*, g.name AS gym_name FROM membership_plans mp LEFT JOIN gyms g ON g.gym_id = mp.gym_id WHERE mp.is_active = 1 AND mp.gym_id = ' . $memberGymId . ' ORDER BY mp.price')->fetchAll();
-            $gymSubaccountId = (string)scalar('SELECT xendit_subaccount_id FROM gym_payout_accounts WHERE gym_id = ?', [$memberGymId]);
-            $memberXenditEnabled = xendit_member_online_enabled($gymSubaccountId);
+            $payoutRow = query_one('SELECT xendit_subaccount_id, xendit_secret_key_enc FROM gym_payout_accounts WHERE gym_id = ?', [$memberGymId]) ?: [];
+            $memberXenditEnabled = xendit_member_online_enabled(
+                $payoutRow['xendit_subaccount_id'] ?? null,
+                $payoutRow['xendit_secret_key_enc'] ?? null,
+                $memberGymId
+            );
         } else {
             $plans = [];
             $memberXenditEnabled = false;

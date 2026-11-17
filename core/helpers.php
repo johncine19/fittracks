@@ -967,6 +967,55 @@ function get_user_gym(array $user, bool $forceRefresh = false): ?array
 }
 
 /**
+ * Ensures encrypted Xendit credential columns exist on gym_payout_accounts.
+ */
+function ensure_gym_payout_xendit_columns(): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    try {
+        $pdo = db();
+        $cols = array_column($pdo->query('SHOW COLUMNS FROM gym_payout_accounts')->fetchAll(PDO::FETCH_ASSOC), 'Field');
+        if (!in_array('xendit_secret_key_enc', $cols, true)) {
+            $pdo->exec('ALTER TABLE gym_payout_accounts ADD COLUMN xendit_secret_key_enc TEXT DEFAULT NULL');
+        }
+        if (!in_array('xendit_webhook_token_enc', $cols, true)) {
+            $pdo->exec('ALTER TABLE gym_payout_accounts ADD COLUMN xendit_webhook_token_enc TEXT DEFAULT NULL');
+        }
+        $checked = true;
+    } catch (Throwable) {
+        // Ignore if table does not exist yet or during non-DB CLI checks
+    }
+}
+
+/**
+ * Masks an encrypted or plaintext Xendit secret key without exposing secret characters.
+ */
+function mask_xendit_secret_key(?string $encryptedOrRaw): string
+{
+    if ($encryptedOrRaw === null || trim($encryptedOrRaw) === '') {
+        return '';
+    }
+    $plain = function_exists('decrypt_message')
+        ? trim(decrypt_message($encryptedOrRaw))
+        : trim($encryptedOrRaw);
+    if ($plain === '') {
+        return '';
+    }
+    $suffix = strlen($plain) >= 4 ? substr($plain, -4) : $plain;
+    if (str_starts_with($plain, 'xnd_development_')) {
+        return 'xnd_development_••••••••' . $suffix;
+    }
+    if (str_starts_with($plain, 'xnd_production_')) {
+        return 'xnd_production_••••••••' . $suffix;
+    }
+    $prefix = strlen($plain) >= 4 ? substr($plain, 0, 4) : '';
+    return $prefix . '••••••••' . $suffix;
+}
+
+/**
  * Batch-hydrates an array of gym rows with normalized data from:
  * - gym_verification_documents (+ gym_verification_id_types)
  * - gym_payout_accounts
@@ -979,6 +1028,8 @@ function hydrate_gym_rows(array $gyms): array
     if (empty($gyms)) {
         return [];
     }
+
+    ensure_gym_payout_xendit_columns();
 
     $gymIds = [];
     foreach ($gyms as $idx => $g) {
@@ -1003,6 +1054,11 @@ function hydrate_gym_rows(array $gyms): array
         $gyms[$idx]['kyc_status'] = $g['kyc_status'] ?? 'none';
         $gyms[$idx]['kyc_email'] = $g['kyc_email'] ?? null;
         $gyms[$idx]['pending_subaccount_id'] = $g['pending_subaccount_id'] ?? null;
+        $gyms[$idx]['xendit_secret_key_enc'] = $g['xendit_secret_key_enc'] ?? null;
+        $gyms[$idx]['xendit_webhook_token_enc'] = $g['xendit_webhook_token_enc'] ?? null;
+        $gyms[$idx]['has_custom_xendit_key'] = !empty($g['xendit_secret_key_enc']);
+        $gyms[$idx]['has_custom_xendit_webhook'] = !empty($g['xendit_webhook_token_enc']);
+        $gyms[$idx]['xendit_secret_key_masked'] = mask_xendit_secret_key($g['xendit_secret_key_enc'] ?? null);
 
         $gyms[$idx]['inactivity_threshold_days'] = $g['inactivity_threshold_days'] ?? null;
         $gyms[$idx]['inactivity_cooldown_days'] = $g['inactivity_cooldown_days'] ?? null;
@@ -1071,6 +1127,7 @@ function hydrate_gym_rows(array $gyms): array
             SELECT g.gym_id,
                    p.xendit_subaccount_id, p.payout_channel, p.payout_account_number, p.payout_account_name,
                    p.kyc_status, p.kyc_email, p.pending_subaccount_id,
+                   p.xendit_secret_key_enc, p.xendit_webhook_token_enc,
                    p.gym_id AS has_payout,
                    s.inactivity_threshold_days, s.inactivity_cooldown_days, s.auto_inactivity_alerts,
                    s.staff_hide_financials, s.eod_email_summary, s.last_eod_email_sent_at, s.last_eod_email_sent_by,
@@ -1093,6 +1150,11 @@ function hydrate_gym_rows(array $gyms): array
                     $gyms[$idx]['kyc_status'] = $row['kyc_status'] ?? 'none';
                     $gyms[$idx]['kyc_email'] = $row['kyc_email'] ?? null;
                     $gyms[$idx]['pending_subaccount_id'] = $row['pending_subaccount_id'] ?? null;
+                    $gyms[$idx]['xendit_secret_key_enc'] = $row['xendit_secret_key_enc'] ?? null;
+                    $gyms[$idx]['xendit_webhook_token_enc'] = $row['xendit_webhook_token_enc'] ?? null;
+                    $gyms[$idx]['has_custom_xendit_key'] = !empty($row['xendit_secret_key_enc']);
+                    $gyms[$idx]['has_custom_xendit_webhook'] = !empty($row['xendit_webhook_token_enc']);
+                    $gyms[$idx]['xendit_secret_key_masked'] = mask_xendit_secret_key($row['xendit_secret_key_enc'] ?? null);
                 }
                 if (!empty($row['has_settings'])) {
                     $gyms[$idx]['inactivity_threshold_days'] = $row['inactivity_threshold_days'] ?? null;
@@ -1313,6 +1375,7 @@ function save_gym_payout_account(int $gymId, array $payout): void
     if ($gymId <= 0) {
         return;
     }
+    ensure_gym_payout_xendit_columns();
     $pdo = db();
     $existing = $pdo->prepare('SELECT * FROM gym_payout_accounts WHERE gym_id = ?');
     $existing->execute([$gymId]);
@@ -1341,9 +1404,21 @@ function save_gym_payout_account(int $gymId, array $payout): void
         ? ($payout['pending_subaccount_id'] !== '' && $payout['pending_subaccount_id'] !== null ? (string)$payout['pending_subaccount_id'] : null)
         : ($cur['pending_subaccount_id'] ?? null);
 
+    $secretKeyEnc = $cur['xendit_secret_key_enc'] ?? null;
+    if (array_key_exists('xendit_secret_key', $payout)) {
+        $rawKey = trim((string)($payout['xendit_secret_key'] ?? ''));
+        $secretKeyEnc = $rawKey !== '' ? encrypt_message($rawKey) : null;
+    }
+
+    $webhookTokenEnc = $cur['xendit_webhook_token_enc'] ?? null;
+    if (array_key_exists('xendit_webhook_token', $payout)) {
+        $rawToken = trim((string)($payout['xendit_webhook_token'] ?? ''));
+        $webhookTokenEnc = $rawToken !== '' ? encrypt_message($rawToken) : null;
+    }
+
     $stmt = $pdo->prepare('
-        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name, kyc_status, kyc_email, pending_subaccount_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name, kyc_status, kyc_email, pending_subaccount_id, xendit_secret_key_enc, xendit_webhook_token_enc)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             xendit_subaccount_id = VALUES(xendit_subaccount_id),
             payout_channel = VALUES(payout_channel),
@@ -1351,9 +1426,11 @@ function save_gym_payout_account(int $gymId, array $payout): void
             payout_account_name = VALUES(payout_account_name),
             kyc_status = VALUES(kyc_status),
             kyc_email = VALUES(kyc_email),
-            pending_subaccount_id = VALUES(pending_subaccount_id)
+            pending_subaccount_id = VALUES(pending_subaccount_id),
+            xendit_secret_key_enc = VALUES(xendit_secret_key_enc),
+            xendit_webhook_token_enc = VALUES(xendit_webhook_token_enc)
     ');
-    $stmt->execute([$gymId, $xenditSub, $channel, $acctNum, $acctName, $kycStatus, $kycEmail, $pendingSub]);
+    $stmt->execute([$gymId, $xenditSub, $channel, $acctNum, $acctName, $kycStatus, $kycEmail, $pendingSub, $secretKeyEnc, $webhookTokenEnc]);
 }
 
 /**

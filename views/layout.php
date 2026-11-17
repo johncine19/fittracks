@@ -1540,6 +1540,150 @@ function render_header(string $title, ?array $user = null): void
             }
         }
 
+        /* ── GYM OWNER TOPBAR GATEWAY QUICK-SWITCH DROPDOWN ────────────── */
+        .owner-profile-menu-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        .owner-profile-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            padding: 3px 8px 3px 3px;
+            cursor: pointer;
+            color: inherit;
+            font-family: inherit;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .owner-profile-trigger:hover,
+        .owner-profile-trigger[aria-expanded="true"] {
+            background: var(--panel-soft);
+            border-color: var(--line);
+        }
+        .owner-gw-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .owner-profile-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 280px;
+            max-width: calc(100vw - 24px);
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+            padding: 10px;
+            z-index: 1200;
+            display: none;
+        }
+        .owner-profile-dropdown.is-open {
+            display: block;
+        }
+        .owner-profile-dropdown-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 4px 6px 10px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid var(--line);
+        }
+        .owner-profile-dropdown-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+        .owner-profile-dropdown-badge {
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+        .owner-gw-options {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .owner-gw-option {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 9px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--ink);
+            text-align: left;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .owner-gw-option:hover:not(:disabled) {
+            background: var(--panel-soft);
+        }
+        .owner-gw-option.is-active {
+            background: color-mix(in srgb, var(--lime, #84cc16) 12%, transparent);
+            border-color: color-mix(in srgb, var(--lime, #84cc16) 40%, transparent);
+        }
+        .owner-gw-option:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .owner-gw-option-main {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+        .owner-gw-option-label {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+        .owner-gw-option-sub {
+            font-size: 10.5px;
+            color: var(--muted);
+        }
+        .owner-gw-option-tag {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+            flex-shrink: 0;
+        }
+        .owner-gw-option.is-active .owner-gw-option-tag {
+            color: var(--lime, #84cc16);
+        }
+        .owner-profile-dropdown-foot {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--line);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .owner-profile-dropdown-link {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--lime, #65a30d);
+            text-decoration: none;
+            padding: 4px 6px;
+            border-radius: 6px;
+        }
+        .owner-profile-dropdown-link:hover {
+            text-decoration: underline;
+        }
+
         /* ── TIDB-STYLE CLEAN TOP NOTICE BANNER ──────────────────────── */
         .tidb-banner {
             position: relative;
@@ -2943,17 +3087,132 @@ function render_header(string $title, ?array $user = null): void
                         <button class="theme-toggle" id="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">
                             <!-- icon injected by JS -->
                         </button>
-                        <?php if (!empty($user['profile_picture'])): ?>
-                            <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Avatar" class="avatar" loading="lazy" decoding="async" style="object-fit: cover;">
+                        <?php if (($user['role'] ?? '') === 'gym_owner' && !empty($gym) && function_exists('xendit_get_gym_gateway_state')):
+                            $gwState = xendit_get_gym_gateway_state($gym);
+                            $gwMaskedKey = (string)($gym['xendit_secret_key_masked'] ?? '');
+                            $gwHasTestKey = str_starts_with($gwMaskedKey, 'xnd_development_');
+                            $gwHasLiveKey = str_starts_with($gwMaskedKey, 'xnd_production_');
+                            $gwBuiltinTestOk = function_exists('xendit_is_test_fallback_allowed') && xendit_is_test_fallback_allowed();
+                            $gwReqUri = ltrim((string)($_SERVER['REQUEST_URI'] ?? ''), '/');
+                            if ($gwReqUri === '' || !str_starts_with($gwReqUri, 'index.php')) {
+                                $gwReqUri = 'index.php?page=' . rawurlencode((string)$page);
+                            }
+                            $gwStateMeta = [
+                                'off'          => ['label' => 'Off',         'dot' => '#94a3b8', 'bg' => 'rgba(148,163,184,0.16)', 'color' => 'var(--muted)'],
+                                'test_sandbox' => ['label' => 'Demo Test',   'dot' => '#f59e0b', 'bg' => 'rgba(245,158,11,0.16)',  'color' => '#f59e0b'],
+                                'test_custom'  => ['label' => 'Custom Test', 'dot' => '#f59e0b', 'bg' => 'rgba(245,158,11,0.16)',  'color' => '#f59e0b'],
+                                'live'         => ['label' => 'Live',        'dot' => '#22c55e', 'bg' => 'rgba(34,197,94,0.16)',   'color' => '#22c55e'],
+                            ][$gwState] ?? ['label' => 'Off', 'dot' => '#94a3b8', 'bg' => 'rgba(148,163,184,0.16)', 'color' => 'var(--muted)'];
+                        ?>
+                            <div class="owner-profile-menu-wrap" id="ownerProfileMenuWrap">
+                                <button type="button"
+                                        class="owner-profile-trigger"
+                                        id="ownerProfileMenuBtn"
+                                        aria-expanded="false"
+                                        aria-haspopup="true"
+                                        title="Quick-switch Online Payment Mode">
+                                    <?php if (!empty($user['profile_picture'])): ?>
+                                        <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Avatar" class="avatar" loading="lazy" decoding="async" style="object-fit: cover;">
+                                    <?php else: ?>
+                                        <span class="avatar"><?= h(initials($user)) ?></span>
+                                    <?php endif; ?>
+                                    <div class="user-details" style="text-align: left;">
+                                        <strong style="display: inline-flex; align-items: center; gap: 6px;">
+                                            <?= h($user['first_name'] . ' ' . $user['last_name']) ?>
+                                            <span class="owner-gw-dot" style="background: <?= h($gwStateMeta['dot']) ?>;" title="Payments: <?= h($gwStateMeta['label']) ?>"></span>
+                                        </strong>
+                                    </div>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--muted); flex-shrink: 0;">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </button>
+
+                                <div class="owner-profile-dropdown" id="ownerProfileDropdown" role="menu">
+                                    <div class="owner-profile-dropdown-head">
+                                        <span class="owner-profile-dropdown-title">Online Payments</span>
+                                        <span class="owner-profile-dropdown-badge" style="background: <?= h($gwStateMeta['bg']) ?>; color: <?= h($gwStateMeta['color']) ?>;">
+                                            <?= h($gwStateMeta['label']) ?>
+                                        </span>
+                                    </div>
+                                    <form method="post" action="index.php" class="owner-gw-options">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="redirect_to" value="<?= h($gwReqUri) ?>">
+
+                                        <button type="submit" name="quick_switch_xendit_mode" value="off" class="owner-gw-option <?= $gwState === 'off' ? 'is-active' : '' ?>" role="menuitem">
+                                            <span class="owner-gw-option-main">
+                                                <span class="owner-gw-option-label">Off (Cash Only)</span>
+                                                <span class="owner-gw-option-sub">Disable online checkout</span>
+                                            </span>
+                                            <span class="owner-gw-option-tag"><?= $gwState === 'off' ? 'Active' : '' ?></span>
+                                        </button>
+
+                                        <button type="submit" name="quick_switch_xendit_mode" value="test_sandbox" class="owner-gw-option <?= $gwState === 'test_sandbox' ? 'is-active' : '' ?>" <?= !$gwBuiltinTestOk ? 'disabled' : '' ?> role="menuitem">
+                                            <span class="owner-gw-option-main">
+                                                <span class="owner-gw-option-label">Built-in Demo Test</span>
+                                                <span class="owner-gw-option-sub"><?= $gwBuiltinTestOk ? 'Use FitTrack test gateway' : 'Not configured on server' ?></span>
+                                            </span>
+                                            <span class="owner-gw-option-tag"><?= $gwState === 'test_sandbox' ? 'Active' : ($gwBuiltinTestOk ? '' : 'Disabled') ?></span>
+                                        </button>
+
+                                        <button type="submit" name="quick_switch_xendit_mode" value="test_custom" class="owner-gw-option <?= $gwState === 'test_custom' ? 'is-active' : '' ?>" <?= !$gwHasTestKey ? 'disabled' : '' ?> role="menuitem">
+                                            <span class="owner-gw-option-main">
+                                                <span class="owner-gw-option-label">Your Test Key</span>
+                                                <span class="owner-gw-option-sub"><?= $gwHasTestKey ? h($gwMaskedKey) : 'Not configured' ?></span>
+                                            </span>
+                                            <span class="owner-gw-option-tag"><?= $gwState === 'test_custom' ? 'Active' : ($gwHasTestKey ? '' : 'Disabled') ?></span>
+                                        </button>
+
+                                        <button type="submit" name="quick_switch_xendit_mode" value="live" class="owner-gw-option <?= $gwState === 'live' ? 'is-active' : '' ?>" <?= !$gwHasLiveKey ? 'disabled' : '' ?> role="menuitem">
+                                            <span class="owner-gw-option-main">
+                                                <span class="owner-gw-option-label">Your Live Key</span>
+                                                <span class="owner-gw-option-sub"><?= $gwHasLiveKey ? h($gwMaskedKey) : 'Not configured' ?></span>
+                                            </span>
+                                            <span class="owner-gw-option-tag"><?= $gwState === 'live' ? 'Active' : ($gwHasLiveKey ? '' : 'Disabled') ?></span>
+                                        </button>
+                                    </form>
+                                    <div class="owner-profile-dropdown-foot">
+                                        <a href="index.php?page=gym_profile&tab=payout" class="owner-profile-dropdown-link">Configure Xendit Keys &rarr;</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <script>
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const btn = document.getElementById('ownerProfileMenuBtn');
+                                const menu = document.getElementById('ownerProfileDropdown');
+                                const wrap = document.getElementById('ownerProfileMenuWrap');
+                                if (!btn || !menu || !wrap) return;
+                                btn.addEventListener('click', function (e) {
+                                    e.stopPropagation();
+                                    const isOpen = menu.classList.toggle('is-open');
+                                    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                                });
+                                document.addEventListener('click', function (e) {
+                                    if (!wrap.contains(e.target)) {
+                                        menu.classList.remove('is-open');
+                                        btn.setAttribute('aria-expanded', 'false');
+                                    }
+                                });
+                                document.addEventListener('keydown', function (e) {
+                                    if (e.key === 'Escape') {
+                                        menu.classList.remove('is-open');
+                                        btn.setAttribute('aria-expanded', 'false');
+                                    }
+                                });
+                            });
+                            </script>
                         <?php else: ?>
-                            <span class="avatar"><?= h(initials($user)) ?></span>
-                        <?php endif; ?>
-                        <div class="user-details">
-                            <strong><?= h($user['first_name'] . ' ' . $user['last_name']) ?></strong>
-                            <?php if (($user['role'] ?? '') !== 'gym_owner'): ?>
-                                <small><?= h(ucwords(str_replace('_', ' ', (string)($user['role'] ?? '')))) ?></small>
+                            <?php if (!empty($user['profile_picture'])): ?>
+                                <img src="<?= h(upload_url($user['profile_picture'])) ?>" alt="Avatar" class="avatar" loading="lazy" decoding="async" style="object-fit: cover;">
+                            <?php else: ?>
+                                <span class="avatar"><?= h(initials($user)) ?></span>
                             <?php endif; ?>
-                        </div>
+                            <div class="user-details">
+                                <strong><?= h($user['first_name'] . ' ' . $user['last_name']) ?></strong>
+                                <?php if (($user['role'] ?? '') !== 'gym_owner'): ?>
+                                    <small><?= h(ucwords(str_replace('_', ' ', (string)($user['role'] ?? '')))) ?></small>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </header>
 
@@ -3511,11 +3770,16 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         const parent = input.parentElement;
-        if (parent.classList.contains('auth-input-group')) {
+        if (parent && (parent.classList.contains('auth-input-group') || parent.classList.contains('input-icon-wrap'))) {
             parent.appendChild(btn);
             btn.style.position = 'absolute';
             btn.style.right = '12px';
-            input.style.paddingRight = '35px';
+            btn.style.top = '50%';
+            btn.style.transform = 'translateY(-50%)';
+            btn.style.marginLeft = '0';
+            btn.style.zIndex = '2';
+            input.classList.add('has-toggle');
+            input.style.paddingRight = '44px';
         } else {
             const wrapper = document.createElement('div');
             wrapper.style.position = 'relative';

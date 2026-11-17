@@ -704,21 +704,22 @@ HTML;
             </table>
         </div>
 
-        <h3 style="color: #c7ff22; font-size: 16px; margin: 25px 0 10px 0;">Next Step: Complete Your Xendit KYC Verification</h3>
-        <p>FitTrack operates on <strong>Xendit XenPlatform</strong>. Member payments bypass platform custody and are automatically disbursed straight to your verified {$safeChannel} account.</p>
-        <p>To comply with Bangko Sentral ng Pilipinas (BSP) merchant regulations, please verify your identity with Xendit:</p>
+        <h3 style="color: #c7ff22; font-size: 16px; margin: 25px 0 10px 0;">Next Step: Connect Your Independent Xendit Account</h3>
+        <p>With FitTrack, each gym operates its own <strong>independent Xendit merchant account</strong> so member membership payments go directly to your gym without requiring XenPlatform sub-account routing.</p>
+        <p>To verify and connect your Xendit merchant account:</p>
 
         <ol style="line-height: 1.8; color: #e2e8f0; padding-left: 20px; margin: 15px 0 25px 0;">
             <li>Click the button below to open the official <strong>Xendit Registration &amp; Verification Portal</strong>.</li>
-            <li>Create or sign in with your email (<strong>{$email}</strong>).</li>
-            <li>Upload 1 valid government ID (Passport, UMID, Driver's License, or PhilID) and your business permit for verification.</li>
+            <li>Create or sign in with your email (<strong>{$email}</strong>) and upload 1 valid government ID (Passport, UMID, Driver's License, or PhilID) and your business permit for KYC verification.</li>
+            <li>Once verified, copy your <strong>Xendit Business / Account ID</strong> from Xendit Dashboard (<strong>Settings &rarr; Business Profile</strong>).</li>
+            <li>Return to FitTrack's <strong>Gym Profile &rarr; Online Payments</strong> tab and click <strong>Connect Xendit Account</strong> to activate online member payments immediately.</li>
         </ol>
 
         <p style="text-align: center; margin: 30px 0;">
             <a href="{$onboardingUrl}" class="btn" target="_blank" style="display:inline-block; padding: 14px 32px; background-color: #c7ff22; color: #0b110e !important; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 15px;">Open Xendit Verification Portal &rarr;</a>
         </p>
 
-        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin-top: 25px;">Once Xendit approves your verification, your Sub-Account ID will be linked to {$safeGym} and member online pass sales will become active automatically.</p>
+        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin-top: 25px;">As soon as you enter your registered Xendit email and Business / Account ID in FitTrack's Gym Payment Settings, online member pass sales for {$safeGym} activate immediately.</p>
 HTML;
 
         $subject = "Activate Xendit Online Payments for {$gymName} - FITTRACKS";
