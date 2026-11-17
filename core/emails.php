@@ -686,6 +686,7 @@ HTML;
     ): bool {
         $safeOwner = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
         $safeGym = htmlspecialchars($gymName, ENT_QUOTES, 'UTF-8');
+        $safeEmail = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
         $safeChannel = htmlspecialchars(strtoupper($payoutChannel), ENT_QUOTES, 'UTF-8');
         $safeNumber = htmlspecialchars($payoutAccountNumber, ENT_QUOTES, 'UTF-8');
         $safeAccountName = htmlspecialchars($payoutAccountName, ENT_QUOTES, 'UTF-8');
@@ -710,16 +711,16 @@ HTML;
 
         <ol style="line-height: 1.8; color: #e2e8f0; padding-left: 20px; margin: 15px 0 25px 0;">
             <li>Click the button below to open the official <strong>Xendit Registration &amp; Verification Portal</strong>.</li>
-            <li>Create or sign in with your email (<strong>{$email}</strong>) and upload 1 valid government ID (Passport, UMID, Driver's License, or PhilID) and your business permit for KYC verification.</li>
-            <li>Once verified, copy your <strong>Xendit Business / Account ID</strong> from Xendit Dashboard (<strong>Settings &rarr; Business Profile</strong>).</li>
-            <li>Return to FitTrack's <strong>Gym Profile &rarr; Online Payments</strong> tab and click <strong>Connect Xendit Account</strong> to activate online member payments immediately.</li>
+            <li>Create or sign in with your email (<strong>{$safeEmail}</strong>) and upload 1 valid government ID (Passport, UMID, Driver's License, or PhilID) and your business permit for KYC verification.</li>
+            <li>Once verified, go to Xendit Dashboard &rarr; <strong>Settings &rarr; API Keys</strong> to create a scoped <strong>Money-In Only</strong> Secret API Key (<code>xnd_production_...</code> for Live, or <code>xnd_development_...</code> for Test), and copy your <strong>Webhook Verification Token</strong> under <strong>Settings &rarr; Callbacks / Webhooks</strong>.</li>
+            <li>Return to FitTrack's <strong>Gym Profile &rarr; Online Payments</strong> tab, click <strong>Connect Xendit Account</strong>, and save your Secret API Key &amp; Webhook Token (or enable <strong>Test / Sandbox Mode</strong> to test right away).</li>
         </ol>
 
         <p style="text-align: center; margin: 30px 0;">
             <a href="{$onboardingUrl}" class="btn" target="_blank" style="display:inline-block; padding: 14px 32px; background-color: #c7ff22; color: #0b110e !important; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 15px;">Open Xendit Verification Portal &rarr;</a>
         </p>
 
-        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin-top: 25px;">As soon as you enter your registered Xendit email and Business / Account ID in FitTrack's Gym Payment Settings, online member pass sales for {$safeGym} activate immediately.</p>
+        <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin-top: 25px;">As soon as you save your Xendit API credentials (or activate Test / Sandbox Mode) in FitTrack's Gym Payment Settings, online member pass sales for {$safeGym} activate immediately.</p>
 HTML;
 
         $subject = "Activate Xendit Online Payments for {$gymName} - FITTRACKS";
