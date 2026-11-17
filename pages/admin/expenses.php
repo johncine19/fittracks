@@ -311,7 +311,11 @@ function expenses_page(): void
     $rows = [];
     $totalExpenses = 0.0;
     $expenseCount = 0;
-    $perPage = 15;
+    $perPageOptions = [8, 15, 25, 50, 100000];
+    $perPage = (int)($_GET['per_page'] ?? 15);
+    if (!in_array($perPage, $perPageOptions, true)) {
+        $perPage = 15;
+    }
     $expPage = max(1, (int)($_GET['p'] ?? 1));
     $totalPages = 1;
     $offset = 0;
@@ -604,13 +608,68 @@ function expenses_page(): void
                 }
                 if ($filterCategory !== '') $expPagParams['category'] = $filterCategory;
                 if ($search !== '') $expPagParams['q'] = $search;
+                if ($perPage !== 15) $expPagParams['per_page'] = $perPage;
                 $expBaseUrl = 'index.php?' . http_build_query($expPagParams);
+                $makeExpPageUrl = static function (int $targetPage, ?int $overridePerPage = null) use ($expPagParams, $perPage): string {
+                    $p = $expPagParams;
+                    $pp = $overridePerPage ?? $perPage;
+                    if ($pp !== 15) {
+                        $p['per_page'] = $pp;
+                    } else {
+                        unset($p['per_page']);
+                    }
+                    $p['p'] = $targetPage;
+                    return 'index.php?' . http_build_query($p);
+                };
+                $startItem = $offset + 1;
+                $endItem = min($offset + $perPage, $expenseCount);
             ?>
-                <div class="pagination-bar">
-                    <div class="pagination-info">
-                        Showing <strong><?= $offset + 1 ?></strong> to <strong><?= min($offset + $perPage, $expenseCount) ?></strong> of <strong><?= $expenseCount ?></strong> records
+                <div class="exp-pagination-bar">
+                    <div class="exp-page-info">
+                        Showing <strong><?= $startItem ?>&ndash;<?= $endItem ?></strong> of <strong><?= $expenseCount ?></strong> records
                     </div>
-                    <?php render_pagination($expPage, $totalPages, $expBaseUrl, 'p'); ?>
+                    <div class="exp-page-controls">
+                        <?php if ($expPage <= 1): ?>
+                            <span class="btn-exp-page disabled" aria-disabled="true">&lsaquo;</span>
+                        <?php else: ?>
+                            <a href="<?= h($makeExpPageUrl($expPage - 1)) ?>" class="btn-exp-page" title="Previous page">&lsaquo;</a>
+                        <?php endif; ?>
+
+                        <?php
+                        $winStart = max(1, $expPage - 2);
+                        $winEnd = min($totalPages, $expPage + 2);
+                        if ($winStart > 1): ?>
+                            <a href="<?= h($makeExpPageUrl(1)) ?>" class="btn-exp-page">1</a>
+                            <?php if ($winStart > 2): ?><span class="exp-page-ellipsis">&hellip;</span><?php endif; ?>
+                        <?php endif; ?>
+
+                        <?php for ($pi = $winStart; $pi <= $winEnd; $pi++): ?>
+                            <?php if ($pi === $expPage): ?>
+                                <span class="btn-exp-page active"><?= $pi ?></span>
+                            <?php else: ?>
+                                <a href="<?= h($makeExpPageUrl($pi)) ?>" class="btn-exp-page"><?= $pi ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($winEnd < $totalPages): ?>
+                            <?php if ($winEnd < $totalPages - 1): ?><span class="exp-page-ellipsis">&hellip;</span><?php endif; ?>
+                            <a href="<?= h($makeExpPageUrl($totalPages)) ?>" class="btn-exp-page"><?= $totalPages ?></a>
+                        <?php endif; ?>
+
+                        <?php if ($expPage >= $totalPages): ?>
+                            <span class="btn-exp-page disabled" aria-disabled="true">&rsaquo;</span>
+                        <?php else: ?>
+                            <a href="<?= h($makeExpPageUrl($expPage + 1)) ?>" class="btn-exp-page" title="Next page">&rsaquo;</a>
+                        <?php endif; ?>
+                    </div>
+                    <div class="exp-page-size-wrap">
+                        <label for="expPerPageSelect" style="font-size:12px;color:var(--muted);margin-right:6px;">Per page:</label>
+                        <select id="expPerPageSelect" class="exp-input" style="width:auto;height:34px;padding:4px 10px;font-size:12px;border-radius:8px;" onchange="window.location.href=this.value;">
+                            <?php foreach ([8 => '8', 15 => '15', 25 => '25', 50 => '50', 100000 => 'All'] as $ppVal => $ppLabel): ?>
+                                <option value="<?= h($makeExpPageUrl(1, $ppVal)) ?>" <?= $perPage === $ppVal ? 'selected' : '' ?>><?= h($ppLabel) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
             <?php endif; ?>
         <?php endif; ?>
@@ -1069,6 +1128,97 @@ function expenses_page(): void
         .flatpickr-day.nextMonthDay {
             color: var(--muted);
             opacity: 0.4;
+        }
+        .exp-pagination-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+            padding: 14px 18px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+        .exp-page-info {
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 500;
+        }
+        .exp-page-info strong {
+            color: var(--ink);
+            font-weight: 700;
+        }
+        .exp-page-controls {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .btn-exp-page {
+            min-width: 36px;
+            height: 36px;
+            padding: 0 10px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: var(--panel-soft, var(--surface));
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            text-decoration: none;
+            line-height: 1;
+        }
+        .btn-exp-page:hover:not(.disabled):not(.active) {
+            border-color: var(--lime);
+            color: var(--lime);
+            background: color-mix(in srgb, var(--lime) 12%, var(--panel-soft, var(--surface)));
+            transform: translateY(-1px);
+        }
+        .btn-exp-page.active {
+            background: var(--lime) !important;
+            color: var(--lime-contrast, #0b0e14) !important;
+            border-color: var(--lime) !important;
+            font-weight: 800 !important;
+            box-shadow: 0 2px 10px color-mix(in srgb, var(--lime) 35%, transparent);
+            cursor: default;
+            transform: none;
+        }
+        .btn-exp-page.disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .exp-page-ellipsis {
+            min-width: 24px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+        }
+        .exp-page-size-wrap {
+            display: inline-flex;
+            align-items: center;
+        }
+        @media (max-width: 768px) {
+            .exp-pagination-bar {
+                justify-content: center;
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+            .exp-page-controls { order: 1; }
+            .exp-page-info { order: 2; }
+            .exp-page-size-wrap { order: 3; }
         }
     </style>
     <script src="<?= h(asset_url('js/flatpickr.min.js')) ?>"></script>

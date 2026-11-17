@@ -107,6 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         secWrap.style.display = 'none';
                     }
                 }
+                const warnEl = document.getElementById('planNoMembershipWarn');
+                if (warnEl) {
+                    warnEl.style.display = (selectedMember && selectedMember.has_membership === false) ? 'block' : 'none';
+                }
             }
         });
     }

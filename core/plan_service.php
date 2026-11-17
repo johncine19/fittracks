@@ -235,6 +235,19 @@ function detect_workout_schedule_conflicts(int $userId): array
         LEFT JOIN gyms g ON g.gym_id = tp.gym_id
         WHERE tp.member_user_id = ?
           AND tp.status = 'active'
+          AND (
+              tp.trainer_id IS NULL
+              OR tp.gym_id IS NULL
+              OR EXISTS (
+                  SELECT 1
+                  FROM memberships m
+                  JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                  WHERE m.user_id = tp.member_user_id
+                    AND mp.gym_id = tp.gym_id
+                    AND m.status IN ('active', 'pending')
+                    AND m.end_date >= CURDATE()
+              )
+          )
         ORDER BY tpe.day_of_week ASC, tp.plan_id ASC, tpe.sequence_order ASC
     ";
 
@@ -485,6 +498,19 @@ function get_consolidated_workout_calendar(int $userId): array
         LEFT JOIN users u_tr ON u_tr.user_id = tpr.user_id
         WHERE tp.member_user_id = ?
           AND tp.status = 'active'
+          AND (
+              tp.trainer_id IS NULL
+              OR tp.gym_id IS NULL
+              OR EXISTS (
+                  SELECT 1
+                  FROM memberships m
+                  JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                  WHERE m.user_id = tp.member_user_id
+                    AND mp.gym_id = tp.gym_id
+                    AND m.status IN ('active', 'pending')
+                    AND m.end_date >= CURDATE()
+              )
+          )
         ORDER BY tpe.day_of_week ASC, tp.plan_id ASC, tpe.sequence_order ASC
     ";
 
@@ -671,6 +697,19 @@ function detect_workload_warnings(int $userId, int $maxDailySets = 30): array
             JOIN exercises e ON e.exercise_id = tpe.exercise_id
             LEFT JOIN gyms g ON g.gym_id = tp.gym_id
             WHERE tp.member_user_id = ? AND tp.status = 'active'
+              AND (
+                  tp.trainer_id IS NULL
+                  OR tp.gym_id IS NULL
+                  OR EXISTS (
+                      SELECT 1
+                      FROM memberships m
+                      JOIN membership_plans mp ON mp.plan_id = m.plan_id
+                      WHERE m.user_id = tp.member_user_id
+                        AND mp.gym_id = tp.gym_id
+                        AND m.status IN ('active', 'pending')
+                        AND m.end_date >= CURDATE()
+                  )
+              )
         ", [$userId]);
 
         $setsPerDay = [];

@@ -488,6 +488,12 @@ function my_plans_page(): void
                             </div>
 
                             <div class="plan-card-footer">
+                                <?php
+                                $planGymId = (int)($plan['gym_id'] ?? 0);
+                                $isGymMembershipEnded = $planGymId > 0
+                                    && !empty($plan['trainer_id'])
+                                    && empty($gymMembershipState[$planGymId]['has_active']);
+                                ?>
                                 <?php if ($status === 'completed'): ?>
                                     <div class="plan-completed-state-pill" title="This training program has concluded">
                                         <?= plan_icon('check', 14) ?>
@@ -499,10 +505,19 @@ function my_plans_page(): void
                                         <span>Plan Archived</span>
                                     </div>
                                 <?php elseif ($status !== 'paused'): ?>
-                                    <a href="index.php?page=my_workout&plan_id=<?= (int)$plan['plan_id'] ?>" class="plan-btn-primary">
-                                        <span>Open Routine</span>
-                                        <?= plan_icon('arrow-right', 14) ?>
-                                    </a>
+                                    <?php if ($isGymMembershipEnded): ?>
+                                        <a href="index.php?page=memberships&amp;switch_active_gym=<?= $planGymId ?>"
+                                           class="plan-btn-secondary plan-btn-renew"
+                                           title="Your membership at <?= h($plan['gym_name'] ?? 'this gym') ?> has expired or is inactive. Renew to use this routine.">
+                                            <?= plan_icon('play', 13) ?>
+                                            <span>Renew Membership</span>
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="index.php?page=my_workout&plan_id=<?= (int)$plan['plan_id'] ?>" class="plan-btn-primary">
+                                            <span>Open Routine</span>
+                                            <?= plan_icon('arrow-right', 14) ?>
+                                        </a>
+                                    <?php endif; ?>
                                 <?php endif; ?>
 
                                 <div class="plan-card-actions">
@@ -511,19 +526,13 @@ function my_plans_page(): void
                                         <input type="hidden" name="action" value="toggle_plan_status">
                                         <input type="hidden" name="plan_type" value="workout">
                                         <input type="hidden" name="plan_id" value="<?= (int)$plan['plan_id'] ?>">
-                                        <?php if ($status === 'active'): ?>
+                                        <?php if ($status === 'active' && !$isGymMembershipEnded): ?>
                                             <input type="hidden" name="new_status" value="paused">
                                             <button type="submit" class="plan-btn-secondary" title="Pause this routine">
                                                 <?= plan_icon('pause', 13) ?>
                                                 <span>Pause</span>
                                             </button>
-                                        <?php elseif ($status === 'paused'):
-                                            $planGymId = (int)($plan['gym_id'] ?? 0);
-                                            $isGymMembershipEnded = $planGymId > 0
-                                                && !empty($plan['trainer_id'])
-                                                && !empty($gymMembershipState[$planGymId]['had'])
-                                                && empty($gymMembershipState[$planGymId]['has_active']);
-                                        ?>
+                                        <?php elseif ($status === 'paused'): ?>
                                             <?php if ($isGymMembershipEnded): ?>
                                                 <a href="index.php?page=memberships&amp;switch_active_gym=<?= $planGymId ?>"
                                                    class="plan-btn-secondary plan-btn-renew"

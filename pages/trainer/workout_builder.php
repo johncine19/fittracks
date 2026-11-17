@@ -344,19 +344,101 @@ function workout_builder_page(): void
                 flash("This member's plan is limited to {$prefDays} workout day(s) per week.", 'error');
                 redirect('workout_builder&member_user_id=' . $memberId);
             }
-            $exerciseId = (int) post('exercise_id');
-            $sets = max(1, (int) post('sets'));
-            $reps = trim((string) post('reps')) ?: '10-12';
-            $weightRaw = trim((string) post('target_weight_kg'));
-            $targetWeight = ($weightRaw !== '' && is_numeric($weightRaw)) ? (float)$weightRaw : null;
-            $rest = max(0, (int) post('rest_seconds'));
-            $tempo = trim((string) post('tempo')) ?: null;
-            $rpe = trim((string) post('rpe')) ?: null;
-            $notes = trim((string) post('notes')) ?: null;
-            if ($notes === null && $exerciseId > 0) {
-                $defaultDesc = scalar('SELECT description FROM exercises WHERE exercise_id = ?', [$exerciseId]);
-                if (!empty($defaultDesc)) {
-                    $notes = trim((string)$defaultDesc);
+            $rawPayload = trim((string) post('exercises_payload'));
+            $payloadRows = [];
+            if ($rawPayload !== '') {
+                $decodedPayload = json_decode($rawPayload, true);
+                if (is_array($decodedPayload)) {
+                    $seenPayloadIds = [];
+                    foreach ($decodedPayload as $entry) {
+                        if (!is_array($entry)) continue;
+                        $eid = (int) ($entry['exercise_id'] ?? 0);
+                        if ($eid <= 0 || isset($seenPayloadIds[$eid])) continue;
+                        $seenPayloadIds[$eid] = true;
+                        $payloadRows[] = [
+                            'exercise_id' => $eid,
+                            'sets' => max(1, (int) ($entry['sets'] ?? 3)),
+                            'reps' => trim((string) ($entry['reps'] ?? '')) ?: '10-12',
+                            'target_weight_kg' => (isset($entry['target_weight_kg']) && trim((string)$entry['target_weight_kg']) !== '' && is_numeric($entry['target_weight_kg'])) ? (float)$entry['target_weight_kg'] : null,
+                            'rest_seconds' => max(0, (int) ($entry['rest_seconds'] ?? 60)),
+                            'tempo' => trim((string) ($entry['tempo'] ?? '')) ?: null,
+                            'rpe' => trim((string) ($entry['rpe'] ?? '')) ?: null,
+                            'notes' => trim((string) ($entry['notes'] ?? '')) ?: null,
+                        ];
+                    }
+                }
+            }
+
+            if (empty($payloadRows)) {
+                $rawExerciseIds = trim((string) post('exercise_ids'));
+                $exerciseIds = [];
+                if ($rawExerciseIds !== '') {
+                    foreach (explode(',', $rawExerciseIds) as $part) {
+                        $eid = (int) trim($part);
+                        if ($eid > 0 && !in_array($eid, $exerciseIds, true)) {
+                            $exerciseIds[] = $eid;
+                        }
+                    }
+                }
+                if (empty($exerciseIds)) {
+                    $singleId = (int) post('exercise_id');
+                    if ($singleId > 0) {
+                        $exerciseIds[] = $singleId;
+                    }
+                }
+
+                $sets = max(1, (int) post('sets'));
+                $reps = trim((string) post('reps')) ?: '10-12';
+                $weightRaw = trim((string) post('target_weight_kg'));
+                $targetWeight = ($weightRaw !== '' && is_numeric($weightRaw)) ? (float)$weightRaw : null;
+                $rest = max(0, (int) post('rest_seconds'));
+                $tempo = trim((string) post('tempo')) ?: null;
+                $rpe = trim((string) post('rpe')) ?: null;
+                $notes = trim((string) post('notes')) ?: null;
+
+                foreach ($exerciseIds as $eid) {
+                    $payloadRows[] = [
+                        'exercise_id' => $eid,
+                        'sets' => $sets,
+                        'reps' => $reps,
+                        'target_weight_kg' => $targetWeight,
+                        'rest_seconds' => $rest,
+                        'tempo' => $tempo,
+                        'rpe' => $rpe,
+                        'notes' => $notes,
+                    ];
+                }
+            }
+
+            if (empty($payloadRows)) {
+                flash('Please select at least one valid exercise.', 'error');
+                redirect('workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
+            }
+
+            $existingOnDayRows = $pdo->prepare('SELECT exercise_id FROM training_plan_exercises WHERE plan_id = ? AND day_of_week = ?');
+            $existingOnDayRows->execute([$planId, $dayOfWeek]);
+            $existingOnDayMap = array_flip(array_map('intval', $existingOnDayRows->fetchAll(PDO::FETCH_COLUMN)));
+
+            $toInsertRows = array_values(array_filter($payloadRows, static fn(array $r): bool => !isset($existingOnDayMap[$r['exercise_id']])));
+            if (empty($toInsertRows)) {
+                flash('Selected exercise(s) are already scheduled on ' . workout_day_name($dayOfWeek) . '. Edit their sets/reps instead.', 'error');
+                redirect('workout_builder&member_user_id=' . $memberId . ($planId > 0 ? '&plan_id=' . $planId : ''));
+            }
+
+            $needDescIds = array_values(array_map(
+                static fn(array $r): int => $r['exercise_id'],
+                array_filter($toInsertRows, static fn(array $r): bool => $r['notes'] === null)
+            ));
+            $defaultNotesByExId = [];
+            if (!empty($needDescIds)) {
+                $ph = implode(',', array_fill(0, count($needDescIds), '?'));
+                $descStmt = $pdo->prepare("SELECT exercise_id, description FROM exercises WHERE exercise_id IN ($ph)");
+                $descStmt->execute($needDescIds);
+                foreach ($descStmt->fetchAll(PDO::FETCH_ASSOC) as $dr) {
+                    $dText = trim((string)($dr['description'] ?? ''));
+                    if ($dText !== '') {
+                        $defaultNotesByExId[(int)$dr['exercise_id']] = $dText;
+                    }
                 }
             }
 
@@ -364,8 +446,25 @@ function workout_builder_page(): void
             $order = $maxOrder ? ((int)$maxOrder + 1) : 1;
 
             $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, target_weight_kg, rest_seconds, notes, tempo, rpe) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-            $stmt->execute([$planId, $exerciseId, $dayOfWeek, $order, $sets, $reps, $targetWeight, $rest, $notes, $tempo, $rpe]);
-            flash('Exercise added to ' . workout_day_name($dayOfWeek) . '.', 'success');
+            foreach ($toInsertRows as $row) {
+                $rowNotes = $row['notes'] ?? ($defaultNotesByExId[$row['exercise_id']] ?? null);
+                $stmt->execute([
+                    $planId,
+                    $row['exercise_id'],
+                    $dayOfWeek,
+                    $order,
+                    $row['sets'],
+                    $row['reps'],
+                    $row['target_weight_kg'],
+                    $row['rest_seconds'],
+                    $rowNotes,
+                    $row['tempo'],
+                    $row['rpe'],
+                ]);
+                $order++;
+            }
+            $addedCount = count($toInsertRows);
+            flash(($addedCount === 1 ? 'Exercise' : $addedCount . ' exercises') . ' added to ' . workout_day_name($dayOfWeek) . '.', 'success');
             } catch (Throwable $e) {
                 error_log('Auto generate workout error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
                 flash('Unable to auto-generate plan: ' . $e->getMessage(), 'error');
@@ -598,6 +697,13 @@ function workout_builder_page(): void
             </form>
         </div>
     </div>
+
+    <?php if (!$hasMembership): ?>
+        <div style="margin: 0 0 14px; padding: 11px 16px; border-radius: 10px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); color: #d97706; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span><strong>No Active Membership:</strong> <?= h($member['first_name']) ?> currently has no active membership (or their plan expired) at this gym. You can still build this routine, but they will need an active membership to open and use it.</span>
+        </div>
+    <?php endif; ?>
 
     <!-- Hidden form for clearing a specific day -->
     <form id="clearDayForm" method="post" style="display:none;">
@@ -879,10 +985,19 @@ function workout_builder_page(): void
     if (!in_array($builderSelectedGoal, ['weight_loss', 'muscle_gain', 'strength', 'endurance', 'general_health'], true)) {
         $builderSelectedGoal = 'general_health';
     }
+    $dayExerciseIds = [];
+    foreach ($planExercises as $pe) {
+        $dKey = (int)($pe['day_of_week'] ?? 0);
+        $exIdVal = (int)($pe['exercise_id'] ?? 0);
+        if ($dKey >= 1 && $dKey <= 7 && $exIdVal > 0) {
+            $dayExerciseIds[$dKey][] = $exIdVal;
+        }
+    }
     ?>
     <script>
     window.WORKOUT_BUILDER_CONFIG = {
         gymExercisesData: <?= $exercisesJson ?>,
+        dayExerciseIds: <?= json_encode($dayExerciseIds) ?>,
         csrfToken: <?= json_encode(csrf_token()) ?>,
         memberId: <?= (int)$memberId ?>,
         planId: <?= (int)$planId ?>,

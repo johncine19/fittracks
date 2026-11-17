@@ -500,17 +500,17 @@
             transform: translateY(-1px);
         }
         .btn-act-service {
-            background: rgba(245, 158, 11, 0.12);
-            color: #d97706;
-            border-color: rgba(245, 158, 11, 0.28);
+            background: color-mix(in srgb, var(--lime, #84cc16) 12%, transparent);
+            color: var(--lime-dark, var(--lime, #84cc16));
+            border-color: color-mix(in srgb, var(--lime, #84cc16) 32%, transparent);
         }
         [data-theme="dark"] .btn-act-service {
-            background: rgba(245, 158, 11, 0.18);
-            color: #fbbf24;
-            border-color: rgba(245, 158, 11, 0.35);
+            background: color-mix(in srgb, var(--lime, #84cc16) 18%, transparent);
+            color: var(--lime, #84cc16);
+            border-color: color-mix(in srgb, var(--lime, #84cc16) 38%, transparent);
         }
         .btn-act-service:hover {
-            background: rgba(245, 158, 11, 0.25);
+            background: color-mix(in srgb, var(--lime, #84cc16) 24%, transparent);
             transform: translateY(-1px);
         }
 
@@ -1067,17 +1067,20 @@
             line-height: 1;
         }
         .btn-equip-page:hover:not(.disabled):not(.active) {
-            border-color: #eab308;
-            color: #eab308;
-            background: color-mix(in srgb, #eab308 12%, var(--panel-soft));
+            border-color: var(--lime, #84cc16);
+            color: var(--lime-dark, var(--lime, #84cc16));
+            background: color-mix(in srgb, var(--lime, #84cc16) 12%, var(--panel-soft));
             transform: translateY(-1px);
         }
+        [data-theme="dark"] .btn-equip-page:hover:not(.disabled):not(.active) {
+            color: var(--lime, #84cc16);
+        }
         .btn-equip-page.active {
-            background: #eab308 !important;
-            color: #0b0e14 !important;
-            border-color: #eab308 !important;
+            background: var(--lime, #84cc16) !important;
+            color: var(--lime-contrast, #0b0e14) !important;
+            border-color: var(--lime, #84cc16) !important;
             font-weight: 800 !important;
-            box-shadow: 0 2px 10px rgba(234, 179, 8, 0.35);
+            box-shadow: 0 2px 10px color-mix(in srgb, var(--lime, #84cc16) 35%, transparent);
             cursor: default;
             transform: none;
         }

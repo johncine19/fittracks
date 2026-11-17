@@ -59,7 +59,25 @@ function my_workout_page(): void
          ORDER BY p.plan_id DESC'
     );
     $plansStmt->execute([$userId]);
-    $activePlans = $plansStmt->fetchAll();
+    $allActivePlans = $plansStmt->fetchAll();
+
+    // Fetch active gym IDs for this member so expired/unsubscribed gym routines cannot be used
+    $activeGymIdsStmt = $pdo->prepare('
+        SELECT DISTINCT mp.gym_id
+        FROM memberships m
+        JOIN membership_plans mp ON mp.plan_id = m.plan_id
+        WHERE m.user_id = ? AND m.status IN ("active", "pending") AND m.end_date >= CURDATE()
+    ');
+    $activeGymIdsStmt->execute([$userId]);
+    $activeMemberGymMap = array_flip(array_map('intval', $activeGymIdsStmt->fetchAll(PDO::FETCH_COLUMN)));
+
+    $activePlans = array_values(array_filter($allActivePlans, static function (array $ap) use ($activeMemberGymMap): bool {
+        $pGymId = (int)($ap['gym_id'] ?? 0);
+        if ($pGymId > 0 && !empty($ap['trainer_id'])) {
+            return isset($activeMemberGymMap[$pGymId]);
+        }
+        return true;
+    }));
 
     $selectedPlanId = isset($_GET['plan_id']) ? (int)$_GET['plan_id'] : 0;
     $currentGym = get_user_gym($user);

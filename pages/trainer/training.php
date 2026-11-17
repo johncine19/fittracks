@@ -174,10 +174,10 @@ function training_page(): void
     // TAB 1 DATA: Eligible Members & Created Plans
     // ----------------------------------------------------
     if ($user['role'] === 'gym_owner' && $gymId) {
-        $members = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $coachId]);
+        $members = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mpp ON mpp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND mpp.gym_id = ? AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM gym_members gm JOIN users u ON u.user_id = gm.user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE gm.gym_id = ? AND u.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = gm.user_id AND tp.trainer_id = ? AND tp.status IN ("active", "draft"))', [$gymId, $gymId, $coachId]);
         $allGymMembers = query_all('SELECT gm.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM gym_members gm JOIN users u ON u.user_id = gm.user_id WHERE gm.gym_id = ? AND u.status = "active" ORDER BY u.first_name ASC', [$gymId]);
     } elseif ($user['role'] === 'trainer') {
-        $members = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.user_id AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [$coachId]);
+        $members = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, EXISTS (SELECT 1 FROM memberships m JOIN membership_plans mpp ON mpp.plan_id = m.plan_id WHERE m.user_id = u.user_id AND (? = 0 OR mpp.gym_id = ?) AND m.status = "active" AND m.end_date >= CURRENT_DATE) AS has_membership FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE ca.trainer_id = ? AND ca.status = "active" AND NOT EXISTS (SELECT 1 FROM training_plans tp WHERE tp.member_user_id = ca.member_user_id AND tp.trainer_id = ca.trainer_id AND tp.status IN ("active", "draft"))', [(int)$gymId, (int)$gymId, $coachId]);
         $allGymMembers = query_all('SELECT ca.member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name FROM trainer_assignments ca JOIN users u ON u.user_id = ca.member_user_id WHERE ca.trainer_id = ? AND ca.status = "active" ORDER BY u.first_name ASC', [$coachId]);
     } else {
         $members = query_all('SELECT u.user_id AS member_user_id, u.first_name, u.last_name, u.email, u.profile_picture, CONCAT(u.first_name, " ", u.last_name) AS name, mp.primary_goal, (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = u.user_id) AS secondary_focus, 1 AS has_membership FROM users u LEFT JOIN member_profiles mp ON mp.user_id = u.user_id WHERE u.role = "member" AND u.status = "active" LIMIT 100');
@@ -189,16 +189,18 @@ function training_page(): void
         $last  = trim((string)($m['last_name'] ?? ''));
         $name  = trim($first . ' ' . $last) ?: ($m['name'] ?? 'Member');
         $ini   = (!empty($first) ? strtoupper(substr($first, 0, 1)) : '') . (!empty($last) ? strtoupper(substr($last, 0, 1)) : '');
-        $statusText = empty($m['has_membership']) ? 'No Membership' : 'Active Member';
+        $hasMem = !empty($m['has_membership']);
+        $statusText = $hasMem ? 'Active Member' : 'No Active Membership';
         $sub = !empty($m['email']) ? ($m['email'] . ' • ' . $statusText) : $statusText;
         return [
-            'id'       => (int) $m['member_user_id'],
-            'label'    => $name,
-            'subtitle' => $sub,
-            'initials' => $ini ?: 'M',
-            'avatar'   => !empty($m['profile_picture']) ? upload_url($m['profile_picture']) : null,
+            'id'              => (int) $m['member_user_id'],
+            'label'           => $name,
+            'subtitle'        => $sub,
+            'initials'        => $ini ?: 'M',
+            'avatar'          => !empty($m['profile_picture']) ? upload_url($m['profile_picture']) : null,
             'goal'            => (string) ($m['primary_goal'] ?? ''),
-            'secondary_focus' => (string) ($m['secondary_focus'] ?? '')
+            'secondary_focus' => (string) ($m['secondary_focus'] ?? ''),
+            'has_membership'  => $hasMem
         ];
     }, $members ?: []);
 
@@ -894,16 +896,19 @@ function training_page(): void
             <div>
                 <label style="display:block; color:var(--muted); font-size:13px; font-weight:600; margin-bottom:6px;">Member *</label>
                 <div id="planMemberWrap"></div>
+                <div id="planNoMembershipWarn" style="display:none; margin-top:8px; padding:9px 12px; border-radius:8px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); color:#d97706; font-size:12px; line-height:1.4; font-weight:600;">
+                    &#9888; This member has no active membership (or their plan expired) at this gym. They will be prompted to renew before using this routine.
+                </div>
             </div>
             <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Plan Title 
                 <input name="title" class="form-control" placeholder="e.g., Personalized Strength & Hypertrophy" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;" required>
             </label>
             <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Goal 
-                <input id="planGoalInput" name="goal" class="form-control" placeholder="e.g., muscle_gain, fat_loss" style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;">
+                <input id="planGoalInput" name="goal" class="form-control" placeholder="Auto-filled from member profile" readonly style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel-soft);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;opacity:0.9;cursor:default;">
             </label>
             <div id="planSecondaryGoalWrap" style="display:none;">
                 <label style="display:block; color:var(--muted); font-size:13px; font-weight:600">Secondary Goal / Focus Areas
-                    <input id="planSecondaryGoalInput" class="form-control" readonly style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;opacity:0.9;cursor:default;">
+                    <input id="planSecondaryGoalInput" class="form-control" readonly style="width:100%;box-sizing:border-box;margin-top:5px;background:var(--panel-soft);color:var(--ink);border:1.5px solid var(--line);border-radius:8px;padding:9px 12px;opacity:0.9;cursor:default;">
                 </label>
             </div>
             <div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap;">

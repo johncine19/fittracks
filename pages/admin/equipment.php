@@ -531,7 +531,7 @@ function gym_equipment_page(): void
                     <button type="button" onclick="closeMaintModal()" class="btn" style="background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 9px 18px; border-radius: 8px; cursor: pointer;">
                         Cancel
                     </button>
-                    <button type="submit" class="btn" style="background: #f59e0b; color: #fff; font-weight: 700; padding: 9px 22px; border-radius: 8px; border: none; cursor: pointer;">
+                    <button type="submit" class="btn" style="background: var(--lime); color: var(--lime-contrast, #0b0e14); font-weight: 700; padding: 9px 22px; border-radius: 8px; border: none; cursor: pointer;">
                         Save Status
                     </button>
                 </div>

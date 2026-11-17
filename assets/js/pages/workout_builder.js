@@ -193,6 +193,7 @@ const esc = window.escapeHtml || function(s) {
     // 6. Add Exercise Modal with Custom Dark Combobox & Hybrid Live Search
     function openAddExerciseModal(dayNum, dayName) {
         const exercisesList = window.gymExercisesData || [];
+        const existingOnDay = new Set(((window.WORKOUT_BUILDER_CONFIG?.dayExerciseIds || {})[dayNum] || []).map(id => parseInt(id, 10)));
         const hasExercises = exercisesList.length > 0;
 
         if (!hasExercises) {
@@ -228,16 +229,18 @@ const esc = window.escapeHtml || function(s) {
                     <input type="hidden" name="csrf_token" value="${csrfToken}">
                     <input type="hidden" name="action" value="add_exercise">
                     <input type="hidden" name="day_of_week" value="${dayNum}">
-                    <input type="hidden" name="exercise_id" id="wbExerciseId" value="" required>
+                    <input type="hidden" name="exercise_id" id="wbExerciseId" value="">
+                    <input type="hidden" name="exercise_ids" id="wbExerciseIds" value="">
+                    <input type="hidden" name="exercises_payload" id="wbExercisesPayload" value="">
                     
                     <!-- Custom Themed Combobox with Hybrid Live Search -->
                     <div class="wb-combobox-wrap">
-                        <label class="wb-modal-label">Exercise *</label>
+                        <label class="wb-modal-label">Exercises * <span style="font-weight:400; color:var(--muted); font-size:11px;">(Click multiple to select)</span></label>
                         
                         <div id="wbExTrigger" class="wb-combobox-trigger" tabindex="0">
-                            <div id="wbExTriggerContent" style="display: flex; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                            <div id="wbExTriggerContent" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; overflow: hidden;">
                                 <i class="fas fa-dumbbell" style="color: #64748b; font-size: 13px;"></i>
-                                <span id="wbExTriggerPlaceholder" style="font-size: 13.5px;">Select an exercise...</span>
+                                <span id="wbExTriggerPlaceholder" style="font-size: 13.5px;">Select one or more exercises...</span>
                             </div>
                             <i id="wbExChevron" class="fas fa-chevron-down" style="font-size: 12px; transition: transform 0.2s ease; flex-shrink: 0; margin-left: 8px;"></i>
                         </div>
@@ -273,51 +276,59 @@ const esc = window.escapeHtml || function(s) {
                             <div id="wbExList" class="wb-combobox-list">
                                 <!-- Rendered dynamically -->
                             </div>
-                        </div>
-                    </div>
-                    
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
-                        <div>
-                            <label class="wb-modal-label">Sets *</label>
-                            <input type="number" name="sets" value="3" min="1" max="20" class="form-control wb-modal-input" required>
-                        </div>
-                        <div>
-                            <label class="wb-modal-label">Reps *</label>
-                            <input type="text" name="reps" value="10-12" class="form-control wb-modal-input" placeholder="e.g. 8-10, 12, Failure" required>
-                        </div>
-                        <div>
-                            <label class="wb-modal-label">Target Wt (kg)</label>
-                            <input type="number" step="0.5" name="target_weight_kg" placeholder="e.g. 60" class="form-control wb-modal-input">
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-top:1px solid var(--line); background:var(--panel); border-radius:0 0 10px 10px;">
+                                <span id="wbExMenuSelCount" style="font-size:12px; color:var(--muted); font-weight:600;">0 selected</span>
+                                <button type="button" id="wbExDoneBtn" class="btn btn-primary" style="padding:6px 14px; font-size:12px; font-weight:700; border-radius:7px;">Done</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
-                        <div>
-                            <label class="wb-modal-label">Rest (s)</label>
-                            <select name="rest_seconds" class="form-control wb-modal-select">
-                                <option value="0">0s</option>
-                                <option value="30">30s</option>
-                                <option value="45">45s</option>
-                                <option value="60" selected>60s</option>
-                                <option value="90">90s</option>
-                                <option value="120">120s</option>
-                                <option value="180">180s</option>
-                            </select>
+                    <div id="wbSingleFields" style="display:flex; flex-direction:column; gap:14px;">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                            <div>
+                                <label class="wb-modal-label">Sets *</label>
+                                <input type="number" name="sets" value="3" min="1" max="20" class="form-control wb-modal-input" required>
+                            </div>
+                            <div>
+                                <label class="wb-modal-label">Reps *</label>
+                                <input type="text" name="reps" value="10-12" class="form-control wb-modal-input" placeholder="e.g. 8-10, 12, Failure" required>
+                            </div>
+                            <div>
+                                <label class="wb-modal-label">Target Wt (kg)</label>
+                                <input type="number" step="0.5" name="target_weight_kg" placeholder="e.g. 60" class="form-control wb-modal-input">
+                            </div>
                         </div>
-                        <div>
-                            <label class="wb-modal-label">Tempo</label>
-                            <input type="text" name="tempo" placeholder="e.g. 3-0-1-0" class="form-control wb-modal-input">
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                            <div>
+                                <label class="wb-modal-label">Rest (s)</label>
+                                <select name="rest_seconds" class="form-control wb-modal-select">
+                                    <option value="0">0s</option>
+                                    <option value="30">30s</option>
+                                    <option value="45">45s</option>
+                                    <option value="60" selected>60s</option>
+                                    <option value="90">90s</option>
+                                    <option value="120">120s</option>
+                                    <option value="180">180s</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="wb-modal-label">Tempo</label>
+                                <input type="text" name="tempo" placeholder="e.g. 3-0-1-0" class="form-control wb-modal-input">
+                            </div>
+                            <div>
+                                <label class="wb-modal-label">RPE</label>
+                                <input type="text" name="rpe" placeholder="e.g. RPE 8" class="form-control wb-modal-input">
+                            </div>
                         </div>
+                        
                         <div>
-                            <label class="wb-modal-label">RPE</label>
-                            <input type="text" name="rpe" placeholder="e.g. RPE 8" class="form-control wb-modal-input">
+                            <label class="wb-modal-label">Coaching Cues / Notes</label>
+                            <textarea name="notes" id="wbExNotes" placeholder="e.g. Focus on deep stretch at the bottom, pause 1s" class="form-control wb-modal-input" style="min-height: 80px; resize: vertical;"></textarea>
                         </div>
                     </div>
-                    
-                    <div>
-                        <label class="wb-modal-label">Coaching Cues / Notes</label>
-                        <textarea name="notes" id="wbExNotes" placeholder="e.g. Focus on deep stretch at the bottom, pause 1s" class="form-control wb-modal-input" style="min-height: 80px; resize: vertical;"></textarea>
-                    </div>
+
+                    <div id="wbMultiFields" style="display:none; max-height: 310px; overflow-y: auto; flex-direction: column; gap: 12px; padding-right: 4px;"></div>
                 </form>
             `,
             showCancelButton: true,
@@ -350,10 +361,24 @@ const esc = window.escapeHtml || function(s) {
                 const countEl = document.getElementById('wbExCount');
                 const spinner = document.getElementById('wbExLiveSpinner');
                 const hiddenInput = document.getElementById('wbExerciseId');
+                const hiddenIdsInput = document.getElementById('wbExerciseIds');
+                const hiddenPayloadInput = document.getElementById('wbExercisesPayload');
                 const triggerContent = document.getElementById('wbExTriggerContent');
+                const doneBtn = document.getElementById('wbExDoneBtn');
+                const menuSelCount = document.getElementById('wbExMenuSelCount');
+                const singleFields = document.getElementById('wbSingleFields');
+                const multiFields = document.getElementById('wbMultiFields');
 
-                let selectedId = null;
-                let selectedDifficulty = null;
+                if (doneBtn) {
+                    doneBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        menu.style.display = 'none';
+                        chevron.style.transform = 'rotate(0deg)';
+                    });
+                }
+
+                const selectedExercises = new Map();
+                const perExConfigs = new Map();
                 let activeLevelFilter = 'all';
                 const seenKeys = new Set();
                 let localExercises = [];
@@ -427,12 +452,14 @@ const esc = window.escapeHtml || function(s) {
                             </div>
                         `;
                         items.forEach(item => {
-                            const isSelected = selectedId === item.id;
+                            const itemId = parseInt(item.id, 10);
+                            const isAlreadyAdded = existingOnDay.has(itemId);
+                            const isSelected = !isAlreadyAdded && selectedExercises.has(itemId);
                             const diff = parseInt(item.difficulty || 1, 10);
                             const diffName = diffLabels[diff] || 'Beginner';
                             const isRecommended = (diff === memberTier);
                             html += `
-                                <div class="wb-combobox-item ${isSelected ? 'active' : ''}" data-id="${item.id}" data-name="${encodeURIComponent(item.name)}" data-group="${encodeURIComponent(item.muscle_group)}" data-diff="${diff}" data-desc="${encodeURIComponent(item.description || '')}">
+                                <div class="wb-combobox-item ${isSelected ? 'active' : ''}${isAlreadyAdded ? ' is-already-added' : ''}" data-id="${item.id}" data-added="${isAlreadyAdded ? '1' : '0'}" data-name="${encodeURIComponent(item.name)}" data-group="${encodeURIComponent(item.muscle_group)}" data-diff="${diff}" data-desc="${encodeURIComponent(item.description || '')}"${isAlreadyAdded ? ' style="opacity:0.55;cursor:not-allowed;" title="Already added to this day"' : ''}>
                                     <div class="wb-combobox-item-content">
                                         <div class="wb-combobox-item-main">
                                             <i class="fas fa-dumbbell wb-combobox-item-icon" style="color: ${isSelected ? 'var(--lime)' : '#64748b'};"></i>
@@ -441,11 +468,12 @@ const esc = window.escapeHtml || function(s) {
                                             </span>
                                         </div>
                                         <div class="wb-combobox-item-badges">
+                                            ${isAlreadyAdded ? `<span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(148,163,184,0.16);color:var(--muted);">Already added</span>` : ''}
                                             ${item.category ? `<span class="wb-combobox-item-category">${esc(item.category)}</span>` : ''}
                                             <span class="wb-combobox-item-level level-${diff}">
                                                 ${esc(diffName)}
                                             </span>
-                                            ${isRecommended ? `<span class="wb-combobox-item-match" title="Recommended for member's ${esc(memberActivity)} level">&#9733; Recommended</span>` : ''}
+                                            ${!isAlreadyAdded && isRecommended ? `<span class="wb-combobox-item-match" title="Recommended for member's ${esc(memberActivity)} level">&#9733; Recommended</span>` : ''}
                                         </div>
                                     </div>
                                     ${isSelected ? '<i class="fas fa-check wb-combobox-item-check" style="color: var(--lime);"></i>' : ''}
@@ -459,41 +487,192 @@ const esc = window.escapeHtml || function(s) {
                     listEl.querySelectorAll('.wb-combobox-item').forEach(el => {
                         el.addEventListener('click', (e) => {
                             e.stopPropagation();
+                            if (el.getAttribute('data-added') === '1') {
+                                return;
+                            }
                             const id = parseInt(el.getAttribute('data-id'), 10);
                             const name = decodeURIComponent(el.getAttribute('data-name'));
                             const grp = decodeURIComponent(el.getAttribute('data-group'));
                             const diff = parseInt(el.getAttribute('data-diff'), 10);
                             const desc = decodeURIComponent(el.getAttribute('data-desc') || '');
-                            selectExercise(id, name, grp, diff, desc);
+                            const catEl = el.querySelector('.wb-combobox-item-category');
+                            const category = catEl ? catEl.textContent : '';
+                            toggleExerciseSelection(id, name, grp, diff, desc, category);
                         });
                     });
                 }
 
-                function selectExercise(id, name, grp, diff = 1, desc = '') {
-                    selectedId = id;
-                    selectedDifficulty = diff;
-                    hiddenInput.value = id;
-                    trigger.classList.remove('error');
-                    const diffName = diffLabels[diff] || 'Beginner';
-                    triggerContent.innerHTML = `
-                        <span class="wb-selected-pill">
-                            <i class="fas fa-dumbbell" style="color: var(--lime);"></i>
-                            <span>${esc(name)}</span>
-                        </span>
-                        <span class="wb-group-badge">
-                            ${esc(grp)}
-                        </span>
-                        <span class="wb-combobox-item-level level-${diff}">
-                            ${esc(diffName)}
-                        </span>
-                    `;
-                    const notesEl = document.getElementById('wbExNotes');
-                    if (notesEl && (!notesEl.value || notesEl.dataset.autoFilled === '1' || notesEl.value.trim() === '')) {
-                        notesEl.value = desc || '';
-                        notesEl.dataset.autoFilled = '1';
+                function renderMultiExerciseFields() {
+                    if (!singleFields || !multiFields) return;
+                    const ids = Array.from(selectedExercises.keys());
+                    if (ids.length <= 1) {
+                        singleFields.style.display = 'flex';
+                        multiFields.style.display = 'none';
+                        multiFields.innerHTML = '';
+                        return;
                     }
-                    menu.style.display = 'none';
-                    chevron.style.transform = 'rotate(0deg)';
+
+                    singleFields.style.display = 'none';
+                    multiFields.style.display = 'flex';
+                    multiFields.innerHTML = ids.map((id, index) => {
+                        const item = selectedExercises.get(id);
+                        const cfg = perExConfigs.get(id) || {
+                            sets: '3',
+                            reps: '10-12',
+                            target_weight_kg: '',
+                            rest_seconds: '60',
+                            tempo: '',
+                            rpe: '',
+                            notes: item.desc || ''
+                        };
+                        perExConfigs.set(id, cfg);
+                        const isWeighted = /strength|weight|barbell|dumbbell|cable|machine|kettlebell|hypertrophy/i.test(`${item.category || ''} ${item.group || ''} ${item.name || ''}`);
+                        return `
+                            <div class="wb-multi-ex-card" data-ex-id="${id}" style="border:1px solid var(--line); border-radius:12px; padding:12px; background:var(--panel-soft, rgba(148,163,184,0.06)); display:flex; flex-direction:column; gap:9px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                                    <div style="display:flex; align-items:center; gap:7px; min-width:0;">
+                                        <span style="font-size:11px; font-weight:800; color:var(--muted);">#${index + 1}</span>
+                                        <strong style="font-size:13px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(item.name)}</strong>
+                                        <span class="wb-group-badge" style="font-size:10px;">${esc(item.group)}</span>
+                                    </div>
+                                    <button type="button" data-multi-remove="${id}" style="background:none; border:none; color:var(--muted); font-size:16px; line-height:1; cursor:pointer; padding:2px 4px;" title="Remove">&times;</button>
+                                </div>
+                                <div class="wb-multi-ex-grid ${isWeighted ? 'cols-4' : 'cols-3'}">
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">Sets *</label>
+                                        <input type="number" data-cfg="sets" value="${esc(cfg.sets)}" min="1" max="20" class="form-control wb-modal-input" style="padding:6px 8px; font-size:12.5px;">
+                                    </div>
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">Reps *</label>
+                                        <input type="text" data-cfg="reps" value="${esc(cfg.reps)}" placeholder="10-12" class="form-control wb-modal-input" style="padding:6px 8px; font-size:12.5px;">
+                                    </div>
+                                    ${isWeighted ? `
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">Target Wt (kg)</label>
+                                        <input type="number" step="0.5" min="0" data-cfg="target_weight_kg" value="${esc(cfg.target_weight_kg)}" placeholder="e.g. 60" class="form-control wb-modal-input" style="padding:6px 8px; font-size:12.5px;">
+                                    </div>` : ''}
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">Rest (s)</label>
+                                        <select data-cfg="rest_seconds" class="form-control wb-modal-select" style="padding:6px 8px; font-size:12.5px;">
+                                            ${[0,30,45,60,90,120,180].map(sec => `<option value="${sec}" ${String(cfg.rest_seconds) === String(sec) ? 'selected' : ''}>${sec}s</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="wb-multi-ex-grid ${isWeighted ? 'cols-2' : 'cols-3'}">
+                                    ${!isWeighted ? `
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">Target Wt (kg)</label>
+                                        <input type="number" step="0.5" min="0" data-cfg="target_weight_kg" value="${esc(cfg.target_weight_kg)}" placeholder="Optional" class="form-control wb-modal-input" style="padding:6px 8px; font-size:12.5px;">
+                                    </div>` : ''}
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">Tempo</label>
+                                        <input type="text" data-cfg="tempo" value="${esc(cfg.tempo)}" placeholder="e.g. 3-0-1-0" class="form-control wb-modal-input" style="padding:6px 8px; font-size:12.5px;">
+                                    </div>
+                                    <div>
+                                        <label class="wb-modal-label" style="font-size:11px;">RPE</label>
+                                        <input type="text" data-cfg="rpe" value="${esc(cfg.rpe)}" placeholder="e.g. RPE 8" class="form-control wb-modal-input" style="padding:6px 8px; font-size:12.5px;">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="wb-modal-label" style="font-size:11px;">Coaching Cues / Notes</label>
+                                    <textarea data-cfg="notes" placeholder="Optional cues or notes..." class="form-control wb-modal-input" style="min-height:46px; padding:6px 8px; font-size:12px; resize:vertical;">${esc(cfg.notes)}</textarea>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    multiFields.querySelectorAll('.wb-multi-ex-card').forEach(card => {
+                        const eid = parseInt(card.getAttribute('data-ex-id'), 10);
+                        card.querySelectorAll('[data-cfg]').forEach(inp => {
+                            const evt = inp.tagName === 'SELECT' ? 'change' : 'input';
+                            inp.addEventListener(evt, () => {
+                                const c = perExConfigs.get(eid);
+                                if (c) c[inp.getAttribute('data-cfg')] = inp.value;
+                            });
+                        });
+                        const rmBtn = card.querySelector('[data-multi-remove]');
+                        if (rmBtn) {
+                            rmBtn.addEventListener('click', () => {
+                                selectedExercises.delete(eid);
+                                perExConfigs.delete(eid);
+                                syncSelectedDisplay();
+                                renderList(searchInput.value);
+                            });
+                        }
+                    });
+                }
+
+                function syncSelectedDisplay() {
+                    const ids = Array.from(selectedExercises.keys());
+                    hiddenInput.value = ids.length ? String(ids[0]) : '';
+                    if (hiddenIdsInput) hiddenIdsInput.value = ids.join(',');
+                    trigger.classList.remove('error');
+
+                    if (menuSelCount) {
+                        menuSelCount.textContent = `${ids.length} selected`;
+                    }
+                    if (doneBtn) {
+                        doneBtn.textContent = ids.length > 0 ? `Done (${ids.length} selected)` : 'Done';
+                    }
+
+                    const confirmBtn = Swal.getConfirmButton();
+                    if (confirmBtn) {
+                        confirmBtn.textContent = ids.length > 1 ? `Add ${ids.length} Exercises` : 'Add Exercise';
+                    }
+
+                    const notesEl = document.getElementById('wbExNotes');
+                    if (ids.length === 0) {
+                        triggerContent.innerHTML = `
+                            <i class="fas fa-dumbbell" style="color: #64748b; font-size: 13px;"></i>
+                            <span id="wbExTriggerPlaceholder" style="font-size: 13.5px;">Select one or more exercises...</span>
+                        `;
+                        if (notesEl && notesEl.dataset.autoFilled === '1') {
+                            notesEl.value = '';
+                        }
+                    } else if (ids.length === 1) {
+                        const item = selectedExercises.get(ids[0]);
+                        const diffName = diffLabels[item.diff] || 'Beginner';
+                        triggerContent.innerHTML = `
+                            <span class="wb-selected-pill">
+                                <i class="fas fa-dumbbell" style="color: var(--lime);"></i>
+                                <span>${esc(item.name)}</span>
+                            </span>
+                            <span class="wb-group-badge">${esc(item.group)}</span>
+                            <span class="wb-combobox-item-level level-${item.diff}">${esc(diffName)}</span>
+                        `;
+                        if (notesEl && (!notesEl.value || notesEl.dataset.autoFilled === '1' || notesEl.value.trim() === '')) {
+                            notesEl.value = item.desc || '';
+                            notesEl.dataset.autoFilled = '1';
+                        }
+                    } else {
+                        triggerContent.innerHTML = Array.from(selectedExercises.values()).map(item => `
+                            <span class="wb-selected-pill" style="display:inline-flex;align-items:center;gap:5px;">
+                                <span>${esc(item.name)}</span>
+                                <span data-remove-id="${item.id}" style="cursor:pointer;opacity:0.75;font-weight:800;padding:0 2px;" title="Remove">&times;</span>
+                            </span>
+                        `).join('');
+                        triggerContent.querySelectorAll('[data-remove-id]').forEach(rm => {
+                            rm.addEventListener('click', (ev) => {
+                                ev.stopPropagation();
+                                const rid = parseInt(rm.getAttribute('data-remove-id'), 10);
+                                selectedExercises.delete(rid);
+                                perExConfigs.delete(rid);
+                                syncSelectedDisplay();
+                                renderList(searchInput.value);
+                            });
+                        });
+                    }
+                    renderMultiExerciseFields();
+                }
+
+                function toggleExerciseSelection(id, name, grp, diff = 1, desc = '', category = '') {
+                    if (selectedExercises.has(id)) {
+                        selectedExercises.delete(id);
+                        perExConfigs.delete(id);
+                    } else {
+                        selectedExercises.set(id, { id, name, group: grp, diff, desc, category });
+                    }
+                    syncSelectedDisplay();
                     renderList(searchInput.value);
                 }
 
@@ -585,14 +764,41 @@ const esc = window.escapeHtml || function(s) {
             preConfirm: () => {
                 const form = document.getElementById('addExForm');
                 const trigger = document.getElementById('wbExTrigger');
-                if (!form.exercise_id.value) {
+                const idsRaw = (form.exercise_ids && form.exercise_ids.value) ? form.exercise_ids.value : form.exercise_id.value;
+                if (!idsRaw) {
                     if (trigger) trigger.classList.add('error');
-                    Swal.showValidationMessage('Please select an exercise from the dropdown');
+                    Swal.showValidationMessage('Please select at least one exercise from the dropdown');
                     return false;
                 }
-                if (!form.sets.value || !form.reps.value) {
-                    Swal.showValidationMessage('Please enter sets and reps');
-                    return false;
+                const multiCards = document.querySelectorAll('#wbMultiFields .wb-multi-ex-card');
+                if (multiCards.length > 1) {
+                    const payload = [];
+                    for (const card of multiCards) {
+                        const eid = parseInt(card.getAttribute('data-ex-id'), 10);
+                        const setsVal = parseInt(card.querySelector('[data-cfg="sets"]')?.value || '0', 10);
+                        const repsVal = (card.querySelector('[data-cfg="reps"]')?.value || '').trim();
+                        if (!setsVal || setsVal < 1 || !repsVal) {
+                            Swal.showValidationMessage('Please enter valid Sets and Reps for each selected exercise');
+                            return false;
+                        }
+                        payload.push({
+                            exercise_id: eid,
+                            sets: setsVal,
+                            reps: repsVal,
+                            target_weight_kg: card.querySelector('[data-cfg="target_weight_kg"]')?.value || '',
+                            rest_seconds: card.querySelector('[data-cfg="rest_seconds"]')?.value || '60',
+                            tempo: card.querySelector('[data-cfg="tempo"]')?.value || '',
+                            rpe: card.querySelector('[data-cfg="rpe"]')?.value || '',
+                            notes: card.querySelector('[data-cfg="notes"]')?.value || ''
+                        });
+                    }
+                    const payloadInput = document.getElementById('wbExercisesPayload');
+                    if (payloadInput) payloadInput.value = JSON.stringify(payload);
+                } else {
+                    if (!form.sets.value || !form.reps.value) {
+                        Swal.showValidationMessage('Please enter sets and reps');
+                        return false;
+                    }
                 }
                 form.submit();
             }
