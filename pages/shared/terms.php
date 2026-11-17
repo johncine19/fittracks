@@ -6,10 +6,19 @@ function terms_page(): void
     $user = current_user();
     if (!defined('AUTH_PAGE')) define('AUTH_PAGE', true);
     render_header('Terms of Service', $user);
+    $backUrl = 'index.php';
+    $ref = trim((string)($_SERVER['HTTP_REFERER'] ?? ''));
+    if ($ref !== '') {
+        $refHost = parse_url($ref, PHP_URL_HOST);
+        $curHost = $_SERVER['HTTP_HOST'] ?? '';
+        if ($refHost && $curHost && strcasecmp($refHost, explode(':', $curHost)[0]) === 0) {
+            $backUrl = $ref;
+        }
+    }
 ?>
 <div class="legal-page-container" style="max-width: 860px; margin: 40px auto; padding: 0 20px 80px;">
     <div style="margin-bottom: 24px;">
-        <a href="javascript:history.back()" style="display: inline-flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s;">
+        <a href="<?= h($backUrl) ?>" onclick="if (window.history.length > 1) { window.history.back(); return false; } if (window.opener) { window.close(); return false; } window.close();" style="display: inline-flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s;">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
             Back
         </a>

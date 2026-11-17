@@ -762,18 +762,18 @@ function training_page(): void
                                     <td style="padding:12px; font-size:12.5px; color:var(--muted); white-space:nowrap;">
                                         <?= $row['start_date'] ? date('m/d/Y', strtotime($row['start_date'])) : 'Pending' ?>
                                     </td>
-                                    <td style="padding:12px; text-align:right;">
-                                        <div style="display:inline-flex; gap:6px; justify-content:flex-end; align-items:center;">
-                                            <a href="index.php?page=training&tab=all&view_plan_id=<?= $row['plan_id'] ?>" class="btn btn-secondary" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;">
+                                    <td style="padding:12px; text-align:right; white-space:nowrap;">
+                                        <div style="display:inline-flex; gap:6px; justify-content:flex-end; align-items:center; white-space:nowrap;">
+                                            <a href="index.php?page=training&tab=all&view_plan_id=<?= $row['plan_id'] ?>" class="btn btn-secondary" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex-shrink:0;">
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                                 <span>View Plan</span>
                                             </a>
                                             <?php if ($statusKey === 'draft'): ?>
-                                                <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>&plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-primary" style="padding:5px 10px; font-size:12px;">
+                                                <a href="index.php?page=workout_builder&member_user_id=<?= (int)$row['member_user_id'] ?>&plan_id=<?= (int)$row['plan_id'] ?>" class="btn btn-primary" style="padding:5px 10px; font-size:12px; white-space:nowrap; flex-shrink:0;">
                                                     Build
                                                 </a>
                                             <?php endif; ?>
-                                            <button type="button" class="btn btn-danger btn-delete-plan" data-plan-id="<?= (int)$row['plan_id'] ?>" data-plan-title="<?= h($row['title'] ?: 'Workout Routine') ?>" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" title="Delete Plan">
+                                            <button type="button" class="btn btn-danger btn-delete-plan" data-plan-id="<?= (int)$row['plan_id'] ?>" data-plan-title="<?= h($row['title'] ?: 'Workout Routine') ?>" style="padding:5px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; flex-shrink:0;" title="Delete Plan">
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                                 <span>Delete</span>
                                             </button>

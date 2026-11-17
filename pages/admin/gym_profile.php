@@ -1194,21 +1194,26 @@ function gym_profile_page(): void
                                 <span class="field-hint">Rate charged for visitors at scanner.</span>
                             </div>
 
-                            <div class="span-full" style="grid-column: 1 / -1;">
+                            <div>
                                 <label class="field-label">Physical Address / Location <span style="color: var(--danger, #ef4444);">*</span></label>
-                                <div class="address-input-action-row">
-                                    <div class="input-icon-wrap has-textarea">
-                                        <span class="input-icon">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                        </span>
-                                        <textarea name="address" id="gym_address" class="input-with-icon" rows="2" required placeholder="e.g. 123 Fitness Ave, District 4"><?= h($gym['address']) ?></textarea>
-                                    </div>
-                                    <button type="button" class="btn-detect-loc-trigger" id="btn-address-use-loc" title="Fill physical address and map pin from current device location">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-                                        <span class="btn-loc-text">Autofill Address &amp; Pin</span>
-                                    </button>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                                    </span>
+                                    <input type="text" name="address" id="gym_address" class="input-with-icon" value="<?= h(preg_replace('/\s*[\r\n]+\s*/', ', ', trim((string)$gym['address']))) ?>" required placeholder="e.g. 123 Fitness Ave, District 4">
                                 </div>
                                 <span class="field-hint">Street address, building number, and city.</span>
+                            </div>
+
+                            <div>
+                                <label class="field-label">Gym Contact Number / Email <span class="opt-label" style="font-weight: 400; color: var(--muted); font-size: 11.5px; margin-left: 4px;">(Optional)</span></label>
+                                <div class="input-icon-wrap">
+                                    <span class="input-icon">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                    </span>
+                                    <input type="text" name="contact_info" class="input-with-icon" value="<?= h($gym['contact_info'] ?? '') ?>" placeholder="e.g. 09123456789 / info@gym.com">
+                                </div>
+                                <span class="field-hint">Phone number or support email for inquiries.</span>
                             </div>
 
                             <div class="span-full" style="grid-column: 1 / -1; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line, rgba(255, 255, 255, 0.1)); border-radius: 12px; padding: 18px; margin-top: 4px; margin-bottom: 6px;">
@@ -1265,28 +1270,6 @@ function gym_profile_page(): void
                                     </div>
                                     <div id="owner-pin-map" style="height: 250px; width: 100%; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: #0c1017; overflow: hidden; position: relative; z-index: 1;"></div>
                                 </div>
-                            </div>
-
-                            <div>
-                                <label class="field-label">Gym Contact Number / Email <span class="opt-label" style="font-weight: 400; color: var(--muted); font-size: 11.5px; margin-left: 4px;">(Optional)</span></label>
-                                <div class="input-icon-wrap">
-                                    <span class="input-icon">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                                    </span>
-                                    <input type="text" name="contact_info" class="input-with-icon" value="<?= h($gym['contact_info'] ?? '') ?>" placeholder="e.g. 09123456789 / info@gym.com">
-                                </div>
-                                <span class="field-hint">Phone number or support email for inquiries.</span>
-                            </div>
-
-                            <div>
-                                <label class="field-label" for="fb_page_url">Facebook / Social Media Page</label>
-                                <div class="input-icon-wrap">
-                                    <span class="input-icon">
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                                    </span>
-                                    <input type="text" name="fb_page_url" id="fb_page_url" class="input-with-icon" value="<?= h($gym['fb_page_url'] ?? '') ?>" placeholder="https://facebook.com/yourgympage">
-                                </div>
-                                <span class="field-hint">Official Facebook or social profile link for prospective members.</span>
                             </div>
                         </div>
                     </section>

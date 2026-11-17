@@ -137,18 +137,20 @@ function scanner_page(): void
         header('Content-Type: application/json');
         $q = trim((string) ($_GET['q'] ?? ''));
 
+        $scopePlanGymId = ($currentGymId && $user['role'] !== 'platform_admin') ? (int) $currentGymId : 0;
         $searchSql = '
             SELECT u.user_id, u.first_name, u.last_name, u.role, u.email, u.phone, u.profile_picture,
                    a.attendance_id as active_attendance_id,
-                   a.check_in_time as active_check_in_time
+                   a.check_in_time as active_check_in_time,
+                   (SELECT mp.plan_name FROM memberships m2 JOIN membership_plans mp ON m2.plan_id = mp.plan_id WHERE m2.user_id = u.user_id AND m2.status = "active" AND m2.end_date >= CURDATE() AND (? = 0 OR mp.gym_id = ?) ORDER BY m2.end_date DESC LIMIT 1) as active_plan_name
             FROM users u
-            LEFT JOIN attendance a ON a.user_id = u.user_id 
-                AND a.check_out_time IS NULL 
-                AND a.check_in_time >= CURDATE() 
+            LEFT JOIN attendance a ON a.user_id = u.user_id
+                AND a.check_out_time IS NULL
+                AND a.check_in_time >= CURDATE()
                 AND a.check_in_time < CURDATE() + INTERVAL 1 DAY
             WHERE u.status = "active" AND u.role IN ("member", "trainer")
         ';
-        $params = [];
+        $params = [$scopePlanGymId, $scopePlanGymId];
 
         // Scoping by gym if gym_owner, trainer, staff
         if ($currentGymId && $user['role'] !== 'platform_admin') {
@@ -188,6 +190,7 @@ function scanner_page(): void
                 'role' => ucfirst($m['role']),
                 'email' => $m['email'],
                 'phone' => $m['phone'] ?: 'N/A',
+                'active_plan' => $m['role'] === 'member' ? ($m['active_plan_name'] ?: null) : null,
                 'avatar_html' => render_avatar($m, 'small'),
                 'is_inside' => $isInside,
                 'active_attendance_id' => $m['active_attendance_id'],
@@ -450,6 +453,55 @@ function scanner_page(): void
             $sessionDuration = $formatDuration($openRecord['check_in_time'], date('Y-m-d H:i:s'));
             $message = 'Check-out recorded for ' . $member['first_name'] . ' ' . $member['last_name'];
         } else {
+            // Check-in: verify active membership covers this gym for members (mirroring QR scan)
+            if ($member['role'] === 'member') {
+                $membership = $pdo->prepare('
+                    SELECT m.membership_id, mp.gym_id, mp.plan_id
+                    FROM memberships m
+                    JOIN membership_plans mp ON m.plan_id = mp.plan_id
+                    WHERE m.user_id = ? AND m.status = "active" AND m.end_date >= CURDATE()
+                ');
+                $membership->execute([$targetUserId]);
+                $activePlans = $membership->fetchAll();
+
+                $hasValidPlan = false;
+                if ($user['role'] === 'platform_admin') {
+                    $hasValidPlan = count($activePlans) > 0;
+                } else {
+                    foreach ($activePlans as $plan) {
+                        if ((int)$plan['gym_id'] === (int)$currentGymId) {
+                            $hasValidPlan = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!$hasValidPlan) {
+                    if (!isset($_POST['amount_paid'])) {
+                        $detectedFee = $currentGymId
+                            ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$currentGymId]) ?: 100.0)
+                            : 100.0;
+
+                        echo json_encode([
+                            'success' => false,
+                            'requires_payment' => true,
+                            'walk_in_fee' => $detectedFee,
+                            'user_id' => $targetUserId,
+                            'member_name' => $member['first_name'] . ' ' . $member['last_name'],
+                            'message' => 'No active membership covers this gym. Please collect walk-in payment to proceed.'
+                        ]);
+                        exit;
+                    }
+                    if ((float) post('amount_paid') <= 0) {
+                        echo json_encode([
+                            'success' => false,
+                            'message' => 'A positive walk-in payment amount is required to check in without an active membership.'
+                        ]);
+                        exit;
+                    }
+                }
+            }
+
             // Check-in
             $stmtClass = $pdo->prepare('
                 SELECT b.schedule_id, c.class_name
@@ -501,6 +553,13 @@ function scanner_page(): void
                 }
             } else {
                 $message = 'Check-in recorded for ' . $member['first_name'] . ' ' . $member['last_name'];
+            }
+            $amount = (float) (post('amount_paid') ?: 0);
+            if ($amount > 0) {
+                $guestName = $member['first_name'] . ' ' . $member['last_name'];
+                $contactInfo = scalar('SELECT phone FROM users WHERE user_id = ?', [$targetUserId]) ?: 'N/A';
+                $pdo->prepare('INSERT INTO walk_in_transactions (gym_id, guest_name, contact_info, amount_paid, payment_method, visit_date, processed_by, converted_to_member_id) VALUES (?, ?, ?, ?, ?, NOW(), ?, ?)')
+                    ->execute([$currentGymId, $guestName, $contactInfo, $amount, post('payment_method') ?: 'cash', $user['user_id'], $targetUserId]);
             }
             audit_log($user['user_id'], 'manual_checkin', 'attendance', (string) $newAttendanceId, json_encode(['user_id' => $targetUserId, 'schedule_id' => $scheduleId]));
         }
@@ -645,20 +704,29 @@ function scanner_page(): void
                     }
                 }
 
-                if (!$hasValidPlan && !isset($_POST['amount_paid'])) {
-                    $detectedFee = $currentGymId 
-                        ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$currentGymId]) ?: 100.0)
-                        : 100.0;
+                if (!$hasValidPlan) {
+                    if (!isset($_POST['amount_paid'])) {
+                        $detectedFee = $currentGymId 
+                            ? (float) (scalar('SELECT walk_in_fee FROM gyms WHERE gym_id = ?', [$currentGymId]) ?: 100.0)
+                            : 100.0;
 
-                    echo json_encode([
-                        'success' => false,
-                        'requires_payment' => true,
-                        'walk_in_fee' => $detectedFee,
-                        'qr_data' => $qrData,
-                        'member_name' => $member['first_name'] . ' ' . $member['last_name'],
-                        'message' => 'No active membership covers this gym. Please collect walk-in payment to proceed.'
-                    ]);
-                    exit;
+                        echo json_encode([
+                            'success' => false,
+                            'requires_payment' => true,
+                            'walk_in_fee' => $detectedFee,
+                            'qr_data' => $qrData,
+                            'member_name' => $member['first_name'] . ' ' . $member['last_name'],
+                            'message' => 'No active membership covers this gym. Please collect walk-in payment to proceed.'
+                        ]);
+                        exit;
+                    }
+                    if ((float) post('amount_paid') <= 0) {
+                        echo json_encode([
+                            'success' => false,
+                            'message' => 'A positive walk-in payment amount is required to check in without an active membership.'
+                        ]);
+                        exit;
+                    }
                 }
             }
             
@@ -834,16 +902,10 @@ function scanner_page(): void
                     </button>
                 </div>
 
-                <a href="index.php?page=gym_profile" class="term-btn-icon" title="Standard walk-in fee. Click to customize in Gym Profile" style="text-decoration: none;">
+                <a href="index.php?page=gym_profile&tab=general" class="term-btn-icon" title="Standard walk-in fee. Click to customize in Gym Profile" style="text-decoration: none;">
                     <span style="color: var(--lime); font-weight: 800;">₱<?= number_format($currentGymWalkInFee, 2) ?></span>
                     <span style="color: var(--muted); font-size: 0.78rem;">Walk-in Rate</span>
                 </a>
-                <button type="button" class="term-btn-icon btn-sound-toggle" id="term-sound-btn" title="Toggle audio chimes">
-                    <span class="sound-toggle-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                    </span>
-                    <span class="sound-toggle-text">Sound</span>
-                </button>
                 <button type="button" class="term-btn-icon" id="term-manual-btn" onclick="openManualModal()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                     <span>Manual Entry</span>

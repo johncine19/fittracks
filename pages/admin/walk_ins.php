@@ -180,7 +180,7 @@ function walk_ins_page(): void
     $statClauses = [];
     $statParams = [];
     if (($user['role'] === 'gym_owner' || $user['role'] === 'staff') && $gymId) {
-        $statClauses[] = 'gym_id = ?';
+        $statClauses[] = 'w.gym_id = ?';
         $statParams[] = $gymId;
     }
     $statWhere = $statClauses ? ' WHERE ' . implode(' AND ', $statClauses) : '';
@@ -188,12 +188,13 @@ function walk_ins_page(): void
     // Today's metrics
     $stmtToday = db()->prepare(
         'SELECT 
-            COALESCE(SUM(amount_paid), 0) AS today_rev,
+            COALESCE(SUM(w.amount_paid), 0) AS today_rev,
             COUNT(*) AS today_cnt,
-            COALESCE(SUM(CASE WHEN LOWER(payment_method) = "cash" THEN amount_paid ELSE 0 END), 0) AS today_cash,
-            COALESCE(SUM(CASE WHEN LOWER(payment_method) = "gcash" THEN amount_paid ELSE 0 END), 0) AS today_gcash,
-            COUNT(CASE WHEN converted_to_member_id IS NOT NULL THEN 1 END) AS today_conv
-         FROM walk_in_transactions' . ($statWhere ? $statWhere . ' AND' : ' WHERE') . ' DATE(visit_date) = CURDATE()'
+            COALESCE(SUM(CASE WHEN LOWER(w.payment_method) = "cash" THEN w.amount_paid ELSE 0 END), 0) AS today_cash,
+            COALESCE(SUM(CASE WHEN LOWER(w.payment_method) = "gcash" THEN w.amount_paid ELSE 0 END), 0) AS today_gcash,
+            COUNT(CASE WHEN w.converted_to_member_id IS NOT NULL AND u.created_at >= w.visit_date THEN 1 END) AS today_conv
+         FROM walk_in_transactions w
+         LEFT JOIN users u ON u.user_id = w.converted_to_member_id' . ($statWhere ? $statWhere . ' AND' : ' WHERE') . ' DATE(w.visit_date) = CURDATE()'
     );
     $stmtToday->execute($statParams);
     $todayStats = $stmtToday->fetch() ?: [];
@@ -208,8 +209,9 @@ function walk_ins_page(): void
     $stmtAll = db()->prepare(
         'SELECT 
             COUNT(*) AS all_cnt,
-            COUNT(CASE WHEN converted_to_member_id IS NOT NULL THEN 1 END) AS all_conv
-         FROM walk_in_transactions' . $statWhere
+            COUNT(CASE WHEN w.converted_to_member_id IS NOT NULL AND u.created_at >= w.visit_date THEN 1 END) AS all_conv
+         FROM walk_in_transactions w
+         LEFT JOIN users u ON u.user_id = w.converted_to_member_id' . $statWhere
     );
     $stmtAll->execute($statParams);
     $allStats = $stmtAll->fetch() ?: [];

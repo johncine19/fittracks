@@ -285,10 +285,25 @@ function commissions_page(): void
             display: block !important;
             flex-shrink: 0 !important;
         }
+        .commissions-tabs {
+            display: inline-flex;
+            gap: 6px;
+            margin-bottom: 20px;
+            padding: 5px;
+            background: var(--panel-soft, rgba(15, 23, 42, 0.06));
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            width: fit-content;
+            flex-wrap: wrap;
+        }
+        [data-theme="dark"] .commissions-tabs {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
         .commissions-tab-btn {
             background: transparent;
             color: var(--muted);
-            border: none;
+            border: 1px solid transparent;
             padding: 8px 18px;
             border-radius: 8px;
             font-size: 14px;
@@ -300,13 +315,15 @@ function commissions_page(): void
             align-items: center;
             gap: 8px;
         }
-        .commissions-tab-btn:hover {
+        .commissions-tab-btn:hover:not(.active) {
             color: var(--ink);
+            background: rgba(148, 163, 184, 0.1);
         }
         .commissions-tab-btn.active {
-            background: var(--surface);
-            color: var(--ink);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            background: var(--lime, #84cc16);
+            color: var(--lime-contrast, #080b0d);
+            font-weight: 700;
+            box-shadow: 0 2px 10px color-mix(in srgb, var(--lime, #84cc16) 28%, transparent);
         }
         .commissions-tab-content {
             display: none;

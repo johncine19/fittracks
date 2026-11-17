@@ -217,6 +217,10 @@ function attendance_page(): void
     };
     $attendanceFrom = $validDate($attendanceFrom);
     $attendanceTo = $validDate($attendanceTo);
+    $maxAllowedDate = date('Y-m-d');
+    if ($attendanceFrom !== '' && $attendanceFrom > $maxAllowedDate) $attendanceFrom = $maxAllowedDate;
+    if ($attendanceTo !== '' && $attendanceTo > $maxAllowedDate) $attendanceTo = $maxAllowedDate;
+    if ($attendanceFrom !== '' && $attendanceTo !== '' && $attendanceFrom > $attendanceTo) $attendanceFrom = $attendanceTo;
     if (!in_array($attendanceStatus, ['in_gym', 'checked_out'], true)) $attendanceStatus = '';
     if (!in_array($attendanceMethod, ['qr_code', 'manual'], true)) $attendanceMethod = '';
 
@@ -505,6 +509,7 @@ function attendance_page(): void
         </section>
     </div>
     <section class="panel skeleton-content sk-display-block">
+        <link rel="stylesheet" href="<?= h(asset_url('css/flatpickr.min.css')) ?>">
         <div class="page-header">
             <div>
                 <p style="margin: 0;">Record user check-ins and check-outs for gym visits and classes.</p>
@@ -584,7 +589,10 @@ function attendance_page(): void
             </div>
             <div class="attendance-day-nav">
                 <a href="<?= h($makeDayUrl($prevDay, $prevDay)) ?>" class="attendance-day-btn" title="Previous Day">&lsaquo; Prev</a>
-                <input type="date" id="attendanceQuickDayPicker" value="<?= h($isSingleDay ? $attendanceFrom : $todayYmd) ?>" max="<?= h($todayYmd) ?>" class="attendance-day-input" title="Jump to specific day">
+                <span style="position:relative;display:inline-flex;align-items:center;">
+                    <input type="text" id="attendanceQuickDayPicker" value="<?= h($isSingleDay ? $attendanceFrom : $todayYmd) ?>" placeholder="mm/dd/yyyy" autocomplete="off" class="attendance-day-input" style="padding-right:30px;width:132px;box-sizing:border-box;" title="Jump to specific day">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                </span>
                 <a href="<?= h($makeDayUrl($nextDay, $nextDay)) ?>" class="attendance-day-btn <?= $activeDay >= $todayYmd ? 'is-disabled' : '' ?>" <?= $activeDay >= $todayYmd ? 'aria-disabled="true" tabindex="-1"' : '' ?> title="Next Day">Next &rsaquo;</a>
             </div>
             <div class="attendance-export-actions">
@@ -607,7 +615,7 @@ function attendance_page(): void
                 <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
                     <input type="text" name="attendance_from" data-attendance-date-text="from" value="<?= $attendanceFrom !== '' ? h(date('m/d/y', strtotime($attendanceFrom))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:40px;">
                     <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                    <input type="date" data-attendance-date-picker="from" value="<?= h($attendanceFrom) ?>" aria-label="Choose start date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
+                    <input type="date" data-attendance-date-picker="from" value="<?= h($attendanceFrom) ?>" max="<?= h($attendanceTo !== '' ? $attendanceTo : $todayYmd) ?>" aria-label="Choose start date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
                 </span>
             </label>
             <label class="attendance-filter-group attendance-filter-to">
@@ -615,7 +623,7 @@ function attendance_page(): void
                 <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
                     <input type="text" name="attendance_to" data-attendance-date-text="to" value="<?= $attendanceTo !== '' ? h(date('m/d/y', strtotime($attendanceTo))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:40px;">
                     <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                    <input type="date" data-attendance-date-picker="to" value="<?= h($attendanceTo) ?>" aria-label="Choose end date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
+                    <input type="date" data-attendance-date-picker="to" value="<?= h($attendanceTo) ?>" min="<?= h($attendanceFrom) ?>" max="<?= h($todayYmd) ?>" aria-label="Choose end date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
                 </span>
             </label>
             <label class="attendance-filter-group attendance-filter-status">
@@ -1370,18 +1378,76 @@ function attendance_page(): void
     window.checkinMembersData = <?= json_encode($checkinMembersData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.checkinEquipmentData = <?= json_encode($checkinEquipmentData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
     window.checkinSessionsData = <?= json_encode($checkinSessionsData ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
-
+    </script>
+    <style>
+        .flatpickr-calendar {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+        }
+        .flatpickr-months .flatpickr-month,
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        span.flatpickr-weekday {
+            background: var(--panel);
+            color: var(--ink);
+        }
+        .flatpickr-months .flatpickr-prev-month svg,
+        .flatpickr-months .flatpickr-next-month svg {
+            fill: var(--ink);
+        }
+        .flatpickr-day { color: var(--ink); }
+        .flatpickr-day:hover,
+        .flatpickr-day:focus { background: var(--surface); border-color: var(--line); }
+        .flatpickr-day.selected,
+        .flatpickr-day.selected:hover {
+            background: var(--lime);
+            border-color: var(--lime);
+            color: var(--lime-contrast, #080b0d);
+            font-weight: 700;
+        }
+        .flatpickr-day.today { border-color: var(--lime); }
+        .flatpickr-day.flatpickr-disabled,
+        .flatpickr-day.prevMonthDay,
+        .flatpickr-day.nextMonthDay { color: var(--muted); opacity: 0.4; }
+    </style>
+    <script src="<?= h(asset_url('js/flatpickr.min.js')) ?>"></script>
+    <script>
     const quickDayPicker = document.getElementById('attendanceQuickDayPicker');
     if (quickDayPicker) {
-        quickDayPicker.addEventListener('change', function() {
-            if (!quickDayPicker.value) return;
+        const navigateToDay = function(dateStr) {
+            if (!dateStr) return;
             const url = new URL(window.location.href);
             url.searchParams.set('page', 'attendance');
-            url.searchParams.set('attendance_from', quickDayPicker.value);
-            url.searchParams.set('attendance_to', quickDayPicker.value);
+            url.searchParams.set('attendance_from', dateStr);
+            url.searchParams.set('attendance_to', dateStr);
             url.searchParams.delete('attendance_page');
             window.location.href = url.toString();
-        });
+        };
+
+        if (typeof flatpickr !== 'undefined') {
+            flatpickr(quickDayPicker, {
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'm/d/Y',
+                altInputClass: 'attendance-day-input',
+                maxDate: <?= json_encode($todayYmd) ?>,
+                onReady: function(_, __, instance) {
+                    if (instance.altInput) {
+                        instance.altInput.style.paddingRight = '30px';
+                        instance.altInput.style.width = '132px';
+                        instance.altInput.style.boxSizing = 'border-box';
+                        instance.altInput.title = 'Jump to specific day';
+                    }
+                },
+                onChange: function(_, dateStr) {
+                    navigateToDay(dateStr);
+                }
+            });
+        } else {
+            quickDayPicker.addEventListener('change', function() {
+                navigateToDay(quickDayPicker.value);
+            });
+        }
     }
 
     document.querySelectorAll('[data-attendance-date-picker]').forEach(function(picker) {

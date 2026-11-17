@@ -512,7 +512,7 @@ function view_gym_page(): void
             </div>
 
             <!-- Rating Overview & Interactive Review Form Grid -->
-            <div class="gym-rating-hero-grid">
+            <div class="gym-rating-hero-grid"<?= $isOwner ? ' style="grid-template-columns: 1fr;"' : '' ?>>
                 <!-- Left: Aggregated Rating Stats & Breakdown -->
                 <div class="gym-rating-summary-card">
                     <div class="gym-rating-big-score">
@@ -540,7 +540,7 @@ function view_gym_page(): void
                 </div>
 
                 <!-- Right: Submit / Edit Review or Status -->
-                <div class="gym-rating-action-card">
+                <div class="gym-rating-action-card"<?= $isOwner ? ' style="display:none;"' : '' ?>>
                     <?php if ($canReview): 
                         $initialRating = isset($_GET['rating']) && (int)$_GET['rating'] >= 1 && (int)$_GET['rating'] <= 5 
                             ? (int)$_GET['rating'] 

@@ -215,6 +215,9 @@ function expenses_page(): void
     // -------------------------------------------------------------
     $todayYmd = date('Y-m-d');
     $monthStartYmd = date('Y-m-01');
+    $quarterMonth = (int)(floor(((int)date('n') - 1) / 3) * 3 + 1);
+    $quarterStartYmd = date('Y-' . str_pad((string)$quarterMonth, 2, '0', STR_PAD_LEFT) . '-01');
+    $yearStartYmd = date('Y-01-01');
     $filterFrom = trim((string)($_GET['from'] ?? $monthStartYmd));
     $filterTo = trim((string)($_GET['to'] ?? $todayYmd));
     if (isset($_GET['preset']) && $_GET['preset'] === 'all') {
@@ -226,6 +229,15 @@ function expenses_page(): void
     }
     if ($filterTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterTo)) {
         $filterTo = $todayYmd;
+    }
+    if ($filterFrom !== '' && $filterFrom > $todayYmd) {
+        $filterFrom = $todayYmd;
+    }
+    if ($filterTo !== '' && $filterTo > $todayYmd) {
+        $filterTo = $todayYmd;
+    }
+    if ($filterFrom !== '' && $filterTo !== '' && $filterFrom > $filterTo) {
+        $filterFrom = $filterTo;
     }
     $filterCategory = trim((string)($_GET['category'] ?? ''));
     if ($filterCategory !== '' && !in_array($filterCategory, $categories, true)) {
@@ -362,6 +374,8 @@ function expenses_page(): void
 
     $isTodayPreset = ($filterFrom === $todayYmd && $filterTo === $todayYmd);
     $isMonthPreset = ($filterFrom === $monthStartYmd && $filterTo === $todayYmd);
+    $isQuarterPreset = ($filterFrom === $quarterStartYmd && $filterTo === $todayYmd);
+    $isYearPreset = ($filterFrom === $yearStartYmd && $filterTo === $todayYmd);
     $isAllPreset = ($filterFrom === '' && $filterTo === '');
 
     $periodLabel = $isAllPreset
@@ -370,6 +384,7 @@ function expenses_page(): void
 
     render_header('Expenses', $user);
     ?>
+    <link rel="stylesheet" href="<?= h(asset_url('css/flatpickr.min.css')) ?>">
     <section class="panel">
         <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;">
             <div>
@@ -440,6 +455,8 @@ function expenses_page(): void
         <div class="exp-quick-pills">
             <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'expenses', 'gym_id' => $gymId, 'from' => $todayYmd, 'to' => $todayYmd]))) ?>" class="exp-pill <?= $isTodayPreset ? 'is-active' : '' ?>">Today</a>
             <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'expenses', 'gym_id' => $gymId, 'from' => $monthStartYmd, 'to' => $todayYmd]))) ?>" class="exp-pill <?= $isMonthPreset ? 'is-active' : '' ?>">This Month</a>
+            <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'expenses', 'gym_id' => $gymId, 'from' => $quarterStartYmd, 'to' => $todayYmd]))) ?>" class="exp-pill <?= $isQuarterPreset ? 'is-active' : '' ?>">Quarterly</a>
+            <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'expenses', 'gym_id' => $gymId, 'from' => $yearStartYmd, 'to' => $todayYmd]))) ?>" class="exp-pill <?= $isYearPreset ? 'is-active' : '' ?>">Annually</a>
             <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'expenses', 'gym_id' => $gymId, 'preset' => 'all']))) ?>" class="exp-pill <?= $isAllPreset ? 'is-active' : '' ?>">All Time</a>
         </div>
 
@@ -461,11 +478,11 @@ function expenses_page(): void
             </label>
             <label class="exp-filter-group">
                 From
-                <input type="date" name="from" value="<?= h($filterFrom) ?>" class="exp-input">
+                <input type="text" id="expFilterFrom" name="from" value="<?= h($filterFrom) ?>" placeholder="mm/dd/yyyy" autocomplete="off" class="exp-input">
             </label>
             <label class="exp-filter-group">
                 To
-                <input type="date" name="to" value="<?= h($filterTo) ?>" class="exp-input">
+                <input type="text" id="expFilterTo" name="to" value="<?= h($filterTo) ?>" placeholder="mm/dd/yyyy" autocomplete="off" class="exp-input">
             </label>
             <div class="exp-filter-actions">
                 <button type="submit" class="btn btn-primary">Filter</button>
@@ -520,7 +537,7 @@ function expenses_page(): void
                             <td><span style="color:var(--muted);font-size:12.5px;"><?= h($r['recorded_by_name'] ?: 'System') ?></span></td>
                             <td>
                                 <?php if ($canDel): ?>
-                                    <form method="post" onsubmit="return confirm('Delete this expense entry?');" style="margin:0;">
+                                    <form method="post" onsubmit="return confirmDeleteExpense(event, this, <?= htmlspecialchars(json_encode((string)$r['description']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode(money((float)$r['amount'])), ENT_QUOTES, 'UTF-8') ?>);" style="margin:0;">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="action" value="delete_expense">
                                         <input type="hidden" name="expense_id" value="<?= (int)$r['expense_id'] ?>">
@@ -565,7 +582,7 @@ function expenses_page(): void
                         <div class="exp-mobile-card-footer">
                             <span class="exp-mobile-card-by">By <?= h($r['recorded_by_name'] ?: 'System') ?></span>
                             <?php if ($canDel): ?>
-                                <form method="post" onsubmit="return confirm('Delete this expense entry?');" style="margin:0;">
+                                <form method="post" onsubmit="return confirmDeleteExpense(event, this, <?= htmlspecialchars(json_encode((string)$r['description']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode(money((float)$r['amount'])), ENT_QUOTES, 'UTF-8') ?>);" style="margin:0;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="action" value="delete_expense">
                                     <input type="hidden" name="expense_id" value="<?= (int)$r['expense_id'] ?>">
@@ -1014,7 +1031,112 @@ function expenses_page(): void
                 width: 100%;
             }
         }
+        .flatpickr-calendar {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+        }
+        .flatpickr-months .flatpickr-month,
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        span.flatpickr-weekday {
+            background: var(--panel);
+            color: var(--ink);
+        }
+        .flatpickr-months .flatpickr-prev-month svg,
+        .flatpickr-months .flatpickr-next-month svg {
+            fill: var(--ink);
+        }
+        .flatpickr-day {
+            color: var(--ink);
+        }
+        .flatpickr-day:hover,
+        .flatpickr-day:focus {
+            background: var(--surface);
+            border-color: var(--line);
+        }
+        .flatpickr-day.selected,
+        .flatpickr-day.selected:hover {
+            background: var(--lime);
+            border-color: var(--lime);
+            color: var(--lime-contrast, #080b0d);
+            font-weight: 700;
+        }
+        .flatpickr-day.today {
+            border-color: var(--lime);
+        }
+        .flatpickr-day.flatpickr-disabled,
+        .flatpickr-day.prevMonthDay,
+        .flatpickr-day.nextMonthDay {
+            color: var(--muted);
+            opacity: 0.4;
+        }
     </style>
+    <script src="<?= h(asset_url('js/flatpickr.min.js')) ?>"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (typeof flatpickr === 'undefined') return;
+        const todayStr = <?= json_encode($todayYmd) ?>;
+        const fromEl = document.getElementById('expFilterFrom');
+        const toEl = document.getElementById('expFilterTo');
+        if (!fromEl || !toEl) return;
+
+        let toPicker = null;
+        const fromPicker = flatpickr(fromEl, {
+            dateFormat: 'Y-m-d',
+            altInput: true,
+            altFormat: 'm/d/Y',
+            altInputClass: 'exp-input',
+            maxDate: toEl.value || todayStr,
+            onChange: function (selectedDates, dateStr) {
+                if (toPicker) {
+                    toPicker.set('minDate', dateStr || null);
+                }
+            }
+        });
+
+        toPicker = flatpickr(toEl, {
+            dateFormat: 'Y-m-d',
+            altInput: true,
+            altFormat: 'm/d/Y',
+            altInputClass: 'exp-input',
+            minDate: fromEl.value || null,
+            maxDate: todayStr,
+            onChange: function (selectedDates, dateStr) {
+                if (fromPicker) {
+                    fromPicker.set('maxDate', dateStr || todayStr);
+                }
+            }
+        });
+    });
+
+    function confirmDeleteExpense(e, form, desc, amount) {
+        if (e) e.preventDefault();
+        if (typeof Swal === 'undefined') {
+            if (confirm('Delete this expense entry?')) {
+                form.submit();
+            }
+            return false;
+        }
+        const safeDesc = (desc || 'this expense').length > 60 ? (desc || '').slice(0, 60) + '...' : (desc || 'this expense');
+        Swal.fire({
+            title: 'Delete Expense?',
+            text: `Remove "${safeDesc}" (${amount || ''})? This cannot be undone.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--panel)',
+            color: 'var(--ink)'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+        return false;
+    }
+    </script>
     <?php
     render_footer();
 }

@@ -874,98 +874,29 @@
                     viewfinderWrap.classList.add('flash-error');
                     setTimeout(() => viewfinderWrap.classList.remove('flash-error'), 800);
 
-                    // Prompt Walk-In Payment Modal with Auto-Detected Gym Walk-in Fee
-                    const defaultFee = data.walk_in_fee ? parseFloat(data.walk_in_fee).toFixed(2) : '100.00';
-                    Swal.fire({
-                        title: 'Guest Walk-in Payment Required',
-                        html: `
-                            <div style="text-align: left; margin: 6px 0;">
-                                <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
-                                    <div style="color: var(--danger); font-weight: 700; font-size: 0.9rem; margin-bottom: 3px;">${data.message}</div>
-                                    <div style="font-size: 0.82rem; color: var(--muted);">Member: <strong style="color: var(--ink);">${data.member_name || 'Visitor'}</strong></div>
-                                </div>
-                                
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <label style="font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">Amount to Collect</label>
-                                    <span style="font-size: 0.76rem; color: var(--lime); font-weight: 700;">Rate Detected: ₱${defaultFee}</span>
-                                </div>
-                                <div style="position: relative; margin-bottom: 16px;">
-                                    <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--lime); font-size: 16px;">₱</span>
-                                    <input type="number" id="swal-amount" class="swal2-input swal-amount-input" placeholder="0.00" step="0.01" min="0" value="${defaultFee}" style="width: 100% !important; margin: 0 !important; padding-left: 36px !important; height: 46px !important; border-radius: 12px !important; box-sizing: border-box !important; font-size: 1.15rem !important; font-weight: 800 !important;">
-                                </div>
-
-                                <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">
-                                    Payment Method
-                                </label>
-                                <div class="swal-pay-methods" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px;">
-                                    <button type="button" class="swal-method-btn active" data-method="cash" onclick="window.setSwalMethod('cash', this)">
-                                        <span class="swal-icon-wrap" style="font-weight: 900; font-size: 1.45rem; line-height: 1;">₱</span>
-                                        <span>Cash</span>
-                                    </button>
-                                    <button type="button" class="swal-method-btn" data-method="gcash" onclick="window.setSwalMethod('gcash', this)">
-                                        <span class="swal-icon-wrap">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"></rect><line x1="10" y1="18" x2="14" y2="18"></line></svg>
-                                        </span>
-                                        <span>GCash</span>
-                                    </button>
-                                    <button type="button" class="swal-method-btn" data-method="card" onclick="window.setSwalMethod('card', this)">
-                                        <span class="swal-icon-wrap">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-                                        </span>
-                                        <span>Card</span>
-                                    </button>
-                                </div>
-                                <input type="hidden" id="swal-method" value="cash">
-                            </div>
-                        `,
-                        background: 'var(--panel)',
-                        color: 'var(--ink)',
-                        confirmButtonColor: 'var(--lime)',
-                        cancelButtonColor: 'color-mix(in srgb, var(--ink) 12%, transparent)',
-                        showCancelButton: true,
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        confirmButtonText: '<span style="color:#05080c; font-weight:700;">Record Payment & Check-in</span>',
-                        cancelButtonText: '<span style="color:var(--ink);">Cancel</span>',
-                        didOpen: () => {
-                            window.setSwalMethod = function(m, btn) {
-                                const hidden = document.getElementById('swal-method');
-                                if (hidden) hidden.value = m;
-                                document.querySelectorAll('.swal-method-btn').forEach(b => {
-                                    b.classList.toggle('active', b.getAttribute('data-method') === m);
-                                });
-                            };
-                        },
-                        preConfirm: () => {
-                            const amt = document.getElementById('swal-amount').value;
-                            const meth = document.getElementById('swal-method').value;
-                            return { amount: amt || 0, method: meth };
-                        }
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            fetch('index.php?page=scanner', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: 'action=process_qr&qr_data=' + encodeURIComponent(qrString) + '&amount_paid=' + encodeURIComponent(result.value.amount) + '&payment_method=' + encodeURIComponent(result.value.method) + '&csrf_token=' + encodeURIComponent(csrfToken)
-                            })
-                            .then(r => r.json())
-                            .then(data2 => {
-                                if (data2.success) {
-                                    handleSuccessResponse(data2);
-                                } else {
-                                    showErrorResult('Payment / Check-in Failed', data2.message);
-                                }
-                            })
-                            .catch(err => {
-                                console.warn('Network error recording payment, saving offline:', err);
-                                setNetworkStatus(false);
-                                queueOfflineScan(qrString, method, { amount: result.value.amount, method: result.value.method });
-                            });
-                        } else {
-                            isProcessing = false;
-                            processedTokensInSession.delete(qrString);
-                            setHudState('idle');
-                        }
+                    promptWalkInPaymentModal(data, (val) => {
+                        fetch('index.php?page=scanner', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=process_qr&qr_data=' + encodeURIComponent(qrString) + '&amount_paid=' + encodeURIComponent(val.amount) + '&payment_method=' + encodeURIComponent(val.method) + '&csrf_token=' + encodeURIComponent(csrfToken)
+                        })
+                        .then(r => r.json())
+                        .then(data2 => {
+                            if (data2.success) {
+                                handleSuccessResponse(data2);
+                            } else {
+                                showErrorResult('Payment / Check-in Failed', data2.message);
+                            }
+                        })
+                        .catch(err => {
+                            console.warn('Network error recording payment, saving offline:', err);
+                            setNetworkStatus(false);
+                            queueOfflineScan(qrString, method, { amount: val.amount, method: val.method });
+                        });
+                    }, () => {
+                        isProcessing = false;
+                        processedTokensInSession.delete(qrString);
+                        setHudState('idle');
                     });
                     return;
                 }
@@ -1365,6 +1296,12 @@
                 const roleClass = isTrainer ? 'trainer' : 'member';
                 const roleLabel = isTrainer ? 'TRAINER' : 'MEMBER';
                 const roleBadge = `<span class="manual-role-badge ${roleClass}">${roleLabel}</span>`;
+                let planBadge = '';
+                if (!isTrainer && Object.prototype.hasOwnProperty.call(m, 'active_plan')) {
+                    planBadge = m.active_plan
+                        ? `<span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(34,197,94,0.14);color:#22c55e;white-space:nowrap;">${escapeHtml(m.active_plan)}</span>`
+                        : `<span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(245,158,11,0.15);color:#f59e0b;white-space:nowrap;">No Active Plan</span>`;
+                }
 
                 const contact = m.email || (m.phone && m.phone !== 'N/A' ? m.phone : '');
                 const safeContact = contact ? escapeHtml(contact) : '';
@@ -1390,6 +1327,7 @@
                             <div class="manual-item-title-row">
                                 <span class="manual-item-name">${safeName}</span>
                                 ${roleBadge}
+                                ${planBadge}
                             </div>
                             <div class="manual-item-sub-row">
                                 ${subRowHtml}
@@ -1397,7 +1335,7 @@
                         </div>
                     </div>
                     <div style="flex-shrink:0;">
-                        <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" onclick="submitManualAttendance(${parseInt(m.user_id, 10)})">
+                        <button type="button" class="btn-manual-action ${m.is_inside ? 'checkout' : 'checkin'}" data-uid="${parseInt(m.user_id, 10)}" data-name="${safeName}" data-inside="${m.is_inside ? '1' : '0'}" onclick="submitManualAttendance(parseInt(this.dataset.uid, 10), this.dataset.name, this.dataset.inside === '1')">
                             ${m.is_inside ? 'Check-Out' : 'Check-In'}
                         </button>
                     </div>
@@ -1508,7 +1446,87 @@
                 });
         }
 
-        window.submitManualAttendance = function(userId) {
+        function promptWalkInPaymentModal(data, onConfirm, onCancel) {
+            const defaultFee = data.walk_in_fee ? parseFloat(data.walk_in_fee).toFixed(2) : '100.00';
+            Swal.fire({
+                title: 'Guest Walk-in Payment Required',
+                html: `
+                    <div style="text-align: left; margin: 6px 0;">
+                        <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
+                            <div style="color: var(--danger); font-weight: 700; font-size: 0.9rem; margin-bottom: 3px;">${escapeHtml(data.message || 'No active membership covers this gym.')}</div>
+                            <div style="font-size: 0.82rem; color: var(--muted);">Member: <strong style="color: var(--ink);">${escapeHtml(data.member_name || 'Visitor')}</strong></div>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label style="font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">Amount to Collect</label>
+                            <span style="font-size: 0.76rem; color: var(--lime); font-weight: 700;">Rate Detected: ₱${defaultFee}</span>
+                        </div>
+                        <div style="position: relative; margin-bottom: 16px;">
+                            <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--lime); font-size: 16px;">₱</span>
+                            <input type="number" id="swal-amount" class="swal2-input swal-amount-input" placeholder="0.00" step="0.01" min="0.01" value="${defaultFee}" onkeydown="if(['-','+','e','E'].includes(event.key))event.preventDefault();" oninput="if(this.value!==''&&parseFloat(this.value)<0)this.value=Math.abs(parseFloat(this.value));" style="width: 100% !important; margin: 0 !important; padding-left: 36px !important; height: 46px !important; border-radius: 12px !important; box-sizing: border-box !important; font-size: 1.15rem !important; font-weight: 800 !important;">
+                        </div>
+
+                        <label style="display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;">
+                            Payment Method
+                        </label>
+                        <div class="swal-pay-methods" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px;">
+                            <button type="button" class="swal-method-btn active" data-method="cash" onclick="window.setSwalMethod('cash', this)">
+                                <span class="swal-icon-wrap" style="font-weight: 900; font-size: 1.45rem; line-height: 1;">₱</span>
+                                <span>Cash</span>
+                            </button>
+                            <button type="button" class="swal-method-btn" data-method="gcash" onclick="window.setSwalMethod('gcash', this)">
+                                <span class="swal-icon-wrap">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"></rect><line x1="10" y1="18" x2="14" y2="18"></line></svg>
+                                </span>
+                                <span>GCash</span>
+                            </button>
+                            <button type="button" class="swal-method-btn" data-method="card" onclick="window.setSwalMethod('card', this)">
+                                <span class="swal-icon-wrap">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                                </span>
+                                <span>Card</span>
+                            </button>
+                        </div>
+                        <input type="hidden" id="swal-method" value="cash">
+                    </div>
+                `,
+                background: 'var(--panel)',
+                color: 'var(--ink)',
+                confirmButtonColor: 'var(--lime)',
+                cancelButtonColor: 'color-mix(in srgb, var(--ink) 12%, transparent)',
+                showCancelButton: true,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                confirmButtonText: '<span style="color:#05080c; font-weight:700;">Record Payment & Check-in</span>',
+                cancelButtonText: '<span style="color:var(--ink);">Cancel</span>',
+                didOpen: () => {
+                    window.setSwalMethod = function(m) {
+                        const hidden = document.getElementById('swal-method');
+                        if (hidden) hidden.value = m;
+                        document.querySelectorAll('.swal-method-btn').forEach(b => {
+                            b.classList.toggle('active', b.getAttribute('data-method') === m);
+                        });
+                    };
+                },
+                preConfirm: () => {
+                    const amt = parseFloat(document.getElementById('swal-amount').value);
+                    const meth = document.getElementById('swal-method').value;
+                    if (!Number.isFinite(amt) || amt <= 0) {
+                        Swal.showValidationMessage('Please enter a valid payment amount greater than ₱0.00.');
+                        return false;
+                    }
+                    return { amount: amt.toFixed(2), method: meth };
+                }
+            }).then((result) => {
+                if (result.isConfirmed && typeof onConfirm === 'function') {
+                    onConfirm(result.value);
+                } else if (!result.isConfirmed && typeof onCancel === 'function') {
+                    onCancel();
+                }
+            });
+        }
+
+        function executeManualAttendance(userId) {
             closeManualModal();
 
             if (!isNetworkOnline) {
@@ -1523,6 +1541,36 @@
             })
             .then(r => r.json())
             .then(data => {
+                if (data.requires_payment) {
+                    playChime('error');
+                    promptWalkInPaymentModal(data, (val) => {
+                        fetch('index.php?page=scanner', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=manual_checkin&user_id=' + encodeURIComponent(userId) + '&amount_paid=' + encodeURIComponent(val.amount) + '&payment_method=' + encodeURIComponent(val.method) + '&csrf_token=' + encodeURIComponent(csrfToken)
+                        })
+                        .then(r => r.json())
+                        .then(data2 => {
+                            if (data2.success) {
+                                if (manualRosterCache && manualRosterCache.length > 0) {
+                                    const target = manualRosterCache.find(it => parseInt(it.user_id, 10) === parseInt(userId, 10));
+                                    if (target) {
+                                        target.is_inside = (data2.action_type === 'checkin');
+                                        target.duration = data2.action_type === 'checkin' ? 'Just now' : null;
+                                    }
+                                }
+                                handleSuccessResponse(data2);
+                            } else {
+                                showErrorResult('Payment / Check-in Failed', data2.message);
+                            }
+                        })
+                        .catch(() => {
+                            showErrorResult('Payment / Check-in Failed', 'Network error while recording walk-in payment.');
+                        });
+                    });
+                    return;
+                }
+
                 if (data.success) {
                     // Update inside status in cached roster
                     if (manualRosterCache && manualRosterCache.length > 0) {
@@ -1541,6 +1589,35 @@
                 console.warn('Network error recording manual attendance, queuing offline:', err);
                 setNetworkStatus(false);
                 queueOfflineScan(userId, 'manual');
+            });
+        }
+
+        window.submitManualAttendance = function(userId, memberName, isInside) {
+            const label = memberName || 'this user';
+            if (typeof Swal === 'undefined') {
+                if (confirm(isInside ? `Check out ${label}?` : `Check in ${label}?`)) {
+                    executeManualAttendance(userId);
+                }
+                return;
+            }
+
+            Swal.fire({
+                title: isInside ? 'Confirm Check-Out?' : 'Confirm Check-In?',
+                text: isInside ? `Are you sure you want to check out ${label}?` : `Are you sure you want to check in ${label}?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: isInside
+                    ? '<span style="color:#ffffff;font-weight:700;">Yes, Check-Out</span>'
+                    : '<span style="color:var(--lime-contrast, #05080c);font-weight:700;">Yes, Check-In</span>',
+                cancelButtonText: '<span style="color:var(--ink);">Cancel</span>',
+                confirmButtonColor: isInside ? '#0ea5e9' : 'var(--lime)',
+                cancelButtonColor: 'color-mix(in srgb, var(--ink) 12%, transparent)',
+                background: 'var(--panel)',
+                color: 'var(--ink)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    executeManualAttendance(userId);
+                }
             });
         };
 
