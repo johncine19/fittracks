@@ -369,6 +369,7 @@ function member_dashboard(PDO $pdo, array $user): void
     // Skeleton for member dashboard
     render_skeleton_banner();
     render_skeleton_stats(3);
+    render_skeleton_cards(4);
     ?>
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/member_dashboard.css')) ?>">
@@ -800,7 +801,7 @@ function member_dashboard(PDO $pdo, array $user): void
 
 
         <!-- Sub-View Navigation Switcher (Daily Attendance Overview vs Peak Hours Analysis) -->
-        <div class="act-subnav-wrap animate-fade-in delay-2">
+        <div class="act-subnav-wrap skeleton-content sk-display-block animate-fade-in delay-2">
             <nav class="act-subnav" role="tablist" aria-label="Activity View Mode">
                 <button type="button" class="act-subnav-btn active" id="act-subtab-roster" onclick="actSwitchSubTab('roster')" role="tab" aria-selected="true">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -816,7 +817,7 @@ function member_dashboard(PDO $pdo, array $user): void
 
         <!-- SUBPANEL 1: Daily Attendance Overview (Active by default) -->
         <div id="act-subpanel-roster" class="act-subpanel active">
-            <div class="act-panel animate-fade-in delay-2">
+            <div class="act-panel skeleton-content sk-display-block animate-fade-in delay-2">
                 <div class="act-panel-top">
                     <div class="act-panel-header">
                         <div class="act-heading">

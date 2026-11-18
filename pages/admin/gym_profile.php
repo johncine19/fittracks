@@ -1744,8 +1744,8 @@ function gym_profile_page(): void
                         ?>
                         <div class="profile-card-header" style="align-items: flex-start;">
                             <div style="flex: 1; min-width: 240px;">
-                                <h3 class="profile-card-title" style="margin-bottom: 2px;">Online Payments &amp; Settlement Payouts</h3>
-                                <p class="profile-card-desc"><?= $isPlatformAdmin ? 'Configure payout disbursement rails and manage the independent Xendit merchant account for this facility.' : 'Connect your own independent Xendit merchant account (or use Test / Sandbox Mode) to receive online member payments (GCash, Maya, cards, bank).' ?></p>
+                                <h3 class="profile-card-title" style="margin-bottom: 2px;">Online Payments &amp; Xendit Gateway</h3>
+                                <p class="profile-card-desc"><?= $isPlatformAdmin ? 'View the Xendit online payment gateway status for this facility.' : 'Connect your own independent Xendit merchant account (or use Test / Sandbox Mode) to receive online member payments (GCash, Maya, cards, bank).' ?></p>
                             </div>
                             <div style="flex-shrink: 0;">
                                 <?php if ($secOnlineActive && ($gym['kyc_status'] ?? '') === 'verified'): ?>
@@ -1787,7 +1787,7 @@ function gym_profile_page(): void
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12px;">
                                 <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
                                     <strong style="color: var(--ink); display: block; margin-bottom: 3px;">1. Verify Xendit Account &amp; Payout Details</strong>
-                                    <?= $isPlatformAdmin ? 'Facility owner verifies their independent Xendit merchant account and sets settlement GCash/Maya/Bank details below.' : 'Register and verify your own Xendit merchant account and enter your settlement GCash/Maya/Bank details below.' ?>
+                                    <?= $isPlatformAdmin ? 'Facility owner connects their own Xendit merchant account or Test / Sandbox Mode below.' : 'Connect your own Xendit merchant account (or activate Test / Sandbox Mode) below to accept online member payments.' ?>
                                 </div>
                                 <div style="background: var(--bg-card, rgba(255,255,255,0.03)); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 8px; padding: 10px 12px;">
                                     <strong style="color: var(--ink); display: block; margin-bottom: 3px;">2. Connect Xendit Account</strong>

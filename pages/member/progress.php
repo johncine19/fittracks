@@ -691,6 +691,8 @@ function progress_page(): void
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/progress.css')) ?>">
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/diet.css')) ?>">
+    <?php render_skeleton_banner(); render_skeleton_stats(4); render_skeleton_chart(); ?>
+    <div class="skeleton-content sk-display-block">
 
     <!-- 1. HEADER PROFILE CARD -->
     <section class="member-hub-profile-card live-animated-banner">
@@ -1868,6 +1870,7 @@ function progress_page(): void
                 <?php endif; ?>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- JAVASCRIPT: TAB SWITCHER, DYNAMIC CHART.JS, LOG PROGRESS & NAVY CALCULATOR -->

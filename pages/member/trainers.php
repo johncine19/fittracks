@@ -106,7 +106,8 @@ function trainers_page(): void
     
     render_header('Trainers', $user);
     ?>
-    <section class="panel">
+    <?php render_skeleton_cards(6); ?>
+    <section class="panel skeleton-content sk-display-block">
         <div class="page-header">
             <div>
                 <h1>Trainers</h1>

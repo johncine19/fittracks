@@ -75,8 +75,9 @@ function member_equipment_page(): void
 ?>
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/member_equipment.css')) ?>">
+    <?php render_skeleton_banner(); render_skeleton_cards(6); ?>
 
-    <div class="equipment-member-container" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
+    <div class="equipment-member-container skeleton-content sk-display-block" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
 
         <?php if ($isCheckedIn): ?>
             <!-- ACTIVE CHECK-IN CONFIRMATION STRIP -->

@@ -3439,16 +3439,14 @@ function render_header(string $title, ?array $user = null): void
                             $gopPayoutAccount = null;
                             $gopHasOnlinePayments = false;
                             try {
-                                $payoutStmt = db()->prepare('SELECT xendit_subaccount_id, payout_channel, payout_account_number FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
+                                $payoutStmt = db()->prepare('SELECT xendit_subaccount_id FROM gym_payout_accounts WHERE gym_id = ? LIMIT 1');
                                 $payoutStmt->execute([$gopGymId]);
                                 $gopPayoutAccount = $payoutStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-                                $gopHasOnlinePayments = !empty($gopPayoutAccount['xendit_subaccount_id']);
+                                $gopSub = strtoupper(trim((string)($gopPayoutAccount['xendit_subaccount_id'] ?? '')));
+                                $gopHasOnlinePayments = ($gopSub !== '' && $gopSub !== 'OFF');
                             } catch (Throwable) {}
                         ?>
-                            <?php if (!$gopHasOnlinePayments): 
-                                $hasPayoutDestination = !empty($gopPayoutAccount['payout_account_number']);
-                                $payoutChannelName = strtoupper((string)($gopPayoutAccount['payout_channel'] ?? 'GCash'));
-                            ?>
+                            <?php if (!$gopHasOnlinePayments): ?>
                                 <script>
                                     if (sessionStorage.getItem('fittrack_dismiss_gop_banner') === '1') {
                                         document.write('<style>#gym-online-payment-banner { display: none !important; }</style>');
@@ -3456,11 +3454,7 @@ function render_header(string $title, ?array $user = null): void
                                 </script>
                                 <div class="tidb-banner animate-fade-in" id="gym-online-payment-banner" role="alert">
                                     <div class="tidb-banner-inner">
-                                        <?php if ($hasPayoutDestination): ?>
-                                            <span>Online payment gateway activation is pending verification for <strong><?= h($payoutChannelName) ?> (<?= h($gopPayoutAccount['payout_account_number']) ?>)</strong>. Configure or check status via <a href="index.php?page=gym_profile&tab=payout#sec-payout" class="tidb-banner-link">Online Payments &amp; Settlement &rarr;</a></span>
-                                        <?php else: ?>
-                                            <span>Accept member pass and subscription payments online via GCash, Maya &amp; Cards. Start setup in <a href="index.php?page=gym_profile&tab=payout#sec-payout" class="tidb-banner-link">Online Payments &amp; Settlement &rarr;</a></span>
-                                        <?php endif; ?>
+                                        <span>Accept member pass and subscription payments online via GCash, Maya &amp; Cards. Connect your Xendit account in <a href="index.php?page=gym_profile&tab=payout#sec-payout" class="tidb-banner-link">Online Payments &rarr;</a></span>
                                     </div>
                                     <button type="button" class="tidb-banner-close" onclick="document.getElementById('gym-online-payment-banner').style.display='none'; sessionStorage.setItem('fittrack_dismiss_gop_banner', '1');" title="Dismiss notice" aria-label="Dismiss notice">&times;</button>
                                 </div>

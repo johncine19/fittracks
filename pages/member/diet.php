@@ -1079,6 +1079,8 @@ window.DIET_CONFIG = {
 window.FT_LOGGED_MEALS_TODAY = window.DIET_CONFIG.loggedMealsToday;
 window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
 </script>
+<?php render_skeleton_banner(); render_skeleton_stats(4); render_skeleton_cards(4); ?>
+<div class="skeleton-content sk-display-block">
 
 <!-- Regenerate Plan Form (Hidden, triggered via JS modal) -->
 <?php if ($isDietSelfGuided): ?>
@@ -2377,6 +2379,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
             <button type="button" class="btn-cancel" onclick="closeDietPlanInfoModal()">Got it</button>
         </div>
     </div>
+</div>
 </div>
 
 <script src="<?= h(asset_url('js/pages/diet.js')) ?>"></script>

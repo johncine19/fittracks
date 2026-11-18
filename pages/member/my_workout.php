@@ -354,8 +354,9 @@ function my_workout_page(): void
     }
 ?>
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/my_workout.css')) ?>">
+    <?php render_skeleton_banner(); render_skeleton_cards(6); ?>
 
-    <div style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
+    <div class="skeleton-content sk-display-block" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
         <?php if (count($activePlans) > 1): ?>
             <!-- Multi-Gym / Multi-Coach Plan Switcher -->
             <div class="plan-switcher-container">

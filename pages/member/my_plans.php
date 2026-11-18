@@ -186,8 +186,9 @@ function my_plans_page(): void
     render_header('My Plans', $user);
     ?>
     <link rel="stylesheet" href="assets/css/pages/my_plans.css?v=<?= filemtime(__DIR__ . '/../../assets/css/pages/my_plans.css') ?>">
+    <?php render_skeleton_banner(); render_skeleton_stats(4); render_skeleton_cards(4); ?>
 
-    <div class="my-plans-container">
+    <div class="my-plans-container skeleton-content sk-display-block">
         <!-- Hero Header -->
         <div class="plans-hero-header">
             <div class="plans-hero-title-row">

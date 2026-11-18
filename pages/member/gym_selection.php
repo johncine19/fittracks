@@ -58,7 +58,8 @@ function gym_selection_page(): void
         document.documentElement.setAttribute('data-theme', 'dark');
     </script>
 
-    <div class="panel gym-select">
+    <?php render_skeleton_cards(6); ?>
+    <div class="panel gym-select skeleton-content sk-display-block">
         <div class="gym-hero" id="gym-header">
             <div class="eyebrow"><span class="dot"></span> Membership</div>
             <h1>

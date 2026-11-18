@@ -240,8 +240,8 @@ Safety: " : "") . $safety;
     $mgQuery = 'SELECT DISTINCT muscle_group FROM exercises WHERE muscle_group IS NOT NULL AND muscle_group != ""';
     $filterParams = [];
     if ($gymId) {
-        $catQuery .= ' AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)';
-        $mgQuery .= ' AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)';
+        $catQuery .= ' AND gym_id = ?';
+        $mgQuery .= ' AND gym_id = ?';
         $filterParams[] = $gymId;
     }
     $catQuery .= ' ORDER BY category';
@@ -565,8 +565,8 @@ Safety: " : "") . $safety;
     $params = [];
     
     if ($gymId) {
-        $sql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL OR g.gym_id IS NULL)';
-        $countSql .= ' AND (e.gym_id = ? OR e.gym_id = 0 OR e.gym_id IS NULL OR g.gym_id IS NULL)';
+        $sql .= ' AND e.gym_id = ?';
+        $countSql .= ' AND e.gym_id = ?';
         $params[] = $gymId;
     } elseif ($user['role'] === 'platform_admin') {
         if ($scope === 'global') {
@@ -991,7 +991,7 @@ Safety: " : "") . $safety;
                     Exercises Database
                 </h1>
                 <p class="exercises-banner-description">
-                    Manage the global library of exercises used for workout templates.
+                    <?= $gymId ? 'Manage your gym\'s custom and API-imported exercises used in workout plans.' : 'Manage the global library of exercises used for workout templates.' ?>
                 </p>
             </div>
             <div class="exercises-banner-action" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">

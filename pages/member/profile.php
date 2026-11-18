@@ -190,14 +190,6 @@ function profile_page(): void
                     </svg>
                     Physical Profile
                 </button>
-                <button class="settings-tab" data-tab="gym">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
-                        <polyline points="2 17 12 22 22 17" />
-                        <polyline points="2 12 12 17 22 12" />
-                    </svg>
-                    Gym Affiliation
-                </button>
             <?php endif; ?>
             <?php if ($user['role'] === 'platform_admin'): ?>
                 <button class="settings-tab" data-tab="platform_settings">
@@ -1184,117 +1176,6 @@ function profile_page(): void
                             </div>
                         <?php endif; ?>
                     </div>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <!-- Tab: Gym Affiliation -->
-        <?php if ($is_member): ?>
-            <div class="settings-panel" data-panel="gym">
-                <div class="settings-section">
-                    <div class="settings-section-header">
-                        <div>
-                            <h2 class="settings-section-title">Gym Affiliation</h2>
-                            <p class="settings-section-desc">
-                                <?php if ($currentGymId): ?>
-                                    View your active gym membership details.
-                                <?php else: ?>
-                                    Set your home gym to access trainers, classes, and plans.
-                                <?php endif; ?>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Current Gym Card -->
-                    <div class="settings-gym-card <?= $currentGymId ? 'has-membership' : 'no-membership' ?>">
-                        <div class="settings-gym-card-accent"></div>
-                        <div class="settings-gym-card-body">
-                            <div class="settings-gym-card-icon">
-                                <?php if ($currentGymId || $homeGymId): ?>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
-                                        <polyline points="2 17 12 22 22 17" />
-                                        <polyline points="2 12 12 17 22 12" />
-                                    </svg>
-                                <?php else: ?>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <line x1="12" x2="12" y1="8" y2="16" />
-                                        <line x1="8" x2="16" y1="12" y2="12" />
-                                    </svg>
-                                <?php endif; ?>
-                            </div>
-                            <div class="settings-gym-card-info">
-                                <span class="settings-gym-card-label"><?= $currentGymId ? 'Active Membership' : 'Home Gym' ?></span>
-                                <span class="settings-gym-card-name"><?= h($currentGymId ? $currentGymName : $homeGymName) ?></span>
-                                <?php if ($currentGymId && $membershipInfo): ?>
-                                    <div class="settings-gym-card-details">
-                                        <span class="settings-gym-badge active">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                <polyline points="22 4 12 14.01 9 11.01" />
-                                            </svg>
-                                            Active
-                                        </span>
-                                        <span class="settings-gym-plan"><?= h($membershipInfo['plan_name']) ?></span>
-                                        <?php if ($membershipInfo['days_remaining'] > 0): ?>
-                                            <span class="settings-gym-days"><?= (int)$membershipInfo['days_remaining'] ?> days remaining</span>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php elseif ($pendingMem): ?>
-                                    <div class="settings-gym-card-details">
-                                        <span class="settings-gym-badge" style="background:rgba(245, 158, 11, 0.18); color:#f59e0b; border:1px solid rgba(245, 158, 11, 0.45); font-weight:700;">
-                                            Pending Approval
-                                        </span>
-                                        <span class="settings-gym-plan"><?= h($pendingMem['plan_name']) ?></span>
-                                    </div>
-                                <?php elseif (!$currentGymId): ?>
-                                    <div class="settings-gym-card-details">
-                                        <span class="settings-gym-badge inactive">No Active Plan</span>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-
-                    <?php if (!$currentGymId): ?>
-                        <!-- Switch Home Gym -->
-                        <div class="settings-homegym-form-wrapper">
-                            <h3 class="settings-group-title" style="margin-top:1.5rem;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                                    <circle cx="12" cy="10" r="3" />
-                                </svg>
-                                Switch Home Gym
-                            </h3>
-                            <p class="muted" style="font-size:13px;margin-bottom:12px;">
-                                Since you don't have an active membership, you can freely switch your affiliation. Your historical data stays with your profile.
-                            </p>
-                            <form method="post" class="form" style="margin-bottom:0;" onsubmit="const val = this.querySelector('input[name=new_gym_id]')?.value || this.querySelector('select[name=new_gym_id]')?.value; if(!val){ if (typeof Swal !== 'undefined') { Swal.fire({ icon: 'warning', title: 'Select Gym', text: 'Please choose a gym first.', confirmButtonColor: 'var(--lime-dark)' }); } else { alert('Please choose a gym first.'); } return false; } const btn = this.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Updating...';">
-                                <?= csrf_field() ?>
-                                <input type="hidden" name="switch_home_gym" value="1">
-                                <div class="settings-select-wrapper">
-                                    <label class="settings-select-label">New Home Gym</label>
-                                    <div id="switchHomeGymDropdownWrap"></div>
-                                    <noscript>
-                                        <select name="new_gym_id" class="settings-select" required>
-                                            <option value="">Choose a gym...</option>
-                                            <?php foreach ($allGyms as $g): if ($homeGymId && (int)$g['gym_id'] === $homeGymId) continue; ?>
-                                                <option value="<?= (int) $g['gym_id'] ?>"><?= h($g['name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </noscript>
-                                </div>
-                                <button type="submit" class="settings-action-btn primary" style="margin-top:12px;">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                                        <circle cx="12" cy="10" r="3" />
-                                    </svg>
-                                    Set Home Gym
-                                </button>
-                            </form>
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         <?php endif; ?>
