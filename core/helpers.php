@@ -1048,12 +1048,7 @@ function hydrate_gym_rows(array $gyms): array
         $gyms[$idx]['fire_safety_cert_url'] = $g['fire_safety_cert_url'] ?? null;
 
         $gyms[$idx]['xendit_subaccount_id'] = $g['xendit_subaccount_id'] ?? null;
-        $gyms[$idx]['payout_channel'] = $g['payout_channel'] ?? 'gcash';
-        $gyms[$idx]['payout_account_number'] = $g['payout_account_number'] ?? null;
-        $gyms[$idx]['payout_account_name'] = $g['payout_account_name'] ?? null;
         $gyms[$idx]['kyc_status'] = $g['kyc_status'] ?? 'none';
-        $gyms[$idx]['kyc_email'] = $g['kyc_email'] ?? null;
-        $gyms[$idx]['pending_subaccount_id'] = $g['pending_subaccount_id'] ?? null;
         $gyms[$idx]['xendit_secret_key_enc'] = $g['xendit_secret_key_enc'] ?? null;
         $gyms[$idx]['xendit_webhook_token_enc'] = $g['xendit_webhook_token_enc'] ?? null;
         $gyms[$idx]['has_custom_xendit_key'] = !empty($g['xendit_secret_key_enc']);
@@ -1125,8 +1120,8 @@ function hydrate_gym_rows(array $gyms): array
     try {
         $metaStmt = $pdo->prepare("
             SELECT g.gym_id,
-                   p.xendit_subaccount_id, p.payout_channel, p.payout_account_number, p.payout_account_name,
-                   p.kyc_status, p.kyc_email, p.pending_subaccount_id,
+                   p.xendit_subaccount_id,
+                   p.kyc_status,
                    p.xendit_secret_key_enc, p.xendit_webhook_token_enc,
                    p.gym_id AS has_payout,
                    s.inactivity_threshold_days, s.inactivity_cooldown_days, s.auto_inactivity_alerts,
@@ -1144,12 +1139,7 @@ function hydrate_gym_rows(array $gyms): array
             foreach ($gymIds[$gid] ?? [] as $idx) {
                 if (!empty($row['has_payout'])) {
                     $gyms[$idx]['xendit_subaccount_id'] = $row['xendit_subaccount_id'] ?? null;
-                    $gyms[$idx]['payout_channel'] = $row['payout_channel'] ?? 'gcash';
-                    $gyms[$idx]['payout_account_number'] = $row['payout_account_number'] ?? null;
-                    $gyms[$idx]['payout_account_name'] = $row['payout_account_name'] ?? null;
                     $gyms[$idx]['kyc_status'] = $row['kyc_status'] ?? 'none';
-                    $gyms[$idx]['kyc_email'] = $row['kyc_email'] ?? null;
-                    $gyms[$idx]['pending_subaccount_id'] = $row['pending_subaccount_id'] ?? null;
                     $gyms[$idx]['xendit_secret_key_enc'] = $row['xendit_secret_key_enc'] ?? null;
                     $gyms[$idx]['xendit_webhook_token_enc'] = $row['xendit_webhook_token_enc'] ?? null;
                     $gyms[$idx]['has_custom_xendit_key'] = !empty($row['xendit_secret_key_enc']);
@@ -1384,25 +1374,10 @@ function save_gym_payout_account(int $gymId, array $payout): void
     $xenditSub = array_key_exists('xendit_subaccount_id', $payout)
         ? ($payout['xendit_subaccount_id'] !== '' && $payout['xendit_subaccount_id'] !== null ? (string)$payout['xendit_subaccount_id'] : null)
         : ($cur['xendit_subaccount_id'] ?? null);
-    $channel = !empty($payout['payout_channel'])
-        ? (string)$payout['payout_channel']
-        : ($cur['payout_channel'] ?? 'gcash');
-    $acctNum = array_key_exists('payout_account_number', $payout)
-        ? ($payout['payout_account_number'] !== '' && $payout['payout_account_number'] !== null ? (string)$payout['payout_account_number'] : null)
-        : ($cur['payout_account_number'] ?? null);
-    $acctName = array_key_exists('payout_account_name', $payout)
-        ? ($payout['payout_account_name'] !== '' && $payout['payout_account_name'] !== null ? (string)$payout['payout_account_name'] : null)
-        : ($cur['payout_account_name'] ?? null);
 
     $kycStatus = array_key_exists('kyc_status', $payout)
         ? (string)$payout['kyc_status']
         : ($cur['kyc_status'] ?? 'none');
-    $kycEmail = array_key_exists('kyc_email', $payout)
-        ? ($payout['kyc_email'] !== '' && $payout['kyc_email'] !== null ? (string)$payout['kyc_email'] : null)
-        : ($cur['kyc_email'] ?? null);
-    $pendingSub = array_key_exists('pending_subaccount_id', $payout)
-        ? ($payout['pending_subaccount_id'] !== '' && $payout['pending_subaccount_id'] !== null ? (string)$payout['pending_subaccount_id'] : null)
-        : ($cur['pending_subaccount_id'] ?? null);
 
     $secretKeyEnc = $cur['xendit_secret_key_enc'] ?? null;
     if (array_key_exists('xendit_secret_key', $payout)) {
@@ -1417,20 +1392,15 @@ function save_gym_payout_account(int $gymId, array $payout): void
     }
 
     $stmt = $pdo->prepare('
-        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, payout_channel, payout_account_number, payout_account_name, kyc_status, kyc_email, pending_subaccount_id, xendit_secret_key_enc, xendit_webhook_token_enc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO gym_payout_accounts (gym_id, xendit_subaccount_id, kyc_status, xendit_secret_key_enc, xendit_webhook_token_enc)
+        VALUES (?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             xendit_subaccount_id = VALUES(xendit_subaccount_id),
-            payout_channel = VALUES(payout_channel),
-            payout_account_number = VALUES(payout_account_number),
-            payout_account_name = VALUES(payout_account_name),
             kyc_status = VALUES(kyc_status),
-            kyc_email = VALUES(kyc_email),
-            pending_subaccount_id = VALUES(pending_subaccount_id),
             xendit_secret_key_enc = VALUES(xendit_secret_key_enc),
             xendit_webhook_token_enc = VALUES(xendit_webhook_token_enc)
     ');
-    $stmt->execute([$gymId, $xenditSub, $channel, $acctNum, $acctName, $kycStatus, $kycEmail, $pendingSub, $secretKeyEnc, $webhookTokenEnc]);
+    $stmt->execute([$gymId, $xenditSub, $kycStatus, $secretKeyEnc, $webhookTokenEnc]);
 }
 
 /**

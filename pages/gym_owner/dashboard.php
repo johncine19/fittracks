@@ -21,12 +21,9 @@ function admin_dashboard(PDO $pdo, array $user): void
             }
             $subRenewal = !empty($gymRow['subscription_renewal_date']) ? date('M j, Y', strtotime($gymRow['subscription_renewal_date'])) : 'N/A';
 
-            if (!empty($gymRow['xendit_subaccount_id']) || !empty($gymRow['payout_account_number'])) {
+            if (!empty($gymRow['xendit_subaccount_id'])) {
                 $gymPayoutAccount = [
-                    'xendit_subaccount_id'  => $gymRow['xendit_subaccount_id'] ?? null,
-                    'payout_channel'        => $gymRow['payout_channel'] ?? 'gcash',
-                    'payout_account_number' => $gymRow['payout_account_number'] ?? null,
-                    'payout_account_name'   => $gymRow['payout_account_name'] ?? null,
+                    'xendit_subaccount_id' => $gymRow['xendit_subaccount_id'] ?? null,
                 ];
             }
             $hasOnlinePayments = !empty($gymPayoutAccount['xendit_subaccount_id']);

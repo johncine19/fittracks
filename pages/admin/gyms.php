@@ -120,56 +120,6 @@ function gyms_page(): void
             );
 
             flash("Subscription for '{$gymName}' updated successfully.", 'success');
-        } elseif ($action === 'update_payout') {
-            $xenditSubaccountId = trim((string) post('xendit_subaccount_id'));
-            $xenditSubaccountId = $xenditSubaccountId !== '' ? $xenditSubaccountId : null;
-            $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
-            $payoutNumberRaw = trim((string) post('payout_account_number'));
-            $payoutNumberDigits = preg_replace('/\D/', '', $payoutNumberRaw);
-            $payoutNumber = $payoutNumberDigits !== '' ? $payoutNumberDigits : null;
-            if ($payoutNumber !== null) {
-                if (in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutNumber)) {
-                    flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
-                    redirect('gyms');
-                    return;
-                } elseif ($payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutNumber)) {
-                    flash('Bank account number must be between 10 and 18 digits.', 'danger');
-                    redirect('gyms');
-                    return;
-                }
-            }
-            $payoutName = trim((string) post('payout_account_name')) ?: null;
-
-            $payoutData = [
-                'xendit_subaccount_id'  => $xenditSubaccountId,
-                'payout_channel'        => $payoutChannel,
-                'payout_account_number' => $payoutNumber,
-                'payout_account_name'   => $payoutName,
-            ];
-            if (!empty($xenditSubaccountId)) {
-                $payoutData['kyc_status'] = 'verified';
-                $payoutData['pending_subaccount_id'] = null;
-            }
-            save_gym_payout_account($gymId, $payoutData);
-
-            $ownerId = (int) $pdo->query('SELECT owner_user_id FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
-            $gymName = (string) $pdo->query('SELECT name FROM gyms WHERE gym_id = ' . $gymId)->fetchColumn();
-
-            audit_log($user['user_id'], 'update_payout_settings', 'gym', (string) $gymId, json_encode([
-                'xendit_subaccount_id' => $xenditSubaccountId,
-                'payout_channel' => $payoutChannel,
-                'payout_account_number' => $payoutNumber,
-                'payout_account_name' => $payoutName
-            ]));
-
-            notify_user(
-                $ownerId,
-                'system',
-                'Payout Destination Updated',
-                "Platform Admin updated payout destination settings for '{$gymName}' (" . strtoupper($payoutChannel) . ($payoutNumber ? " - {$payoutNumber}" : "") . ")."
-            );
-
-            flash("Payout settings for '{$gymName}' updated successfully.", 'success');
         }
         $returnUrl = trim((string) post('return_url'));
         if ($returnUrl !== '' && str_starts_with($returnUrl, 'index.php?page=gyms')) {
@@ -1554,25 +1504,6 @@ function gyms_page(): void
                                             </svg>
                                         </button>
                                         <div class="action-kebab-menu" id="action-menu-<?= (int)$gym['gym_id'] ?>">
-                                            <button type="button" 
-                                                    class="action-kebab-item"
-                                                    data-gym-id="<?= (int)$gym['gym_id'] ?>"
-                                                    data-gym-name="<?= h($gym['name']) ?>"
-                                                    data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
-                                                    data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
-                                                    data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
-                                                    data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
-                                                    data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
-                                                    data-pending-subaccount="<?= h((string)($gym['pending_subaccount_id'] ?? '')) ?>"
-                                                    data-kyc-email="<?= h((string)($gym['kyc_email'] ?? '')) ?>"
-                                                    data-kyc-status="<?= h((string)($gym['kyc_status'] ?? 'none')) ?>"
-                                                    onclick="closeAllActionDropdowns(); handleEditPayoutClick(this)">
-                                                <span class="action-item-icon">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                                                </span>
-                                                <span class="action-item-text">Payout Settings</span>
-                                            </button>
-
                                             <a href="index.php?page=gym_profile&gym_id=<?= (int)$gym['gym_id'] ?>" class="action-kebab-item" onclick="closeAllActionDropdowns()">
                                                 <span class="action-item-icon">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 21v-4h6v4M3 7l9-4 9 4"/></svg>
@@ -1796,23 +1727,6 @@ function gyms_page(): void
                             Edit Sub
                         </button>
 
-                        <button type="button" 
-                                class="btn-sm btn-secondary" 
-                                data-gym-id="<?= (int)$gym['gym_id'] ?>"
-                                data-gym-name="<?= h($gym['name']) ?>"
-                                data-owner-name="<?= h($gym['first_name'] . ' ' . $gym['last_name']) ?>"
-                                data-xendit-account="<?= h((string)($gym['xendit_subaccount_id'] ?? '')) ?>"
-                                data-payout-channel="<?= h((string)($gym['payout_channel'] ?? 'gcash')) ?>"
-                                data-payout-number="<?= h((string)($gym['payout_account_number'] ?? '')) ?>"
-                                data-payout-name="<?= h((string)($gym['payout_account_name'] ?? '')) ?>"
-                                data-pending-subaccount="<?= h((string)($gym['pending_subaccount_id'] ?? '')) ?>"
-                                data-kyc-email="<?= h((string)($gym['kyc_email'] ?? '')) ?>"
-                                data-kyc-status="<?= h((string)($gym['kyc_status'] ?? 'none')) ?>"
-                                onclick="handleEditPayoutClick(this)">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                            Payout
-                        </button>
-
                         <?php if ($gym['status'] === 'approved'): ?>
                             <form method="post" action="index.php?page=gyms" style="margin:0;">
                                 <?= csrf_field() ?>
@@ -1880,18 +1794,6 @@ function gyms_page(): void
         <input type="hidden" name="record_payment" id="modal-sub-record-payment" value="0">
         <input type="hidden" name="amount" id="modal-sub-amount" value="0">
         <input type="hidden" name="payment_method" id="modal-sub-method" value="cash">
-    </form>
-
-    <!-- Hidden Form for Edit Payout Settings Submission -->
-    <form id="edit-payout-form" method="post" action="index.php?page=gyms" style="display:none;">
-        <?= csrf_field() ?>
-        <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
-        <input type="hidden" name="action" value="update_payout">
-        <input type="hidden" name="gym_id" id="modal-payout-gym-id" value="">
-        <input type="hidden" name="xendit_subaccount_id" id="modal-payout-xendit-account" value="">
-        <input type="hidden" name="payout_channel" id="modal-payout-channel" value="gcash">
-        <input type="hidden" name="payout_account_number" id="modal-payout-number" value="">
-        <input type="hidden" name="payout_account_name" id="modal-payout-name" value="">
     </form>
 
     <script>
@@ -2068,170 +1970,6 @@ function gyms_page(): void
                 document.getElementById('modal-sub-method').value = method;
 
                 document.getElementById('edit-sub-form').submit();
-            }
-        });
-    }
-
-    function handleEditPayoutClick(btn) {
-        if (!btn) return;
-        const gymId = parseInt(btn.getAttribute('data-gym-id') || '0', 10);
-        const gymName = btn.getAttribute('data-gym-name') || '';
-        const ownerName = btn.getAttribute('data-owner-name') || '';
-        const currentXenditAccount = btn.getAttribute('data-xendit-account') || '';
-        const currentPayoutChannel = btn.getAttribute('data-payout-channel') || 'gcash';
-        const currentPayoutNumber = btn.getAttribute('data-payout-number') || '';
-        const currentPayoutName = btn.getAttribute('data-payout-name') || '';
-        const pendingSub = btn.getAttribute('data-pending-subaccount') || '';
-        const kycEmail = btn.getAttribute('data-kyc-email') || '';
-        const kycStatus = btn.getAttribute('data-kyc-status') || 'none';
-        openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName, pendingSub, kycEmail, kycStatus);
-    }
-
-    function openEditPayoutModal(gymId, gymName, ownerName, currentXenditAccount, currentPayoutChannel, currentPayoutNumber, currentPayoutName, pendingSub, kycEmail, kycStatus) {
-        currentPayoutChannel = currentPayoutChannel || 'gcash';
-
-        const safeXenditAccount = String(currentXenditAccount || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePayoutChannel = String(currentPayoutChannel || 'gcash').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePayoutNumber = String(currentPayoutNumber || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePayoutName = String(currentPayoutName || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safePendingSub = String(pendingSub || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-        const safeKycEmail = String(kycEmail || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-        let kycBannerHtml = '';
-        if (safePendingSub) {
-            kycBannerHtml = `
-                <div style="padding: 10px 12px; border-radius: 8px; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); font-size: 12px; color: var(--ink);">
-                    <strong style="color: #f59e0b; display: block; margin-bottom: 2px;">⏳ Owner Submitted KYC Details:</strong>
-                    Sub-Account: <strong>${safePendingSub}</strong> &bull; Email: <strong>${safeKycEmail}</strong><br>
-                    <button type="button" class="btn btn-lime btn-sm" style="margin-top: 6px; padding: 4px 10px; font-size: 11px;" onclick="document.getElementById('swal-xendit-account').value='${safePendingSub}'">
-                        Autofill &amp; Approve This Sub-Account
-                    </button>
-                </div>
-            `;
-        }
-
-        Swal.fire({
-            title: 'Payout Destination Settings',
-            html: `
-                <div style="text-align: left; display: flex; flex-direction: column; gap: 14px; margin-top: 10px;">
-                    <div style="padding: 10px 14px; border-radius: 8px; background: color-mix(in srgb, var(--panel-soft) 50%, transparent); border: 1px solid var(--line);">
-                        <div style="font-size: 14px; font-weight: 700; color: var(--ink);">${gymName}</div>
-                        <div style="font-size: 12px; color: var(--muted);">Owner: ${ownerName}</div>
-                    </div>
-
-                    ${kycBannerHtml}
-
-                    <div style="display: flex; gap: 10px;">
-                        <label style="flex: 1; display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Channel
-                            <select id="swal-payout-channel" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;">
-                                <option value="gcash" ${safePayoutChannel.toLowerCase() === 'gcash' ? 'selected' : ''}>GCash</option>
-                                <option value="maya" ${safePayoutChannel.toLowerCase() === 'maya' ? 'selected' : ''}>Maya</option>
-                                <option value="bank_transfer" ${safePayoutChannel.toLowerCase() === 'bank_transfer' ? 'selected' : ''}>Bank Transfer</option>
-                            </select>
-                        </label>
-                        <label style="flex: 1.5; display:block; font-size: 12px; font-weight: 600; color: var(--muted);"><span id="swal-payout-label">Payout Account / GCash #</span>
-                            <input id="swal-payout-number" 
-                                   type="tel" 
-                                   inputmode="numeric" 
-                                   maxlength="${safePayoutChannel.toLowerCase() === 'bank_transfer' ? 18 : 11}" 
-                                   class="form-control" 
-                                   style="width: 100%; box-sizing: border-box; margin-top: 4px;" 
-                                   value="${safePayoutNumber}" 
-                                   placeholder="09171234567"
-                                   oninput="const maxLen = document.getElementById('swal-payout-channel')?.value === 'bank_transfer' ? 18 : 11; this.value = this.value.replace(/\\D/g, '').slice(0, maxLen)">
-                            <small id="swal-payout-hint" style="display:block; margin-top: 3px; font-size: 11px; color: var(--muted); font-weight: normal;">11-digit mobile number starting with 09</small>
-                        </label>
-                    </div>
-
-                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--muted);">Payout Account Holder Full Name
-                        <input id="swal-payout-name" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safePayoutName}" placeholder="Exact Name on GCash/Bank">
-                    </label>
-
-                    <label style="display:block; font-size: 12px; font-weight: 600; color: var(--muted);">XenPlatform Sub-Account User ID
-                        <input id="swal-xendit-account" class="form-control" style="width: 100%; box-sizing: border-box; margin-top: 4px;" value="${safeXenditAccount}" placeholder="e.g. user_64a... (or leave blank if unlinked)">
-                        <small style="display:block; margin-top: 4px; font-size: 11px; color: var(--muted); font-weight: normal;">Members can pay online via payment gateway only after this gym has a verified XenPlatform sub-account.</small>
-                    </label>
-
-                    <div style="padding: 10px 12px; border-radius: 8px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 11.5px; color: var(--muted); line-height: 1.45;">
-                        <strong style="color: #60a5fa;">Disbursement Note:</strong> These settlement details receive disbursed member dues, walk-in fees, and coach session payouts.
-                    </div>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Save Payout Details',
-            confirmButtonColor: 'var(--lime-dark)',
-            cancelButtonColor: 'var(--line)',
-            background: 'var(--bg)',
-            color: 'var(--ink)',
-            width: '490px',
-            didOpen: () => {
-                const chanSelect = document.getElementById('swal-payout-channel');
-                const pNumInput = document.getElementById('swal-payout-number');
-                const pLabel = document.getElementById('swal-payout-label');
-                const pHint = document.getElementById('swal-payout-hint');
-
-                const syncChan = () => {
-                    const c = chanSelect ? chanSelect.value : 'gcash';
-                    if (c === 'bank_transfer') {
-                        if (pLabel) pLabel.textContent = 'Bank Account Number';
-                        if (pNumInput) {
-                            pNumInput.placeholder = '10 to 18-digit bank account number';
-                            pNumInput.maxLength = 18;
-                        }
-                        if (pHint) pHint.textContent = '10 to 18 digits';
-                    } else {
-                        const name = c === 'maya' ? 'Maya' : 'GCash';
-                        if (pLabel) pLabel.textContent = name + ' Mobile Number';
-                        if (pNumInput) {
-                            pNumInput.placeholder = '09171234567';
-                            pNumInput.maxLength = 11;
-                        }
-                        if (pHint) pHint.textContent = '11-digit ' + name + ' number starting with 09';
-                    }
-                };
-                if (chanSelect) {
-                    chanSelect.addEventListener('change', syncChan);
-                    syncChan();
-                }
-
-                if (pNumInput) {
-                    pNumInput.addEventListener('input', function() {
-                        const maxLen = chanSelect?.value === 'bank_transfer' ? 18 : 11;
-                        this.value = this.value.replace(/\D/g, '').slice(0, maxLen);
-                    });
-                    pNumInput.addEventListener('paste', function() {
-                        setTimeout(() => {
-                            const maxLen = chanSelect?.value === 'bank_transfer' ? 18 : 11;
-                            this.value = this.value.replace(/\D/g, '').slice(0, maxLen);
-                        }, 10);
-                    });
-                }
-            },
-            preConfirm: () => {
-                const payoutChan = document.getElementById('swal-payout-channel').value;
-                const payoutNumRaw = document.getElementById('swal-payout-number').value.trim();
-                const payoutMax = payoutChan === 'bank_transfer' ? 18 : 11;
-                const payoutNum = payoutNumRaw.replace(/\D/g, '').slice(0, payoutMax);
-                const payoutName = document.getElementById('swal-payout-name').value.trim();
-                const xenditAccount = document.getElementById('swal-xendit-account').value.trim();
-
-                if (payoutNumRaw !== '') {
-                    if ((payoutChan === 'gcash' || payoutChan === 'maya') && !/^09\d{9}$/.test(payoutNum)) {
-                        Swal.showValidationMessage('GCash and Maya account numbers must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).');
-                        return false;
-                    } else if (payoutChan === 'bank_transfer' && !/^\d{10,18}$/.test(payoutNum)) {
-                        Swal.showValidationMessage('Bank account number must be between 10 and 18 digits.');
-                        return false;
-                    }
-                }
-
-                document.getElementById('modal-payout-gym-id').value = gymId;
-                document.getElementById('modal-payout-channel').value = payoutChan;
-                document.getElementById('modal-payout-number').value = payoutNum;
-                document.getElementById('modal-payout-name').value = payoutName;
-                document.getElementById('modal-payout-xendit-account').value = xenditAccount;
-
-                document.getElementById('edit-payout-form').submit();
             }
         });
     }

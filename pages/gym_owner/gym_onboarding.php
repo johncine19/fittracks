@@ -118,9 +118,6 @@ function gym_onboarding_page(): void
         $secondaryValidIdType = trim((string) post('secondary_valid_id_type'));
         $secondaryValidIdTypeOther = trim((string) post('secondary_valid_id_type_other'));
         $fbPageUrl = trim((string) post('fb_page_url'));
-        $payoutChannel = trim((string) post('payout_channel')) ?: 'gcash';
-        $payoutAccountNumber = preg_replace('/[^0-9]/', '', (string) post('payout_account_number'));
-        $payoutAccountName = trim((string) post('payout_account_name'));
 
         $addressParts = array_filter([$street, $barangay, $city, $province, $zipcode], fn($val) => $val !== '');
         $gymAddress = implode(', ', $addressParts);
@@ -149,10 +146,6 @@ function gym_onboarding_page(): void
             flash('Facility name and all address fields (street, barangay, city, province, and zipcode) are required.', 'danger');
         } elseif ($gymContact !== '' && !preg_match('/^09\d{9}$/', $gymContact)) {
             flash('Gym contact number must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09123456789) if provided.', 'danger');
-        } elseif ($payoutAccountNumber !== '' && in_array($payoutChannel, ['gcash', 'maya'], true) && !preg_match('/^09\d{9}$/', $payoutAccountNumber)) {
-            flash('Payout account number for ' . strtoupper($payoutChannel) . ' must be a valid 11-digit Philippine mobile number starting with 09 (e.g. 09171234567).', 'danger');
-        } elseif ($payoutAccountNumber !== '' && $payoutChannel === 'bank_transfer' && !preg_match('/^\d{10,18}$/', $payoutAccountNumber)) {
-            flash('Bank account number must be between 10 and 18 digits.', 'danger');
         } elseif (strlen($zipcode) !== 4) {
             flash('ZIP code must be exactly 4 digits (e.g. 7214).', 'danger');
         } elseif ($useDiditOnly && !$diditApproved) {
@@ -306,21 +299,6 @@ function gym_onboarding_page(): void
                     $placeholders[] = '?';
                     $params[] = $validIdFilename;
                 }
-                if (in_array('payout_channel', $gymColumns, true)) {
-                    $fields[] = 'payout_channel';
-                    $placeholders[] = '?';
-                    $params[] = $payoutChannel;
-                }
-                if (in_array('payout_account_number', $gymColumns, true)) {
-                    $fields[] = 'payout_account_number';
-                    $placeholders[] = '?';
-                    $params[] = $payoutAccountNumber ?: null;
-                }
-                if (in_array('payout_account_name', $gymColumns, true)) {
-                    $fields[] = 'payout_account_name';
-                    $placeholders[] = '?';
-                    $params[] = $payoutAccountName ?: null;
-                }
 
                 $insertSql = 'INSERT INTO gyms (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
                 $stmt = $pdo->prepare($insertSql);
@@ -339,13 +317,6 @@ function gym_onboarding_page(): void
                     ]);
                 }
                 FileUpload::syncSingleGymAssetsToCloudinary($newGymId, $pdo);
-                if (function_exists('save_gym_payout_account')) {
-                    save_gym_payout_account($newGymId, [
-                        'payout_channel'        => $payoutChannel,
-                        'payout_account_number' => $payoutAccountNumber ?: null,
-                        'payout_account_name'   => $payoutAccountName ?: null,
-                    ]);
-                }
                 if (function_exists('save_gym_settings')) {
                     save_gym_settings($newGymId, []);
                 }
