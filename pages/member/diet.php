@@ -1158,47 +1158,16 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
             </div>
         <?php endif; ?>
 
-        <!-- Inline Metadata Pills -->
+        <!-- Plan Actions & Info -->
         <div class="diet-topbar-meta">
-            <span class="diet-meta-chip diet-chip-desktop" title="Primary Fitness Goal">
-                <span class="diet-chip-dot dot-lime"></span>
-                <span><?= h(ucwords(str_replace('_', ' ', $activePlan['goal']))) ?></span>
-            </span>
-
-            <?php if (!empty($memberProfile['secondary_focus'])): ?>
-            <span class="diet-meta-chip diet-chip-desktop" title="Secondary Focus">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span><?= h(ucwords(str_replace('_', ' ', $memberProfile['secondary_focus']))) ?></span>
-            </span>
+            <?php if (!$hasCoach && $isDietSelfGuided): ?>
+                <button type="button" onclick="confirmRegeneratePlan()" class="diet-meta-btn" title="Regenerate Plan">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
+                    <span>Regenerate Plan</span>
+                </button>
             <?php endif; ?>
 
-            <span class="diet-meta-chip diet-chip-desktop <?= $userDietaryRestriction !== 'none' ? 'is-diet-highlight' : '' ?>" title="Dietary Protocol">
-                <span style="font-size: 12px;">🥗</span>
-                <span><?= h(ucwords(str_replace('-', ' ', $userDietaryRestriction === 'none' ? 'Standard' : $userDietaryRestriction))) ?></span>
-            </span>
-
-            <?php if ($hasCoach): ?>
-                <span class="diet-meta-chip diet-chip-desktop is-locked" title="Plan managed by your coach. Contact <?= h($coachDisplayName) ?> to make adjustments.">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <span>Coach <?= h($coachDisplayName) ?></span>
-                    <?php if ($isGymOwner): ?>
-                        <span class="diet-chip-role-tag">Owner</span>
-                    <?php endif; ?>
-                </span>
-            <?php else: ?>
-                <span class="diet-meta-chip diet-chip-desktop" title="Nutritional Guidance: Self-Guided">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    <span>Self-Guided</span>
-                </span>
-                <?php if ($isDietSelfGuided): ?>
-                    <button type="button" onclick="confirmRegeneratePlan()" class="diet-meta-btn" title="Regenerate Plan">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l5.67-5.67"/></svg>
-                        <span>Regenerate Plan</span>
-                    </button>
-                <?php endif; ?>
-            <?php endif; ?>
-
-            <!-- Mobile Info Trigger Button (Sits on same baseline on mobile) -->
+            <!-- Plan Details Modal Trigger -->
             <button type="button" 
                     class="diet-meta-info-btn" 
                     id="btn-diet-plan-info" 
@@ -2144,6 +2113,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
         </div>
     </div>
 </div> <!-- Close #view-meal-history -->
+</div> <!-- Close .skeleton-content -->
 
 <!-- ==================================================== -->
 <!-- MODAL: INGREDIENT & MICRONUTRIENT INSPECTION         -->
@@ -2323,7 +2293,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <!-- 1. Primary Fitness Goal -->
                 <div class="diet-plan-info-item">
                     <div class="diet-plan-info-icon goal-icon">
-                        <span class="diet-chip-dot dot-lime" style="width: 10px; height: 10px;"></span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
                     </div>
                     <div class="diet-plan-info-text">
                         <span class="diet-plan-info-label">Primary Fitness Goal</span>
@@ -2334,8 +2304,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <!-- 2. Secondary Focus (if set) -->
                 <?php if (!empty($memberProfile['secondary_focus'])): ?>
                 <div class="diet-plan-info-item">
-                    <div class="diet-plan-info-icon" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    <div class="diet-plan-info-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     </div>
                     <div class="diet-plan-info-text">
                         <span class="diet-plan-info-label">Secondary Focus</span>
@@ -2347,7 +2317,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <!-- 3. Dietary Protocol -->
                 <div class="diet-plan-info-item" style="<?= $isDietSelfGuided ? '' : 'border-bottom: none; margin-bottom: 0; padding-bottom: 0;' ?>">
                     <div class="diet-plan-info-icon diet-icon">
-                        <span style="font-size: 16px;">🥗</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
                     </div>
                     <div class="diet-plan-info-text">
                         <span class="diet-plan-info-label">Dietary Protocol</span>
@@ -2358,8 +2328,8 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 <!-- 4. Guidance Mode / Personal Trainer Recommendation -->
                 <?php if ($isDietSelfGuided): ?>
                 <div class="diet-plan-info-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
-                    <div class="diet-plan-info-icon" style="background: rgba(132, 204, 22, 0.12); color: var(--lime); display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <div class="diet-plan-info-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     </div>
                     <div class="diet-plan-info-text">
                         <span class="diet-plan-info-label">Guidance Mode</span>
@@ -2379,7 +2349,6 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
             <button type="button" class="btn-cancel" onclick="closeDietPlanInfoModal()">Got it</button>
         </div>
     </div>
-</div>
 </div>
 
 <script src="<?= h(asset_url('js/pages/diet.js')) ?>"></script>

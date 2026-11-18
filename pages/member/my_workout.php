@@ -356,7 +356,7 @@ function my_workout_page(): void
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/my_workout.css')) ?>">
     <?php render_skeleton_banner(); render_skeleton_cards(6); ?>
 
-    <div class="skeleton-content sk-display-block" style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
+    <div style="max-width: 1200px; margin: 0 auto; padding-bottom: 60px;">
         <?php if (count($activePlans) > 1): ?>
             <!-- Multi-Gym / Multi-Coach Plan Switcher -->
             <div class="plan-switcher-container">
@@ -401,7 +401,7 @@ function my_workout_page(): void
         <?php endif; ?>
 
         <!-- Contextual Action Strip -->
-        <div class="workout-action-strip">
+        <div class="workout-action-strip skeleton-content sk-display-flex">
             <div class="workout-strip-meta">
                 <?php if ($plan && !empty($plan['goal'])): ?>
                     <span class="workout-goal-pill">
@@ -570,7 +570,7 @@ function my_workout_page(): void
             </div>
         <?php elseif ($plan): ?>
             <!-- Above-the-fold 2-column Dashboard Grid -->
-            <div class="workout-dashboard-grid">
+            <div class="workout-dashboard-grid skeleton-content sk-display-grid">
                 
                 <!-- Left Column: Monthly Progress & Calendar -->
                 <div class="workout-left-col">
@@ -753,6 +753,11 @@ function my_workout_page(): void
                             </div>
                         </div>
 
+                        <div class="player-sets-section" style="margin-top: 10px;">
+                            <label for="player-weight-lifted" class="player-section-label" style="display:block; margin-bottom:6px;">Weight Lifted (kg, optional)</label>
+                            <input id="player-weight-lifted" type="number" step="0.5" min="0" max="500" placeholder="e.g. 60" style="width:100%; box-sizing:border-box; padding:9px 12px; border-radius:10px; border:1px solid var(--line); background:var(--panel-soft); color:var(--ink); font-size:13px;">
+                        </div>
+
                     </div>
 
                     <!-- Dedicated Rest Countdown Screen -->
@@ -872,7 +877,7 @@ function my_workout_page(): void
             <script src="<?= h(asset_url('js/pages/my_workout.js')) ?>"></script>
 
         <?php else: ?>
-            <div class="panel" style="text-align: center; padding: 50px 20px;">
+            <div class="panel skeleton-content sk-display-block" style="text-align: center; padding: 50px 20px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                     <line x1="3" y1="9" x2="21" y2="9" />

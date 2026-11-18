@@ -12,7 +12,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
 
     // Tab Switching Logic with Hash Support
     function switchHubTab(tabName) {
-        const tabs = ['overview', 'workout', 'progress', 'nutrition', 'notes'];
+        const tabs = ['overview', 'progress', 'nutrition', 'notes'];
         tabs.forEach(t => {
             const btn = document.getElementById('hub-tab-btn-' + t);
             const pane = document.getElementById('hub-pane-' + t);
@@ -36,7 +36,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     // Auto-select tab if URL has hash
     window.addEventListener('DOMContentLoaded', () => {
         const hash = window.location.hash.replace('#', '');
-        if (['overview', 'workout', 'progress', 'nutrition', 'notes'].includes(hash)) {
+        if (['overview', 'progress', 'nutrition', 'notes'].includes(hash)) {
             switchHubTab(hash);
         }
         initHubChart();
@@ -136,6 +136,54 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         renderFilteredChart();
     }
 
+    let fpFrom = null;
+    let fpTo = null;
+
+    function getLocalTodayStr() {
+        const now = new Date();
+        return [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0')
+        ].join('-');
+    }
+
+    function initCustomDatePickers() {
+        const fromInput = document.getElementById('chart-custom-from');
+        const toInput = document.getElementById('chart-custom-to');
+        if (!fromInput || !toInput || typeof flatpickr !== 'function') return;
+
+        const todayStr = getLocalTodayStr();
+        const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
+
+        if (!fpFrom) {
+            fpFrom = flatpickr(fromInput, {
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'm/d/Y',
+                altInputClass: 'custom-date-input',
+                disableMobile: true,
+                minDate: earliestStr,
+                maxDate: todayStr,
+                defaultDate: fromInput.value || earliestStr,
+                onChange: () => onCustomFromDateChange()
+            });
+        }
+        if (!fpTo) {
+            fpTo = flatpickr(toInput, {
+                dateFormat: 'Y-m-d',
+                altInput: true,
+                altFormat: 'm/d/Y',
+                altInputClass: 'custom-date-input',
+                disableMobile: true,
+                minDate: fromInput.value || earliestStr,
+                maxDate: todayStr,
+                defaultDate: todayStr,
+                onChange: () => onCustomToDateChange()
+            });
+        }
+    }
+
     function toggleCustomDatePicker() {
         const customWrap = document.getElementById('chart-custom-date-wrap');
         if (!customWrap) return;
@@ -152,22 +200,32 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             const customBtn = document.getElementById('tf-btn-custom');
             if (customBtn) customBtn.classList.add('active');
 
+            initCustomDatePickers();
+
             const fromInput = document.getElementById('chart-custom-from');
             const toInput = document.getElementById('chart-custom-to');
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getLocalTodayStr();
             const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
 
             if (fromInput) {
-                fromInput.min = earliestStr;
-                fromInput.max = todayStr;
-                if (!fromInput.value || fromInput.value < earliestStr || fromInput.value > todayStr) {
-                    fromInput.value = earliestStr;
+                const fromVal = (!fromInput.value || fromInput.value < earliestStr || fromInput.value > todayStr)
+                    ? earliestStr
+                    : fromInput.value;
+                if (fpFrom) {
+                    fpFrom.set('minDate', earliestStr);
+                    fpFrom.set('maxDate', todayStr);
+                    fpFrom.setDate(fromVal, false);
+                } else {
+                    fromInput.value = fromVal;
                 }
             }
             if (toInput) {
-                toInput.min = fromInput && fromInput.value ? fromInput.value : earliestStr;
-                toInput.max = todayStr;
-                if (!toInput.value || toInput.value > todayStr || toInput.value < earliestStr) {
+                const minTo = (fromInput && fromInput.value) ? fromInput.value : earliestStr;
+                if (fpTo) {
+                    fpTo.set('minDate', minTo);
+                    fpTo.set('maxDate', todayStr);
+                    fpTo.setDate(todayStr, false);
+                } else {
                     toInput.value = todayStr;
                 }
             }
@@ -180,22 +238,22 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         const toInput = document.getElementById('chart-custom-to');
         if (!fromInput || !toInput) return;
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalTodayStr();
         const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
 
-        // Constraint: cannot pick before member's start of logging
         if (fromInput.value && fromInput.value < earliestStr) {
-            fromInput.value = earliestStr;
+            if (fpFrom) fpFrom.setDate(earliestStr, false);
+            else fromInput.value = earliestStr;
         }
-        // Constraint: cannot pick in the future
         if (fromInput.value && fromInput.value > todayStr) {
-            fromInput.value = todayStr;
+            if (fpFrom) fpFrom.setDate(todayStr, false);
+            else fromInput.value = todayStr;
         }
-        // Constraint: End date cannot be earlier than start date
         if (fromInput.value && toInput.value && toInput.value < fromInput.value) {
-            toInput.value = fromInput.value;
+            if (fpTo) fpTo.setDate(fromInput.value, false);
+            else toInput.value = fromInput.value;
         }
-        toInput.min = fromInput.value || earliestStr;
+        if (fpTo) fpTo.set('minDate', fromInput.value || earliestStr);
         applyCustomDateRange();
     }
 
@@ -204,22 +262,22 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         const toInput = document.getElementById('chart-custom-to');
         if (!fromInput || !toInput) return;
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getLocalTodayStr();
         const earliestStr = rawChartData.length > 0 ? rawChartData[0].date : todayStr;
 
-        // Constraint: cannot pick in the future (e.g. Nov 3 when today is Nov 2)
         if (toInput.value && toInput.value > todayStr) {
-            toInput.value = todayStr;
+            if (fpTo) fpTo.setDate(todayStr, false);
+            else toInput.value = todayStr;
         }
-        // Constraint: cannot pick before earliest log
         if (toInput.value && toInput.value < earliestStr) {
-            toInput.value = earliestStr;
+            if (fpTo) fpTo.setDate(earliestStr, false);
+            else toInput.value = earliestStr;
         }
-        // Constraint: Start date cannot be after end date
         if (fromInput.value && toInput.value && fromInput.value > toInput.value) {
-            fromInput.value = toInput.value;
+            if (fpFrom) fpFrom.setDate(toInput.value, false);
+            else fromInput.value = toInput.value;
         }
-        fromInput.max = toInput.value || todayStr;
+        if (fpFrom) fpFrom.set('maxDate', toInput.value || todayStr);
         applyCustomDateRange();
     }
 
@@ -284,68 +342,63 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 ? FT_CONFIG.hasMeasurements.chest
                 : filteredData.some(d => d.chest !== null && d.chest !== undefined && d.chest > 0);
 
+            const waistColor = isDark ? '#38bdf8' : '#0284c7';
+            const armColor = isDark ? '#c084fc' : '#9333ea';
+            const chestColor = isDark ? '#fbbf24' : '#d97706';
+
             return [
                 {
                     label: 'Waist',
                     data: filteredData.map(d => d.waist),
                     hidden: !hasWaist,
-                    borderColor: '#38bdf8',
-                    glowColor: 'rgba(56, 189, 248, 0.75)',
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        return chart ? getGradient(chart.ctx, chart.chartArea, '#38bdf8', 0.22, 0.0) : 'transparent';
-                    },
-                    borderWidth: 3.2,
+                    borderColor: waistColor,
+                    glowColor: isDark ? 'rgba(56, 189, 248, 0.75)' : 'rgba(2, 132, 199, 0.28)',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
                     pointRadius: 5,
                     pointHoverRadius: 8.5,
                     pointBackgroundColor: '#ffffff',
-                    pointBorderColor: '#38bdf8',
+                    pointBorderColor: waistColor,
                     pointBorderWidth: 2.8,
                     tension: 0.38,
                     cubicInterpolationMode: 'monotone',
-                    fill: true,
+                    fill: false,
                     spanGaps: true
                 },
                 {
                     label: 'Arms',
                     data: filteredData.map(d => d.arm),
                     hidden: !hasArm,
-                    borderColor: '#c084fc',
-                    glowColor: 'rgba(192, 132, 252, 0.75)',
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        return chart ? getGradient(chart.ctx, chart.chartArea, '#c084fc', 0.16, 0.0) : 'transparent';
-                    },
-                    borderWidth: 3.2,
+                    borderColor: armColor,
+                    glowColor: isDark ? 'rgba(192, 132, 252, 0.75)' : 'rgba(147, 51, 234, 0.28)',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
                     pointRadius: 5,
                     pointHoverRadius: 8.5,
                     pointBackgroundColor: '#ffffff',
-                    pointBorderColor: '#c084fc',
+                    pointBorderColor: armColor,
                     pointBorderWidth: 2.8,
                     tension: 0.38,
                     cubicInterpolationMode: 'monotone',
-                    fill: true,
+                    fill: false,
                     spanGaps: true
                 },
                 {
                     label: 'Chest',
                     data: filteredData.map(d => d.chest),
                     hidden: !hasChest,
-                    borderColor: '#fbbf24',
-                    glowColor: 'rgba(251, 191, 36, 0.75)',
-                    backgroundColor: function(context) {
-                        const chart = context.chart;
-                        return chart ? getGradient(chart.ctx, chart.chartArea, '#fbbf24', 0.12, 0.0) : 'transparent';
-                    },
-                    borderWidth: 3.2,
+                    borderColor: chestColor,
+                    glowColor: isDark ? 'rgba(251, 191, 36, 0.75)' : 'rgba(217, 119, 6, 0.28)',
+                    backgroundColor: 'transparent',
+                    borderWidth: 3,
                     pointRadius: 5,
                     pointHoverRadius: 8.5,
                     pointBackgroundColor: '#ffffff',
-                    pointBorderColor: '#fbbf24',
+                    pointBorderColor: chestColor,
                     pointBorderWidth: 2.8,
                     tension: 0.38,
                     cubicInterpolationMode: 'monotone',
-                    fill: true,
+                    fill: false,
                     spanGaps: true
                 }
             ];
@@ -517,8 +570,8 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                         targetLabel = '🎯 Target ' + targetVal + '%';
                     } else if (currentMetric === 'measurements' && targets.targetWaist) {
                         targetVal = parseFloat(targets.targetWaist);
-                        targetLabel = '🎯 Target Waist ' + targetVal + ' cm';
-                        targetColor = '#38bdf8';
+                        targetLabel = 'Target Waist ' + targetVal + ' cm';
+                        targetColor = isDark ? '#38bdf8' : '#0284c7';
                     }
 
                     if (targetVal && targetVal > 0) {
@@ -528,16 +581,37 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                             c.save();
                             c.setLineDash([5, 5]);
                             c.lineWidth = 1.4;
-                            c.strokeStyle = hexToRgba(targetColor, 0.65);
+                            c.strokeStyle = hexToRgba(targetColor, isDark ? 0.65 : 0.75);
                             c.beginPath();
                             c.moveTo(chartArea.left, yPos);
                             c.lineTo(chartArea.right, yPos);
                             c.stroke();
 
+                            c.setLineDash([]);
                             c.font = "700 10.5px 'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif";
+                            const textWidth = c.measureText(targetLabel).width;
+                            const padX = 7;
+                            const pillW = textWidth + padX * 2;
+                            const pillH = 18;
+                            const pillX = chartArea.right - pillW - 6;
+                            const pillY = Math.max(chartArea.top + 2, yPos - pillH - 4);
+
+                            c.fillStyle = isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.94)';
+                            c.strokeStyle = hexToRgba(targetColor, 0.45);
+                            c.lineWidth = 1;
+                            c.beginPath();
+                            if (c.roundRect) {
+                                c.roundRect(pillX, pillY, pillW, pillH, 5);
+                            } else {
+                                c.rect(pillX, pillY, pillW, pillH);
+                            }
+                            c.fill();
+                            c.stroke();
+
                             c.fillStyle = targetColor;
-                            c.textAlign = 'right';
-                            c.fillText(targetLabel, chartArea.right - 6, yPos - 6);
+                            c.textAlign = 'left';
+                            c.textBaseline = 'middle';
+                            c.fillText(targetLabel, pillX + padX, pillY + pillH / 2);
                             c.restore();
                         }
                     }
@@ -702,74 +776,180 @@ const rawChartData = FT_CONFIG.rawChartData || [];
     function openTargetMetricsModal() {
         const targets = FT_CONFIG.targets || {};
         const isTrainer = FT_CURRENT_USER_ROLE === 'trainer';
+        const list = Array.isArray(targets.strengthTargets) ? targets.strengthTargets : [];
 
-        const goalOptions = [
-            { val: 'Building a visible six-pack', label: 'Visible Six-Pack (Abs)' },
-            { val: 'Growing larger biceps and arms', label: 'Larger Biceps & Arms' },
-            { val: 'Developing a wide chest', label: 'Developing a Wide Chest' },
-            { val: 'Sculpting a V-tapered back', label: 'V-Tapered Back' },
-            { val: 'Shaping the lower body', label: 'Lower Body & Legs' },
-            { val: 'Gaining lean body mass', label: 'Lean Body Mass' },
-            { val: 'Reaching body recomposition', label: 'Body Recomposition' },
-            { val: 'increasing_strength', label: 'Increasing Maximum Strength' },
-            { val: 'building_muscle', label: 'Building Muscle' },
-            { val: 'losing_weight', label: 'Losing Weight' },
-            { val: 'reducing_body_fat', label: 'Reducing Body Fat' },
-            { val: 'improving_endurance', label: 'Improving Endurance' },
-            { val: 'casual', label: 'Casual / Flexible Lifestyle' },
-        ];
-
-        let goalSelectHtml = goalOptions.map(g => {
-            const isSel = targets.primaryGoal === g.val ? 'selected' : '';
-            return `<option value="${g.val}" ${isSel}>${g.label}</option>`;
-        }).join('');
+        const unitInput = (name, val, step, placeholder, unit) => `
+            <div class="ft-unit-box" style="display:flex; align-items:center; background:var(--bg); border:1px solid var(--line); border-radius:9px; height:38px; padding:0 10px; gap:6px; box-sizing:border-box;">
+                <input type="number" step="${step}" name="${name}" value="${val || ''}" placeholder="${placeholder}">
+                <span class="ft-unit-pill">${unit}</span>
+            </div>
+        `;
 
         Swal.fire({
-            title: isTrainer ? 'Adjust Client Target Metrics' : 'Adjust Fitness Targets',
-            width: '600px',
+            title: `<div style="font-size:18px; font-weight:800; color:var(--ink); letter-spacing:-0.01em;">${isTrainer ? 'Adjust Client Target Metrics' : 'Adjust Fitness Targets'}</div><div style="font-size:12.5px; font-weight:500; color:var(--muted); margin-top:3px;">Set body composition milestones and exercise strength PR goals.</div>`,
+            width: '620px',
             html: `
-                <form id="targetMetricsForm" method="post" style="text-align: left; margin-top: 10px;">
+                <style>
+                    #targetMetricsForm .ft-unit-box input {
+                        border: none !important;
+                        outline: none !important;
+                        box-shadow: none !important;
+                        background: transparent !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        height: 100% !important;
+                        width: 100% !important;
+                        min-width: 0 !important;
+                        flex: 1 1 auto !important;
+                        color: var(--ink) !important;
+                        font-size: 13.5px !important;
+                        font-weight: 600 !important;
+                    }
+                    #targetMetricsForm .ft-unit-pill {
+                        font-size: 11px;
+                        font-weight: 700;
+                        color: var(--muted);
+                        background: var(--panel-soft);
+                        border: 1px solid var(--line);
+                        border-radius: 5px;
+                        padding: 2px 6px;
+                        flex-shrink: 0;
+                        white-space: nowrap;
+                    }
+                    #targetMetricsForm .ft-grid-2 {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 10px;
+                    }
+                    #targetMetricsForm .ft-grid-3 {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 10px;
+                    }
+                    @media (max-width: 520px) {
+                        #targetMetricsForm .ft-grid-2,
+                        #targetMetricsForm .ft-grid-3 {
+                            grid-template-columns: 1fr;
+                        }
+                    }
+                </style>
+                <form id="targetMetricsForm" method="post" style="text-align:left; margin-top:4px;">
                     <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
                     <input type="hidden" name="action" value="update_goal_targets">
                     ${isTrainer ? `<input type="hidden" name="member_user_id" value="${FT_MEMBER_ID}">` : ''}
 
-                    <div style="margin-bottom: 14px;">
-                        <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.03em;">Primary Fitness Goal</label>
-                        <select name="primary_goal" class="form-control" style="width:100%; box-sizing:border-box; border-radius:8px; height:42px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); font-weight:600; padding:0 12px;">
-                            ${goalSelectHtml}
-                        </select>
+                    <div style="background:var(--panel-soft); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                            <span style="font-size:11px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);">Body Composition &amp; Measurements</span>
+                            <span style="font-size:10.5px; font-weight:700; color:var(--muted); background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:2px 8px; white-space:nowrap; flex-shrink:0;">Milestones</span>
+                        </div>
+
+                        <div class="ft-grid-2" style="margin-bottom:10px;">
+                            <div>
+                                <label style="display:block; color:var(--ink); font-size:11.5px; font-weight:700; margin-bottom:4px;">Target Weight</label>
+                                ${unitInput('target_weight_kg', targets.targetWeight, '0.1', 'e.g. 75.0', 'kg')}
+                            </div>
+                            <div>
+                                <label style="display:block; color:var(--ink); font-size:11.5px; font-weight:700; margin-bottom:4px;">Target Body Fat</label>
+                                ${unitInput('target_body_fat_percent', targets.targetBodyFat, '0.1', 'e.g. 15.0', '%')}
+                            </div>
+                        </div>
+
+                        <div class="ft-grid-3">
+                            <div>
+                                <label style="display:block; color:var(--ink); font-size:11.5px; font-weight:700; margin-bottom:4px;">Target Waist</label>
+                                ${unitInput('target_waist_cm', targets.targetWaist, '0.5', '80.0', 'cm')}
+                            </div>
+                            <div>
+                                <label style="display:block; color:var(--ink); font-size:11.5px; font-weight:700; margin-bottom:4px;">Target Arm</label>
+                                ${unitInput('target_arm_cm', targets.targetArm, '0.5', '38.0', 'cm')}
+                            </div>
+                            <div>
+                                <label style="display:block; color:var(--ink); font-size:11.5px; font-weight:700; margin-bottom:4px;">Target Chest</label>
+                                ${unitInput('target_chest_cm', targets.targetChest, '0.5', '102.0', 'cm')}
+                            </div>
+                        </div>
                     </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Weight (kg)</label>
-                            <input type="number" step="0.1" name="target_weight_kg" value="${targets.targetWeight || ''}" class="form-control" placeholder="e.g. 75.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
+                    <div style="background:linear-gradient(180deg, rgba(79,70,229,0.04) 0%, var(--panel-soft) 100%); border:1px solid var(--line); border-radius:12px; padding:14px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                            <span style="font-size:11px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink);">Strength PR Targets</span>
+                            <span style="font-size:10.5px; font-weight:700; color:#4f46e5; background:rgba(79,70,229,0.1); border:1px solid rgba(79,70,229,0.2); border-radius:999px; padding:2px 8px; white-space:nowrap; flex-shrink:0;">${list.length} active</span>
                         </div>
-                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Body Fat (%)</label>
-                            <input type="number" step="0.1" name="target_body_fat_percent" value="${targets.targetBodyFat || ''}" class="form-control" placeholder="e.g. 15.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
-                        </div>
-                    </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Waist (cm)</label>
-                            <input type="number" step="0.5" name="target_waist_cm" value="${targets.targetWaist || ''}" class="form-control" placeholder="e.g. 80.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
-                        </div>
-                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Arm (cm)</label>
-                            <input type="number" step="0.5" name="target_arm_cm" value="${targets.targetArm || ''}" class="form-control" placeholder="e.g. 38.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
-                        </div>
-                    </div>
+                        ${(() => {
+                            if (list.length === 0) {
+                                return '<div style="font-size:12px; color:var(--muted); padding:8px 10px; border-radius:8px; background:var(--bg); border:1px solid var(--line); margin-bottom:10px;">No exercise targets set yet. Add your first lift goal below.</div>';
+                            }
+                            return '<div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">' + list.map(t => {
+                                const exEsc = String(t.exercise_name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                                const curVal = t.current_max_kg !== null && t.current_max_kg !== '' ? parseFloat(t.current_max_kg) : 0;
+                                const startVal = t.start_max_kg !== null && t.start_max_kg !== undefined && t.start_max_kg !== '' ? parseFloat(t.start_max_kg) : curVal;
+                                const tgtVal = t.target_max_kg !== null && t.target_max_kg !== '' ? parseFloat(t.target_max_kg) : 0;
+                                const span = tgtVal - startVal;
+                                const pct = span > 0 ? Math.min(100, Math.max(0, Math.round(((curVal - startVal) / span) * 100))) : ((tgtVal > 0 && curVal >= tgtVal) ? 100 : 0);
+                                return `
+                                    <div style="padding:9px 11px; border-radius:9px; background:var(--bg); border:1px solid var(--line);">
+                                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+                                            <div style="display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; flex:1 1 140px; min-width:0;">
+                                                <span style="font-size:12.5px; font-weight:700; color:var(--ink);">${exEsc}</span>
+                                                <span style="font-size:11.5px; color:var(--muted); font-weight:600; white-space:nowrap;">${curVal} kg &rarr; <strong style="color:var(--ink);">${tgtVal} kg</strong></span>
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                                                <span style="font-size:11px; font-weight:800; color:#4f46e5; white-space:nowrap;">${pct}%</span>
+                                                <button type="button" onclick="window.deleteStrengthTarget(${Number(t.id)})" style="border:1px solid rgba(239,68,68,0.22); background:rgba(239,68,68,0.08); color:#dc2626; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;">Remove</button>
+                                            </div>
+                                        </div>
+                                        <div style="height:5px; border-radius:999px; background:var(--panel-soft); overflow:hidden;">
+                                            <div style="width:${pct}%; height:100%; border-radius:999px; background:linear-gradient(90deg, #10b981, #4f46e5);"></div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('') + '</div>';
+                        })()}
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Target Chest (cm)</label>
-                            <input type="number" step="0.5" name="target_chest_cm" value="${targets.targetChest || ''}" class="form-control" placeholder="e.g. 102.0" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
-                        </div>
-                        <div style="display:flex; flex-direction:column; justify-content:flex-end;">
-                            <label style="display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.2;">Weekly Workouts</label>
-                            <input type="number" min="1" max="7" name="weekly_workout_target" value="${targets.weeklyWorkouts || '3'}" class="form-control" placeholder="3" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; margin-top:auto;">
+                        <div style="background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:11px;">
+                            <div style="font-size:11.5px; font-weight:700; color:var(--ink); margin-bottom:8px;">+ Add New Exercise Target</div>
+                            <div style="margin-bottom:9px;">
+                                <label style="display:block; color:var(--muted); font-size:11px; font-weight:700; margin-bottom:4px;">Exercise</label>
+                                ${(() => {
+                                    const presets = ['Bench Press', 'Back Squat', 'Deadlift', 'Overhead Press', 'Barbell Row', 'Leg Press'];
+                                    const normKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                                    const existingKeys = list.map(t => normKey(t.exercise_name));
+                                    const availablePreset = presets.find(ex => !existingKeys.includes(normKey(ex)));
+                                    const curEx = availablePreset || '';
+                                    const isCustom = !availablePreset;
+                                    const opts = presets.map(ex => {
+                                        const taken = existingKeys.includes(normKey(ex));
+                                        return `<option value="${ex}" ${!isCustom && curEx === ex ? 'selected' : ''} ${taken ? 'disabled' : ''}>${ex}${taken ? ' (Already added)' : ''}</option>`;
+                                    }).join('') + `<option value="__custom__" ${isCustom ? 'selected' : ''}>+ Custom Exercise...</option>`;
+                                    return `
+                                        <input type="hidden" id="targetExerciseHidden" name="target_exercise" value="${curEx}">
+                                        <select id="targetExerciseSelect" onchange="const c=document.getElementById('customTargetExerciseWrap'); const ci=document.getElementById('customTargetExerciseInput'); const h=document.getElementById('targetExerciseHidden'); if(this.value==='__custom__'){c.style.display='block'; h.value=ci.value.trim();}else{c.style.display='none'; h.value=this.value;}" style="width:100%; box-sizing:border-box; border-radius:9px; height:38px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; font-size:13px; font-weight:600;">
+                                            ${opts}
+                                        </select>
+                                        <div id="customTargetExerciseWrap" style="display:${isCustom ? 'block' : 'none'}; margin-top:8px;">
+                                            <input id="customTargetExerciseInput" type="text" value="" oninput="document.getElementById('targetExerciseHidden').value=this.value.trim();" placeholder="Enter exercise name (e.g. Barbell Curl)" style="width:100%; box-sizing:border-box; border-radius:9px; height:38px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; font-size:13px;">
+                                        </div>
+                                    `;
+                                })()}
+                            </div>
+                            <div class="ft-grid-2">
+                                <div>
+                                    <label style="display:block; color:var(--muted); font-size:11px; font-weight:700; margin-bottom:4px;">Current Max</label>
+                                    <div class="ft-unit-box" style="display:flex; align-items:center; background:var(--panel-soft); border:1px solid var(--line); border-radius:9px; height:38px; padding:0 10px; gap:6px; box-sizing:border-box;">
+                                        <input id="currentStrengthMaxInput" type="number" step="0.5" min="0" max="500" name="current_strength_max_kg" value="" placeholder="e.g. 75.0">
+                                        <span class="ft-unit-pill">kg</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="display:block; color:var(--muted); font-size:11px; font-weight:700; margin-bottom:4px;">Target Max</label>
+                                    <div class="ft-unit-box" style="display:flex; align-items:center; background:var(--panel-soft); border:1px solid var(--line); border-radius:9px; height:38px; padding:0 10px; gap:6px; box-sizing:border-box;">
+                                        <input id="targetStrengthMaxInput" type="number" step="0.5" min="1" max="500" name="target_strength_max_kg" value="" placeholder="e.g. 100.0">
+                                        <span class="ft-unit-pill">kg</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -782,6 +962,126 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             color: 'var(--ink)',
             preConfirm: () => {
                 const f = document.getElementById('targetMetricsForm');
+                const tgtVal = (document.getElementById('targetStrengthMaxInput')?.value || '').trim();
+                if (tgtVal !== '') {
+                    const exName = (document.getElementById('targetExerciseHidden')?.value || '').trim();
+                    if (!exName) {
+                        Swal.showValidationMessage('Please enter an exercise name for your strength target.');
+                        return false;
+                    }
+                    const normKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (list.some(t => normKey(t.exercise_name) === normKey(exName))) {
+                        Swal.showValidationMessage('You already have a target for "' + exName + '". Remove it first or choose another exercise.');
+                        return false;
+                    }
+                }
+                f.submit();
+            }
+        });
+    }
+
+    window.deleteStrengthTarget = function(targetId) {
+        const csrfInput = document.querySelector('#targetMetricsForm input[name="csrf_token"]');
+        if (!csrfInput) return;
+        const csrfVal = csrfInput.value;
+        const memberInput = document.querySelector('#targetMetricsForm input[name="member_user_id"]');
+        const memberVal = memberInput ? memberInput.value : '';
+        const list = (FT_CONFIG.targets && Array.isArray(FT_CONFIG.targets.strengthTargets)) ? FT_CONFIG.targets.strengthTargets : [];
+        const match = list.find(t => Number(t.id) === Number(targetId));
+        const exLabel = match && match.exercise_name ? String(match.exercise_name) : 'this exercise';
+
+        Swal.fire({
+            icon: 'warning',
+            title: 'Remove Strength Target?',
+            text: `Remove your strength PR target for "${exLabel}"?`,
+            showCancelButton: true,
+            confirmButtonText: 'Yes, remove it',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)'
+        }).then((res) => {
+            if (!res.isConfirmed) {
+                openTargetMetricsModal();
+                return;
+            }
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.style.display = 'none';
+            const fields = {
+                csrf_token: csrfVal,
+                action: 'delete_strength_target',
+                strength_target_id: String(targetId)
+            };
+            if (memberVal) {
+                fields.member_user_id = memberVal;
+            }
+            Object.keys(fields).forEach(k => {
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = k;
+                inp.value = fields[k];
+                form.appendChild(inp);
+            });
+            document.body.appendChild(form);
+            form.submit();
+        });
+    };
+
+    function openLogStrengthPrModal() {
+        const targets = FT_CONFIG.targets || {};
+        const list = Array.isArray(targets.strengthTargets) ? targets.strengthTargets : [];
+        if (list.length === 0) {
+            openTargetMetricsModal();
+            return;
+        }
+        const isTrainer = FT_CURRENT_USER_ROLE === 'trainer';
+        const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const opts = list.map(t => {
+            const cur = t.current_max_kg !== null && t.current_max_kg !== '' ? parseFloat(t.current_max_kg) : 0;
+            const tgt = t.target_max_kg !== null && t.target_max_kg !== '' ? parseFloat(t.target_max_kg) : 0;
+            return `<option value="${Number(t.id)}" data-cur="${cur}" data-tgt="${tgt}">${esc(t.exercise_name)} (Now: ${cur} kg &rarr; Goal: ${tgt} kg)</option>`;
+        }).join('');
+
+        Swal.fire({
+            title: `<div style="font-size:18px; font-weight:800; color:var(--ink);">Log Strength PR</div><div style="font-size:12.5px; font-weight:500; color:var(--muted); margin-top:3px;">Record your latest working or 1RM weight for a configured target.</div>`,
+            width: '440px',
+            html: `
+                <form id="logStrengthPrForm" method="post" style="text-align:left; margin-top:6px;">
+                    <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                    <input type="hidden" name="action" value="log_strength_pr">
+                    ${isTrainer ? `<input type="hidden" name="member_user_id" value="${FT_MEMBER_ID}">` : ''}
+
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block; color:var(--ink); font-size:12px; font-weight:700; margin-bottom:5px;">Exercise Target</label>
+                        <select id="logPrTargetSelect" name="strength_target_id" onchange="const opt=this.options[this.selectedIndex]; const inp=document.getElementById('logPrWeightInput'); if(opt && inp){inp.placeholder='Current: ' + (opt.dataset.cur || '0') + ' kg';}" style="width:100%; box-sizing:border-box; border-radius:9px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 10px; font-size:13px; font-weight:600;">
+                            ${opts}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style="display:block; color:var(--ink); font-size:12px; font-weight:700; margin-bottom:5px;">New Weight Lifted (kg)</label>
+                        <div style="display:flex; align-items:center; background:var(--panel-soft); border:1px solid var(--line); border-radius:9px; height:40px; padding:0 12px; gap:8px; box-sizing:border-box;">
+                            <input id="logPrWeightInput" type="number" step="0.5" min="0.5" max="1000" name="lifted_kg" placeholder="Current: ${list[0].current_max_kg ?? 0} kg" style="width:100%; border:none !important; outline:none !important; box-shadow:none !important; background:transparent !important; margin:0 !important; padding:0 !important; color:var(--ink); font-size:14px; font-weight:600;">
+                            <span style="font-size:11px; font-weight:700; color:var(--muted); background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:2px 7px; flex-shrink:0;">kg</span>
+                        </div>
+                    </div>
+                </form>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save PR',
+            confirmButtonColor: 'var(--lime-dark)',
+            cancelButtonColor: 'var(--line)',
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            preConfirm: () => {
+                const f = document.getElementById('logStrengthPrForm');
+                const val = parseFloat(document.getElementById('logPrWeightInput')?.value || '');
+                if (!val || val <= 0) {
+                    Swal.showValidationMessage('Please enter a valid weight in kg.');
+                    return false;
+                }
                 f.submit();
             }
         });
@@ -989,7 +1289,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                     <div style="display:flex;gap:12px;">
                         <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
                             <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Date *</label>
-                            <input name="log_date" type="date" class="form-control" required value="${defaultDate}" style="width: 100%; box-sizing: border-box;">
+                            <input id="progressLogDateInput" name="log_date" type="text" class="form-control" required value="${defaultDate}" placeholder="mm/dd/yyyy" style="width: 100%; box-sizing: border-box;">
                         </div>
                         <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
                             <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Weight (kg) *</label>
@@ -1047,6 +1347,20 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             cancelButtonColor: 'var(--line)',
             background: 'var(--bg)',
             color: 'var(--ink)',
+            didOpen: () => {
+                const dateEl = document.getElementById('progressLogDateInput');
+                if (dateEl && typeof flatpickr === 'function') {
+                    flatpickr(dateEl, {
+                        dateFormat: 'Y-m-d',
+                        altInput: true,
+                        altFormat: 'm/d/Y',
+                        altInputClass: 'form-control',
+                        disableMobile: true,
+                        maxDate: getLocalTodayStr(),
+                        defaultDate: defaultDate || getLocalTodayStr()
+                    });
+                }
+            },
             preConfirm: () => {
                 const form = document.getElementById('progressForm');
                 if (!form.log_date.value || !form.weight_kg.value) {

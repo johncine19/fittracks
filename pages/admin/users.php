@@ -618,6 +618,13 @@ function users_page(): void
             $memberData['baseline_weight'] = $normProf['weight_kg'] ?? null;
             $memberData['target_weight_kg'] = $normProf['target_weight_kg'] ?? null;
             $memberData['target_body_fat_percent'] = $normProf['target_body_fat_percent'] ?? null;
+            $memberData['body_fat_percent'] = $normProf['body_fat_percent'] ?? null;
+            $memberData['target_waist_cm'] = $normProf['target_waist_cm'] ?? null;
+            $memberData['target_arm_cm'] = $normProf['target_arm_cm'] ?? null;
+            $memberData['target_chest_cm'] = $normProf['target_chest_cm'] ?? null;
+            $memberData['target_exercise'] = $normProf['target_exercise'] ?? null;
+            $memberData['current_strength_max_kg'] = $normProf['current_strength_max_kg'] ?? null;
+            $memberData['target_strength_max_kg'] = $normProf['target_strength_max_kg'] ?? null;
             $memberData['neck_cm'] = $normProf['neck_cm'] ?? null;
             $memberData['waist_cm'] = $normProf['waist_cm'] ?? null;
             $memberData['hip_cm'] = $normProf['hip_cm'] ?? null;
@@ -768,12 +775,103 @@ function users_page(): void
             } else {
                 $progressPct = 100;
             }
-        } elseif (function_exists('calculate_member_goal_progress')) {
+            } elseif (function_exists('calculate_member_goal_progress')) {
             $goalProg = calculate_member_goal_progress($targetMemberId, $memberData, $logs);
             if (isset($goalProg['progress_pct']) && $goalProg['progress_pct'] !== null) {
                 $progressPct = (int)$goalProg['progress_pct'];
             }
         }
+
+        // Additional configured target progress bars (Body Fat, Waist, Arms, Chest)
+        $computeMetricBar = static function (string $label, string $unit, ?float $targetVal, ?float $currentVal, string $logCol, ?float $profileVal) use ($logs): ?array {
+            if ($targetVal === null || $targetVal <= 0) {
+                return null;
+            }
+            $startVal = null;
+            for ($i = count($logs) - 1; $i >= 0; $i--) {
+                if (!empty($logs[$i][$logCol]) && (float)$logs[$i][$logCol] > 0) {
+                    $startVal = (float)$logs[$i][$logCol];
+                    break;
+                }
+            }
+            if ($startVal === null && $profileVal !== null && $profileVal > 0) {
+                $startVal = $profileVal;
+            }
+            if ($startVal === null) {
+                $startVal = $currentVal;
+            }
+            $pct = 0;
+            if ($startVal !== null && $currentVal !== null) {
+                $dist = abs($targetVal - $startVal);
+                if ($dist > 0) {
+                    $isDown = ($startVal > $targetVal);
+                    $covered = $isDown ? ($startVal - $currentVal) : ($currentVal - $startVal);
+                    $pct = $covered > 0 ? (int) min(100, max(0, round(($covered / $dist) * 100))) : 0;
+                } else {
+                    $pct = 100;
+                }
+            }
+            return [
+                'label' => $label,
+                'unit' => $unit,
+                'start' => $startVal,
+                'current' => $currentVal,
+                'target' => $targetVal,
+                'pct' => $pct,
+            ];
+        };
+
+        $extraTargetBars = array_values(array_filter([
+            $computeMetricBar(
+                'Body Fat',
+                '%',
+                !empty($memberData['target_body_fat_percent']) ? (float)$memberData['target_body_fat_percent'] : null,
+                $bodyFat,
+                'body_fat_percent',
+                !empty($memberData['body_fat_percent']) ? (float)$memberData['body_fat_percent'] : null
+            ),
+            $computeMetricBar(
+                'Waist',
+                'cm',
+                !empty($memberData['target_waist_cm']) ? (float)$memberData['target_waist_cm'] : null,
+                $waistVal,
+                'waist_cm',
+                !empty($memberData['waist_cm']) ? (float)$memberData['waist_cm'] : null
+            ),
+            $computeMetricBar(
+                'Arms',
+                'cm',
+                !empty($memberData['target_arm_cm']) ? (float)$memberData['target_arm_cm'] : null,
+                $armVal,
+                'arm_cm',
+                !empty($memberData['arm_cm']) ? (float)$memberData['arm_cm'] : null
+            ),
+            $computeMetricBar(
+                'Chest',
+                'cm',
+                !empty($memberData['target_chest_cm']) ? (float)$memberData['target_chest_cm'] : null,
+                $chestVal,
+                'chest_cm',
+                !empty($memberData['chest_cm']) ? (float)$memberData['chest_cm'] : null
+            ),
+            ...array_map(function (array $st): array {
+                $cur = $st['current_max_kg'] !== null ? (float)$st['current_max_kg'] : 0.0;
+                $start = $st['start_max_kg'] !== null ? (float)$st['start_max_kg'] : $cur;
+                $tgt = (float)$st['target_max_kg'];
+                $span = $tgt - $start;
+                $pct = ($span > 0)
+                    ? (int) min(100, max(0, round((($cur - $start) / $span) * 100)))
+                    : (($tgt > 0 && $cur >= $tgt) ? 100 : 0);
+                return [
+                    'label'   => 'Strength: ' . (string)$st['exercise_name'],
+                    'unit'    => 'kg',
+                    'start'   => $start,
+                    'current' => $cur,
+                    'target'  => $tgt,
+                    'pct'     => $pct,
+                ];
+            }, get_member_strength_targets($targetMemberId)),
+        ]));
 
         echo json_encode([
             'success' => true,
@@ -810,6 +908,7 @@ function users_page(): void
                 'engagement_score' => $engScore,
                 'engagement_tier' => $engTier,
                 'progress_pct' => $progressPct,
+                'extra_target_bars' => $extraTargetBars,
             ],
             'measurements' => [
                 'waist_cm' => $waistVal,
@@ -1507,6 +1606,7 @@ function users_page(): void
                             <span id="mpProgressPctLegend">Progress toward target</span>
                             <span id="mpTargetWeightLegend">Target: —</span>
                         </div>
+                        <div id="mpExtraTargetBars" style="display:none; flex-direction:column; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);"></div>
                     </div>
 
                     <!-- Body Measurements Grid -->

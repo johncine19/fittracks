@@ -706,13 +706,16 @@
 
 .diet-plan-btn-prefix {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
+    line-height: 1.2;
 }
 
 .diet-plan-btn-name {
     color: var(--ink);
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
 }
 
 .diet-plan-btn-coach {
@@ -971,7 +974,7 @@
     max-height: 28px !important;
     padding: 4px 11px !important;
     font-size: 12px !important;
-    display: none;
+    display: inline-flex;
     align-items: center;
     gap: 5px;
     background: var(--panel-soft);
@@ -4191,11 +4194,44 @@
     font-size: 12px !important;
         display: inline-flex !important;
     }
+    .diet-topbar-left {
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+    }
+    .diet-plan-single-pill,
+    .diet-plan-popover-wrap {
+        min-width: 0;
+        flex: 0 1 auto;
+    }
+    .diet-plan-single-pill,
+    .diet-plan-selector-btn {
+        max-width: 100%;
+        height: 28px;
+        padding: 3px 10px 3px 5px;
+    }
+    .diet-plan-btn-content {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .diet-plan-btn-prefix,
+    .diet-plan-btn-name {
+        font-size: 12px !important;
+    }
+    .diet-plan-btn-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
     .diet-topbar-meta {
         display: flex !important;
         align-items: center !important;
         flex-wrap: nowrap !important;
-        gap: 8px !important;
+        gap: 6px !important;
+        flex-shrink: 0;
     }
     .diet-topbar-meta .diet-meta-chip.is-locked,
     .diet-topbar-meta .diet-meta-btn,
@@ -4203,17 +4239,16 @@
         height: 28px !important;
         min-height: 28px !important;
         max-height: 28px !important;
-        padding: 0 11px !important;
-        font-size: 12px !important;
+        padding: 0 9px !important;
+        font-size: 11.5px !important;
         line-height: 1 !important;
         box-sizing: border-box !important;
-    height: 28px !important;
-    min-height: 28px !important;
-    max-height: 28px !important;
-    padding: 4px 11px !important;
-    font-size: 12px !important;
         margin: 0 !important;
         vertical-align: middle;
+        white-space: nowrap;
+    }
+    .diet-plan-btn-prefix {
+        display: none !important;
     }
 
     /* Mobile toggle for Live Macro Logger (hidden until triggered) */

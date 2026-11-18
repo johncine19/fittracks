@@ -1200,7 +1200,7 @@ function food_library_page(): void
                                     ?>
                                     <?php if ($canManageFood): ?>
                                         <button type="button" onclick="openEditFoodModal(<?= htmlspecialchars(json_encode($food), ENT_QUOTES, 'UTF-8') ?>)" class="btn-sm btn-ghost" style="padding: 4px 10px; font-size: 12px; border-radius: 6px;">Edit</button>
-                                        <form method="post" style="margin:0;" onsubmit="return confirm('Delete this food item?');">
+                                        <form method="post" style="margin:0;" onsubmit="return confirmDeleteFood(this, <?= htmlspecialchars(json_encode((string)$food['name']), ENT_QUOTES, 'UTF-8') ?>);">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="food_id" value="<?= (int)$food['food_id'] ?>">

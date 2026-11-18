@@ -114,381 +114,349 @@ function verify_waiting_page(): void
     }
 
     $email = (string) $user['email'];
+    $emailDomain = strtolower((string) substr(strrchr($email, '@') ?: '', 1));
+    $webmailUrl = '';
+    $webmailLabel = '';
+    if (in_array($emailDomain, ['gmail.com', 'googlemail.com'], true)) {
+        $webmailUrl = 'https://mail.google.com/';
+        $webmailLabel = 'Open Gmail';
+    } elseif (in_array($emailDomain, ['outlook.com', 'hotmail.com', 'live.com', 'msn.com'], true)) {
+        $webmailUrl = 'https://outlook.live.com/mail/';
+        $webmailLabel = 'Open Outlook';
+    } elseif (in_array($emailDomain, ['yahoo.com', 'ymail.com'], true)) {
+        $webmailUrl = 'https://mail.yahoo.com/';
+        $webmailLabel = 'Open Yahoo Mail';
+    }
+    $isGymOwner = (($user['role'] ?? '') === 'gym_owner');
 
     render_header('Verify Your Email', null);
     ?>
     <style>
-        .onboarding-waiting-wrapper {
-            min-height: calc(100vh - 120px);
+        .vw-wrap {
+            min-height: calc(100vh - 110px);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 40px 20px;
-            position: relative;
-            background: radial-gradient(circle at 50% 20%, rgba(132, 204, 22, 0.08) 0%, rgba(10, 15, 29, 0) 65%), #090d16;
-            color: #f1f5f9;
-            font-family: inherit;
+            padding: 32px 16px;
+            background: var(--bg, #0b0f17);
+            color: var(--ink, #f1f5f9);
         }
 
-        .onboarding-waiting-card {
-            max-width: 540px;
+        .vw-card {
             width: 100%;
-            background: rgba(17, 24, 39, 0.85);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            max-width: 440px;
+            background: var(--panel, #111827);
+            border: 1px solid var(--line, rgba(148, 163, 184, 0.18));
             border-radius: 20px;
-            padding: 40px 32px;
+            padding: 32px 28px 28px;
             text-align: center;
-            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 40px rgba(132, 204, 22, 0.06);
-            position: relative;
-            overflow: hidden;
-            animation: cardFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+            animation: vwFadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
-        @keyframes cardFadeUp {
-            from { opacity: 0; transform: translateY(20px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+        @keyframes vwFadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Stepper header */
-        .onboarding-stepper {
+        /* Compact Stepper */
+        .vw-stepper {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            margin-bottom: 32px;
-            padding-bottom: 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--line, rgba(148, 163, 184, 0.15));
+            flex-wrap: wrap;
         }
-        .step-node {
-            display: flex;
+        .vw-step {
+            display: inline-flex;
             align-items: center;
             gap: 6px;
-            font-size: 0.8rem;
+            font-size: 12px;
             font-weight: 600;
-            letter-spacing: 0.03em;
-            color: #64748b;
+            color: var(--muted, #64748b);
         }
-        .step-node.active {
-            color: #bef264;
+        .vw-step.active {
+            color: var(--ink, #f8fafc);
         }
-        .step-node.active .step-num {
-            background: #84cc16;
-            color: #000;
-            box-shadow: 0 0 14px rgba(132, 204, 22, 0.6);
-        }
-        .step-num {
-            width: 22px;
-            height: 22px;
+        .vw-step-num {
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
-            background: #1e293b;
-            color: #94a3b8;
+            background: var(--panel-soft, rgba(148, 163, 184, 0.14));
+            color: var(--muted, #64748b);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75rem;
-        }
-        .step-divider {
-            width: 24px;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        /* Pulsing Radar Illustration */
-        .radar-stage {
-            position: relative;
-            width: 140px;
-            height: 140px;
-            margin: 0 auto 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .radar-ring {
-            position: absolute;
-            border-radius: 50%;
-            border: 1.5px solid rgba(132, 204, 22, 0.35);
-            animation: radarPulse 2.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-            pointer-events: none;
-        }
-        .radar-ring:nth-child(1) { width: 80px; height: 80px; animation-delay: 0s; }
-        .radar-ring:nth-child(2) { width: 110px; height: 110px; animation-delay: 0.9s; }
-        .radar-ring:nth-child(3) { width: 140px; height: 140px; animation-delay: 1.8s; }
-
-        @keyframes radarPulse {
-            0% { transform: scale(0.6); opacity: 0.9; border-color: rgba(163, 230, 53, 0.8); }
-            50% { opacity: 0.4; }
-            100% { transform: scale(1.3); opacity: 0; border-color: rgba(132, 204, 22, 0); }
-        }
-
-        .radar-center-orb {
-            position: relative;
-            z-index: 2;
-            width: 74px;
-            height: 74px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            border: 2px solid #84cc16;
-            box-shadow: 0 0 25px rgba(132, 204, 22, 0.4), inset 0 0 15px rgba(132, 204, 22, 0.15);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #bef264;
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-            animation: orbFloat 3s ease-in-out infinite;
-        }
-
-        @keyframes orbFloat {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
-        }
-
-        .radar-center-orb.verified {
-            background: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
-            border-color: #86efac;
-            color: #ffffff;
-            box-shadow: 0 0 35px rgba(34, 197, 94, 0.7);
-            transform: scale(1.1);
-            animation: none;
-        }
-
-        /* Live status pill */
-        .live-status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(132, 204, 22, 0.1);
-            border: 1px solid rgba(132, 204, 22, 0.25);
-            color: #bef264;
-            padding: 5px 14px;
-            border-radius: 9999px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            margin-bottom: 16px;
-            text-transform: uppercase;
-        }
-        .live-pulse-dot {
-            width: 8px;
-            height: 8px;
-            background: #a3e635;
-            border-radius: 50%;
-            box-shadow: 0 0 8px #a3e635;
-            animation: blinkLive 1.4s infinite ease-in-out;
-        }
-        @keyframes blinkLive {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.3; transform: scale(0.85); }
-        }
-
-        /* Typography */
-        .waiting-title {
-            font-size: 1.6rem;
+            font-size: 11px;
             font-weight: 700;
-            color: #ffffff;
-            margin: 0 0 10px;
+        }
+        .vw-step.active .vw-step-num {
+            background: var(--lime, #84cc16);
+            color: var(--lime-btn-text, #090b10);
+        }
+        .vw-step-sep {
+            width: 18px;
+            height: 1px;
+            background: var(--line, rgba(148, 163, 184, 0.25));
+        }
+
+        /* Clean Mail Icon Badge */
+        .vw-icon-box {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 18px;
+            border-radius: 18px;
+            background: color-mix(in srgb, var(--lime, #84cc16) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 30%, transparent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--lime-dark, #65a30d);
+            transition: all 0.3s ease;
+        }
+        [data-theme="dark"] .vw-icon-box {
+            color: var(--lime, #a3e635);
+        }
+        .vw-icon-box.verified {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: rgba(34, 197, 94, 0.45);
+            color: #22c55e;
+            transform: scale(1.06);
+        }
+
+        /* Status Pill */
+        .vw-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--lime, #84cc16) 10%, transparent);
+            border: 1px solid color-mix(in srgb, var(--lime, #84cc16) 25%, transparent);
+            color: var(--lime-dark, #65a30d);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+        [data-theme="dark"] .vw-status-pill {
+            color: var(--lime, #bef264);
+        }
+        .vw-pulse-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--lime, #84cc16);
+            animation: vwPulse 1.6s ease-in-out infinite;
+        }
+        @keyframes vwPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.35; transform: scale(0.8); }
+        }
+
+        .vw-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--ink, #f8fafc);
+            margin: 0 0 8px;
             letter-spacing: -0.02em;
         }
-        .waiting-desc {
-            font-size: 0.95rem;
-            line-height: 1.55;
-            color: #94a3b8;
-            margin: 0 0 18px;
+        .vw-desc {
+            font-size: 0.92rem;
+            line-height: 1.5;
+            color: var(--muted, #94a3b8);
+            margin: 0 0 14px;
         }
-        .user-email-badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            color: #f8fafc;
+        .vw-email-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--panel-soft, rgba(148, 163, 184, 0.1));
+            border: 1px solid var(--line, rgba(148, 163, 184, 0.2));
+            color: var(--ink, #f8fafc);
+            font-size: 0.88rem;
             font-weight: 600;
-            padding: 4px 12px;
-            border-radius: 8px;
-            margin: 4px 0;
+            padding: 7px 14px;
+            border-radius: 10px;
             word-break: break-all;
+            margin-bottom: 22px;
         }
 
-        /* Progress auto bar */
-        .waiting-auto-bar-wrap {
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 999px;
-            height: 4px;
-            overflow: hidden;
-            margin: 20px auto 26px;
-            max-width: 380px;
-            position: relative;
-        }
-        .waiting-auto-bar-fill {
-            height: 100%;
-            width: 30%;
-            background: linear-gradient(90deg, #65a30d, #a3e635);
-            border-radius: 999px;
-            position: relative;
-            animation: scanBar 2.2s ease-in-out infinite;
-        }
-        @keyframes scanBar {
-            0% { transform: translateX(-100%); width: 25%; }
-            50% { width: 50%; }
-            100% { transform: translateX(450%); width: 25%; }
-        }
-
-        /* Action Buttons */
-        .waiting-actions {
+        /* Actions */
+        .vw-actions {
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            max-width: 380px;
-            margin: 0 auto;
+            gap: 10px;
         }
-        .btn-action-primary {
+        .vw-btn-primary {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            background: #84cc16;
-            color: #0b0f19;
+            width: 100%;
+            background: var(--lime, #84cc16);
+            color: var(--lime-btn-text, #090b10);
             font-weight: 700;
             font-size: 0.92rem;
-            padding: 12px 20px;
-            border-radius: 10px;
+            padding: 12px 18px;
+            border-radius: 11px;
             text-decoration: none;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.35);
             border: none;
             cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
         }
-        .btn-action-primary:hover {
-            background: #a3e635;
-            color: #000;
+        .vw-btn-primary:hover {
+            filter: brightness(1.05);
             transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(163, 230, 53, 0.45);
         }
-        .btn-action-secondary {
+        .vw-btn-secondary {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            color: #cbd5e1;
+            width: 100%;
+            background: var(--panel-soft, rgba(148, 163, 184, 0.1));
+            color: var(--ink, #e2e8f0);
             font-weight: 600;
             font-size: 0.88rem;
             padding: 11px 18px;
-            border-radius: 10px;
-            text-decoration: none;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.2s ease;
+            border-radius: 11px;
+            border: 1px solid var(--line, rgba(148, 163, 184, 0.22));
             cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease;
         }
-        .btn-action-secondary:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
-            border-color: rgba(255, 255, 255, 0.2);
+        .vw-btn-secondary:hover:not(:disabled) {
+            background: color-mix(in srgb, var(--panel-soft, #1e293b) 80%, var(--ink, #fff) 8%);
         }
-        .btn-action-secondary:disabled {
+        .vw-btn-secondary:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        .vw-tip {
+            margin: 14px 0 0;
+            font-size: 12px;
+            color: var(--muted, #64748b);
+            line-height: 1.45;
         }
 
         /* Toast Feedback */
         #resend-toast {
             display: none;
-            margin-top: 16px;
+            margin-top: 14px;
             padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 0.85rem;
+            border-radius: 10px;
+            font-size: 0.84rem;
             font-weight: 500;
-            animation: fadeIn 0.3s ease;
+            line-height: 1.45;
+            text-align: center;
         }
         .toast-success {
-            background: rgba(34, 197, 94, 0.15);
+            background: rgba(34, 197, 94, 0.12);
             border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #86efac;
+            color: #16a34a;
         }
+        [data-theme="dark"] .toast-success { color: #86efac; }
         .toast-error {
-            background: rgba(239, 68, 68, 0.15);
+            background: rgba(239, 68, 68, 0.12);
             border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #fca5a5;
+            color: #dc2626;
+        }
+        [data-theme="dark"] .toast-error { color: #fca5a5; }
+
+        .vw-footer {
+            margin-top: 22px;
+            padding-top: 16px;
+            border-top: 1px solid var(--line, rgba(148, 163, 184, 0.15));
+            font-size: 0.82rem;
+            color: var(--muted, #64748b);
+            line-height: 1.6;
+        }
+        .vw-footer a {
+            color: var(--ink, #cbd5e1);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .vw-footer a:hover {
+            color: var(--lime-dark, #65a30d);
+            text-decoration: underline;
+        }
+        [data-theme="dark"] .vw-footer a:hover {
+            color: var(--lime, #bef264);
         }
 
-        .waiting-footer-links {
-            margin-top: 28px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            font-size: 0.82rem;
-            color: #64748b;
-        }
-        .waiting-footer-links a {
-            color: #94a3b8;
-            text-decoration: none;
-            transition: color 0.15s ease;
-        }
-        .waiting-footer-links a:hover {
-            color: #bef264;
-            text-decoration: underline;
+        @media (max-width: 480px) {
+            .vw-card { padding: 26px 20px 22px; border-radius: 16px; }
+            .vw-title { font-size: 1.35rem; }
         }
     </style>
 
-    <div class="onboarding-waiting-wrapper">
-        <div class="onboarding-waiting-card">
+    <div class="vw-wrap">
+        <div class="vw-card">
             <!-- Stepper -->
-            <div class="onboarding-stepper">
-                <div class="step-node active">
-                    <span class="step-num">1</span>
+            <div class="vw-stepper">
+                <div class="vw-step active">
+                    <span class="vw-step-num">1</span>
                     <span>Verify Email</span>
                 </div>
-                <div class="step-divider"></div>
-                <div class="step-node">
-                    <span class="step-num">2</span>
-                    <span>Setup Profile</span>
+                <div class="vw-step-sep"></div>
+                <div class="vw-step">
+                    <span class="vw-step-num">2</span>
+                    <span><?= $isGymOwner ? 'Gym Onboarding' : 'Setup Profile' ?></span>
                 </div>
-                <div class="step-divider"></div>
-                <div class="step-node">
-                    <span class="step-num">3</span>
-                    <span>Fitness Goal</span>
-                </div>
+                <?php if (!$isGymOwner): ?>
+                    <div class="vw-step-sep"></div>
+                    <div class="vw-step">
+                        <span class="vw-step-num">3</span>
+                        <span>Fitness Goal</span>
+                    </div>
+                <?php endif; ?>
             </div>
 
-            <!-- Pulsing Radar Graphic -->
-            <div class="radar-stage" id="radar-stage">
-                <div class="radar-ring"></div>
-                <div class="radar-ring"></div>
-                <div class="radar-ring"></div>
-                <div class="radar-center-orb" id="radar-orb">
-                    <!-- Default Mail Icon -->
-                    <svg id="icon-mail" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                    <!-- Verified Checkmark Icon (Initially hidden) -->
-                    <svg id="icon-check" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                </div>
+            <!-- Icon -->
+            <div class="vw-icon-box" id="radar-orb">
+                <svg id="icon-mail" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <svg id="icon-check" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
             </div>
 
-            <!-- Live badge -->
+            <!-- Live Status -->
             <div>
-                <span class="live-status-pill" id="status-pill">
-                    <span class="live-pulse-dot" id="status-dot"></span>
-                    <span id="status-text">Listening for Verification</span>
+                <span class="vw-status-pill" id="status-pill">
+                    <span class="vw-pulse-dot" id="status-dot"></span>
+                    <span id="status-text">Waiting for Verification</span>
                 </span>
             </div>
 
-            <!-- Header Titles -->
-            <h1 class="waiting-title" id="page-title">Check Your Inbox</h1>
-            <p class="waiting-desc" id="page-desc">
-                We sent a secure activation link to<br>
-                <span class="user-email-badge"><?= h($email) ?></span>
+            <!-- Title & Email -->
+            <h1 class="vw-title" id="page-title">Check your inbox</h1>
+            <p class="vw-desc" id="page-desc">
+                We sent a verification link to your email address. Click the link to continue.
             </p>
+            <div class="vw-email-chip" id="email-chip"><?= h($email) ?></div>
 
-            <!-- Auto-scan indicator bar -->
-            <div class="waiting-auto-bar-wrap" id="scan-bar-wrap">
-                <div class="waiting-auto-bar-fill" id="scan-bar-fill"></div>
-            </div>
+            <!-- Actions -->
+            <div class="vw-actions" id="waiting-actions">
+                <?php if ($webmailUrl !== ''): ?>
+                    <a href="<?= h($webmailUrl) ?>" target="_blank" rel="noopener noreferrer" class="vw-btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        <span><?= h($webmailLabel) ?></span>
+                    </a>
+                <?php endif; ?>
 
-            <!-- Action buttons -->
-            <div class="waiting-actions" id="waiting-actions">
-                <button type="button" id="btn-resend" class="btn-action-secondary" onclick="handleResend()">
+                <button type="button" id="btn-resend" class="<?= $webmailUrl !== '' ? 'vw-btn-secondary' : 'vw-btn-primary' ?>" onclick="handleResend()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="23 4 23 10 17 10"></polyline>
                         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -499,10 +467,12 @@ function verify_waiting_page(): void
                 <div id="resend-toast"></div>
             </div>
 
+            <p class="vw-tip">Didn&apos;t see it? Check your Spam or Promotions folder.</p>
+
             <!-- Footer Links -->
-            <div class="waiting-footer-links">
-                Wrong email address? <a href="index.php?page=register">Register with another email</a> &bull;
-                <a href="index.php?page=login">Sign In</a>
+            <div class="vw-footer">
+                Wrong email address? <a href="index.php?page=register">Register again</a> &bull;
+                <a href="index.php?page=login">Sign in</a>
             </div>
         </div>
     </div>
@@ -544,37 +514,28 @@ function verify_waiting_page(): void
             const orb = document.getElementById('radar-orb');
             const iconMail = document.getElementById('icon-mail');
             const iconCheck = document.getElementById('icon-check');
-            const rings = document.querySelectorAll('.radar-ring');
             const title = document.getElementById('page-title');
             const desc = document.getElementById('page-desc');
+            const emailChip = document.getElementById('email-chip');
             const statusPill = document.getElementById('status-pill');
             const statusDot = document.getElementById('status-dot');
             const statusText = document.getElementById('status-text');
-            const scanBar = document.getElementById('scan-bar-fill');
 
-            // Hide radar waves, show green checkmark
-            rings.forEach(r => r.style.display = 'none');
             orb.classList.add('verified');
             iconMail.style.display = 'none';
             iconCheck.style.display = 'block';
+            if (emailChip) emailChip.style.display = 'none';
 
             // Update copy
-            statusPill.style.background = 'rgba(34, 197, 94, 0.2)';
-            statusPill.style.borderColor = 'rgba(34, 197, 94, 0.5)';
-            statusPill.style.color = '#86efac';
+            statusPill.style.background = 'rgba(34, 197, 94, 0.14)';
+            statusPill.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+            statusPill.style.color = '#22c55e';
             statusDot.style.background = '#22c55e';
-            statusDot.style.boxShadow = '0 0 10px #22c55e';
-            statusText.textContent = 'Email Verified!';
+            statusDot.style.animation = 'none';
+            statusText.textContent = 'Email Verified';
 
-            title.textContent = 'Email Verified Successfully!';
-            title.style.color = '#bef264';
-            desc.innerHTML = 'Account verified! Directing you to your profile setup...';
-
-            if (scanBar) {
-                scanBar.style.animation = 'none';
-                scanBar.style.width = '100%';
-                scanBar.style.background = '#22c55e';
-            }
+            title.textContent = 'Email Verified!';
+            desc.textContent = 'Your account is confirmed. Redirecting you now...';
 
             // Redirect smoothly
             setTimeout(function() {

@@ -1267,13 +1267,7 @@ html[data-theme="light"] .btn-card-action {
         gap: 10px;
     }
     .users-stat-icon-wrap {
-        width: 36px;
-        height: 36px;
-        border-radius: 9px;
-    }
-    .users-stat-icon-wrap svg {
-        width: 17px;
-        height: 17px;
+        display: none;
     }
     .users-stat-value {
         font-size: 1.25rem;

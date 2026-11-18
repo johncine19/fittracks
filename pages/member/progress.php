@@ -106,6 +106,61 @@ function progress_page(): void
             redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : '') . '#notes');
         }
 
+        if ($action === 'delete_strength_target') {
+            $targetId = (int) post('strength_target_id', 0);
+            if ($targetId > 0) {
+                $pdo = db();
+                ensure_member_strength_targets_table($pdo);
+                $pdo->prepare('DELETE FROM member_strength_targets WHERE id = ? AND user_id = ?')->execute([$targetId, $memberId]);
+                $remaining = get_member_strength_targets($memberId);
+                if (!empty($remaining)) {
+                    $first = $remaining[0];
+                    $pdo->prepare("UPDATE member_goals SET current_value = ?, target_value = ? WHERE user_id = ? AND goal_type = 'strength'")
+                        ->execute([$first['current_max_kg'], $first['target_max_kg'], $memberId]);
+                } else {
+                    $pdo->prepare("DELETE FROM member_goals WHERE user_id = ? AND goal_type = 'strength'")->execute([$memberId]);
+                }
+                flash('Strength target removed.', 'success');
+            }
+            redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
+        }
+
+        if ($action === 'log_strength_pr') {
+            $targetId = (int) post('strength_target_id', 0);
+            $liftedKg = (float) post('lifted_kg', 0);
+            if ($targetId <= 0 || $liftedKg <= 0 || $liftedKg > 1000) {
+                flash('Please select a target and enter a valid weight in kg (0.5 - 1000).', 'danger');
+            } else {
+                $pdo = db();
+                ensure_member_strength_targets_table($pdo);
+                $row = query_one(
+                    'SELECT id, exercise_name, current_max_kg, target_max_kg FROM member_strength_targets WHERE id = ? AND user_id = ? LIMIT 1',
+                    [$targetId, $memberId]
+                );
+                if (!$row) {
+                    flash('Strength target not found.', 'danger');
+                } else {
+                    $pdo->prepare('UPDATE member_strength_targets SET current_max_kg = ? WHERE id = ? AND user_id = ?')
+                        ->execute([$liftedKg, $targetId, $memberId]);
+
+                    $allStrength = get_member_strength_targets($memberId);
+                    if (!empty($allStrength) && (int)$allStrength[0]['id'] === $targetId) {
+                        $pdo->prepare("UPDATE member_goals SET current_value = ? WHERE user_id = ? AND goal_type = 'strength'")
+                            ->execute([$liftedKg, $memberId]);
+                    }
+
+                    $exName = (string) $row['exercise_name'];
+                    $tgtMax = (float) $row['target_max_kg'];
+                    if ($tgtMax > 0 && $liftedKg >= $tgtMax) {
+                        flash('Goal reached! You hit ' . $liftedKg . ' kg on ' . $exName . '!', 'success');
+                    } else {
+                        flash('Logged ' . $liftedKg . ' kg for ' . $exName . '.', 'success');
+                    }
+                }
+            }
+            redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
+        }
+
         if ($action === 'update_goal_targets') {
             $validator = new Validator();
             $valid = $validator->validate($_POST, [
@@ -114,13 +169,70 @@ function progress_page(): void
                 'target_waist_cm'         => 'numeric|min_num:30|max_num:200',
                 'target_arm_cm'           => 'numeric|min_num:10|max_num:100',
                 'target_chest_cm'         => 'numeric|min_num:30|max_num:200',
+                'current_strength_max_kg' => 'numeric|min_num:0|max_num:500',
+                'target_strength_max_kg'  => 'numeric|min_num:1|max_num:500',
                 'weekly_workout_target'   => 'numeric|min_num:1|max_num:7',
             ]);
 
             if (!$valid) {
                 flash($validator->firstError() ?? 'Invalid target values.', 'danger');
             } else {
+                $pdo = db();
+                ensure_member_strength_targets_table($pdo);
+
+                $newStrengthTarget = post('target_strength_max_kg');
+                $newStrengthCurrent = post('current_strength_max_kg');
+                $newStrengthEx = trim((string) post('target_exercise', ''));
+
+                if ($newStrengthTarget !== '' && (float)$newStrengthTarget > 0) {
+                    if ($newStrengthEx === '') {
+                        flash('Please enter an exercise name for your strength target.', 'danger');
+                        redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
+                    }
+                    // Seed existing strength goal into member_strength_targets before adding new one
+                    $existingStrength = get_member_strength_targets($memberId);
+                    $newExKey = normalize_exercise_key($newStrengthEx);
+                    $dup = false;
+                    foreach ($existingStrength as $stRow) {
+                        if (normalize_exercise_key((string)($stRow['exercise_name'] ?? '')) === $newExKey) {
+                            $dup = true;
+                            break;
+                        }
+                    }
+                    if ($dup) {
+                        flash('You already have a target for "' . $newStrengthEx . '". Remove it first or choose another exercise.', 'warning');
+                        redirect('progress' . ($isManager ? '&member_user_id=' . $memberId : ''));
+                    }
+                    $startKg = $newStrengthCurrent !== '' ? (float)$newStrengthCurrent : 0.0;
+                    $pdo->prepare(
+                        "INSERT INTO member_strength_targets (user_id, exercise_name, start_max_kg, current_max_kg, target_max_kg) VALUES (?, ?, ?, ?, ?)"
+                    )->execute([
+                        $memberId,
+                        $newStrengthEx,
+                        $startKg,
+                        $startKg,
+                        (float)$newStrengthTarget,
+                    ]);
+                } else {
+                    // Ensure existing strength goal is preserved in member_strength_targets before save_member_profile
+                    get_member_strength_targets($memberId);
+                }
+
                 save_member_profile($memberId);
+
+                // Keep member_goals strength row synced with the first strength target
+                $allStrength = get_member_strength_targets($memberId);
+                if (!empty($allStrength)) {
+                    $first = $allStrength[0];
+                    $existingGoal = query_one("SELECT goal_id FROM member_goals WHERE user_id = ? AND goal_type = 'strength' LIMIT 1", [$memberId]);
+                    if ($existingGoal) {
+                        $pdo->prepare("UPDATE member_goals SET current_value = ?, target_value = ? WHERE goal_id = ?")
+                            ->execute([$first['current_max_kg'], $first['target_max_kg'], (int)$existingGoal['goal_id']]);
+                    } else {
+                        $pdo->prepare("INSERT INTO member_goals (user_id, goal_type, current_value, target_value, unit) VALUES (?, 'strength', ?, ?, 'kg')")
+                            ->execute([$memberId, $first['current_max_kg'], $first['target_max_kg']]);
+                    }
+                }
 
                 if ($user['role'] === 'trainer' && (int)$user['user_id'] !== $memberId) {
                     notify_user($memberId, 'system', 'Fitness Targets Updated', 'Your coach adjusted your fitness milestone targets.');
@@ -682,7 +794,7 @@ function progress_page(): void
     }
 
     $initialTab = trim((string)($_GET['tab'] ?? 'overview'));
-    if (!in_array($initialTab, ['overview', 'workout', 'progress', 'nutrition', 'notes'], true)) {
+    if (!in_array($initialTab, ['overview', 'progress', 'nutrition', 'notes'], true)) {
         $initialTab = 'overview';
     }
 
@@ -691,6 +803,7 @@ function progress_page(): void
 
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/progress.css')) ?>">
     <link rel="stylesheet" href="<?= h(asset_url('css/pages/diet.css')) ?>">
+    <link rel="stylesheet" href="<?= h(asset_url('css/flatpickr.min.css')) ?>">
     <?php render_skeleton_banner(); render_skeleton_stats(4); render_skeleton_chart(); ?>
     <div class="skeleton-content sk-display-block">
 
@@ -836,10 +949,6 @@ function progress_page(): void
         <button type="button" class="hub-tab-btn <?= $initialTab === 'overview' ? 'active' : '' ?>" id="hub-tab-btn-overview" onclick="switchHubTab('overview')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
             <span>Overview</span>
-        </button>
-        <button type="button" class="hub-tab-btn <?= $initialTab === 'workout' ? 'active' : '' ?>" id="hub-tab-btn-workout" onclick="switchHubTab('workout')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>
-            <span>Workout Plan</span>
         </button>
         <button type="button" class="hub-tab-btn <?= $initialTab === 'progress' ? 'active' : '' ?>" id="hub-tab-btn-progress" onclick="switchHubTab('progress')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -1128,6 +1237,154 @@ function progress_page(): void
 
             <!-- RIGHT COLUMN: Progress Overview Chart & Recent Activity -->
             <div class="hub-col-right">
+                <?php
+                $buildMemberTargetBar = static function (string $label, string $unit, ?float $targetVal, $currentRaw, string $logCol, ?float $profileVal) use ($rows): ?array {
+                    if ($targetVal === null || $targetVal <= 0) {
+                        return null;
+                    }
+                    $currentVal = ($currentRaw !== '' && $currentRaw !== null && (float)$currentRaw > 0)
+                        ? (float)$currentRaw
+                        : (($profileVal !== null && $profileVal > 0) ? $profileVal : null);
+                    $startVal = null;
+                    for ($i = count($rows) - 1; $i >= 0; $i--) {
+                        if (!empty($rows[$i][$logCol]) && (float)$rows[$i][$logCol] > 0) {
+                            $startVal = (float)$rows[$i][$logCol];
+                            break;
+                        }
+                    }
+                    if ($startVal === null && $profileVal !== null && $profileVal > 0) {
+                        $startVal = $profileVal;
+                    }
+                    if ($startVal === null) {
+                        $startVal = $currentVal;
+                    }
+                    $pct = 0;
+                    if ($startVal !== null && $currentVal !== null) {
+                        $dist = abs($targetVal - $startVal);
+                        if ($dist > 0) {
+                            $isDown = ($startVal > $targetVal);
+                            $covered = $isDown ? ($startVal - $currentVal) : ($currentVal - $startVal);
+                            $pct = $covered > 0 ? (int) min(100, max(0, round(($covered / $dist) * 100))) : 0;
+                        } else {
+                            $pct = 100;
+                        }
+                    }
+                    return [
+                        'label'   => $label,
+                        'unit'    => $unit,
+                        'start'   => $startVal,
+                        'current' => $currentVal,
+                        'target'  => $targetVal,
+                        'pct'     => $pct,
+                    ];
+                };
+
+                $memberTargetBars = array_values(array_filter([
+                    $buildMemberTargetBar('Weight', 'kg', !empty($member['target_weight_kg']) ? (float)$member['target_weight_kg'] : null, $recentWeight, 'weight_kg', !empty($member['weight_kg']) ? (float)$member['weight_kg'] : null),
+                    $buildMemberTargetBar('Body Fat', '%', !empty($member['target_body_fat_percent']) ? (float)$member['target_body_fat_percent'] : null, $recentBf, 'body_fat_percent', !empty($member['body_fat_percent']) ? (float)$member['body_fat_percent'] : null),
+                    $buildMemberTargetBar('Waist', 'cm', !empty($member['target_waist_cm']) ? (float)$member['target_waist_cm'] : null, $recentWaist, 'waist_cm', !empty($member['waist_cm']) ? (float)$member['waist_cm'] : null),
+                    $buildMemberTargetBar('Arms', 'cm', !empty($member['target_arm_cm']) ? (float)$member['target_arm_cm'] : null, $recentArm, 'arm_cm', !empty($member['arm_cm']) ? (float)$member['arm_cm'] : null),
+                    $buildMemberTargetBar('Chest', 'cm', !empty($member['target_chest_cm']) ? (float)$member['target_chest_cm'] : null, $recentChest, 'chest_cm', !empty($member['chest_cm']) ? (float)$member['chest_cm'] : null),
+                    ...array_map(function (array $st): array {
+                        $cur = $st['current_max_kg'] !== null ? (float)$st['current_max_kg'] : 0.0;
+                        $start = $st['start_max_kg'] !== null ? (float)$st['start_max_kg'] : $cur;
+                        $tgt = (float)$st['target_max_kg'];
+                        $span = $tgt - $start;
+                        $pct = ($span > 0)
+                            ? (int) min(100, max(0, round((($cur - $start) / $span) * 100)))
+                            : (($tgt > 0 && $cur >= $tgt) ? 100 : 0);
+                        return [
+                            'label'   => 'Strength: ' . (string)$st['exercise_name'],
+                            'unit'    => 'kg',
+                            'start'   => $start,
+                            'current' => $cur,
+                            'target'  => $tgt,
+                            'pct'     => $pct,
+                        ];
+                    }, get_member_strength_targets($memberId)),
+                ]));
+                ?>
+                <?php if (!empty($memberTargetBars)): ?>
+                <div class="hub-card">
+                    <div class="hub-card-header" style="margin-bottom: 14px;">
+                        <div class="hub-card-title-group">
+                            <h3>Fitness Targets</h3>
+                            <p>Progress toward your configured milestones</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <?php if (!empty(get_member_strength_targets($memberId))): ?>
+                            <button type="button" onclick="openLogStrengthPrModal()" class="btn btn-sm" style="background: rgba(79,70,229,0.1); color: #4f46e5; border: 1px solid rgba(79,70,229,0.25); font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 8px; cursor: pointer;">
+                                + Log PR
+                            </button>
+                            <?php endif; ?>
+                            <button type="button" onclick="openTargetMetricsModal()" class="btn btn-sm" style="background: var(--panel-soft); color: var(--ink); border: 1px solid var(--line); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px; cursor: pointer;">
+                                Adjust Targets
+                            </button>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                        <?php foreach ($memberTargetBars as $tb): ?>
+                            <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
+                                    <strong style="font-size: 13px; color: var(--ink);"><?= h($tb['label']) ?></strong>
+                                    <span style="font-size: 12px; font-weight: 700; color: var(--lime);"><?= (int)$tb['pct'] ?>%</span>
+                                </div>
+                                <div style="height: 7px; border-radius: 999px; background: var(--panel-soft); overflow: hidden;">
+                                    <div style="height: 100%; width: <?= (int)$tb['pct'] ?>%; border-radius: 999px; background: linear-gradient(90deg, #10b981, var(--lime)); transition: width 0.3s ease;"></div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted);">
+                                    <span>Start: <?= $tb['start'] !== null ? h($tb['start'] . ' ' . $tb['unit']) : '—' ?></span>
+                                    <span>Now: <strong style="color: var(--ink);"><?= $tb['current'] !== null ? h($tb['current'] . ' ' . $tb['unit']) : '—' ?></strong></span>
+                                    <span>Goal: <?= h($tb['target'] . ' ' . $tb['unit']) ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php
+                $liftedExercises = [];
+                try {
+                    $liftedExercises = query_all("
+                        SELECT e.exercise_id, e.name,
+                               MAX(ec.weight_lifted_kg) AS best_kg,
+                               SUBSTRING_INDEX(GROUP_CONCAT(ec.weight_lifted_kg ORDER BY ec.completed_date DESC, ec.completion_id DESC), ',', 1) AS latest_kg,
+                               MAX(ec.completed_date) AS last_date,
+                               COUNT(*) AS log_count
+                        FROM exercise_completions ec
+                        JOIN exercises e ON e.exercise_id = ec.exercise_id
+                        WHERE ec.user_id = ? AND ec.weight_lifted_kg IS NOT NULL AND ec.weight_lifted_kg > 0
+                        GROUP BY e.exercise_id, e.name
+                        ORDER BY last_date DESC, best_kg DESC
+                        LIMIT 8
+                    ", [$memberId]);
+                } catch (Throwable) {
+                    $liftedExercises = [];
+                }
+                ?>
+                <?php if (!empty($liftedExercises)): ?>
+                <div class="hub-card">
+                    <div class="hub-card-header" style="margin-bottom: 12px;">
+                        <div class="hub-card-title-group">
+                            <h3>Exercise Lift Records</h3>
+                            <p>Weights logged from completed workouts</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <?php foreach ($liftedExercises as $le): ?>
+                            <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                <div style="min-width: 0;">
+                                    <div style="font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= h($le['name']) ?></div>
+                                    <div style="font-size: 11px; color: var(--muted);">Best: <?= h((string)(float)$le['best_kg']) ?> kg &bull; <?= h(date('M j', strtotime((string)$le['last_date']))) ?></div>
+                                </div>
+                                <span style="font-size: 13px; font-weight: 800; color: var(--lime); white-space: nowrap;"><?= h((string)(float)$le['latest_kg']) ?> kg</span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- PROGRESS OVERVIEW DYNAMIC CHART -->
                 <div class="hub-card">
                     <div class="hub-card-header">
@@ -1192,24 +1449,24 @@ function progress_page(): void
                         <div class="custom-date-inputs">
                             <div class="custom-date-item">
                                 <span class="custom-date-label">From:</span>
-                                <input type="date" 
+                                <input type="text" 
                                        id="chart-custom-from" 
                                        class="custom-date-input" 
-                                       min="<?= h($earliestLogDate) ?>" 
-                                       max="<?= h($todayDate) ?>" 
+                                       data-min="<?= h($earliestLogDate) ?>" 
+                                       data-max="<?= h($todayDate) ?>" 
                                        value="<?= h($earliestLogDate) ?>" 
-                                       onchange="onCustomFromDateChange()">
+                                       placeholder="mm/dd/yyyy">
                             </div>
                             <span class="custom-date-sep">&rarr;</span>
                             <div class="custom-date-item">
                                 <span class="custom-date-label">To:</span>
-                                <input type="date" 
+                                <input type="text" 
                                        id="chart-custom-to" 
                                        class="custom-date-input" 
-                                       min="<?= h($earliestLogDate) ?>" 
-                                       max="<?= h($todayDate) ?>" 
+                                       data-min="<?= h($earliestLogDate) ?>" 
+                                       data-max="<?= h($todayDate) ?>" 
                                        value="<?= h($todayDate) ?>" 
-                                       onchange="onCustomToDateChange()">
+                                       placeholder="mm/dd/yyyy">
                             </div>
                             <button type="button" class="custom-date-btn-apply" onclick="applyCustomDateRange()">Apply</button>
                             <button type="button" class="custom-date-btn-reset" onclick="setChartTimeframe('all')" title="Reset to All">Reset</button>
@@ -1369,119 +1626,6 @@ function progress_page(): void
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- 3. TAB PANE 2: WORKOUT PLAN -->
-    <div id="hub-pane-workout" class="hub-tab-pane <?= $initialTab === 'workout' ? 'active' : '' ?>">
-        <div class="hub-card">
-            <div class="hub-card-header">
-                <div class="hub-card-title-group">
-                    <h3>Active Training Routine</h3>
-                    <p><?= $activePlan ? h($activePlan['title']) : 'No active training plan assigned yet.' ?></p>
-                </div>
-                <div class="hub-header-actions">
-                    <?php if ($user['role'] === 'trainer'): ?>
-                        <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-sm btn-lime">
-                            <?= $activePlan ? 'Edit in Workout Builder' : '+ Build Workout Plan' ?>
-                        </a>
-                    <?php else: ?>
-                        <a href="index.php?page=my_workout" class="btn btn-sm btn-lime">
-                            Interactive Workout View
-                        </a>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <?php if ($activePlan && !empty($exercisesByDow)): ?>
-                <div style="display: flex; flex-direction: column; gap: 20px;">
-                    <?php foreach ($dayNames as $dowNum => $dayLabel): 
-                        if (empty($exercisesByDow[$dowNum])) continue;
-                        $dayExList = $exercisesByDow[$dowNum];
-                    ?>
-                        <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 16px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
-                                <h4 style="margin: 0; font-size: 1.05rem; color: var(--ink); font-weight: 700;">
-                                    <?= $dayLabel ?> — Workout Day
-                                </h4>
-                                <span class="badge badge-lime"><?= count($dayExList) ?> exercises</span>
-                            </div>
-
-                            <!-- Desktop View: Table -->
-                            <div class="workout-desktop-table table-wrap">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Exercise</th>
-                                            <th>Muscle Group</th>
-                                            <th>Sets</th>
-                                            <th>Reps</th>
-                                            <th>Target Weight</th>
-                                            <th>Rest</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($dayExList as $dex): ?>
-                                            <tr>
-                                                <td><strong><?= h($dex['exercise_name']) ?></strong></td>
-                                                <td><span class="badge badge-info"><?= h(ucwords(str_replace('_', ' ', (string)($dex['muscle_group'] ?? '')))) ?></span></td>
-                                                <td><?= $dex['sets'] ?? 3 ?> sets</td>
-                                                <td><?= h((string)($dex['reps'] ?? '10-12')) ?></td>
-                                                <td><?= !empty($dex['target_weight_kg']) ? h($dex['target_weight_kg']) . ' kg' : 'Bodyweight' ?></td>
-                                                <td><?= !empty($dex['rest_seconds']) ? h($dex['rest_seconds']) . 's' : '60s' ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <!-- Mobile View: Cards -->
-                            <div class="workout-mobile-cards">
-                                <?php foreach ($dayExList as $dex): ?>
-                                    <div class="mobile-detail-card">
-                                        <div class="mdc-header">
-                                            <strong class="mdc-title"><?= h($dex['exercise_name']) ?></strong>
-                                            <span class="badge badge-info"><?= h(ucwords(str_replace('_', ' ', (string)($dex['muscle_group'] ?? '')))) ?></span>
-                                        </div>
-                                        <div class="mdc-body-grid" style="grid-template-columns: repeat(3, 1fr);">
-                                            <div class="mdc-stat">
-                                                <span class="mdc-label">Sets × Reps</span>
-                                                <span class="mdc-val"><?= $dex['sets'] ?? 3 ?> × <?= h((string)($dex['reps'] ?? '10-12')) ?></span>
-                                            </div>
-                                            <div class="mdc-stat">
-                                                <span class="mdc-label">Target</span>
-                                                <span class="mdc-val"><?= !empty($dex['target_weight_kg']) ? h($dex['target_weight_kg']) . 'kg' : 'Bodywt' ?></span>
-                                            </div>
-                                            <div class="mdc-stat">
-                                                <span class="mdc-label">Rest</span>
-                                                <span class="mdc-val"><?= !empty($dex['rest_seconds']) ? h($dex['rest_seconds']) . 's' : '60s' ?></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div style="text-align: center; padding: 48px 20px;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--muted); margin-bottom: 12px;"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/></svg>
-                    <h4 style="margin: 0 0 6px; color: var(--ink);">No workout plan configured yet</h4>
-                    <p style="color: var(--muted); margin: 0 0 16px; font-size: 13px;">
-                        <?= $user['role'] === 'trainer' ? 'Create a customized routine for ' . h($member['first_name']) . ' in the Workout Builder.' : 'Generate a plan automatically based on your fitness goals or consult your gym trainer.' ?>
-                    </p>
-                    <?php if ($user['role'] === 'trainer'): ?>
-                        <a href="index.php?page=workout_builder&member_user_id=<?= (int)$memberId ?>" class="btn btn-lime">
-                            Build Workout Plan
-                        </a>
-                    <?php else: ?>
-                        <form method="post" action="index.php?page=my_workout" style="display: inline-block;">
-                            <?= csrf_field() ?>
-                            <button type="submit" class="btn btn-lime">Generate Workout Plan</button>
-                        </form>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -1894,6 +2038,10 @@ function progress_page(): void
             targetWaist: <?= json_encode((string)($member['target_waist_cm'] ?? '')) ?>,
             targetArm: <?= json_encode((string)($member['target_arm_cm'] ?? '')) ?>,
             targetChest: <?= json_encode((string)($member['target_chest_cm'] ?? '')) ?>,
+            targetExercise: <?= json_encode((string)($member['target_exercise'] ?? 'Bench Press')) ?>,
+            currentStrengthMax: <?= json_encode((string)($member['current_strength_max_kg'] ?? '')) ?>,
+            targetStrengthMax: <?= json_encode((string)($member['target_strength_max_kg'] ?? '')) ?>,
+            strengthTargets: <?= json_encode(get_member_strength_targets($memberId)) ?>,
             weeklyWorkouts: <?= json_encode((string)($member['weekly_workout_target'] ?? '3')) ?>
         },
         defaults: {
@@ -1910,6 +2058,7 @@ function progress_page(): void
         }
     };
     </script>
+    <script src="<?= h(asset_url('js/flatpickr.min.js')) ?>"></script>
     <script src="<?= h(asset_url('js/pages/progress.js')) ?>"></script>
     <?php
     render_footer();

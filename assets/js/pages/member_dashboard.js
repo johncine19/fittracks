@@ -571,11 +571,14 @@ let actAutoRefreshTimer = null;
                         `<img src="${escapeHtml(m.profile_picture)}" alt="${escapeHtml(m.name)}" class="act-avatar">` : 
                         `<div class="act-avatar">${escapeHtml((m.name || 'M').charAt(0).toUpperCase())}</div>`;
 
-                    const statusBadgeHtml = m.is_checked_in ? 
-                        `<span class="act-status-badge act-status-in"><span class="act-badge-dot"></span>Checked In</span>` : 
-                        `<span class="act-status-badge act-status-out"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Checked Out</span>`;
+                    const isWalkIn = Boolean(m.is_walk_in) || m.status === 'walk_in';
+                    const statusBadgeHtml = isWalkIn ?
+                        `<span class="act-status-badge" style="background: rgba(168,85,247,0.12); color: #9333ea; border: 1px solid rgba(168,85,247,0.25);">Walk-in Pass</span>` :
+                        (m.is_checked_in ? 
+                            `<span class="act-status-badge act-status-in"><span class="act-badge-dot"></span>Checked In</span>` : 
+                            `<span class="act-status-badge act-status-out"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Checked Out</span>`);
 
-                    const outTimeStyle = m.is_checked_in ? 'color: var(--muted); font-style: italic;' : '';
+                    const outTimeStyle = (m.is_checked_in || isWalkIn) ? 'color: var(--muted); font-style: italic;' : '';
 
                     rowsHtml += `
                         <tr data-name="${escapeHtml((m.name || '').toLowerCase())}" data-status="${escapeHtml(m.status)}">

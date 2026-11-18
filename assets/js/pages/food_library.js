@@ -1189,11 +1189,35 @@ function validateImportSelectedSubmit() {
     return submitImportSelected();
 }
 
+function confirmDeleteFood(form, foodName) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Delete Food Item?',
+            html: `Are you sure you want to delete <strong>${escapeHtml(foodName || 'this food item')}</strong>? This action cannot be undone.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#64748b',
+            background: 'var(--surface)',
+            color: 'var(--ink)'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+        return false;
+    }
+    return confirm(`Delete "${foodName || 'this food item'}"?`);
+}
+
 window.onFoodItemCheckboxChange = onFoodItemCheckboxChange;
 window.toggleSelectAllImport = toggleSelectAllImport;
 window.clearImportSelection = clearImportSelection;
 window.updateImportSelectionUI = updateImportSelectionUI;
 window.submitImportSelected = submitImportSelected;
 window.validateImportSelectedSubmit = validateImportSelectedSubmit;
+window.confirmDeleteFood = confirmDeleteFood;
 
 

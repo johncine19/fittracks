@@ -174,6 +174,7 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
             'check_out_time'      => $row['check_out_time'],
             'check_out_formatted' => $outFormatted,
             'is_checked_in'       => $isCheckedIn,
+            'is_walk_in'          => false,
             'status'              => $isCheckedIn ? 'checked_in' : 'checked_out',
             'status_label'        => $isCheckedIn ? 'Checked In' : 'Checked Out',
             'duration'            => $durationStr,
@@ -181,7 +182,59 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         ];
     }
 
-    // Peak Hours Analysis across the selected date range
+    // Include Walk-in Pass visits in Daily Attendance Overview (counted in Total Check-ins, not Currently Inside)
+    $walkStmt = $pdo->prepare("
+        SELECT
+            w.transaction_id,
+            w.gym_id,
+            w.guest_name,
+            w.contact_info,
+            w.visit_date,
+            g.name AS gym_name
+        FROM walk_in_transactions w
+        LEFT JOIN gyms g ON g.gym_id = w.gym_id
+        WHERE w.visit_date >= :start_ts
+          AND w.visit_date < :next_day_ts
+          AND (:gym_id = 0 OR w.gym_id = :gym_id)
+        ORDER BY w.visit_date DESC
+    ");
+    $walkStmt->execute(['start_ts' => $startTs, 'next_day_ts' => $nextDayTs, 'gym_id' => $gymId]);
+    foreach ($walkStmt->fetchAll(PDO::FETCH_ASSOC) as $wRow) {
+        $vTs = !empty($wRow['visit_date']) ? strtotime($wRow['visit_date']) : null;
+        if ($vTs) {
+            $vDate = date('Y-m-d', $vTs);
+            if ($vDate >= $startDate && $vDate <= $endDate) {
+                $totalCheckins++;
+            }
+        }
+        $inFormatted = $vTs ? ($isRange ? date('M j, h:i A', $vTs) : date('h:i A', $vTs)) : '—';
+        $guestName = trim((string)($wRow['guest_name'] ?? ''));
+        $contactInfo = trim((string)($wRow['contact_info'] ?? ''));
+        $roster[] = [
+            'attendance_id'       => 0,
+            'user_id'             => 0,
+            'member_id'           => '#WALK-' . str_pad((string)$wRow['transaction_id'], 4, '0', STR_PAD_LEFT),
+            'name'                => $guestName !== '' ? $guestName : 'Walk-in Guest',
+            'email'               => $contactInfo !== '' ? $contactInfo : 'Walk-in Pass',
+            'profile_picture'     => null,
+            'check_in_time'       => $wRow['visit_date'],
+            'check_in_formatted'  => $inFormatted,
+            'check_out_time'      => null,
+            'check_out_formatted' => '—',
+            'is_checked_in'       => false,
+            'is_walk_in'          => true,
+            'status'              => 'walk_in',
+            'status_label'        => 'Walk-in Pass',
+            'duration'            => 'Day Pass',
+            'gym_name'            => $wRow['gym_name'] ?: $gymName
+        ];
+    }
+
+    usort($roster, static function (array $a, array $b): int {
+        return strtotime((string)($b['check_in_time'] ?? '')) <=> strtotime((string)($a['check_in_time'] ?? ''));
+    });
+
+    // Peak Hours Analysis across the selected date range (members + walk-in guests)
     $chartLabels = [];
     $chartData = [];
     $peakHourLabel = 'No Activity';
@@ -202,8 +255,23 @@ function get_dashboard_attendance_activity_data(array $user, array $params = [])
         foreach ($hrStmt->fetchAll(PDO::FETCH_ASSOC) as $hRow) {
             $h = (int) $hRow['hr'];
             if ($h >= 5 && $h <= 23) {
-                $hourCounts[$h] = (int) $hRow['cnt'];
+                $hourCounts[$h] += (int) $hRow['cnt'];
             }
+        }
+    }
+
+    $walkHrStmt = $pdo->prepare("
+        SELECT HOUR(visit_date) AS hr, COUNT(*) AS cnt
+        FROM walk_in_transactions
+        WHERE DATE(visit_date) BETWEEN :start_date AND :end_date
+          AND (:gym_id = 0 OR gym_id = :gym_id)
+        GROUP BY HOUR(visit_date)
+    ");
+    $walkHrStmt->execute(['start_date' => $startDate, 'end_date' => $endDate, 'gym_id' => $gymId]);
+    foreach ($walkHrStmt->fetchAll(PDO::FETCH_ASSOC) as $wHrRow) {
+        $h = (int) $wHrRow['hr'];
+        if ($h >= 5 && $h <= 23) {
+            $hourCounts[$h] += (int) $wHrRow['cnt'];
         }
     }
 
@@ -960,7 +1028,11 @@ function member_dashboard(PDO $pdo, array $user): void
                                         <span class="act-duration-pill"><?= h($m['duration']) ?></span>
                                     </td>
                                     <td data-label="Status">
-                                        <?php if ($m['is_checked_in']): ?>
+                                        <?php if (!empty($m['is_walk_in']) || ($m['status'] ?? '') === 'walk_in'): ?>
+                                            <span class="act-status-badge" style="background: rgba(168,85,247,0.12); color: #9333ea; border: 1px solid rgba(168,85,247,0.25);">
+                                                Walk-in Pass
+                                            </span>
+                                        <?php elseif ($m['is_checked_in']): ?>
                                             <span class="act-status-badge act-status-in">
                                                 <span class="act-badge-dot"></span>
                                                 Checked In

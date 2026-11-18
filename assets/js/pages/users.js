@@ -1551,6 +1551,38 @@ if (FT_USERS_CONFIG.hasOldUser) {
             const targetLegend = document.getElementById('mpTargetWeightLegend');
             if (targetLegend) targetLegend.textContent = s.target_weight ? `Target: ${s.target_weight} kg` : 'Target: —';
 
+            const extraBarsWrap = document.getElementById('mpExtraTargetBars');
+            if (extraBarsWrap) {
+                const bars = Array.isArray(s.extra_target_bars) ? s.extra_target_bars : [];
+                if (bars.length > 0) {
+                    extraBarsWrap.innerHTML = bars.map(b => {
+                        const pct = Math.max(0, Math.min(100, parseInt(b.pct, 10) || 0));
+                        const startTxt = b.start !== null && b.start !== undefined ? `${b.start} ${b.unit}` : '—';
+                        const currTxt = b.current !== null && b.current !== undefined ? `${b.current} ${b.unit}` : '—';
+                        const targTxt = `${b.target} ${b.unit}`;
+                        return `
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px;">
+                                    <strong style="color:var(--ink);">${escapeHtml(b.label)} <span style="color:var(--muted); font-weight:500;">(${escapeHtml(currTxt)})</span></strong>
+                                    <span style="color:var(--muted); font-weight:600;">${pct}% &bull; Target: ${escapeHtml(targTxt)}</span>
+                                </div>
+                                <div class="mp-progress-track" style="height:6px;">
+                                    <div class="mp-progress-fill" style="width:${pct}%;"></div>
+                                </div>
+                                <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted);">
+                                    <span>Start: ${escapeHtml(startTxt)}</span>
+                                    <span>Target: ${escapeHtml(targTxt)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    extraBarsWrap.style.display = 'flex';
+                } else {
+                    extraBarsWrap.innerHTML = '';
+                    extraBarsWrap.style.display = 'none';
+                }
+            }
+
             // Circumferences
             const setCirc = (id, val) => {
                 const el = document.getElementById(id);

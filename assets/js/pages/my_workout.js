@@ -434,7 +434,10 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 function quickCompleteExercise(exerciseId) {
                     Swal.fire({
                         title: 'Complete Exercise?',
-                        text: 'Mark this exercise as finished for today?',
+                        html: `
+                            <p style="margin:0 0 12px; color:var(--muted); font-size:13.5px;">Mark this exercise as finished for today?</p>
+                            <input id="swal-weight-lifted" type="number" step="0.5" min="0" max="500" class="form-control" placeholder="Weight lifted in kg (optional)" style="width:100%; box-sizing:border-box; border-radius:8px; height:40px; background:var(--panel-soft); color:var(--ink); border:1px solid var(--line); padding:0 12px;">
+                        `,
                         icon: 'question',
                         showCancelButton: true,
                         confirmButtonColor: 'var(--lime)',
@@ -442,13 +445,18 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:800;">Yes, Crushed It!</span>',
                         cancelButtonText: 'Cancel',
                         background: 'var(--panel)',
-                        color: 'var(--ink)'
+                        color: 'var(--ink)',
+                        preConfirm: () => {
+                            const wEl = document.getElementById('swal-weight-lifted');
+                            return wEl ? wEl.value.trim() : '';
+                        }
                     }).then((result) => {
                         if (result.isConfirmed) {
+                            const wParam = result.value ? `&weight_lifted_kg=${encodeURIComponent(result.value)}` : '';
                             fetch('index.php?page=complete_exercise', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: `csrf_token=${encodeURIComponent(CSRF_TOKEN)}&plan_id=${PLAN_ID}&exercise_id=${exerciseId}`
+                                body: `csrf_token=${encodeURIComponent(CSRF_TOKEN)}&plan_id=${PLAN_ID}&exercise_id=${exerciseId}${wParam}`
                             })
                             .then(r => r.json())
                             .then(data => {
@@ -1071,13 +1079,18 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         btn.disabled = true;
                         btnText.innerText = 'Logging Exercise...';
 
+                        const weightEl = document.getElementById('player-weight-lifted');
+                        const weightVal = weightEl ? weightEl.value.trim() : '';
+                        const wParam = weightVal ? `&weight_lifted_kg=${encodeURIComponent(weightVal)}` : '';
+
                         fetch('index.php?page=complete_exercise', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: `csrf_token=${encodeURIComponent(CSRF_TOKEN)}&plan_id=${PLAN_ID}&exercise_id=${ex.exercise_id}`
+                            body: `csrf_token=${encodeURIComponent(CSRF_TOKEN)}&plan_id=${PLAN_ID}&exercise_id=${ex.exercise_id}${wParam}`
                         })
                         .then(r => r.json())
                         .then(data => {
+                            if (weightEl) weightEl.value = '';
                             btn.disabled = false;
                             if (data && data.tier_upgraded) {
                                 tierUpgradedData = data.tier_upgraded;

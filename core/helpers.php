@@ -2179,3 +2179,89 @@ function sync_food_dietary_restrictions(int $foodId, string $restriction): void
         error_log('sync_food_dietary_restrictions error: ' . $e->getMessage());
     }
 }
+
+function ensure_member_strength_targets_table(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS member_strength_targets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            exercise_name VARCHAR(120) NOT NULL,
+            start_max_kg DECIMAL(6,2) DEFAULT NULL,
+            current_max_kg DECIMAL(6,2) DEFAULT NULL,
+            target_max_kg DECIMAL(6,2) DEFAULT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_user_ex (user_id, exercise_name),
+            INDEX idx_mst_user (user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+
+    $hasStartCol = $pdo->query("SHOW COLUMNS FROM member_strength_targets LIKE 'start_max_kg'")->fetch();
+    if (!$hasStartCol) {
+        $pdo->exec("ALTER TABLE member_strength_targets ADD COLUMN start_max_kg DECIMAL(6,2) DEFAULT NULL AFTER exercise_name");
+        $pdo->exec("UPDATE member_strength_targets SET start_max_kg = COALESCE(current_max_kg, 0) WHERE start_max_kg IS NULL");
+    }
+}
+
+function normalize_exercise_key(string $name): string
+{
+    return preg_replace('/[^a-z0-9]/', '', strtolower(trim($name)));
+}
+
+function get_member_strength_targets(int $userId): array
+{
+    if ($userId <= 0) {
+        return [];
+    }
+    try {
+        $pdo = db();
+        ensure_member_strength_targets_table($pdo);
+
+        $rows = query_all(
+            "SELECT id, exercise_name, start_max_kg, current_max_kg, target_max_kg
+             FROM member_strength_targets
+             WHERE user_id = ?
+             ORDER BY id ASC",
+            [$userId]
+        );
+
+        if (empty($rows)) {
+            $goalRow = query_one(
+                "SELECT current_value, target_value
+                 FROM member_goals
+                 WHERE user_id = ? AND goal_type = 'strength'
+                 LIMIT 1",
+                [$userId]
+            );
+            if ($goalRow && !empty($goalRow['target_value']) && (float)$goalRow['target_value'] > 0) {
+                $exName = 'Bench Press';
+                $currVal = $goalRow['current_value'] !== null ? (float)$goalRow['current_value'] : 0.0;
+                $tgtVal = (float)$goalRow['target_value'];
+                $pdo->prepare(
+                    "INSERT IGNORE INTO member_strength_targets (user_id, exercise_name, start_max_kg, current_max_kg, target_max_kg)
+                     VALUES (?, ?, ?, ?, ?)"
+                )->execute([$userId, $exName, $currVal, $currVal, $tgtVal]);
+
+                $rows = query_all(
+                    "SELECT id, exercise_name, start_max_kg, current_max_kg, target_max_kg
+                     FROM member_strength_targets
+                     WHERE user_id = ?
+                     ORDER BY id ASC",
+                    [$userId]
+                );
+            }
+        }
+
+        return $rows;
+    } catch (Throwable $e) {
+        error_log('get_member_strength_targets error: ' . $e->getMessage());
+        return [];
+    }
+}
+

@@ -2656,10 +2656,13 @@ function render_header(string $title, ?array $user = null): void
                 <style>
                     .side-nav a { position: relative; }
                     .nav-pin-btn {
-                        margin-left: auto;
+                        margin-left: 2px;
                         background: none;
                         border: none;
-                        padding: 3px 4px;
+                        padding: 0;
+                        width: 22px;
+                        height: 22px;
+                        min-height: 0;
                         border-radius: 5px;
                         color: var(--muted);
                         cursor: pointer;

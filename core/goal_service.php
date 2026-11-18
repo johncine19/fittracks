@@ -829,7 +829,14 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
     $checkins30d = (int)($context['checkins_30d'] ?? 0);
     $exercisesCompleted30d = (int)($context['exercises_30d'] ?? 0);
     $totalLogsCount = count($progressLogs);
-    $doneWorkouts = max($checkins30d, $totalLogsCount);
+    $completedWorkoutDays30d = 0;
+    try {
+        $completedWorkoutDays30d = (int) scalar(
+            'SELECT COUNT(DISTINCT completed_date) FROM exercise_completions WHERE user_id = ? AND completed_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)',
+            [$memberId]
+        );
+    } catch (Throwable) {}
+    $doneWorkouts = max($checkins30d, $completedWorkoutDays30d);
 
     // Week streak calculation: distinct calendar weeks in progress logs
     $logWeeks = [];
@@ -904,10 +911,10 @@ function evaluate_and_award_goal_milestones(int $memberId, array $profile, array
     ];
 
     // Milestone: PR Crusher (Strength personal records)
-    $prsCount = max(1, (int)floor($exercisesCompleted30d / 6));
-    $prProgress = min(3, max(1, $prsCount));
+    $prsCount = (int)floor($exercisesCompleted30d / 6);
+    $prProgress = min(3, max(0, $prsCount));
     $qualifies['pr_crusher'] = [
-        'met' => $exercisesCompleted30d >= 6 || $prsCount >= 3,
+        'met' => $prsCount >= 3,
         'label' => $prProgress . ' / 3 PRs',
         'pct' => (int)min(100, round(($prProgress / 3) * 100))
     ];

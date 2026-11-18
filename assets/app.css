@@ -3480,7 +3480,7 @@ body.loaded .skeleton-content.sk-display-block {
 
 @keyframes skeletonFadeIn {
     from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: none; }
 }
 
 /* Stagger animation delays for multiple skeleton-content blocks */
