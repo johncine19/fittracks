@@ -947,6 +947,154 @@ function gym_profile_page(): void
     #owner-pin-map .leaflet-marker-icon {
         max-width: none !important;
     }
+
+    /* Automated ID Authenticity Check (Didit) Card */
+    .didit-check-card {
+        margin-top: 14px;
+        border-radius: 12px;
+        border: 1px solid var(--didit-border, var(--line));
+        background: var(--surface);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .didit-check-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 14px 16px;
+        background: var(--didit-bg, rgba(148, 163, 184, 0.08));
+        border-bottom: 1px solid var(--didit-border, var(--line));
+    }
+    .didit-check-lead {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+    }
+    .didit-check-icon-box {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        background: var(--surface);
+        border: 1px solid var(--didit-border, var(--line));
+        color: var(--didit-color, var(--muted));
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .didit-check-title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--ink);
+    }
+    .didit-env-pill {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.16);
+        color: var(--muted);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .didit-status-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 3px;
+    }
+    .didit-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--didit-color, var(--muted));
+    }
+    .didit-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--didit-color, var(--muted));
+        display: inline-block;
+    }
+    .didit-check-body {
+        padding: 14px 16px;
+    }
+    .didit-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+    @media (max-width: 768px) {
+        .didit-meta-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 480px) {
+        .didit-meta-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    .didit-meta-cell {
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+    .didit-meta-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+    }
+    .didit-meta-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        line-height: 1.35;
+        word-break: break-word;
+    }
+    .didit-meta-value.mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.04em;
+    }
+    .didit-inline-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11.5px;
+        font-weight: 600;
+        width: fit-content;
+    }
+    .didit-inline-badge.ok {
+        background: rgba(16, 185, 129, 0.14);
+        color: #10b981;
+    }
+    .didit-inline-badge.warn {
+        background: rgba(245, 158, 11, 0.14);
+        color: #f59e0b;
+    }
+    .didit-inline-badge.bad {
+        background: rgba(239, 68, 68, 0.14);
+        color: #ef4444;
+    }
     </style>
 
     <div class="profile-settings-wrapper">
@@ -1633,29 +1781,48 @@ function gym_profile_page(): void
                         <?php
                         $diditRecord = didit_get_latest_for_gym((int)$gym['gym_id']);
                         $diditStatus = (string)($diditRecord['status'] ?? 'Not Started');
+                        $diditNormStatus = strtolower(trim($diditStatus));
                         $diditBadge = didit_status_badge($diditStatus);
                         $diditEnv = didit_environment();
                         $diditConfigured = didit_is_configured();
+
+                        $diditSubStatusClass = static function (?string $val): string {
+                            $v = strtolower(trim((string)$val));
+                            if (in_array($v, ['approved', 'verified', 'passed', 'match'], true)) return 'ok';
+                            if (in_array($v, ['declined', 'failed', 'rejected', 'no match'], true)) return 'bad';
+                            return 'warn';
+                        };
                         ?>
                         <input type="hidden" name="didit_action" id="didit_action_input" value="">
-                        <div style="margin-top: 14px; padding: 14px; border-radius: 10px; border: 1px solid <?= h($diditBadge['border']) ?>; background: <?= h($diditBadge['bg']) ?>;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 16px;"><?= $diditBadge['icon'] ?></span>
+                        <div class="didit-check-card" style="--didit-border: <?= h($diditBadge['border']) ?>; --didit-bg: <?= h($diditBadge['bg']) ?>; --didit-color: <?= h($diditBadge['color']) ?>;">
+                            <div class="didit-check-header">
+                                <div class="didit-check-lead">
+                                    <div class="didit-check-icon-box">
+                                        <?php if ($diditNormStatus === 'approved'): ?>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                                        <?php elseif ($diditNormStatus === 'declined' || $diditNormStatus === 'abandoned'): ?>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                        <?php elseif ($diditNormStatus === 'in review' || $diditNormStatus === 'in progress'): ?>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                        <?php else: ?>
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                        <?php endif; ?>
+                                    </div>
                                     <div>
-                                        <div style="font-size: 13px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 6px;">
-                                            Automated ID Authenticity Check (Didit)
-                                            <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; background: rgba(148,163,184,0.18); color: var(--muted);">
-                                                <?= h($diditEnv) ?>
-                                            </span>
+                                        <div class="didit-check-title-row">
+                                            <span>Automated ID Authenticity Check</span>
+                                            <span class="didit-env-pill"><?= h($diditEnv) ?></span>
                                         </div>
-                                        <div style="font-size: 11.5px; color: <?= h($diditBadge['color']) ?>; font-weight: 600; margin-top: 2px;">
-                                            Status: <?= h($diditBadge['label']) ?>
+                                        <div class="didit-status-row">
+                                            <span class="didit-status-pill">
+                                                <span class="didit-status-dot"></span>
+                                                <?= h($diditBadge['label']) ?>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                    <?php if ($diditRecord && strtolower($diditStatus) !== 'approved'): ?>
+                                    <?php if ($diditRecord && $diditNormStatus !== 'approved'): ?>
                                         <button type="button" class="btn btn-secondary btn-sm" onclick="submitDiditAction('refresh')" style="font-size: 11.5px; padding: 5px 10px;">
                                             Refresh Status
                                         </button>
@@ -1663,50 +1830,82 @@ function gym_profile_page(): void
                                     <?php if (!$isPlatformAdmin && $diditConfigured): ?>
                                         <button type="button" class="btn btn-primary btn-sm" onclick="submitDiditAction('start')" style="font-size: 11.5px; padding: 5px 12px; display: inline-flex; align-items: center; gap: 5px;">
                                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                                            <?= $diditRecord ? (strtolower($diditStatus) === 'approved' ? 'Re-verify ID' : 'Retry / Complete Verification') : 'Verify ID with Didit' ?>
+                                            <?= $diditRecord ? ($diditNormStatus === 'approved' ? 'Re-verify ID' : 'Retry / Complete Verification') : 'Verify ID with Didit' ?>
                                         </button>
                                     <?php endif; ?>
                                 </div>
                             </div>
 
-                            <?php if ($diditRecord && (!empty($diditRecord['extracted_name']) || !empty($diditRecord['document_type']) || !empty($diditRecord['decline_reasons']))): ?>
-                                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(148,163,184,0.3); display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; font-size: 11.5px;">
-                                    <?php if (!empty($diditRecord['extracted_name'])): ?>
-                                        <div><span style="color: var(--muted);">Extracted Name:</span> <strong style="color: var(--ink);"><?= h($diditRecord['extracted_name']) ?></strong></div>
+                            <div class="didit-check-body">
+                                <?php if ($diditRecord && (!empty($diditRecord['extracted_name']) || !empty($diditRecord['document_type']) || !empty($diditRecord['decline_reasons']))): ?>
+                                    <div class="didit-meta-grid">
+                                        <?php if (!empty($diditRecord['extracted_name'])): ?>
+                                            <div class="didit-meta-cell">
+                                                <span class="didit-meta-label">Extracted Name</span>
+                                                <span class="didit-meta-value"><?= h($diditRecord['extracted_name']) ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($diditRecord['document_type'])): ?>
+                                            <div class="didit-meta-cell">
+                                                <span class="didit-meta-label">Document Type</span>
+                                                <span class="didit-meta-value"><?= h($diditRecord['document_type']) ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($diditRecord['document_number_masked'])): ?>
+                                            <div class="didit-meta-cell">
+                                                <span class="didit-meta-label">ID Number</span>
+                                                <span class="didit-meta-value mono"><?= h($diditRecord['document_number_masked']) ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($diditRecord['expiration_date'])): ?>
+                                            <div class="didit-meta-cell">
+                                                <span class="didit-meta-label">Expires</span>
+                                                <span class="didit-meta-value"><?= h(date('M j, Y', strtotime($diditRecord['expiration_date']))) ?></span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($diditRecord['liveness_status'])): ?>
+                                            <?php $livenessCls = $diditSubStatusClass($diditRecord['liveness_status']); ?>
+                                            <div class="didit-meta-cell">
+                                                <span class="didit-meta-label">Liveness</span>
+                                                <span class="didit-inline-badge <?= $livenessCls ?>">
+                                                    <?php if ($livenessCls === 'ok'): ?>
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                    <?php endif; ?>
+                                                    <?= h($diditRecord['liveness_status']) ?>
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($diditRecord['face_match_status'])): ?>
+                                            <?php $faceCls = $diditSubStatusClass($diditRecord['face_match_status']); ?>
+                                            <div class="didit-meta-cell">
+                                                <span class="didit-meta-label">Face Match</span>
+                                                <span class="didit-inline-badge <?= $faceCls ?>">
+                                                    <?php if ($faceCls === 'ok'): ?>
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                                    <?php endif; ?>
+                                                    <?= h($diditRecord['face_match_status']) ?>
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if (!empty($diditRecord['decline_reasons'])): ?>
+                                        <div style="margin-top: 10px; padding: 9px 12px; border-radius: 8px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); font-size: 12px; color: #ef4444;">
+                                            <strong>Flag / Reason:</strong> <?= h($diditRecord['decline_reasons']) ?>
+                                        </div>
                                     <?php endif; ?>
-                                    <?php if (!empty($diditRecord['document_type'])): ?>
-                                        <div><span style="color: var(--muted);">Document Type:</span> <strong style="color: var(--ink);"><?= h($diditRecord['document_type']) ?></strong></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($diditRecord['document_number_masked'])): ?>
-                                        <div><span style="color: var(--muted);">ID Number:</span> <strong style="color: var(--ink);"><?= h($diditRecord['document_number_masked']) ?></strong></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($diditRecord['expiration_date'])): ?>
-                                        <div><span style="color: var(--muted);">Expires:</span> <strong style="color: var(--ink);"><?= h($diditRecord['expiration_date']) ?></strong></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($diditRecord['liveness_status'])): ?>
-                                        <div><span style="color: var(--muted);">Liveness:</span> <strong style="color: var(--ink);"><?= h($diditRecord['liveness_status']) ?></strong></div>
-                                    <?php endif; ?>
-                                    <?php if (!empty($diditRecord['face_match_status'])): ?>
-                                        <div><span style="color: var(--muted);">Face Match:</span> <strong style="color: var(--ink);"><?= h($diditRecord['face_match_status']) ?></strong></div>
-                                    <?php endif; ?>
-                                </div>
-                                <?php if (!empty($diditRecord['decline_reasons'])): ?>
-                                    <div style="margin-top: 8px; font-size: 11.5px; color: #ef4444;">
-                                        <strong>Flag / Reason:</strong> <?= h($diditRecord['decline_reasons']) ?>
+                                <?php elseif (!$diditConfigured): ?>
+                                    <div style="font-size: 12px; color: var(--muted);">
+                                        Configure <code>DIDIT_API_KEY</code> and <code>DIDIT_WORKFLOW_ID</code> in <code>.env</code> to enable automated ID authenticity checks.
+                                    </div>
+                                <?php else: ?>
+                                    <div style="font-size: 12px; color: var(--muted);">
+                                        <?= $isPlatformAdmin
+                                            ? 'Owner has not completed automated Didit ID verification yet.'
+                                            : 'Verify your government ID and selfie via Didit so platform admins can instantly confirm your document is genuine.'
+                                        ?>
                                     </div>
                                 <?php endif; ?>
-                            <?php elseif (!$diditConfigured): ?>
-                                <div style="margin-top: 8px; font-size: 11.5px; color: var(--muted);">
-                                    Configure <code>DIDIT_API_KEY</code> and <code>DIDIT_WORKFLOW_ID</code> in <code>.env</code> to enable automated ID authenticity checks.
-                                </div>
-                            <?php else: ?>
-                                <div style="margin-top: 8px; font-size: 11.5px; color: var(--muted);">
-                                    <?= $isPlatformAdmin
-                                        ? 'Owner has not completed automated Didit ID verification yet.'
-                                        : 'Verify your government ID and selfie via Didit so platform admins can instantly confirm your document is genuine.'
-                                    ?>
-                                </div>
-                            <?php endif; ?>
+                            </div>
                         </div>
                     </div>
 

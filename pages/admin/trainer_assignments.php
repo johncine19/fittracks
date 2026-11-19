@@ -672,13 +672,13 @@ function trainer_assignments_page(): void
                             <div class="user-cell">
                                 <?= render_avatar($coachData) ?>
                                 <div>
-                                    <div style="font-weight: 600; color: var(--ink);"><?= h($group['trainer']) ?></div>
+                                    <div style="font-size: 13px; font-weight: 600; color: var(--ink);"><?= h($group['trainer']) ?></div>
                                     <div style="font-size: 11.5px; color: var(--muted);"><?= h($group['specialization']) ?></div>
                                 </div>
                             </div>
                         </td>
                         <td>
-                            <span style="font-weight: 600; color: var(--ink); font-size: 13.5px;"><?= h($group['activity_title']) ?></span>
+                            <span style="font-weight: 600; color: var(--ink); font-size: 13px;"><?= h($group['activity_title']) ?></span>
                         </td>
                         <td>
                             <?php if ($group['is_group']): ?>
@@ -737,7 +737,7 @@ function trainer_assignments_page(): void
                             <?php endif; ?>
                         </td>
                         <td>
-                            <div style="font-weight: 600; color: var(--ink);"><?= h(date('M j, Y', strtotime($group['assigned_date']))) ?></div>
+                            <div style="font-size: 13px; font-weight: 600; color: var(--ink);"><?= h(date('M j, Y', strtotime($group['assigned_date']))) ?></div>
                             <?php if ($group['status'] === 'active'): ?>
                                 <?php if (!$group['is_group'] && !empty($group['ended_date'])): ?>
                                     <div style="font-size: 11px; margin-top: 2px;">

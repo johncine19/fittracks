@@ -559,6 +559,16 @@ function attendance_page(): void
         <!-- Daily / Filtered Attendance Summary Strip -->
         <div class="attendance-summary-header">
             <span class="attendance-summary-title">Attendance Summary &mdash; <strong><?= h($summaryHeading) ?></strong></span>
+            <div class="attendance-export-actions">
+                <a href="<?= h($exportCsvUrl) ?>" class="btn btn-secondary attendance-export-btn" title="Download filtered attendance as CSV">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Export CSV</span>
+                </a>
+                <button type="button" onclick="window.print()" class="btn btn-secondary attendance-export-btn" title="Print attendance roster">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    <span>Print</span>
+                </button>
+            </div>
         </div>
         <div class="attendance-summary-strip">
             <div class="attendance-stat-card">
@@ -579,76 +589,72 @@ function attendance_page(): void
             </div>
         </div>
 
-        <!-- Quick Day Navigator & Export Bar -->
-        <div class="attendance-quick-bar">
-            <div class="attendance-quick-pills">
-                <a href="<?= h($makeDayUrl($todayYmd, $todayYmd)) ?>" class="attendance-quick-pill <?= $isTodayActive ? 'is-active' : '' ?>">Today</a>
-                <a href="<?= h($makeDayUrl($yesterdayYmd, $yesterdayYmd)) ?>" class="attendance-quick-pill <?= $isYesterdayActive ? 'is-active' : '' ?>">Yesterday</a>
-                <a href="<?= h($makeDayUrl($weekStartYmd, $todayYmd)) ?>" class="attendance-quick-pill <?= $isWeekActive ? 'is-active' : '' ?>">This Week</a>
-                <a href="<?= h($makeDayUrl('', '')) ?>" class="attendance-quick-pill <?= $isAllActive ? 'is-active' : '' ?>">All History</a>
+        <!-- Unified Quick Day Navigator & Filter Toolbar -->
+        <div class="attendance-toolbar-card">
+            <div class="attendance-quick-bar">
+                <div class="attendance-quick-pills">
+                    <a href="<?= h($makeDayUrl($todayYmd, $todayYmd)) ?>" class="attendance-quick-pill <?= $isTodayActive ? 'is-active' : '' ?>">Today</a>
+                    <a href="<?= h($makeDayUrl($yesterdayYmd, $yesterdayYmd)) ?>" class="attendance-quick-pill <?= $isYesterdayActive ? 'is-active' : '' ?>">Yesterday</a>
+                    <a href="<?= h($makeDayUrl($weekStartYmd, $todayYmd)) ?>" class="attendance-quick-pill <?= $isWeekActive ? 'is-active' : '' ?>">This Week</a>
+                    <a href="<?= h($makeDayUrl('', '')) ?>" class="attendance-quick-pill <?= $isAllActive ? 'is-active' : '' ?>">All History</a>
+                </div>
+                <div class="attendance-day-nav">
+                    <a href="<?= h($makeDayUrl($prevDay, $prevDay)) ?>" class="attendance-day-btn" title="Previous Day">&lsaquo; Prev</a>
+                    <span class="attendance-day-picker-wrap">
+                        <input type="text" id="attendanceQuickDayPicker" value="<?= h($isSingleDay ? $attendanceFrom : $todayYmd) ?>" placeholder="mm/dd/yyyy" autocomplete="off" class="attendance-day-input" title="Jump to specific day">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" class="attendance-day-picker-icon"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                    </span>
+                    <a href="<?= h($makeDayUrl($nextDay, $nextDay)) ?>" class="attendance-day-btn <?= $activeDay >= $todayYmd ? 'is-disabled' : '' ?>" <?= $activeDay >= $todayYmd ? 'aria-disabled="true" tabindex="-1"' : '' ?> title="Next Day">Next &rsaquo;</a>
+                </div>
             </div>
-            <div class="attendance-day-nav">
-                <a href="<?= h($makeDayUrl($prevDay, $prevDay)) ?>" class="attendance-day-btn" title="Previous Day">&lsaquo; Prev</a>
-                <span style="position:relative;display:inline-flex;align-items:center;">
-                    <input type="text" id="attendanceQuickDayPicker" value="<?= h($isSingleDay ? $attendanceFrom : $todayYmd) ?>" placeholder="mm/dd/yyyy" autocomplete="off" class="attendance-day-input" style="padding-right:30px;width:132px;box-sizing:border-box;" title="Jump to specific day">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                </span>
-                <a href="<?= h($makeDayUrl($nextDay, $nextDay)) ?>" class="attendance-day-btn <?= $activeDay >= $todayYmd ? 'is-disabled' : '' ?>" <?= $activeDay >= $todayYmd ? 'aria-disabled="true" tabindex="-1"' : '' ?> title="Next Day">Next &rsaquo;</a>
-            </div>
-            <div class="attendance-export-actions">
-                <a href="<?= h($exportCsvUrl) ?>" class="btn btn-secondary attendance-export-btn" title="Download filtered attendance as CSV">Export CSV</a>
-                <button type="button" onclick="window.print()" class="btn btn-secondary attendance-export-btn" title="Print attendance roster">Print</button>
-            </div>
+
+            <form method="get" action="index.php" class="attendance-filter-form">
+                <input type="hidden" name="page" value="attendance">
+                <?php if ($currentGymId): ?><input type="hidden" name="gym_id" value="<?= (int)$currentGymId ?>"><?php endif; ?>
+                <label class="attendance-filter-group attendance-filter-member">
+                    Member
+                    <input type="search" name="attendance_search" value="<?= h($attendanceSearch) ?>" placeholder="Search member name" class="attendance-filter-input">
+                </label>
+                <label class="attendance-filter-group attendance-filter-from">
+                    From
+                    <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
+                        <input type="text" name="attendance_from" data-attendance-date-text="from" value="<?= $attendanceFrom !== '' ? h(date('m/d/y', strtotime($attendanceFrom))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:36px;">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                        <input type="date" data-attendance-date-picker="from" value="<?= h($attendanceFrom) ?>" max="<?= h($attendanceTo !== '' ? $attendanceTo : $todayYmd) ?>" aria-label="Choose start date" style="position:absolute;right:0;top:0;width:38px;height:100%;opacity:0;cursor:pointer;">
+                    </span>
+                </label>
+                <label class="attendance-filter-group attendance-filter-to">
+                    To
+                    <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
+                        <input type="text" name="attendance_to" data-attendance-date-text="to" value="<?= $attendanceTo !== '' ? h(date('m/d/y', strtotime($attendanceTo))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:36px;">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                        <input type="date" data-attendance-date-picker="to" value="<?= h($attendanceTo) ?>" min="<?= h($attendanceFrom) ?>" max="<?= h($todayYmd) ?>" aria-label="Choose end date" style="position:absolute;right:0;top:0;width:38px;height:100%;opacity:0;cursor:pointer;">
+                    </span>
+                </label>
+                <label class="attendance-filter-group attendance-filter-status">
+                    Status
+                    <select name="attendance_status" class="attendance-filter-select">
+                        <option value="">All statuses</option>
+                        <option value="in_gym" <?= $attendanceStatus === 'in_gym' ? 'selected' : '' ?>>In gym</option>
+                        <option value="checked_out" <?= $attendanceStatus === 'checked_out' ? 'selected' : '' ?>>Checked out</option>
+                    </select>
+                </label>
+                <label class="attendance-filter-group attendance-filter-method">
+                    Method
+                    <select name="attendance_method" class="attendance-filter-select">
+                        <option value="">All methods</option>
+                        <option value="qr_code" <?= $attendanceMethod === 'qr_code' ? 'selected' : '' ?>>QR Code</option>
+                        <option value="manual" <?= $attendanceMethod === 'manual' ? 'selected' : '' ?>>Manual</option>
+                    </select>
+                </label>
+                <div class="attendance-filter-actions">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <?php if ($attendanceFilterActive): ?>
+                        <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'attendance', 'gym_id' => $currentGymId]))) ?>" class="btn btn-secondary">Clear</a>
+                    <?php endif; ?>
+                </div>
+            </form>
         </div>
-
-
-
-        <form method="get" action="index.php" class="attendance-filter-form">
-            <input type="hidden" name="page" value="attendance">
-            <?php if ($currentGymId): ?><input type="hidden" name="gym_id" value="<?= (int)$currentGymId ?>"><?php endif; ?>
-            <label class="attendance-filter-group attendance-filter-member">
-                Member
-                <input type="search" name="attendance_search" value="<?= h($attendanceSearch) ?>" placeholder="Search member name" class="attendance-filter-input">
-            </label>
-            <label class="attendance-filter-group attendance-filter-from">
-                From
-                <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
-                    <input type="text" name="attendance_from" data-attendance-date-text="from" value="<?= $attendanceFrom !== '' ? h(date('m/d/y', strtotime($attendanceFrom))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:40px;">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                    <input type="date" data-attendance-date-picker="from" value="<?= h($attendanceFrom) ?>" max="<?= h($attendanceTo !== '' ? $attendanceTo : $todayYmd) ?>" aria-label="Choose start date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
-                </span>
-            </label>
-            <label class="attendance-filter-group attendance-filter-to">
-                To
-                <span class="attendance-filter-date-wrap" style="position:relative;display:block;width:100%;">
-                    <input type="text" name="attendance_to" data-attendance-date-text="to" value="<?= $attendanceTo !== '' ? h(date('m/d/y', strtotime($attendanceTo))) : '' ?>" placeholder="MM/DD/YY" inputmode="numeric" maxlength="8" pattern="\d{2}/\d{2}/\d{2}" class="attendance-filter-input" style="padding-right:40px;">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 3v4M8 3v4M3 11h18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-                    <input type="date" data-attendance-date-picker="to" value="<?= h($attendanceTo) ?>" min="<?= h($attendanceFrom) ?>" max="<?= h($todayYmd) ?>" aria-label="Choose end date" style="position:absolute;right:0;top:0;width:40px;height:100%;opacity:0;cursor:pointer;">
-                </span>
-            </label>
-            <label class="attendance-filter-group attendance-filter-status">
-                Status
-                <select name="attendance_status" class="attendance-filter-select">
-                    <option value="">All statuses</option>
-                    <option value="in_gym" <?= $attendanceStatus === 'in_gym' ? 'selected' : '' ?>>In gym</option>
-                    <option value="checked_out" <?= $attendanceStatus === 'checked_out' ? 'selected' : '' ?>>Checked out</option>
-                </select>
-            </label>
-            <label class="attendance-filter-group attendance-filter-method">
-                Method
-                <select name="attendance_method" class="attendance-filter-select">
-                    <option value="">All methods</option>
-                    <option value="qr_code" <?= $attendanceMethod === 'qr_code' ? 'selected' : '' ?>>QR Code</option>
-                    <option value="manual" <?= $attendanceMethod === 'manual' ? 'selected' : '' ?>>Manual</option>
-                </select>
-            </label>
-            <div class="attendance-filter-actions">
-                <button type="submit" class="btn btn-primary">Filter</button>
-                <?php if ($attendanceFilterActive): ?>
-                    <a href="<?= h('index.php?' . http_build_query(array_filter(['page' => 'attendance', 'gym_id' => $currentGymId]))) ?>" class="btn btn-secondary">Clear</a>
-                <?php endif; ?>
-            </div>
-        </form>
         <p class="section-label">Attendance history<?= $attendanceFilterActive ? ' (' . $attendanceTotal . ' matching)' : '' ?></p>
         <?php if (!$rows): ?>
             <div class="empty-state">
@@ -680,7 +686,7 @@ function attendance_page(): void
                         <td>
                             <div class="user-cell">
                                 <span class="avatar small"><?= h($initials) ?></span>
-                                <span><?= h($row['member']) ?></span>
+                                <span style="font-size:12px;"><?= h($row['member']) ?></span>
                             </div>
                         </td>
                         <td>
@@ -688,7 +694,7 @@ function attendance_page(): void
                         </td>
                         <td>
                             <?php if ($row['class_name']): ?>
-                                <?= h($row['class_name']) ?>
+                                <span style="font-size:12px;"><?= h($row['class_name']) ?></span>
                             <?php elseif ($row['role'] === 'trainer'): ?>
                                 <span style="color:var(--muted);font-size:12px;">Shift</span>
                             <?php else: ?>
@@ -831,7 +837,12 @@ function attendance_page(): void
     <style>
         /* ATTENDANCE SUMMARY & QUICK DAY BAR */
         .attendance-summary-header {
-            margin: 0 0 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 0 0 12px;
             font-size: 13px;
             color: var(--muted);
         }
@@ -871,38 +882,51 @@ function attendance_page(): void
             font-weight: 600;
             color: var(--muted);
         }
+        .attendance-toolbar-card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            margin: 0 0 18px;
+            overflow: hidden;
+        }
         .attendance-quick-bar {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
             justify-content: space-between;
-            margin: 0 0 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--line);
+            background: color-mix(in srgb, var(--surface) 70%, var(--bg));
         }
         .attendance-quick-pills {
-            display: flex;
+            display: inline-flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 4px;
+            padding: 3px;
+            border-radius: 10px;
+            background: var(--bg);
+            border: 1px solid var(--line);
         }
         .attendance-quick-pill {
-            padding: 7px 13px;
-            border-radius: 999px;
+            padding: 6px 12px;
+            border-radius: 7px;
             font-size: 12.5px;
-            font-weight: 700;
+            font-weight: 600;
             text-decoration: none;
             color: var(--muted);
-            background: var(--surface);
-            border: 1px solid var(--line);
+            background: transparent;
+            border: 1px solid transparent;
             transition: all 0.15s ease;
         }
         .attendance-quick-pill:hover {
             color: var(--ink);
-            border-color: var(--lime);
         }
         .attendance-quick-pill.is-active {
             background: var(--lime);
             color: var(--bg);
-            border-color: var(--lime);
+            font-weight: 700;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
         }
         .attendance-day-nav {
             display: inline-flex;
@@ -910,15 +934,21 @@ function attendance_page(): void
             gap: 6px;
         }
         .attendance-day-btn {
-            padding: 7px 11px;
+            height: 34px;
+            padding: 0 11px;
             border-radius: 8px;
             font-size: 12.5px;
-            font-weight: 700;
+            font-weight: 600;
             text-decoration: none;
             color: var(--ink);
-            background: var(--surface);
+            background: var(--bg);
             border: 1px solid var(--line);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             white-space: nowrap;
+            box-sizing: border-box;
+            transition: border-color 0.15s ease;
         }
         .attendance-day-btn:hover:not(.is-disabled) {
             border-color: var(--lime);
@@ -927,28 +957,45 @@ function attendance_page(): void
             opacity: 0.4;
             pointer-events: none;
         }
+        .attendance-day-picker-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
         .attendance-day-input {
             height: 34px;
-            padding: 4px 10px;
+            width: 132px;
+            padding: 4px 30px 4px 10px;
             border-radius: 8px;
             border: 1px solid var(--line);
             background: var(--bg);
             color: var(--ink);
             font-size: 12.5px;
             font-family: inherit;
+            box-sizing: border-box;
+        }
+        .attendance-day-picker-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            pointer-events: none;
         }
         .attendance-export-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
         .attendance-export-btn {
-            height: 34px;
+            height: 32px;
             padding: 0 12px;
-            font-size: 12.5px !important;
-            font-weight: 700;
+            font-size: 12px !important;
+            font-weight: 600;
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            gap: 6px;
             box-sizing: border-box;
             text-decoration: none;
         }
@@ -958,19 +1005,23 @@ function attendance_page(): void
             }
         }
         @media (max-width: 640px) {
+            .attendance-summary-header {
+                align-items: flex-start;
+            }
             .attendance-quick-bar {
                 flex-direction: column;
                 align-items: stretch;
                 gap: 10px;
+                padding: 12px;
             }
             .attendance-quick-pills {
                 display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 8px;
+                gap: 4px;
             }
             .attendance-quick-pill {
                 text-align: center;
-                padding: 8px 10px;
+                padding: 7px 10px;
             }
             .attendance-day-nav {
                 display: grid;
@@ -979,34 +1030,29 @@ function attendance_page(): void
                 width: 100%;
             }
             .attendance-day-btn {
-                height: 38px;
+                height: 36px;
                 padding: 0 12px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                box-sizing: border-box;
             }
             .attendance-day-input {
                 width: 100%;
                 min-width: 0;
-                height: 38px;
-                box-sizing: border-box;
+                height: 36px;
                 text-align: center;
             }
             .attendance-export-actions {
+                width: 100%;
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 8px;
-                width: 100%;
             }
             .attendance-export-btn {
                 width: 100%;
-                height: 38px;
-                font-size: 13px !important;
+                height: 36px;
+                font-size: 12.5px !important;
             }
         }
         @media print {
-            .sidebar, .topbar, .page-header button, .attendance-quick-bar, .attendance-filter-form, .pagination-bar, .attendance-checkout-form {
+            .sidebar, .topbar, .page-header button, .attendance-export-actions, .attendance-toolbar-card, .pagination-bar, .attendance-checkout-form {
                 display: none !important;
             }
             .panel {
@@ -1022,11 +1068,10 @@ function attendance_page(): void
             grid-template-columns: 1.8fr 1.1fr 1.1fr 1.1fr 1.1fr auto;
             gap: 12px;
             align-items: end;
-            margin: 0 0 18px;
-            padding: 16px;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 12px;
+            margin: 0;
+            padding: 14px 16px;
+            background: transparent;
+            border: none;
         }
 
         .attendance-filter-group {

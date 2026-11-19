@@ -64,6 +64,76 @@ function gym_equipment_page(): void
     $claimedQueues = (int)scalar("SELECT COUNT(*) FROM equipment_queues WHERE gym_id = $gymId AND queue_status = 'claimed'");
     $cancelledQueues = (int)scalar("SELECT COUNT(*) FROM equipment_queues WHERE gym_id = $gymId AND queue_status = 'cancelled'");
 
+    // Equipment Usage History (Search, Member A-Z Sort, Pagination)
+    $histQ = trim((string)($_GET['hist_q'] ?? ''));
+    $histSort = trim((string)($_GET['hist_sort'] ?? 'recent'));
+    $histPage = max(1, (int)($_GET['hist_page'] ?? 1));
+    $histPerPage = 10;
+
+    $histWhere = 's.gym_id = ?';
+    $histParams = [$gymId];
+    if ($histQ !== '') {
+        $histWhere .= ' AND (CONCAT(u.first_name, " ", u.last_name) LIKE ? OR e.name LIKE ? OR e.unit_number LIKE ?)';
+        $likeQ = '%' . $histQ . '%';
+        $histParams[] = $likeQ;
+        $histParams[] = $likeQ;
+        $histParams[] = $likeQ;
+    }
+
+    $histOrderBy = match ($histSort) {
+        'name_asc'      => 'u.first_name ASC, u.last_name ASC, s.start_time DESC',
+        'name_desc'     => 'u.first_name DESC, u.last_name DESC, s.start_time DESC',
+        'duration_desc' => 'duration_seconds DESC, s.start_time DESC',
+        default         => 's.start_time DESC',
+    };
+
+    $histCountStmt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM equipment_sessions s
+        JOIN users u ON u.user_id = s.user_id
+        JOIN gym_equipment e ON e.equipment_id = s.equipment_id
+        WHERE $histWhere
+    ");
+    $histCountStmt->execute($histParams);
+    $histTotal = (int)$histCountStmt->fetchColumn();
+    $histTotalPages = max(1, (int)ceil($histTotal / $histPerPage));
+    if ($histPage > $histTotalPages) {
+        $histPage = $histTotalPages;
+    }
+    $histOffset = ($histPage - 1) * $histPerPage;
+
+    $histStmt = $pdo->prepare("
+        SELECT s.session_id, s.start_time, s.end_time, s.session_status,
+               GREATEST(0, TIMESTAMPDIFF(SECOND, s.start_time, COALESCE(s.end_time, NOW()))) AS duration_seconds,
+               u.user_id, u.first_name, u.last_name, u.profile_picture,
+               e.name AS equipment_name, e.unit_number, e.category
+        FROM equipment_sessions s
+        JOIN users u ON u.user_id = s.user_id
+        JOIN gym_equipment e ON e.equipment_id = s.equipment_id
+        WHERE $histWhere
+        ORDER BY $histOrderBy
+        LIMIT $histPerPage OFFSET $histOffset
+    ");
+    $histStmt->execute($histParams);
+    $histRows = $histStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $histBaseParams = ['page' => 'gym_equipment', 'tab' => 'analytics'];
+    if ($user['role'] === 'platform_admin' && $gymId) {
+        $histBaseParams['gym_id'] = $gymId;
+    }
+    if ($histQ !== '') {
+        $histBaseParams['hist_q'] = $histQ;
+    }
+    if ($histSort !== '' && $histSort !== 'recent') {
+        $histBaseParams['hist_sort'] = $histSort;
+    }
+    $histBaseUrl = 'index.php?' . http_build_query($histBaseParams);
+    $histResetUrl = 'index.php?' . http_build_query(array_filter([
+        'page' => 'gym_equipment',
+        'tab' => 'analytics',
+        'gym_id' => ($user['role'] === 'platform_admin' && $gymId) ? $gymId : null,
+    ]));
+
     // All gym list for platform admin switcher
     $allGyms = ($user['role'] === 'platform_admin') ? $pdo->query("SELECT gym_id, name FROM gyms ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC) : [];
     ?>
@@ -365,6 +435,230 @@ function gym_equipment_page(): void
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- EQUIPMENT USAGE HISTORY TABLE -->
+            <div class="equip-admin-card" style="margin-top: 18px; padding: 20px 22px;">
+                <style>
+                    .equip-hist-form {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        flex-wrap: wrap;
+                    }
+                    .equip-hist-search-wrap {
+                        position: relative;
+                        min-width: 220px;
+                        flex: 1 1 220px;
+                    }
+                    .equip-hist-search-input {
+                        width: 100%;
+                        padding: 0 12px 0 36px !important;
+                        height: 38px;
+                        margin: 0 !important;
+                        font-size: 13px;
+                        box-sizing: border-box;
+                    }
+                    .equip-hist-controls {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        flex-wrap: wrap;
+                    }
+                    .equip-hist-mobile-card {
+                        padding: 14px;
+                        border: 1px solid var(--line);
+                        border-radius: 12px;
+                        background: var(--bg);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    .equip-hist-mobile-head {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 8px;
+                    }
+                    .equip-hist-mobile-grid {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 8px 12px;
+                        padding-top: 8px;
+                        border-top: 1px solid var(--line);
+                        font-size: 12px;
+                    }
+                    @media (max-width: 768px) {
+                        .equip-hist-form {
+                            width: 100%;
+                            flex-direction: column;
+                            align-items: stretch;
+                        }
+                        .equip-hist-search-wrap {
+                            width: 100%;
+                            min-width: 0;
+                            flex: none;
+                        }
+                        .equip-hist-controls {
+                            width: 100%;
+                        }
+                        .equip-hist-controls select {
+                            flex: 1;
+                            min-width: 0;
+                        }
+                    }
+                </style>
+                <div class="equip-toolbar" style="margin-bottom: 16px;">
+                    <div>
+                        <h3 class="equip-analytics-title" style="margin: 0;">Equipment Usage History</h3>
+                        <p class="equip-analytics-sub" style="margin: 3px 0 0;">Recorded sessions showing who used each equipment unit, when, and for how long.</p>
+                    </div>
+                    <form method="GET" action="index.php" class="equip-hist-form">
+                        <input type="hidden" name="page" value="gym_equipment">
+                        <input type="hidden" name="tab" value="analytics">
+                        <?php if ($user['role'] === 'platform_admin' && $gymId): ?>
+                            <input type="hidden" name="gym_id" value="<?= (int)$gymId ?>">
+                        <?php endif; ?>
+                        <div class="equip-hist-search-wrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="search" name="hist_q" value="<?= h($histQ) ?>" placeholder="Search member or equipment..." class="equip-form-input equip-hist-search-input">
+                        </div>
+                        <div class="equip-hist-controls">
+                            <select name="hist_sort" onchange="this.form.submit()" class="equip-select-filter" style="height: 38px; font-size: 13px;">
+                                <option value="recent" <?= $histSort === 'recent' ? 'selected' : '' ?>>Most Recent</option>
+                                <option value="name_asc" <?= $histSort === 'name_asc' ? 'selected' : '' ?>>Member Name (A–Z)</option>
+                                <option value="name_desc" <?= $histSort === 'name_desc' ? 'selected' : '' ?>>Member Name (Z–A)</option>
+                                <option value="duration_desc" <?= $histSort === 'duration_desc' ? 'selected' : '' ?>>Longest Duration</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary" style="height: 38px; padding: 0 14px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer;">Search</button>
+                            <?php if ($histQ !== '' || $histSort !== 'recent'): ?>
+                                <a href="<?= h($histResetUrl) ?>" class="btn btn-secondary" style="height: 38px; padding: 0 12px; font-size: 13px; display: inline-flex; align-items: center; text-decoration: none; border-radius: 8px;">Clear</a>
+                            <?php endif; ?>
+                        </div>
+                    </form>
+                </div>
+
+                <?php if (empty($histRows)): ?>
+                    <div class="analytics-empty" style="padding: 36px 20px;">
+                        <?= $histQ !== '' ? 'No usage sessions match your search.' : 'No equipment usage history recorded yet.' ?>
+                    </div>
+                <?php else: ?>
+                    <div class="equip-table-wrap" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                        <table class="equip-table" style="min-width: 760px;">
+                            <thead>
+                                <tr>
+                                    <th>Member</th>
+                                    <th>Equipment</th>
+                                    <th>Day</th>
+                                    <th>Time</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($histRows as $hr):
+                                    $memberName = trim($hr['first_name'] . ' ' . $hr['last_name']);
+                                    $startTs = strtotime($hr['start_time']);
+                                    $endTs = !empty($hr['end_time']) ? strtotime($hr['end_time']) : null;
+                                    $isActiveSess = strtolower((string)$hr['session_status']) === 'active';
+                                    $durText = format_equipment_duration((int)$hr['duration_seconds']);
+                                ?>
+                                    <tr>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: 9px;">
+                                                <?= render_avatar($hr, 'small') ?>
+                                                <span style="font-size: 13px; font-weight: 600; color: var(--ink);"><?= h($memberName) ?></span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                                <span style="font-size: 13px; font-weight: 600; color: var(--ink);"><?= h($hr['equipment_name']) ?></span>
+                                                <?php if (!empty($hr['unit_number'])): ?>
+                                                    <span class="unit-pill"><?= h($hr['unit_number']) ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <?php if (!empty($hr['category'])): ?>
+                                                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;"><?= h($hr['category']) ?></div>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <div style="font-size: 13px; font-weight: 600; color: var(--ink);"><?= h(date('M j, Y', $startTs)) ?></div>
+                                            <div style="font-size: 11px; color: var(--muted);"><?= h(date('l', $startTs)) ?></div>
+                                        </td>
+                                        <td style="font-size: 12.5px; color: var(--muted); white-space: nowrap;">
+                                            <?= h(date('g:i A', $startTs)) ?> &ndash; <?= $endTs ? h(date('g:i A', $endTs)) : ($isActiveSess ? 'Ongoing' : '—') ?>
+                                        </td>
+                                        <td>
+                                            <span style="font-size: 12.5px; font-weight: 700; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">
+                                                <?= h($durText) ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <?php if ($isActiveSess): ?>
+                                                <span class="badge badge-pending">In Use</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-active">Completed</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Mobile Cards View for Equipment Usage History -->
+                    <div class="equip-mobile-cards">
+                        <?php foreach ($histRows as $hr):
+                            $memberName = trim($hr['first_name'] . ' ' . $hr['last_name']);
+                            $startTs = strtotime($hr['start_time']);
+                            $endTs = !empty($hr['end_time']) ? strtotime($hr['end_time']) : null;
+                            $isActiveSess = strtolower((string)$hr['session_status']) === 'active';
+                            $durText = format_equipment_duration((int)$hr['duration_seconds']);
+                        ?>
+                            <div class="equip-hist-mobile-card">
+                                <div class="equip-hist-mobile-head">
+                                    <div style="display: flex; align-items: center; gap: 9px; min-width: 0;">
+                                        <?= render_avatar($hr, 'small') ?>
+                                        <div style="min-width: 0;">
+                                            <div style="font-size: 13.5px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= h($memberName) ?></div>
+                                            <div style="font-size: 11.5px; color: var(--muted);">
+                                                <?= h($hr['equipment_name']) ?><?= !empty($hr['unit_number']) ? ' #' . h($hr['unit_number']) : '' ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php if ($isActiveSess): ?>
+                                        <span class="badge badge-pending">In Use</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-active">Completed</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="equip-hist-mobile-grid">
+                                    <div>
+                                        <span style="display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700;">Day</span>
+                                        <strong style="color: var(--ink);"><?= h(date('D, M j, Y', $startTs)) ?></strong>
+                                    </div>
+                                    <div>
+                                        <span style="display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700;">Duration</span>
+                                        <strong style="color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;"><?= h($durText) ?></strong>
+                                    </div>
+                                    <div style="grid-column: 1 / -1;">
+                                        <span style="display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700;">Time</span>
+                                        <span style="color: var(--ink);"><?= h(date('g:i A', $startTs)) ?> &ndash; <?= $endTs ? h(date('g:i A', $endTs)) : ($isActiveSess ? 'Ongoing' : '—') ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <div class="pagination-bar" style="margin-top: 16px;">
+                        <div class="pagination-info">
+                            Showing <strong><?= $histOffset + 1 ?></strong> to <strong><?= min($histOffset + $histPerPage, $histTotal) ?></strong> of <strong><?= $histTotal ?></strong> sessions
+                        </div>
+                        <?php if ($histTotalPages > 1): ?>
+                            <?php render_pagination($histPage, $histTotalPages, $histBaseUrl, 'hist_page'); ?>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

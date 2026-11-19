@@ -821,22 +821,75 @@ function classes_page(): void
             border-color: rgba(239, 68, 68, 0.35);
         }
         [data-theme="light"] .class-card {
-            background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--card-accent-light, #16a34a) 12%, transparent) 0%, transparent 60%),
-                        linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-            border-color: color-mix(in srgb, var(--card-accent-light, #16a34a) 25%, #e2e8f0);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+            background: radial-gradient(circle at 95% 0%, color-mix(in srgb, var(--card-accent-light, #4d7c0f) 10%, transparent) 0%, transparent 62%),
+                        linear-gradient(155deg, #ffffff 0%, #f8fafc 100%);
+            border-color: color-mix(in srgb, var(--card-accent-light, #4d7c0f) 28%, #cbd5e1);
+            box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+        }
+        [data-theme="light"] .class-card:hover {
+            border-color: color-mix(in srgb, var(--card-accent-light, #4d7c0f) 50%, #94a3b8);
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09), 0 0 18px color-mix(in srgb, var(--card-accent-light, #4d7c0f) 14%, transparent);
+        }
+        [data-theme="light"] .class-card-watermark {
+            color: var(--card-accent-light, #4d7c0f);
+            opacity: 0.06;
+        }
+        [data-theme="light"] .class-card:hover .class-card-watermark {
+            opacity: 0.11;
         }
         [data-theme="light"] .class-card-icon-pill {
-            background: color-mix(in srgb, var(--card-accent-light, #16a34a) 12%, #f1f5f9);
-            border-color: color-mix(in srgb, var(--card-accent-light, #16a34a) 30%, #e2e8f0);
-            color: var(--card-accent-light, #16a34a);
+            background: color-mix(in srgb, var(--card-accent-light, #4d7c0f) 11%, #ffffff);
+            border-color: color-mix(in srgb, var(--card-accent-light, #4d7c0f) 32%, #cbd5e1);
+            color: var(--card-accent-light, #4d7c0f);
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--card-accent-light, #4d7c0f) 14%, transparent);
         }
         [data-theme="light"] .class-card-tag {
-            color: var(--card-accent-light, #15803d);
+            color: var(--card-accent-light, #4d7c0f);
+            opacity: 1;
         }
         [data-theme="light"] .class-card-btn-action {
-            background: #f1f5f9;
-            border-color: #e2e8f0;
+            background: #ffffff;
+            border-color: #cbd5e1;
+            color: #475569;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        [data-theme="light"] .class-card-btn-action:hover {
+            background: #f8fafc;
+            color: #0f172a;
+            border-color: #94a3b8;
+        }
+        [data-theme="light"] .class-card-btn-action.btn-del:hover {
+            background: rgba(239, 68, 68, 0.08);
+            color: #dc2626;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .class-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 6px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+            z-index: 1;
+        }
+        [data-theme="light"] .class-card-footer {
+            border-top-color: #e2e8f0;
+        }
+        .class-capacity-pill {
+            background: color-mix(in srgb, var(--card-accent) 12%, rgba(255, 255, 255, 0.04));
+            border: 1px solid color-mix(in srgb, var(--card-accent) 26%, rgba(255, 255, 255, 0.08));
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--ink);
+            white-space: nowrap;
+        }
+        [data-theme="light"] .class-capacity-pill {
+            background: color-mix(in srgb, var(--card-accent-light, #4d7c0f) 10%, #ffffff);
+            border-color: color-mix(in srgb, var(--card-accent-light, #4d7c0f) 32%, #cbd5e1);
+            color: var(--card-accent-light, #3f6212);
         }
         .member-pill-tag {
             display: inline-flex;
@@ -876,13 +929,17 @@ function classes_page(): void
             background: rgba(234, 88, 12, 0.12);
             border: 1px solid rgba(234, 88, 12, 0.28);
             color: var(--orange, #ea580c);
-            border-radius: 14px;
-            padding: 3px 9px;
+            border-radius: 999px;
+            padding: 4px 10px !important;
+            min-height: 0 !important;
+            height: auto !important;
+            line-height: 1.2 !important;
             font-size: 11px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.2s ease;
             width: fit-content;
+            white-space: nowrap;
         }
         .btn-see-more-members:hover {
             background: rgba(234, 88, 12, 0.22);
@@ -1580,11 +1637,22 @@ function classes_page(): void
             <?php else: ?>
                 <div class="cc-grid">
                     <?php 
-                    $accentPalette = ['#c7ff22', '#38bdf8', '#ff9548', '#a78bfa', '#f472b6', '#34d399', '#facc15', '#fb7185'];
+                    $accentPalette = [
+                        ['dark' => '#c7ff22', 'light' => '#4d7c0f'],
+                        ['dark' => '#38bdf8', 'light' => '#0284c7'],
+                        ['dark' => '#ff9548', 'light' => '#ea580c'],
+                        ['dark' => '#a78bfa', 'light' => '#7c3aed'],
+                        ['dark' => '#f472b6', 'light' => '#db2777'],
+                        ['dark' => '#34d399', 'light' => '#059669'],
+                        ['dark' => '#facc15', 'light' => '#ca8a04'],
+                        ['dark' => '#fb7185', 'light' => '#e11d48'],
+                    ];
                     $ci = 0;
                     foreach ($classes as $c): 
                         $safeJson = htmlspecialchars(json_encode($c));
-                        $cardAccent = $accentPalette[$ci % count($accentPalette)];
+                        $accentPair = $accentPalette[$ci % count($accentPalette)];
+                        $cardAccent = $accentPair['dark'];
+                        $cardAccentLight = $accentPair['light'];
                         $nameLower = strtolower((string)($c['class_name'] ?? ''));
 
                         if (str_contains($nameLower, 'hiit') || str_contains($nameLower, 'tabata') || str_contains($nameLower, 'crossfit') || str_contains($nameLower, 'circuit')) {
@@ -1618,7 +1686,7 @@ function classes_page(): void
                         }
                         $ci++;
                     ?>
-                        <div class="class-card" style="--card-accent: <?= $cardAccent ?>;">
+                        <div class="class-card" style="--card-accent: <?= $cardAccent ?>; --card-accent-light: <?= $cardAccentLight ?>;">
                             <div class="class-card-watermark" aria-hidden="true">
                                 <?= $watermarkSvg ?>
                             </div>
@@ -1644,12 +1712,12 @@ function classes_page(): void
                             <p style="margin:0; font-size:13.5px; color:var(--muted); line-height:1.5; flex-grow:1; position: relative; z-index: 1;">
                                 <?= h($c['description'] ?: 'No description provided.') ?>
                             </p>
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.06); position: relative; z-index: 1;">
+                            <div class="class-card-footer">
                                 <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted);">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                     <span style="font-weight: 500;"><?= h($c['instructor'] ?: 'No instructor') ?></span>
                                 </div>
-                                <span style="background:color-mix(in srgb, var(--card-accent) 12%, rgba(255,255,255,0.04)); border: 1px solid color-mix(in srgb, var(--card-accent) 24%, rgba(255,255,255,0.08)); padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600; color:var(--ink);">
+                                <span class="class-capacity-pill">
                                     Capacity: <?= (int)$c['capacity'] ?>
                                 </span>
                             </div>
@@ -1884,34 +1952,41 @@ function classes_page(): void
                             <div class="schedule-mobile-details">
                                 <div>
                                     <span class="schedule-mobile-detail-label">Location</span>
-                                    <div class="schedule-mobile-detail-value"><?= h($s['room_location'] ?: '—') ?></div>
-                                </div>
-                                <div>
-                                    <span class="schedule-mobile-detail-label">Date &amp; time</span>
-                                    <div class="schedule-mobile-detail-value" style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
-                                        <div style="display:flex; align-items:center; gap:6px;">
-                                            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:1px 5px; border-radius:4px; background:rgba(34,197,94,0.15); color:var(--success, #22c55e);">Start</span>
-                                            <span style="font-weight:600; color:var(--ink); font-size:13px;"><?= h($startDate) ?></span>
-                                            <span style="color:var(--muted); font-size:12px;"><?= h($startTime) ?></span>
-                                        </div>
-                                        <div style="display:flex; align-items:center; gap:6px;">
-                                            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:1px 5px; border-radius:4px; background:rgba(234,88,12,0.15); color:var(--orange, #ea580c);">End</span>
-                                            <span style="font-weight:600; color:var(--ink); font-size:13px;"><?= h($endDate) ?></span>
-                                            <span style="color:var(--muted); font-size:12px;"><?= h($endTime) ?></span>
-                                        </div>
-                                    </div>
+                                    <div class="schedule-mobile-detail-value" style="font-weight: 600;"><?= h($s['room_location'] ?: '—') ?></div>
                                 </div>
                                 <div>
                                     <span class="schedule-mobile-detail-label">Booked</span>
-                                    <div class="schedule-mobile-detail-value"><?= $sMemCount ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?> member<?= $sMemCount === 1 ? '' : 's' ?></div>
+                                    <div class="schedule-mobile-detail-value" style="font-weight: 600;"><?= $sMemCount ?><?= !empty($s['capacity']) ? ' / ' . (int)$s['capacity'] : '' ?> member<?= $sMemCount === 1 ? '' : 's' ?></div>
                                 </div>
                                 <div style="grid-column: 1 / -1;">
-                                    <span class="schedule-mobile-detail-label">Enrolled Members (<?= $sMemCount ?>)</span>
-                                    <div class="schedule-mobile-detail-value" style="margin-top:4px;">
+                                    <span class="schedule-mobile-detail-label">Date &amp; time</span>
+                                    <div class="schedule-mobile-detail-value" style="display:flex; flex-direction:column; gap:6px; margin-top:4px; padding:9px 11px; border-radius:8px; background:var(--bg); border:1px solid var(--line);">
+                                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 6px; border-radius:4px; background:rgba(34,197,94,0.15); color:var(--success, #22c55e); min-width:38px; text-align:center;">Start</span>
+                                            <span style="font-weight:600; color:var(--ink); font-size:12.5px; white-space:nowrap;"><?= h($startDate) ?></span>
+                                            <span style="color:var(--muted); font-size:12px; white-space:nowrap;">&middot; <?= h($startTime) ?></span>
+                                        </div>
+                                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                            <span style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:2px 6px; border-radius:4px; background:rgba(234,88,12,0.15); color:var(--orange, #ea580c); min-width:38px; text-align:center;">End</span>
+                                            <span style="font-weight:600; color:var(--ink); font-size:12.5px; white-space:nowrap;"><?= h($endDate) ?></span>
+                                            <span style="color:var(--muted); font-size:12px; white-space:nowrap;">&middot; <?= h($endTime) ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="grid-column: 1 / -1;">
+                                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px;">
+                                        <span class="schedule-mobile-detail-label" style="margin-bottom:0;">Enrolled Members (<?= $sMemCount ?>)</span>
+                                        <?php if ($sMemCount > 0): ?>
+                                            <button type="button" class="btn-see-more-members" onclick="openClassMembersModal(<?= $modalPayload ?>)">
+                                                <?= $remainingCount > 0 ? "+{$remainingCount} more" : "View roster" ?>
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="schedule-mobile-detail-value">
                                         <?php if ($sMemCount === 0): ?>
                                             <span style="color:var(--muted); font-size:12px; font-style:italic;">No members joined yet</span>
                                         <?php else: ?>
-                                            <div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">
+                                            <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
                                                 <?php foreach ($shownMembers as $m): 
                                                     $initials = strtoupper(substr($m['first_name'] ?? 'M', 0, 1) . substr($m['last_name'] ?? '', 0, 1));
                                                     $fullName = trim(($m['first_name'] ?? '') . ' ' . ($m['last_name'] ?? ''));
@@ -1921,9 +1996,6 @@ function classes_page(): void
                                                         <span class="member-pill-name"><?= h($fullName) ?></span>
                                                     </span>
                                                 <?php endforeach; ?>
-                                                <button type="button" class="btn-see-more-members" onclick="openClassMembersModal(<?= $modalPayload ?>)">
-                                                    <?= $remainingCount > 0 ? "+{$remainingCount} more" : "View roster" ?>
-                                                </button>
                                             </div>
                                         <?php endif; ?>
                                     </div>

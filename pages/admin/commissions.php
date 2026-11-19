@@ -501,13 +501,13 @@ function commissions_page(): void
                         $isNegative = (float)$row['amount'] < 0;
                     ?>
                         <tr>
-                            <td><strong><?= h($row['trainer_name']) ?></strong></td>
-                            <td><?= h($row['member_name']) ?></td>
+                            <td style="font-size:13px;"><strong><?= h($row['trainer_name']) ?></strong></td>
+                            <td style="font-size:13px;"><?= h($row['member_name']) ?></td>
                             <td style="font-size:13px;color:var(--muted)"><?= h($row['plan_name']) ?></td>
                             <td style="font-size:13px;font-family:monospace;color:var(--muted)"><?= h($row['receipt_number']) ?></td>
                             <td style="font-size:13px;color:var(--muted)" title="<?= h(($row['rate_source'] ?? 'plan') === 'trainer' ? 'Trainer rate' : 'Plan rate') ?> on <?= h(money($row['base_amount'] ?? $row['payment_amount'])) ?>"><?= h($rateLabel($row)) ?></td>
-                            <td><strong style="color:<?= $isNegative ? '#ef4444' : 'var(--lime)' ?>"><?= h(money($row['amount'])) ?></strong></td>
-                            <td><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
+                            <td style="font-size:13px;"><strong style="color:<?= $isNegative ? '#ef4444' : 'var(--lime)' ?>"><?= h(money($row['amount'])) ?></strong></td>
+                            <td style="font-size:13px;"><?= h(date('M j, Y', strtotime($row['created_at']))) ?></td>
                             <td>
                                 <span class="<?= $statusClass ?>" style="<?= $statusStyle ?>"><?= h(ucfirst($row['status'])) ?></span>
                             </td>

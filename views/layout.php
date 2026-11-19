@@ -1577,13 +1577,17 @@ function render_header(string $title, ?array $user = null): void
             right: 0;
             width: 280px;
             max-width: calc(100vw - 24px);
-            background: var(--panel);
+            background: #11161f;
             border: 1px solid var(--line);
             border-radius: 14px;
-            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 20px 44px rgba(0, 0, 0, 0.45);
             padding: 10px;
             z-index: 1200;
             display: none;
+        }
+        [data-theme="light"] .owner-profile-dropdown {
+            background: #ffffff;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
         }
         .owner-profile-dropdown.is-open {
             display: block;
