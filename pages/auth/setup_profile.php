@@ -132,8 +132,10 @@ function setup_profile_page(): void
         save_member_profile((int) $user['user_id']);
         $profCheck = member_profile((int) $user['user_id'], true);
         if ($isEditMode && !empty($profCheck['primary_goal'])) {
+            flash('Profile updated! Review your onboarding summary.', 'success');
             redirect('setup_review');
         }
+        flash('Profile saved! Now select your primary goal.', 'success');
         redirect('setup_goal');
     }
 

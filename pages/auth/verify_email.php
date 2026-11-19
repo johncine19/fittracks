@@ -71,6 +71,7 @@ function verify_email_page(): void
             $verifiedUser = $userRow[0];
             session_regenerate_id(true);
             $_SESSION['user_id'] = (int) $verifiedUser['user_id'];
+            $_SESSION['email_verified_flash_set'] = 1;
 
             if ($verifiedUser['role'] === 'gym_owner') {
                 flash('Email verified successfully! Please complete your gym profile to submit your application.', 'success');

@@ -48,11 +48,20 @@ function verify_waiting_page(): void
     if (($_GET['action'] ?? '') === 'check') {
         header('Content-Type: application/json; charset=utf-8');
         if (!empty($user['email_verified_at'])) {
+            $alreadyLoggedIn = !empty($_SESSION['user_id']) && (int)$_SESSION['user_id'] === (int)$user['user_id'];
             // Auto login session
             session_regenerate_id(true);
             $_SESSION['user_id'] = (int) $user['user_id'];
             unset($_SESSION['pending_verify_uid'], $_SESSION['pending_verify_email'], $_SESSION['pending_verify_name']);
-            flash('Email verified successfully! Welcome to FitTrack.', 'success');
+            if (!$alreadyLoggedIn && empty($_SESSION['email_verified_flash_set'])) {
+                $_SESSION['email_verified_flash_set'] = 1;
+                $verifiedMsg = ($user['role'] === 'member')
+                    ? 'Email verified successfully! Let’s complete your member profile.'
+                    : (($user['role'] === 'gym_owner')
+                        ? 'Email verified successfully! Please complete your gym profile to submit your application.'
+                        : 'Email verified successfully! Welcome to FitTrack.');
+                flash($verifiedMsg, 'success');
+            }
             echo json_encode(['success' => true, 'verified' => true, 'redirect' => $targetUrl]);
             exit;
         }
