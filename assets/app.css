@@ -418,8 +418,7 @@ body {
 }
 
 body.app-body {
-    background: url('images/loginbac.png') no-repeat center center fixed;
-    background-size: cover;
+    background: var(--bg);
 }
 
 body.app-body::before {

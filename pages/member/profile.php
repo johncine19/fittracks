@@ -77,6 +77,7 @@ function profile_page(): void
     $ownerGym = null;
     $ownerGymId = null;
     $gymRevenue = 0.0;
+    $gymExpenses = 0.0;
     $platformFee = 0.0;
     $netRevenue = 0.0;
     $ownerTrialInfo = null;
@@ -106,7 +107,14 @@ function profile_page(): void
                 ) AS combined'
             )->fetchColumn();
             $platformFee = 0.0;
-            $netRevenue = $gymRevenue;
+            try {
+                $expStmt = db()->prepare('SELECT COALESCE(SUM(amount), 0) FROM gym_expenses WHERE gym_id = ? AND expense_date >= DATE_FORMAT(CURDATE(), "%Y-%m-01")');
+                $expStmt->execute([$ownerGymId]);
+                $gymExpenses = (float) $expStmt->fetchColumn();
+            } catch (Throwable) {
+                $gymExpenses = 0.0;
+            }
+            $netRevenue = $gymRevenue - $platformFee - $gymExpenses;
 
             $gymRatingStats   = get_gym_rating_stats($ownerGymId);
             $recentGymReviews = get_gym_reviews($ownerGymId, 5);
@@ -1604,18 +1612,22 @@ function profile_page(): void
                                     <strong style="color: var(--ink);"><?= money($gymRevenue) ?></strong>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
+                                    <span style="color: var(--muted);">Expenses This Month:</span>
+                                    <strong style="color: <?= $gymExpenses > 0 ? '#ef4444' : 'var(--muted)' ?>;"><?= $gymExpenses > 0 ? '-' . money($gymExpenses) : money(0) ?></strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 13.5px;">
                                     <span style="color: var(--muted);">Platform Transaction Fee:</span>
                                     <strong style="color: var(--lime, #84cc16);">₱0.00 (0% Fee)</strong>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 16px; padding-top: 4px;">
                                     <span style="font-weight: 700; color: var(--ink);">Gym Net Amount:</span>
-                                    <strong style="color: var(--teal); font-size: 1.2rem;"><?= money($gymRevenue) ?></strong>
+                                    <strong style="color: <?= $netRevenue < 0 ? '#ef4444' : 'var(--teal)' ?>; font-size: 1.2rem;"><?= money($netRevenue) ?></strong>
                                 </div>
                             </div>
 
                             <div style="margin-top: auto; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--line);">
                                 <p style="font-size: 12px; color: var(--muted); margin: 0; line-height: 1.45;">
-                                    FitTrack charges 0% platform transaction fees on your gym revenue. You keep 100% of your recorded earnings (both online GCash and cash walk-ins).
+                                    FitTrack charges 0% platform transaction fees on your gym revenue. Net amount reflects your recorded monthly revenue minus logged gym expenses.
                                 </p>
                             </div>
                         </div>
