@@ -3133,6 +3133,8 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                     echo '          <span class="badge badge-cat badge-' . h($ex['category']) . '">' . h(ucfirst($ex['category'])) . '</span>';
                     echo '        </div>';
                     echo '        <div class="workout-ex-muscle">' . h(ucfirst($ex['muscle_group'])) . '</div>';
+                    echo '      </div>';
+                    echo '      <div class="workout-ex-footer">';
                     echo '        <div class="workout-ex-chips">';
                     echo '          <span class="ex-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 4h12M4 9h16M4 15h16M6 20h12"/></svg> ' . (int)$ex['sets'] . ' sets</span>';
                     echo '          <span class="ex-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg> ' . h($ex['reps']) . '</span>';
@@ -3140,13 +3142,13 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                         echo '          <span class="ex-chip"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' . (int)$ex['rest_seconds'] . 's rest</span>';
                     }
                     echo '        </div>';
-                    echo '      </div>';
-                    echo '      <div class="workout-ex-action">';
+                    echo '        <div class="workout-ex-action">';
                     if ($isDone) {
-                        echo '        <span class="workout-done-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Done</span>';
+                        echo '          <span class="workout-done-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Done</span>';
                     } else {
-                        echo '        <a href="index.php?page=my_workout" class="btn-mark-complete" style="text-decoration:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Complete</a>';
+                        echo '          <a href="index.php?page=my_workout" class="btn-mark-complete" style="text-decoration:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Complete</a>';
                     }
+                    echo '        </div>';
                     echo '      </div>';
                     echo '    </div>';
                 }
@@ -3725,14 +3727,16 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
             }
             .workout-ex-card {
                 display: flex;
+                flex-direction: column;
                 justify-content: space-between;
-                align-items: center;
+                align-items: stretch;
                 gap: 12px;
                 padding: 14px;
                 border-radius: 12px;
                 background: var(--panel-soft);
                 border: 1px solid var(--line);
                 transition: all 0.2s ease;
+                min-width: 0;
             }
             .workout-ex-card:hover {
                 border-color: color-mix(in srgb, var(--lime) 30%, var(--line));
@@ -3746,29 +3750,50 @@ function render_current_workout(int $memberUserId, bool $dashboardMode = false, 
                 text-decoration: line-through;
             }
             .workout-ex-card-main {
-                flex: 1;
                 min-width: 0;
             }
             .workout-ex-header {
                 display: flex;
-                align-items: center;
+                justify-content: space-between;
+                align-items: flex-start;
                 gap: 8px;
                 margin-bottom: 4px;
+                min-width: 0;
+            }
+            .workout-ex-header .badge {
+                flex-shrink: 0;
+                margin-top: 1px;
             }
             .workout-ex-name {
                 font-size: 14px;
                 font-weight: 700;
                 color: var(--ink);
+                line-height: 1.35;
+                flex: 1;
+                min-width: 0;
+                overflow-wrap: break-word;
             }
             .workout-ex-muscle {
                 font-size: 12px;
                 color: var(--muted);
-                margin-bottom: 8px;
+            }
+            .workout-ex-footer {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 10px;
+                flex-wrap: wrap;
             }
             .workout-ex-chips {
                 display: flex;
                 gap: 6px;
                 flex-wrap: wrap;
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .workout-ex-action {
+                margin-left: auto;
+                flex-shrink: 0;
             }
             .ex-chip {
                 display: inline-flex;
