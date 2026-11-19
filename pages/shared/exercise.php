@@ -283,14 +283,11 @@ function save_member_profile(int $userId): void
         } catch (Throwable) {}
     }
 
-    // Update fitness_tier based on selected experience_level
+    // Persist selected training experience_level independently from gamification fitness_tier
     if (isset($_POST['experience_level'])) {
-        $exp = (int) $_POST['experience_level'];
-        $tier = 1;
-        if ($exp === 2) $tier = 3;
-        if ($exp === 3) $tier = 5;
-        $pdo->prepare('UPDATE member_profiles SET fitness_tier = ? WHERE user_id = ?')
-            ->execute([$tier, $userId]);
+        $exp = max(1, min(3, (int) $_POST['experience_level']));
+        $pdo->prepare('UPDATE member_profiles SET experience_level = ? WHERE user_id = ?')
+            ->execute([$exp, $userId]);
     }
 
     // Refresh static profile cache so callers in the same request see updated data

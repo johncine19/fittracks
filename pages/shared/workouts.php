@@ -153,13 +153,9 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
  */
 function _get_workout_parameters(array $profile, PDO $pdo): array
 {
-    // 1. Map detailed primary_goal to core category & fitness_tier to experience_level (1=Starter, 2=Intermediate, 3=Advanced)
+    // 1. Map detailed primary_goal to core category & resolve experience_level (1=Starter, 2=Intermediate, 3=Advanced)
     $goal = map_detailed_goal_to_basic($profile['primary_goal']);
-    $tier = (int) ($profile['fitness_tier'] ?? 1);
-    
-    $expLevel = 1;
-    if ($tier >= 3 && $tier <= 4) $expLevel = 2;
-    if ($tier >= 5) $expLevel = 3;
+    $expLevel = resolve_member_experience_level($profile);
 
     // Fetch member's gym_id
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . (int)($profile['user_id'] ?? 0))->fetchColumn();
@@ -335,6 +331,29 @@ function _assign_exercise_details(string $goal, int $expLevel, array $ex): array
             $tempo = '2-0-1-0'; 
             $rpe = 'RPE 8'; 
             $cue = 'High metabolic demand, short rest between sets.';
+        }
+    } elseif ($goal === 'endurance') {
+        if ($expLevel === 1) {
+            $sets = 2;
+            $reps = '15-20';
+            $rest = 30;
+            $tempo = '2-0-2-0';
+            $rpe = 'RPE 6-7';
+            $cue = 'Light-moderate load, focus on steady breathing and muscular stamina.';
+        } elseif ($expLevel === 2) {
+            $sets = 3;
+            $reps = '15-20';
+            $rest = 30;
+            $tempo = '2-0-1-0';
+            $rpe = 'RPE 7-8';
+            $cue = 'Keep transitions crisp with short 30s rests to build work capacity.';
+        } else {
+            $sets = 4;
+            $reps = '15-25';
+            $rest = 25;
+            $tempo = '2-0-1-0';
+            $rpe = 'RPE 8';
+            $cue = 'High-volume endurance pacing with minimal rest between sets.';
         }
     } else {
         // General health / Maintenance
@@ -873,8 +892,7 @@ function auto_populate_day_focused(int $planId, int $memberUserId, int $dayOfWee
     
     $profile = member_profile($memberUserId) ?: [];
     $goal = map_detailed_goal_to_basic($profile['primary_goal'] ?? 'general_health');
-    $tier = (int) ($profile['fitness_tier'] ?? 1);
-    $expLevel = ($tier >= 5) ? 3 : (($tier >= 3) ? 2 : 1);
+    $expLevel = resolve_member_experience_level($profile);
 
     $fallbackGymId = (int) ($pdo->query('
             SELECT tp.gym_id 

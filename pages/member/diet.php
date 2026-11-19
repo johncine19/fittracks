@@ -558,8 +558,7 @@ function diet_page(): void
             }
             
             $goal = $profile['primary_goal'] ?: 'general_health';
-            $tier = $profile['fitness_tier'] ?: 1;
-            $expLevel = in_array($tier, [1,2]) ? 1 : (in_array($tier, [3,4]) ? 2 : 3);
+            $expLevel = resolve_member_experience_level($profile);
             
             // 1. Calculate BMR (Mifflin-St Jeor)
             $w = (float) $profile['weight_kg'];

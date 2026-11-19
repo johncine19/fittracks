@@ -552,6 +552,7 @@ CREATE TABLE `member_profiles` (
   `primary_goal` varchar(255) NOT NULL,
   `weekly_workout_target` tinyint UNSIGNED DEFAULT NULL,
   `preferred_duration_mins` smallint UNSIGNED DEFAULT 45,
+  `experience_level` tinyint UNSIGNED NOT NULL DEFAULT '1',
   `fitness_tier` int DEFAULT '1',
   `completed_weeks` int DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -324,7 +324,7 @@ function render_header(string $title, ?array $user = null): void
         $effectiveUserRole = $user['role'] ?? (in_array($page, ['setup_profile', 'setup_goal', 'setup_review'], true) ? 'member' : '');
         ?>
     </head>
-    <body class="<?= $user ? 'app-body' : 'auth-body' ?>" data-user-role="<?= h($effectiveUserRole) ?>">
+    <body class="<?= $user ? 'app-body' : 'auth-body' ?>" data-user-role="<?= h($effectiveUserRole) ?>" data-user-id="<?= $user ? (int)$user['user_id'] : 0 ?>">
     <!-- In-App FitTrack Splash Preloader -->
     <div id="ft-splash-screen" aria-hidden="true">
         <div class="ft-splash-glow"></div>

@@ -35,25 +35,10 @@ function workout_builder_page(): void
     // This target is authoritative for plans created in this builder.
     $prefDays = !empty($prefWorkoutDays) ? count($prefWorkoutDays) : max(1, min(7, (int)($profile['weekly_workout_target'] ?: 3)));
 
-    // Authoritative athlete experience level derived from fitness tier and activity
+    // Authoritative athlete experience level
     $rawActivity = strtolower((string)($profile['activity_level'] ?? ''));
     $activityLabel = !empty($rawActivity) ? ucwords(str_replace('_', ' ', $rawActivity)) : 'Moderate';
-    $rawTier = (int)($profile['fitness_tier'] ?? 0);
-    if ($rawTier >= 5) {
-        $expLevel = 3;
-    } elseif ($rawTier >= 3) {
-        $expLevel = 2;
-    } elseif ($rawTier >= 1) {
-        $expLevel = 1;
-    } else {
-        if (in_array($rawActivity, ['sedentary', 'light', 'lightly_active'], true)) {
-            $expLevel = 1;
-        } elseif (in_array($rawActivity, ['very_active', 'extra_active', 'active'], true)) {
-            $expLevel = 3;
-        } else {
-            $expLevel = 2;
-        }
-    }
+    $expLevel = resolve_member_experience_level($profile);
     $tierNames = [1 => 'Beginner', 2 => 'Intermediate', 3 => 'Advanced'];
     $tierKeys = [1 => 'beginner', 2 => 'intermediate', 3 => 'advanced'];
     $memberTierLabel = $tierNames[$expLevel] ?? 'Intermediate';

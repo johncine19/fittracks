@@ -134,35 +134,151 @@
                 }
             };
 
+            function applyWeightTarget(val) {
+                document.getElementById('form-target-weight').value = val;
+                const preview = document.getElementById('preview-target-weight');
+                const card = document.getElementById('card-target-weight');
+                if (val && !isNaN(val)) {
+                    preview.innerHTML = `<span>Target: <strong>${parseFloat(val).toFixed(1)} kg</strong></span>`;
+                    card.classList.add('has-value');
+                } else {
+                    preview.innerHTML = `<span class="tc-empty">Not set &bull; Tap to configure</span>`;
+                    card.classList.remove('has-value');
+                }
+                closeTargetModal('weight');
+            }
+
+            function applyBodyFatTarget(val) {
+                document.getElementById('form-target-bodyfat').value = val;
+                const preview = document.getElementById('preview-target-bodyfat');
+                const card = document.getElementById('card-target-bodyfat');
+                if (val && !isNaN(val)) {
+                    preview.innerHTML = `<span>Target: <strong>${parseFloat(val).toFixed(1)} %</strong></span>`;
+                    card.classList.add('has-value');
+                } else {
+                    preview.innerHTML = `<span class="tc-empty">Not set &bull; Tap to configure</span>`;
+                    card.classList.remove('has-value');
+                }
+                closeTargetModal('bodyfat');
+            }
+
             window.saveTargetModal = function(type) {
+                const ctx = window.SETUP_GOAL_CONTEXT || {};
+                const pGoal = document.getElementById('input_primary_goal')?.value?.trim() || '';
+
                 if (type === 'weight') {
                     const input = document.getElementById('modal-field-weight');
                     const val = input ? input.value.trim() : '';
-                    document.getElementById('form-target-weight').value = val;
-                    const preview = document.getElementById('preview-target-weight');
-                    const card = document.getElementById('card-target-weight');
-                    if (val && !isNaN(val)) {
-                        preview.innerHTML = `<span>Target: <strong>${parseFloat(val).toFixed(1)} kg</strong></span>`;
-                        card.classList.add('has-value');
-                    } else {
-                        preview.innerHTML = `<span class="tc-empty">Not set &bull; Tap to configure</span>`;
-                        card.classList.remove('has-value');
+                    const num = parseFloat(val);
+                    const curWeight = parseFloat(ctx.weightKg || 0);
+                    const heightCm = parseFloat(ctx.heightCm || 0);
+
+                    if (val && !isNaN(num)) {
+                        if (pGoal === 'Losing excess body fat' && curWeight > 0 && num >= curWeight) {
+                            closeTargetModal('weight');
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Check Your Target Weight',
+                                    text: `Your primary goal is losing body fat, so your target weight should be lower than your current weight (${curWeight.toFixed(1)} kg).`,
+                                    confirmButtonText: 'Adjust Target',
+                                    confirmButtonColor: '#84cc16'
+                                }).then(() => openTargetModal('weight'));
+                            } else {
+                                alert(`Target weight should be lower than your current weight (${curWeight.toFixed(1)} kg).`);
+                                openTargetModal('weight');
+                            }
+                            return;
+                        }
+                        if (pGoal === 'Gaining lean body mass' && curWeight > 0 && num <= curWeight) {
+                            closeTargetModal('weight');
+                            if (typeof Swal !== 'undefined') {
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Check Your Target Weight',
+                                    text: `Your primary goal is gaining lean mass, so your target weight should be higher than your current weight (${curWeight.toFixed(1)} kg).`,
+                                    confirmButtonText: 'Adjust Target',
+                                    confirmButtonColor: '#84cc16'
+                                }).then(() => openTargetModal('weight'));
+                            } else {
+                                alert(`Target weight should be higher than your current weight (${curWeight.toFixed(1)} kg).`);
+                                openTargetModal('weight');
+                            }
+                            return;
+                        }
+                        if (heightCm > 0) {
+                            const hM = heightCm / 100;
+                            const targetBmi = num / (hM * hM);
+                            if (targetBmi < 18.5 && typeof Swal !== 'undefined') {
+                                closeTargetModal('weight');
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Underweight Target BMI',
+                                    text: `${num.toFixed(1)} kg corresponds to a BMI of ${targetBmi.toFixed(1)} (below 18.5 underweight). Would you like to adjust it?`,
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Adjust Target',
+                                    cancelButtonText: 'Keep Anyway',
+                                    confirmButtonColor: '#84cc16'
+                                }).then((res) => {
+                                    if (res.isConfirmed) {
+                                        openTargetModal('weight');
+                                    } else {
+                                        applyWeightTarget(val);
+                                    }
+                                });
+                                return;
+                            }
+                        }
                     }
-                    closeTargetModal('weight');
+                    applyWeightTarget(val);
                 } else if (type === 'bodyfat') {
                     const input = document.getElementById('modal-field-bodyfat');
                     const val = input ? input.value.trim() : '';
-                    document.getElementById('form-target-bodyfat').value = val;
-                    const preview = document.getElementById('preview-target-bodyfat');
-                    const card = document.getElementById('card-target-bodyfat');
-                    if (val && !isNaN(val)) {
-                        preview.innerHTML = `<span>Target: <strong>${parseFloat(val).toFixed(1)} %</strong></span>`;
-                        card.classList.add('has-value');
-                    } else {
-                        preview.innerHTML = `<span class="tc-empty">Not set &bull; Tap to configure</span>`;
-                        card.classList.remove('has-value');
+                    const num = parseFloat(val);
+                    const minHealthyBf = ctx.biologicalSex === 'female' ? 12 : 5;
+                    const curBf = ctx.bodyFatPct !== null && ctx.bodyFatPct !== undefined ? parseFloat(ctx.bodyFatPct) : 0;
+
+                    if (val && !isNaN(num)) {
+                        if (num < minHealthyBf && typeof Swal !== 'undefined') {
+                            closeTargetModal('bodyfat');
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Very Low Body Fat Target',
+                                text: `Essential body fat below ${minHealthyBf}% is generally not recommended for health. Would you like to adjust your target?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Adjust Target',
+                                cancelButtonText: 'Keep Anyway',
+                                confirmButtonColor: '#84cc16'
+                            }).then((res) => {
+                                if (res.isConfirmed) {
+                                    openTargetModal('bodyfat');
+                                } else {
+                                    applyBodyFatTarget(val);
+                                }
+                            });
+                            return;
+                        }
+                        if (pGoal === 'Losing excess body fat' && curBf > 0 && num >= curBf && typeof Swal !== 'undefined') {
+                            closeTargetModal('bodyfat');
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Check Body Fat Target',
+                                text: `Your primary goal is losing body fat, so your target should typically be lower than your current ${curBf.toFixed(1)}%.`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Adjust Target',
+                                cancelButtonText: 'Keep Anyway',
+                                confirmButtonColor: '#84cc16'
+                            }).then((res) => {
+                                if (res.isConfirmed) {
+                                    openTargetModal('bodyfat');
+                                } else {
+                                    applyBodyFatTarget(val);
+                                }
+                            });
+                            return;
+                        }
                     }
-                    closeTargetModal('bodyfat');
+                    applyBodyFatTarget(val);
                 } else if (type === 'waist') {
                     const input = document.getElementById('modal-field-waist');
                     const val = input ? input.value.trim() : '';
@@ -267,15 +383,29 @@
             if (legacyGoalMap[primaryGoal]) primaryGoal = legacyGoalMap[primaryGoal];
             if (legacyGoalMap[secondaryGoal]) secondaryGoal = legacyGoalMap[secondaryGoal];
 
+            const hardConflictMap = {
+                'Losing excess body fat': ['Gaining lean body mass', 'Reaching body recomposition'],
+                'Gaining lean body mass': ['Losing excess body fat', 'Reaching body recomposition'],
+                'Reaching body recomposition': ['Losing excess body fat', 'Gaining lean body mass']
+            };
+            const softMismatchMap = {
+                'Casual / Flexible Lifestyle': ['Building a visible six-pack', 'Losing excess body fat'],
+                'Building a visible six-pack': ['Casual / Flexible Lifestyle'],
+                'Losing excess body fat': ['Casual / Flexible Lifestyle']
+            };
+
             function renderGoalSelections() {
                 if (primaryInput) primaryInput.value = primaryGoal;
                 if (secondaryInput) secondaryInput.value = secondaryGoal;
+
+                const blockedPartners = hardConflictMap[primaryGoal] || [];
 
                 goalCards.forEach(c => {
                     const g = c.getAttribute('data-goal') || c.querySelector('.goal-title')?.textContent?.trim();
                     const numEl = c.querySelector('.goal-rank-num');
 
                     c.classList.remove('selected', 'selected-primary', 'selected-secondary');
+                    c.style.opacity = blockedPartners.includes(g) ? '0.48' : '';
 
                     if (g === primaryGoal) {
                         c.classList.add('selected', 'selected-primary');
@@ -335,6 +465,56 @@
                     // Deselect secondary
                     secondaryGoal = '';
                 } else {
+                    // Check for metabolic / lifestyle conflicts with primaryGoal before adding secondaryGoal
+                    const hardConflicts = hardConflictMap[primaryGoal] || [];
+                    if (primaryGoal && hardConflicts.includes(goalName)) {
+                        const isOppositePair =
+                            (primaryGoal === 'Losing excess body fat' && goalName === 'Gaining lean body mass') ||
+                            (primaryGoal === 'Gaining lean body mass' && goalName === 'Losing excess body fat');
+
+                        if (typeof Swal !== 'undefined') {
+                            if (isOppositePair) {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Conflicting Calorie Goals',
+                                    text: `"${primaryGoal}" and "${goalName}" require opposite calorie targets (deficit vs. surplus). Would you like to switch to "Reaching body recomposition" instead?`,
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Use Body Recomposition',
+                                    cancelButtonText: 'Keep Current Primary',
+                                    confirmButtonColor: '#84cc16'
+                                }).then((res) => {
+                                    if (res.isConfirmed) {
+                                        primaryGoal = 'Reaching body recomposition';
+                                        secondaryGoal = '';
+                                        renderGoalSelections();
+                                    }
+                                });
+                            } else {
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Goal Already Covered',
+                                    text: `"Reaching body recomposition" already combines fat loss and lean muscle gain, so it cannot be paired with "${goalName === 'Reaching body recomposition' ? primaryGoal : goalName}".`,
+                                    confirmButtonText: 'Got it',
+                                    confirmButtonColor: '#84cc16'
+                                });
+                            }
+                        } else {
+                            alert(`"${primaryGoal}" cannot be paired with "${goalName}".`);
+                        }
+                        return;
+                    }
+
+                    const softMismatches = softMismatchMap[primaryGoal] || [];
+                    if (primaryGoal && softMismatches.includes(goalName) && typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Heads Up',
+                            text: 'Strict physique or fat-loss goals usually require tighter calorie tracking than a flexible lifestyle. You can still pair them, or switch your primary goal if you want stricter targets.',
+                            confirmButtonText: 'Got it',
+                            confirmButtonColor: '#84cc16'
+                        });
+                    }
+
                     // Not currently selected
                     if (!primaryGoal) {
                         primaryGoal = goalName;

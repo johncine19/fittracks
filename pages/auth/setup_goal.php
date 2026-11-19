@@ -42,6 +42,21 @@ function setup_goal_page(): void
             $secondaryFocus = trim($secondaryFocusRaw);
         }
 
+        // Prevent metabolically conflicting Primary + Secondary goal pairs
+        $hardConflictPairs = [
+            ['Losing excess body fat', 'Gaining lean body mass', 'Losing excess body fat and Gaining lean body mass require opposite calorie targets. Choose "Reaching body recomposition" instead.'],
+            ['Losing excess body fat', 'Reaching body recomposition', 'Reaching body recomposition already includes fat loss, so it cannot be paired with Losing excess body fat.'],
+            ['Gaining lean body mass', 'Reaching body recomposition', 'Reaching body recomposition already includes lean muscle gain, so it cannot be paired with Gaining lean body mass.'],
+        ];
+        if ($secondaryFocus !== null) {
+            foreach ($hardConflictPairs as [$gA, $gB, $errMsg]) {
+                if (($goal === $gA && $secondaryFocus === $gB) || ($goal === $gB && $secondaryFocus === $gA)) {
+                    flash($errMsg, 'danger');
+                    redirect(isset($_GET['edit']) ? 'setup_goal&edit=1' : 'setup_goal');
+                }
+            }
+        }
+
         $weeklyTarget = max(1, min(7, (int) (post('weekly_workout_target') ?: ($profile['weekly_workout_target'] ?? 3))));
         $durationMins = max(15, min(180, (int) (post('preferred_duration_mins') ?: ($profile['preferred_duration_mins'] ?? 45))));
 
@@ -841,6 +856,14 @@ function setup_goal_page(): void
         </div>
     </dialog>
 
+    <script>
+        window.SETUP_GOAL_CONTEXT = <?= json_encode([
+            'weightKg' => (float)($profile['weight_kg'] ?? 0),
+            'heightCm' => (float)($profile['height_cm'] ?? 0),
+            'bodyFatPct' => isset($profile['body_fat_percent']) && $profile['body_fat_percent'] !== '' ? (float)$profile['body_fat_percent'] : null,
+            'biologicalSex' => strtolower((string)($profile['biological_sex'] ?? 'male')),
+        ], JSON_UNESCAPED_SLASHES) ?>;
+    </script>
     <script src="<?= h(asset_url('js/pages/setup_goal.js')) ?>"></script>
 <?php
     render_footer();

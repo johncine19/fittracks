@@ -5,8 +5,9 @@
 (function () {
     'use strict';
 
-    const TOUR_STORAGE_KEY = 'fittrack_gym_tour_completed';
-    const MEMBER_TOUR_STORAGE_KEY = 'fittrack_member_tour_completed';
+    const TOUR_USER_ID = (document.body && document.body.dataset && document.body.dataset.userId) ? document.body.dataset.userId : '0';
+    const TOUR_STORAGE_KEY = 'fittrack_gym_tour_completed_' + TOUR_USER_ID;
+    const MEMBER_TOUR_STORAGE_KEY = 'fittrack_member_tour_completed_' + TOUR_USER_ID;
     const FEATURE_STORAGE_PREFIX = 'ft_feature_seen_';
 
     // ── CONCISE, BENEFIT-FOCUSED TOUR STEPS (Mode B) ──────────────────

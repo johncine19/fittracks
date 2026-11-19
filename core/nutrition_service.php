@@ -102,8 +102,9 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     }
 
     $goal = $profile['primary_goal'] ?: 'general_health';
-    $tier = (int) ($profile['fitness_tier'] ?: 1);
-    $expLevel = in_array($tier, [1, 2], true) ? 1 : (in_array($tier, [3, 4], true) ? 2 : 3);
+    $expLevel = function_exists('resolve_member_experience_level')
+        ? resolve_member_experience_level($profile)
+        : (in_array((int)($profile['fitness_tier'] ?: 1), [1, 2], true) ? 1 : (in_array((int)($profile['fitness_tier'] ?: 1), [3, 4], true) ? 2 : 3));
 
     // Map goal to basic for diet rules
     $basicGoal = function_exists('map_detailed_goal_to_basic')
@@ -131,12 +132,15 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
     ];
     $tdee = $bmr * ($multipliers[$profile['activity_level'] ?? 'moderately_active'] ?? 1.375);
 
-    // 5. Goal Calorie Adjustment (-500 deficit fat_loss, +300 surplus muscle_gain, +200 strength, +150 endurance, 0 maintenance; 1200 kcal floor)
+    // 5. Goal Calorie Adjustment (-500 deficit fat_loss, +300 surplus muscle_gain or +150 lean surplus if paired with six-pack, +200 strength, +150 endurance, 0 maintenance; 1200 kcal floor)
+    $secondaryFocusLower = strtolower(trim((string)($profile['secondary_focus'] ?? '')));
+    $hasSixPackFocus = str_contains($secondaryFocusLower, 'six-pack') || str_contains($secondaryFocusLower, 'six pack');
+
     $targetCals = $tdee;
     if ($basicGoal === 'fat_loss') {
         $targetCals -= 500;
     } elseif ($basicGoal === 'muscle_gain') {
-        $targetCals += 300;
+        $targetCals += $hasSixPackFocus ? 150 : 300;
     } elseif ($basicGoal === 'strength') {
         $targetCals += 200;
     } elseif ($basicGoal === 'endurance') {

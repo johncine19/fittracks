@@ -759,7 +759,7 @@ function setup_profile_page(): void
                     $curNeck = $profile['neck_cm'] ?? '';
                     $curWaist = $profile['waist_cm'] ?? '';
                     $curHip = $profile['hip_cm'] ?? '';
-                    $curExp = isset($profile['fitness_tier']) ? (in_array((int)$profile['fitness_tier'], [1, 2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3, 4]) ? 2 : 3)) : 1;
+                    $curExp = resolve_member_experience_level($profile ?? []);
                     $curActivity = $profile['activity_level'] ?? 'lightly_active';
                     $curDiet = $profile['dietary_restrictions'] ?? 'none';
 

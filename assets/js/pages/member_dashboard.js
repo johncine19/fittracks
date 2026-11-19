@@ -57,9 +57,10 @@ let actAutoRefreshTimer = null;
             }
         });
 
-        // Save preference in localStorage & URL hash
+        // Save preference in localStorage (scoped per user_id) & URL hash
         try {
-            localStorage.setItem('fit_member_dashboard_tab', tabId);
+            const uid = (document.body && document.body.dataset && document.body.dataset.userId) ? document.body.dataset.userId : '0';
+            localStorage.setItem('fit_member_dashboard_tab_' + uid, tabId);
             window.history.replaceState(null, null, '#' + tabId);
         } catch (e) {}
 
@@ -801,7 +802,8 @@ let actAutoRefreshTimer = null;
     document.addEventListener('DOMContentLoaded', function() {
         let initialTab = 'today';
         const hash = window.location.hash.replace('#', '');
-        const savedTab = localStorage.getItem('fit_member_dashboard_tab');
+        const uid = (document.body && document.body.dataset && document.body.dataset.userId) ? document.body.dataset.userId : '0';
+        const savedTab = localStorage.getItem('fit_member_dashboard_tab_' + uid);
 
         if (['today', 'activity', 'missions'].includes(hash)) {
             initialTab = hash;

@@ -271,6 +271,21 @@ function get_fitness_tier_name(int $tier): string {
 }
 
 /**
+ * Resolves the member's training experience level (1=Starter, 2=Intermediate, 3=Advanced)
+ * independently from gamification fitness_tier, with a fallback for legacy rows.
+ */
+function resolve_member_experience_level(array $profile): int {
+    $exp = (int) ($profile['experience_level'] ?? 0);
+    if ($exp >= 1 && $exp <= 3) {
+        return $exp;
+    }
+    $tier = (int) ($profile['fitness_tier'] ?? 1);
+    if ($tier >= 5) return 3;
+    if ($tier >= 3) return 2;
+    return 1;
+}
+
+/**
  * Returns tier-adaptive mission targets for a given fitness tier.
  * Higher tiers have increased targets reflecting their habit maturity.
  *

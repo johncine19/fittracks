@@ -119,7 +119,7 @@ function admin_dashboard(PDO $pdo, array $user): void
 ?>
     <?php if (!$isPlatformAdmin && consume_first_login_welcome_banner($user)): ?>
     <script>
-        if (localStorage.getItem('fittrack_gym_tour_completed') === '1') {
+        if (localStorage.getItem('fittrack_gym_tour_completed_<?= (int)$user['user_id'] ?>') === '1') {
             document.write('<style>#gym-tour-welcome-banner, #sk-tour-banner { display: none !important; }</style>');
         }
     </script>

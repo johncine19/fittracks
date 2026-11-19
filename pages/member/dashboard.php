@@ -712,7 +712,7 @@ function member_dashboard(PDO $pdo, array $user): void
     <?php if (consume_first_login_welcome_banner($user)): ?>
     <!-- Welcome Guided Tour Banner for Members -->
     <script>
-        if (localStorage.getItem('fittrack_member_tour_completed') === '1') {
+        if (localStorage.getItem('fittrack_member_tour_completed_<?= (int)$user['user_id'] ?>') === '1') {
             document.write('<style>#member-tour-welcome-banner, #sk-member-tour-banner { display: none !important; }</style>');
         }
     </script>

@@ -44,17 +44,17 @@ function setup_review_page(): void
 
                 $currentGoal = (string) ($profile['primary_goal'] ?? 'General Fitness');
                 $basicGoal = map_detailed_goal_to_basic($currentGoal);
-                $tier = (int) ($profile['fitness_tier'] ?? 1);
+                $expLevel = resolve_member_experience_level($profile);
                 $sex = (string) ($profile['biological_sex'] ?? 'male');
                 $activity = (string) ($profile['activity_level'] ?? 'sedentary');
 
                 $pdo = db();
                 $wRule = $pdo->prepare('SELECT recommended_workout_structure FROM workout_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
-                $wRule->execute([$tier, $sex, $basicGoal, $activity]);
+                $wRule->execute([$expLevel, $sex, $basicGoal, $activity]);
                 $workoutStruct = $wRule->fetchColumn() ?: 'General full body workout 3 times a week.';
 
                 $dRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
-                $dRule->execute([$tier, $sex, $basicGoal, $activity]);
+                $dRule->execute([$expLevel, $sex, $basicGoal, $activity]);
                 $dietInfo = $dRule->fetch();
                 $dietStruct = $dietInfo ? (sprintf('%d%% Protein / %d%% Carbs / %d%% Fat', (int)$dietInfo['protein_pct'], (int)$dietInfo['carbs_pct'], (int)$dietInfo['fat_pct']) . ' - ' . $dietInfo['notes']) : 'Balanced diet.';
 
@@ -189,13 +189,13 @@ function setup_review_page(): void
     // Map goal and fetch recommendation rules
     $goal = (string) ($profile['primary_goal'] ?? '');
     $basicGoal = map_detailed_goal_to_basic($goal);
-    $tier = (int) ($profile['fitness_tier'] ?? 1);
+    $expLevel = resolve_member_experience_level($profile);
     $sex = (string) ($profile['biological_sex'] ?? 'male');
     $activity = (string) ($profile['activity_level'] ?? 'sedentary');
 
     $pdo = db();
     $wRule = $pdo->prepare('SELECT recommended_workout_structure FROM workout_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
-    $wRule->execute([$tier, $sex, $basicGoal, $activity]);
+    $wRule->execute([$expLevel, $sex, $basicGoal, $activity]);
     $workoutStruct = $wRule->fetchColumn();
     if (!$workoutStruct) {
         $wRule->execute([1, 'any', $basicGoal, 'any']);
@@ -203,7 +203,7 @@ function setup_review_page(): void
     }
 
     $dRule = $pdo->prepare('SELECT protein_pct, carbs_pct, fat_pct, notes FROM diet_rules WHERE experience_level = ? AND (biological_sex = ? OR biological_sex = "any") AND primary_goal = ? AND (activity_level = ? OR activity_level = "any") LIMIT 1');
-    $dRule->execute([$tier, $sex, $basicGoal, $activity]);
+    $dRule->execute([$expLevel, $sex, $basicGoal, $activity]);
     $dietInfo = $dRule->fetch();
     if (!$dietInfo) {
         $dRule->execute([1, 'any', $basicGoal, 'any']);
@@ -251,6 +251,48 @@ function setup_review_page(): void
 
     $daysPerWeek = max(1, min(7, (int)($profile['weekly_workout_target'] ?? 3)));
     $durationMins = max(15, min(180, (int)($profile['preferred_duration_mins'] ?? 45)));
+
+    // Caloric Baseline (Mifflin-St Jeor BMR, Activity Multiplier, TDEE, and Goal Target)
+    $ageYrs = (int)($profile['age'] ?? 25);
+    $bmrEst = null;
+    $actMultiplier = 1.375;
+    $tdeeEst = null;
+    $targetCalEst = null;
+    $calDeltaLabel = 'Maintenance';
+    $actMultMap = [
+        'sedentary' => 1.2,
+        'lightly_active' => 1.375,
+        'moderately_active' => 1.55,
+        'very_active' => 1.725,
+        'extra_active' => 1.9,
+    ];
+    $actMultiplier = $actMultMap[$activity] ?? 1.375;
+    if ($wKg > 0 && $userHeight > 0 && $ageYrs > 0) {
+        $bmrRaw = 10 * $wKg + 6.25 * $userHeight - 5 * $ageYrs + ($sex === 'female' ? -161 : 5);
+        $bmrEst = (int) round($bmrRaw);
+        $tdeeRaw = $bmrRaw * $actMultiplier;
+        $tdeeEst = (int) round($tdeeRaw);
+
+        $secLower = strtolower(trim((string)($profile['secondary_focus'] ?? '')));
+        $hasSixPackSec = str_contains($secLower, 'six-pack') || str_contains($secLower, 'six pack');
+
+        $calRaw = $tdeeRaw;
+        if ($basicGoal === 'fat_loss') {
+            $calRaw -= 500;
+            $calDeltaLabel = '−500 kcal';
+        } elseif ($basicGoal === 'muscle_gain') {
+            $surplus = $hasSixPackSec ? 150 : 300;
+            $calRaw += $surplus;
+            $calDeltaLabel = '+' . $surplus . ' kcal';
+        } elseif ($basicGoal === 'strength') {
+            $calRaw += 200;
+            $calDeltaLabel = '+200 kcal';
+        } elseif ($basicGoal === 'endurance') {
+            $calRaw += 150;
+            $calDeltaLabel = '+150 kcal';
+        }
+        $targetCalEst = max(1200, (int) round($calRaw));
+    }
     $expLabel = match ($tier) {
         3, 4 => 'Intermediate (1–2 yrs)',
         5 => 'Advanced (3+ yrs)',
@@ -1043,6 +1085,29 @@ function setup_review_page(): void
                             </div>
                         <?php endif; ?>
                     </div>
+
+                    <?php if ($bmrEst !== null && $tdeeEst !== null && $targetCalEst !== null): ?>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px;">
+                            <div class="review-stat-box" title="Mifflin-St Jeor Basal Metabolic Rate">
+                                <span class="review-stat-label">BMR (Resting)</span>
+                                <span class="review-stat-value"><?= number_format($bmrEst) ?> <small>kcal</small></span>
+                            </div>
+                            <div class="review-stat-box" title="Daily Activity Level Multiplier">
+                                <span class="review-stat-label">Activity Multiplier</span>
+                                <span class="review-stat-value">&times;<?= rtrim(rtrim(number_format($actMultiplier, 3), '0'), '.') ?></span>
+                            </div>
+                            <div class="review-stat-box" title="Total Daily Energy Expenditure (BMR &times; Multiplier)">
+                                <span class="review-stat-label">TDEE (Maintenance)</span>
+                                <span class="review-stat-value"><?= number_format($tdeeEst) ?> <small>kcal</small></span>
+                            </div>
+                            <div class="review-stat-box" style="border-color: rgba(132, 204, 22, 0.4); background: rgba(132, 204, 22, 0.06);" title="Daily Calorie Target after Goal Adjustment">
+                                <span class="review-stat-label">Daily Target</span>
+                                <span class="review-stat-value" style="color: #65a30d;">
+                                    <?= number_format($targetCalEst) ?> <small style="color: #65a30d; font-weight: 700;">kcal (<?= h($calDeltaLabel) ?>)</small>
+                                </span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
                     <?php
                     $hasTargets = !empty($profile['target_weight_kg']) ||

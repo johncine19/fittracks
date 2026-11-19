@@ -1889,7 +1889,7 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                     '2' => ['label' => 'Intermediate', 'desc' => '1–2+ years structured resistance training'],
                     '3' => ['label' => 'Advanced', 'desc' => '3+ years athletic progression & periodization']
                 ];
-                $currentExp = isset($profile['fitness_tier']) ? (string)(in_array((int)$profile['fitness_tier'], [1,2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3,4]) ? 2 : 3)) : '1';
+                $currentExp = (string) resolve_member_experience_level($profile ?? []);
                 $selectedExpLabel = $expOptions[$currentExp]['label'] ?? 'Starter';
                 ?>
                 <div class="pm-field">
