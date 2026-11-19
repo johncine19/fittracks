@@ -141,8 +141,20 @@ function verify_waiting_page(): void
     render_header('Verify Your Email', null);
     ?>
     <style>
+        body:has(.vw-wrap) {
+            background: var(--bg, #0b0f17) !important;
+            margin: 0 !important;
+        }
+        body:has(.vw-wrap) .auth-shell {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 100vh !important;
+        }
         .vw-wrap {
-            min-height: calc(100vh - 110px);
+            min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
