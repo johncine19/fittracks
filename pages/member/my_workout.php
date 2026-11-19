@@ -726,7 +726,7 @@ function my_workout_page(): void
                             </div>
                             <video id="player-animation-video" autoplay loop muted playsinline class="player-stage-media" style="display: none;"></video>
                             <img id="player-animation-img" class="player-stage-media" style="display: none;" alt="Exercise demonstration">
-                            <iframe id="player-animation-iframe" class="player-stage-media" style="display: none; width: 100%; height: 100%; min-height: 220px; border: none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                            <iframe id="player-animation-iframe" class="player-stage-media" style="display: none; width: 100%; border: none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                             <div id="player-animation-fallback" class="player-stage-fallback" style="display: none;">
                                 <div class="player-fallback-icon-wrap">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
