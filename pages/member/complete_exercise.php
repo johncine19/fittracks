@@ -15,6 +15,34 @@ function complete_exercise_action(): void
         if ($weightLifted !== null && ($weightLifted <= 0 || $weightLifted > 500)) {
             $weightLifted = null;
         }
+
+        $setWeightsJson = null;
+        $setWeightsRaw = trim((string) post('set_weights_json'));
+        if ($setWeightsRaw !== '') {
+            $decoded = json_decode($setWeightsRaw, true);
+            if (is_array($decoded)) {
+                $sanitized = [];
+                $positiveWeights = [];
+                foreach ($decoded as $w) {
+                    if ($w !== null && $w !== '' && is_numeric($w)) {
+                        $val = (float) $w;
+                        if ($val > 0 && $val <= 500) {
+                            $sanitized[] = $val;
+                            $positiveWeights[] = $val;
+                            continue;
+                        }
+                    }
+                    $sanitized[] = null;
+                }
+                if (!empty($positiveWeights)) {
+                    $setWeightsJson = json_encode($sanitized);
+                    if ($weightLifted === null) {
+                        $weightLifted = max($positiveWeights);
+                    }
+                }
+            }
+        }
+
         $userId = (int) $user['user_id'];
         $date = date('Y-m-d');
 
@@ -23,13 +51,19 @@ function complete_exercise_action(): void
             if (!$colCheck) {
                 $pdo->exec('ALTER TABLE exercise_completions ADD COLUMN weight_lifted_kg DECIMAL(6,2) DEFAULT NULL');
             }
+            $setColCheck = $pdo->query("SHOW COLUMNS FROM exercise_completions LIKE 'set_weights_json'")->fetch();
+            if (!$setColCheck) {
+                $pdo->exec('ALTER TABLE exercise_completions ADD COLUMN set_weights_json TEXT DEFAULT NULL');
+            }
 
             $stmt = $pdo->prepare(
-                'INSERT INTO exercise_completions (user_id, plan_id, exercise_id, completed_date, weight_lifted_kg)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE weight_lifted_kg = COALESCE(VALUES(weight_lifted_kg), weight_lifted_kg)'
+                'INSERT INTO exercise_completions (user_id, plan_id, exercise_id, completed_date, weight_lifted_kg, set_weights_json)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                     weight_lifted_kg = COALESCE(VALUES(weight_lifted_kg), weight_lifted_kg),
+                     set_weights_json = COALESCE(VALUES(set_weights_json), set_weights_json)'
             );
-            $stmt->execute([$userId, $planId, $exerciseId, $date, $weightLifted]);
+            $stmt->execute([$userId, $planId, $exerciseId, $date, $weightLifted, $setWeightsJson]);
 
             $newPr = false;
             if ($weightLifted !== null) {

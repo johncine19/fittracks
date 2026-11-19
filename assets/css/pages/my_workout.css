@@ -1247,8 +1247,7 @@
             transition: all 0.25s ease;
         }
         .player-stage-box.has-media {
-            min-height: 220px;
-            max-height: 320px;
+            min-height: 180px;
             background: #090b10;
         }
         .player-stage-badge {
@@ -1279,9 +1278,10 @@
             border-radius: 14px;
         }
         iframe.player-stage-media {
-            aspect-ratio: 16 / 9;
+            width: 100%;
             height: auto;
-            max-height: 320px;
+            aspect-ratio: 16 / 9;
+            max-height: none !important;
         }
         .player-stage-fallback {
             display: flex;
@@ -1785,10 +1785,10 @@
             }
             .player-stage-box {
                 min-height: 160px !important;
-                max-height: 220px !important;
                 border-radius: 14px !important;
             }
-            .player-stage-media {
+            video.player-stage-media,
+            img.player-stage-media {
                 max-height: 220px !important;
             }
             .player-metric-chips-row {

@@ -15,6 +15,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 let liveExercises = [];
                 let currentExIndex = 0;
                 let currentSet = 1;
+                let currentSetWeights = [];
                 let restTimer = null;
 
                 function selectDate(dateStr) {
@@ -738,6 +739,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                         currentExIndex = 0;
                         currentSet = 1;
+                        currentSetWeights = [];
                         tierUpgradedData = null;
 
                         // Initialize workout chronograph
@@ -829,7 +831,8 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         if (s < activeSet) {
                             chipClass += ' completed';
                             badgeIcon = '✓';
-                            statusText = `Set ${s}`;
+                            const loggedW = currentSetWeights[s - 1];
+                            statusText = (typeof loggedW === 'number' && loggedW > 0) ? `Set ${s} (${loggedW} kg)` : `Set ${s}`;
                         } else if (s === activeSet) {
                             chipClass += ' active';
                             badgeIcon = '⚡';
@@ -865,6 +868,8 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     document.getElementById('player-exercise-count').innerText = `EXERCISE ${currentExIndex + 1} OF ${totalEx}`;
                     document.getElementById('player-sets-status-summary').innerText = `Set ${currentSet} of ${totalSets}`;
                     document.getElementById('player-exercise-name').innerText = ex.name;
+                    const weightInputEl = document.getElementById('player-weight-lifted');
+                    if (weightInputEl) weightInputEl.value = '';
 
                     // Metric Badges
                     const metricContainer = document.getElementById('player-metric-tags');
@@ -1090,9 +1095,13 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     if (fillEl) fillEl.style.width = progress + '%';
                 }
 
-                function completeSet() {
+                function submitCompletedSet(setWeight) {
                     const ex = liveExercises[currentExIndex];
                     const totalSets = Math.max(1, parseInt(ex.sets, 10) || 1);
+                    const weightEl = document.getElementById('player-weight-lifted');
+
+                    currentSetWeights[currentSet - 1] = (typeof setWeight === 'number' && setWeight > 0) ? setWeight : null;
+                    if (weightEl) weightEl.value = '';
 
                     if (currentSet < totalSets) {
                         currentSet++;
@@ -1105,14 +1114,15 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         btn.disabled = true;
                         btnText.innerText = 'Logging Exercise...';
 
-                        const weightEl = document.getElementById('player-weight-lifted');
-                        const weightVal = weightEl ? weightEl.value.trim() : '';
-                        const wParam = weightVal ? `&weight_lifted_kg=${encodeURIComponent(weightVal)}` : '';
+                        const loggedWeights = currentSetWeights.filter(w => typeof w === 'number' && w > 0);
+                        const maxWeight = loggedWeights.length > 0 ? Math.max(...loggedWeights) : null;
+                        const wParam = maxWeight !== null ? `&weight_lifted_kg=${encodeURIComponent(maxWeight)}` : '';
+                        const setWeightsParam = loggedWeights.length > 0 ? `&set_weights_json=${encodeURIComponent(JSON.stringify(currentSetWeights))}` : '';
 
                         fetch('index.php?page=complete_exercise', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: `csrf_token=${encodeURIComponent(CSRF_TOKEN)}&plan_id=${PLAN_ID}&exercise_id=${ex.exercise_id}${wParam}`
+                            body: `csrf_token=${encodeURIComponent(CSRF_TOKEN)}&plan_id=${PLAN_ID}&exercise_id=${ex.exercise_id}${wParam}${setWeightsParam}`
                         })
                         .then(r => r.json())
                         .then(data => {
@@ -1141,6 +1151,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                             currentExIndex++;
                             currentSet = 1;
+                            currentSetWeights = [];
 
                             if (currentExIndex < liveExercises.length) {
                                 startRest(ex.rest_seconds || 60, 'next_exercise');
@@ -1155,6 +1166,64 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                             Swal.fire('Error', 'Network issue recording exercise completion.', 'error');
                         });
                     }
+                }
+
+                function completeSet() {
+                    const ex = liveExercises[currentExIndex];
+                    if (!ex) return;
+
+                    const weightEl = document.getElementById('player-weight-lifted');
+                    const rawVal = weightEl ? weightEl.value.trim() : '';
+                    const parsedWeight = rawVal !== '' ? parseFloat(rawVal) : NaN;
+
+                    if (rawVal !== '' && !isNaN(parsedWeight) && parsedWeight > 0 && parsedWeight <= 500) {
+                        submitCompletedSet(parsedWeight);
+                        return;
+                    }
+
+                    if (!window.Swal) {
+                        submitCompletedSet(null);
+                        return;
+                    }
+
+                    Swal.fire({
+                        title: `Log Weight for Set ${currentSet}`,
+                        text: 'You left the weight lifted blank. Type the weight you lifted (kg) or skip this set.',
+                        input: 'number',
+                        inputAttributes: {
+                            min: '0.5',
+                            max: '500',
+                            step: '0.5',
+                            placeholder: 'e.g. 60'
+                        },
+                        showDenyButton: true,
+                        showCancelButton: true,
+                        confirmButtonText: 'Save Weight',
+                        denyButtonText: 'Skip',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: 'var(--lime, #a3e635)',
+                        denyButtonColor: '#475569',
+                        background: 'var(--panel, #121824)',
+                        color: 'var(--ink, #e2e8f0)',
+                        didOpen: () => {
+                            const container = document.querySelector('.swal2-container');
+                            if (container) container.style.zIndex = '30000000';
+                        },
+                        preConfirm: (val) => {
+                            const num = parseFloat(val);
+                            if (!val || isNaN(num) || num <= 0 || num > 500) {
+                                Swal.showValidationMessage('Enter a valid weight between 0.5 and 500 kg, or click Skip.');
+                                return false;
+                            }
+                            return num;
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            submitCompletedSet(result.value);
+                        } else if (result.isDenied) {
+                            submitCompletedSet(null);
+                        }
+                    });
                 }
 
                 function startRest(seconds, mode = 'next_set') {
@@ -1251,6 +1320,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     if (currentExIndex > 0) {
                         currentExIndex--;
                         currentSet = 1;
+                        currentSetWeights = [];
                         renderLiveExercise();
                     }
                 }
@@ -1259,6 +1329,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     if (currentExIndex < liveExercises.length - 1) {
                         currentExIndex++;
                         currentSet = 1;
+                        currentSetWeights = [];
                         renderLiveExercise();
                         playPlayerTone(660, 0.08, 'triangle');
                     } else {
