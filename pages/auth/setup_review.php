@@ -293,9 +293,9 @@ function setup_review_page(): void
         }
         $targetCalEst = max(1200, (int) round($calRaw));
     }
-    $expLabel = match ($tier) {
-        3, 4 => 'Intermediate (1–2 yrs)',
-        5 => 'Advanced (3+ yrs)',
+    $expLabel = match ($expLevel) {
+        2 => 'Intermediate (1–2 yrs)',
+        3 => 'Advanced (3+ yrs)',
         default => 'Starter / Beginner',
     };
     $dietRest = (string)($profile['dietary_restrictions'] ?? 'none');

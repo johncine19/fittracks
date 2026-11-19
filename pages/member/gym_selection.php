@@ -123,14 +123,28 @@ function gym_selection_page(): void
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
                 </button>
                 <div class="carousel-container" id="carousel">
-                    <?php foreach ($gymData as $index => $gym):
+                    <?php
+                    $goalKeywords = [];
+                    if ($userGoal) {
+                        $rawTokens = preg_split('/[^a-z0-9]+/', $userGoal, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+                        $rawTokens = array_filter($rawTokens, static fn(string $t): bool => strlen($t) > 3);
+                        $basicGoal = function_exists('map_detailed_goal_to_basic') ? map_detailed_goal_to_basic($userGoal) : 'general_health';
+                        $categoryKeywords = match ($basicGoal) {
+                            'fat_loss' => ['fat', 'burn', 'hiit', 'cardio', 'cycling', 'spin', 'zumba', 'circuit', 'conditioning', 'boxing', 'kickboxing', 'core', 'shred', 'metcon', 'bootcamp'],
+                            'muscle_gain' => ['muscle', 'hypertrophy', 'strength', 'weights', 'lifting', 'barbell', 'dumbbell', 'bodybuilding', 'upper', 'lower', 'push', 'pull', 'resistance'],
+                            'strength' => ['strength', 'power', 'powerlifting', 'barbell', 'squat', 'deadlift', 'bench', 'olympic', 'kettlebell', 'heavy', 'lifting'],
+                            'endurance' => ['endurance', 'cardio', 'running', 'cycling', 'spin', 'rowing', 'swim', 'stamina', 'aerobic', 'conditioning', 'circuit'],
+                            default => ['yoga', 'pilates', 'mobility', 'flexibility', 'stretch', 'wellness', 'core', 'circuit', 'cardio', 'fitness', 'functional', 'full body', 'zumba', 'dance', 'beginner'],
+                        };
+                        $goalKeywords = array_values(array_unique(array_merge($rawTokens, $categoryKeywords)));
+                    }
+                    foreach ($gymData as $index => $gym):
                         $isMatch = false;
-                        if ($userGoal) {
-                            $goalKeywords = explode('-', $userGoal);
+                        if ($goalKeywords && !empty($gym['classes'])) {
                             foreach ($gym['classes'] as $c) {
-                                $text = strtolower($c['class_name'] . ' ' . $c['description']);
+                                $text = strtolower(($c['class_name'] ?? '') . ' ' . ($c['description'] ?? ''));
                                 foreach ($goalKeywords as $kw) {
-                                    if (strlen($kw) > 3 && strpos($text, $kw) !== false) {
+                                    if (strpos($text, $kw) !== false) {
                                         $isMatch = true;
                                         break 2;
                                     }

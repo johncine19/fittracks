@@ -128,7 +128,8 @@
             badge: '7 of 11',
             title: 'Personal Trainers',
             description: 'Browse qualified coaches, book 1-on-1 personal training, and receive direct personalized guidance.',
-            targetSelector: '.side-nav a[href$="page=trainers"], .side-nav a[href*="page=trainers"], .side-nav a[href*="page=gym_selection"]',
+            targetSelector: '.side-nav a[href$="page=trainers"], .side-nav a[href*="page=trainers"]',
+            requireTargetInDom: true,
             preferredPlacement: 'right'
         },
         {
@@ -137,7 +138,7 @@
             title: 'Group Fitness Classes',
             description: 'Explore scheduled sessions (HIIT, Yoga, Spinning), check remaining spots, and reserve your class in advance.',
             targetSelector: '.side-nav a[href$="page=book_classes"], .side-nav a[href*="page=book_classes"]',
-            fallbackSelector: '.stat-card-classes, .member-dashboard-nav',
+            requireTargetInDom: true,
             preferredPlacement: 'right'
         },
         {
@@ -146,7 +147,7 @@
             title: 'Live Floor Equipment',
             description: 'Check live equipment availability on the floor, join virtual waitlists, and get notified when machines are free.',
             targetSelector: '.side-nav a[href$="page=equipment"], .side-nav a[href*="page=equipment"], .side-nav a[href*="gym_equipment"]',
-            fallbackSelector: '.member-dashboard-nav, .topbar',
+            requireTargetInDom: true,
             preferredPlacement: 'right'
         },
         {
@@ -155,7 +156,7 @@
             title: 'Membership & Passes',
             description: 'View active subscription plan details, track expiration/renewal dates, and manage payments.',
             targetSelector: '.side-nav a[href$="page=memberships"], .side-nav a[href*="page=memberships"]',
-            fallbackSelector: '.member-dashboard-nav, .topbar',
+            requireTargetInDom: true,
             preferredPlacement: 'right'
         },
         {
@@ -512,7 +513,7 @@
                 target.classList.add('ft-spotlight-active-target');
             }
 
-            document.getElementById('ft-popover-badge').textContent = step.badge || `${index + 1} of ${this.activeTourSteps.length}`;
+            document.getElementById('ft-popover-badge').textContent = `${index + 1} of ${this.activeTourSteps.length}`;
             document.getElementById('ft-popover-title').textContent = step.title;
             document.getElementById('ft-popover-desc').textContent = step.description;
 
@@ -622,7 +623,12 @@
         startTour(steps = TOUR_STEPS, tourType = 'gym_owner') {
             this.activeTourType = tourType;
             this.init();
-            this.activeTourSteps = steps;
+            // Hide gym-only sidebar steps when their sidebar link is not present in the DOM
+            const filteredSteps = steps.filter(step => {
+                if (!step.requireTargetInDom) return true;
+                return Boolean(document.querySelector(step.targetSelector));
+            });
+            this.activeTourSteps = filteredSteps.length ? filteredSteps : steps;
 
             // Ensure skeleton-loading is marked loaded so elements like .member-stats-grid are visible immediately
             if (!document.body.classList.contains('loaded')) {

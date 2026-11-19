@@ -148,6 +148,18 @@ function setup_profile_page(): void
     render_header('Complete your profile', null);
     ?>
     <style>
+        .swal2-popup.setup-light-swal:not(.swal2-toast) {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 20px 44px rgba(15, 23, 42, 0.14) !important;
+        }
+        .swal2-popup.setup-light-swal:not(.swal2-toast) .swal2-title {
+            color: #0f172a !important;
+        }
+        .swal2-popup.setup-light-swal:not(.swal2-toast) .swal2-html-container {
+            color: #475569 !important;
+        }
         .split-login-frame.profile-mode {
             max-width: 1100px;
         }
@@ -1264,6 +1276,21 @@ function setup_profile_page(): void
         updateDayPickerUI();
     }
 
+    function showWorkoutDayAlert(title, msg) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'warning',
+                title: title,
+                text: msg,
+                confirmButtonText: 'Got it',
+                confirmButtonColor: '#84cc16',
+                customClass: { popup: 'setup-light-swal' }
+            });
+        } else {
+            alert(msg);
+        }
+    }
+
     function toggleDaySelection(dayNum) {
         const target = parseInt(document.getElementById('input_weekly_workout_target')?.value) || 3;
         const isFivePlus = target >= 5;
@@ -1280,7 +1307,10 @@ function setup_profile_page(): void
                     setTimeout(() => counterPill.classList.remove('shake-anim'), 400);
                 }
                 const dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-                alert(`You committed to ${target} days per week. Please uncheck a day first if you wish to select ${dayNames[dayNum] || 'this day'}.`);
+                showWorkoutDayAlert(
+                    'Weekly Limit Reached',
+                    `You committed to ${target} days per week. Please uncheck a day first if you wish to select ${dayNames[dayNum] || 'this day'}.`
+                );
                 return;
             }
             selected.push(dayNum);
@@ -1309,7 +1339,10 @@ function setup_profile_page(): void
                 counterPill.classList.add('shake-anim');
                 setTimeout(() => counterPill.classList.remove('shake-anim'), 400);
             }
-            alert(`Please select exactly ${target} workout days before saving.`);
+            showWorkoutDayAlert(
+                'Select Workout Days',
+                `Please select exactly ${target} workout days before saving.`
+            );
             return false;
         }
 
@@ -1321,7 +1354,10 @@ function setup_profile_page(): void
                 counterPill.classList.add('shake-anim');
                 setTimeout(() => counterPill.classList.remove('shake-anim'), 400);
             }
-            alert(`Please select at least 5 workout days for your 5+ day commitment.`);
+            showWorkoutDayAlert(
+                'Select Workout Days',
+                `Please select at least 5 workout days for your 5+ day commitment.`
+            );
             return false;
         }
 
@@ -1367,7 +1403,8 @@ function setup_profile_page(): void
                         confirmButtonColor: '#84cc16',
                         cancelButtonText: "I don't know my sizes (Skip)",
                         cancelButtonColor: '#64748b',
-                        reverseButtons: true
+                        reverseButtons: true,
+                        customClass: { popup: 'setup-light-swal' }
                     }).then(res => {
                         if (res.isDismissed && res.dismiss === Swal.DismissReason.cancel) {
                             skipMeasurements();
@@ -1379,7 +1416,8 @@ function setup_profile_page(): void
                         title: 'Check Measurement',
                         text: msg,
                         confirmButtonText: 'Got it',
-                        confirmButtonColor: '#84cc16'
+                        confirmButtonColor: '#84cc16',
+                        customClass: { popup: 'setup-light-swal' }
                     });
                 }
             } else {
