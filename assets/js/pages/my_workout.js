@@ -365,7 +365,10 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                                 </div>
 
                                 ${(() => {
-                                    const hasDifferentCue = ex.notes && ex.notes.trim() && ex.instructions && ex.instructions.trim() && ex.notes.trim() !== ex.instructions.trim();
+                                    const normalizeText = (s) => (s || '').replace(/\s+/g, ' ').trim();
+                                    const normNotes = normalizeText(ex.notes);
+                                    const normInstructions = normalizeText(ex.instructions);
+                                    const hasDifferentCue = Boolean(normNotes && normInstructions && normNotes !== normInstructions);
                                     return hasDifferentCue ? `
                                         <div style="padding: 10px 14px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--lime); border-radius: 6px; margin-bottom: 4px;">
                                             <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--lime); margin-bottom: 4px;">Coach's Form Cue</div>
@@ -384,11 +387,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                                     </div>
 
-                                    <div class="ex-modal-notes-box">
-
-                                        ${escapeHtml((ex.instructions && ex.instructions.trim()) ? ex.instructions.trim() : (ex.notes || 'No instructions provided for this exercise in the library.'))}
-
-                                    </div>
+                                    <div class="ex-modal-notes-box">${escapeHtml((ex.instructions && ex.instructions.trim()) ? ex.instructions.trim() : ((ex.notes && ex.notes.trim()) ? ex.notes.trim() : 'No instructions provided for this exercise in the library.'))}</div>
 
                                 </div>
 
