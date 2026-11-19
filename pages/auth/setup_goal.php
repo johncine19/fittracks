@@ -101,16 +101,12 @@ function setup_goal_page(): void
             'Reaching body recomposition' => 'Losing fat and building muscle at the exact same time.'
         ],
         'Casual Lifestyle & Wellness Goals' => [
-            'Casual / Flexible Lifestyle' => 'Balanced nutrition, sustainable energy, and moderate exercise without extreme dieting.',
-            'Active Health & Longevity' => 'Low-impact movement, cardiovascular health, mobility, and functional everyday stamina.',
-            'Stress Relief & Functional Movement' => 'Releasing tension, improving posture, and staying active with stress-reducing physical habits.'
+            'Casual / Flexible Lifestyle' => 'Balanced nutrition, sustainable energy, and moderate exercise without extreme dieting.'
         ]
     ];
 
     $goalIcons = [
         'Casual / Flexible Lifestyle' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>',
-        'Active Health & Longevity' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
-        'Stress Relief & Functional Movement' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>',
         'Building a visible six-pack' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="4" y1="10" x2="20" y2="10"></line><line x1="4" y1="15" x2="20" y2="15"></line></svg>',
         'Growing larger biceps and arms' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v14M18 5v14M6 12h12M3 8v8M21 8v8"/></svg>',
         'Developing a wide chest' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
@@ -129,7 +125,7 @@ function setup_goal_page(): void
         'Casual Lifestyle & Wellness Goals' => [
             'name' => 'Casual & Lifestyle',
             'desc' => 'Sustainable wellness, flexible nutrition, and active living.',
-            'count' => 3,
+            'count' => 1,
             'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>'
         ],
         'Aesthetic & Muscle Building Goals' => [
@@ -145,8 +141,8 @@ function setup_goal_page(): void
             'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
         ],
         'Body Composition Goals' => [
-            'name' => 'Weight & Fat Loss',
-            'desc' => 'Burn calories, drop stubborn body fat, or achieve body recomposition.',
+            'name' => 'Weight & Body Composition',
+            'desc' => 'Drop stubborn body fat, gain lean mass, or achieve body recomposition.',
             'count' => 3,
             'icon' => '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>'
         ]
@@ -330,7 +326,7 @@ function setup_goal_page(): void
                                         <div class="focus-category-info">
                                             <div class="focus-category-top">
                                                 <span class="focus-category-title"><?= htmlspecialchars($meta['name']) ?></span>
-                                                <span class="focus-category-badge"><?= $meta['count'] ?> Goals</span>
+                                                <span class="focus-category-badge"><?= $meta['count'] ?> Goal<?= (int)$meta['count'] === 1 ? '' : 's' ?></span>
                                             </div>
                                             <div class="focus-category-desc"><?= htmlspecialchars($meta['desc']) ?></div>
                                         </div>
