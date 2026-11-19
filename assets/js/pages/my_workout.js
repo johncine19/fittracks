@@ -941,10 +941,15 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const animationContainer = document.getElementById('player-animation-container');
                     const videoEl = document.getElementById('player-animation-video');
                     const imgEl = document.getElementById('player-animation-img');
+                    const iframeEl = document.getElementById('player-animation-iframe');
                     const fallbackDiv = document.getElementById('player-animation-fallback');
 
                     videoEl.style.display = 'none';
                     if (imgEl) imgEl.style.display = 'none';
+                    if (iframeEl) {
+                        iframeEl.style.display = 'none';
+                        iframeEl.src = '';
+                    }
                     fallbackDiv.style.display = 'none';
 
                     let rawUrl = (ex.animation_url || '').trim();
@@ -984,10 +989,18 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         return 'assets/images/default exercise.png';
                     }
 
+                    function getYouTubeEmbedUrl(url) {
+                        if (!url || typeof url !== 'string') return null;
+                        const match = url.trim().match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+                        if (!match) return null;
+                        return `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1`;
+                    }
+
                     function loadNextCandidate(candidates) {
                         if (!candidates || candidates.length === 0) {
                             videoEl.style.display = 'none';
                             if (imgEl) imgEl.style.display = 'none';
+                            if (iframeEl) { iframeEl.style.display = 'none'; iframeEl.src = ''; }
                             fallbackDiv.style.display = 'flex';
                             animationContainer.classList.remove('has-media');
                             const badgeEl = animationContainer.querySelector('.player-stage-badge span');
@@ -1001,6 +1014,20 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                         const currentUrl = candidates[0];
                         const remaining = candidates.slice(1);
+
+                        const ytEmbed = getYouTubeEmbedUrl(currentUrl);
+                        if (ytEmbed && iframeEl) {
+                            videoEl.style.display = 'none';
+                            try { videoEl.pause(); } catch (e) {}
+                            if (imgEl) imgEl.style.display = 'none';
+                            iframeEl.src = ytEmbed;
+                            iframeEl.style.display = 'block';
+                            fallbackDiv.style.display = 'none';
+                            animationContainer.classList.add('has-media');
+                            const badgeEl = animationContainer.querySelector('.player-stage-badge span');
+                            if (badgeEl) badgeEl.innerText = 'Form Guide';
+                            return;
+                        }
 
                         if (isImageFormat(currentUrl)) {
                             videoEl.style.display = 'none';
@@ -1261,6 +1288,12 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     stopClockTicking();
                     clearInterval(workoutStopwatchInterval);
                     clearInterval(restTimer);
+
+                    const iframeEl = document.getElementById('player-animation-iframe');
+                    if (iframeEl) {
+                        iframeEl.style.display = 'none';
+                        iframeEl.src = '';
+                    }
 
                     document.getElementById('player-main-view').style.display = 'none';
                     document.getElementById('player-timer-screen').style.display = 'none';

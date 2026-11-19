@@ -1660,6 +1660,7 @@ Safety: " : "") . $safety;
             <div id="exDetailAnimBox" style="display:none; text-align:center; padding:12px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid var(--line);">
                 <video id="exDetailVideo" style="max-height:220px; max-width:100%; border-radius:6px; display:none;" autoplay loop muted playsinline></video>
                 <img id="exDetailImg" style="max-height:220px; max-width:100%; object-fit:contain; border-radius:6px; display:none;" alt="Exercise Animation">
+                <iframe id="exDetailIframe" style="width:100%; height:240px; border:none; border-radius:6px; display:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             </div>
 
             <div>
@@ -1911,8 +1912,8 @@ Safety: " : "") . $safety;
                 </label>
                 
                 <label style="margin-top:-6px;">
-                    <span style="color:var(--muted); font-size:12px; font-weight:600;">Or Animation URL <span style="font-weight:normal;">(ImageKit, Cloudinary, or direct video/GIF link)</span></span>
-                    <input type="url" name="animation_url_input" id="exAnimationUrlInput" class="form-control" placeholder="https://ik.imagekit.io/... or https://.../anim.gif">
+                    <span style="color:var(--muted); font-size:12px; font-weight:600;">Or Animation URL <span style="font-weight:normal;">(YouTube, ImageKit, Cloudinary, or direct video/GIF link)</span></span>
+                    <input type="url" name="animation_url_input" id="exAnimationUrlInput" class="form-control" placeholder="https://youtube.com/watch?v=... or https://.../anim.mp4">
                 </label>
 
                 <div id="exCurrentAnimContainer" style="display:none; font-size: 13px; padding: 12px; background: color-mix(in srgb, var(--surface) 60%, transparent); border-radius: 8px; border: 1px solid var(--line);">
@@ -1920,9 +1921,10 @@ Safety: " : "") . $safety;
                         <span style="color:var(--muted); font-weight:600;">Current Animation Preview:</span> 
                         <a id="exCurrentAnimLink" href="#" target="_blank" style="color:var(--lime); font-weight: 600; text-decoration: underline;">Open Link ↗</a>
                     </div>
-                    <div id="exPreviewBox" style="display:flex; justify-content:center; align-items:center; min-height:140px; max-height:220px; background:rgba(0,0,0,0.25); border-radius:6px; overflow:hidden; border:1px solid var(--line);">
+                    <div id="exPreviewBox" style="display:flex; justify-content:center; align-items:center; min-height:140px; max-height:240px; background:rgba(0,0,0,0.25); border-radius:6px; overflow:hidden; border:1px solid var(--line);">
                         <video id="exPreviewVideo" style="max-height:200px; max-width:100%; border-radius:6px; display:none;" autoplay loop muted playsinline></video>
                         <img id="exPreviewImg" style="max-height:200px; max-width:100%; object-fit:contain; border-radius:6px; display:none;" alt="Preview">
+                        <iframe id="exPreviewIframe" style="width:100%; height:220px; border:none; border-radius:6px; display:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                         <span id="exPreviewError" style="display:none; color:var(--muted); font-size:12px;">Preview unavailable</span>
                     </div>
                 </div>
@@ -2017,34 +2019,68 @@ Safety: " : "") . $safety;
         const animBox = document.getElementById('exDetailAnimBox');
         const video = document.getElementById('exDetailVideo');
         const img = document.getElementById('exDetailImg');
+        const iframe = document.getElementById('exDetailIframe');
         animBox.style.display = 'none';
-        video.style.display = 'none';
-        img.style.display = 'none';
-
+        renderExerciseMediaPreview(ex.animation_url, { videoEl: video, imgEl: img, iframeEl: iframe });
         if (ex.animation_url && ex.animation_url.trim() !== '') {
-            let raw = ex.animation_url.trim();
-            const src = (raw.startsWith('http://') || raw.startsWith('https://'))
-                ? raw
-                : (raw.startsWith('assets/') ? raw : 'assets/exercise_animations/' + raw);
-            
-            const cleanUrl = raw.split('?')[0].toLowerCase();
-            const isImg = cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg');
             animBox.style.display = 'block';
-            if (isImg) {
-                img.src = src;
-                img.style.display = 'block';
-            } else {
-                video.src = src;
-                video.style.display = 'block';
-                video.load();
-                video.play().catch(()=>{});
-            }
         }
 
         const modal = document.getElementById('exerciseDetailsModal');
         if (modal) {
+            if (!modal.dataset.mediaCleanupBound) {
+                modal.dataset.mediaCleanupBound = '1';
+                modal.addEventListener('close', () => {
+                    if (iframe) iframe.src = '';
+                    if (video) { try { video.pause(); } catch(e) {} }
+                });
+            }
             modal.showModal();
         }
+    }
+
+    function getYouTubeEmbedUrl(url) {
+        if (!url || typeof url !== 'string') return null;
+        const match = url.trim().match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+        if (!match) return null;
+        return `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1&playsinline=1`;
+    }
+
+    function renderExerciseMediaPreview(rawUrl, els) {
+        const { videoEl, imgEl, iframeEl, errorEl } = els;
+        if (videoEl) { videoEl.style.display = 'none'; try { videoEl.pause(); } catch(e) {} videoEl.removeAttribute('src'); }
+        if (imgEl) { imgEl.style.display = 'none'; imgEl.removeAttribute('src'); }
+        if (iframeEl) { iframeEl.style.display = 'none'; iframeEl.src = ''; }
+        if (errorEl) errorEl.style.display = 'none';
+
+        if (!rawUrl || rawUrl.trim() === '') return null;
+        const raw = rawUrl.trim();
+        const src = (raw.startsWith('http://') || raw.startsWith('https://'))
+            ? raw
+            : (raw.startsWith('assets/') ? raw : 'assets/exercise_animations/' + raw);
+
+        const ytEmbed = getYouTubeEmbedUrl(raw);
+        if (ytEmbed && iframeEl) {
+            iframeEl.src = ytEmbed;
+            iframeEl.style.display = 'block';
+            return src;
+        }
+
+        const cleanUrl = raw.split('?')[0].toLowerCase();
+        const isImg = cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg');
+        if (isImg && imgEl) {
+            imgEl.onload = () => { imgEl.style.display = 'block'; };
+            imgEl.onerror = () => { if (errorEl) errorEl.style.display = 'block'; };
+            imgEl.src = src;
+        } else if (videoEl) {
+            videoEl.muted = true;
+            videoEl.setAttribute('playsinline', '');
+            videoEl.onloadeddata = () => { videoEl.style.display = 'block'; videoEl.play().catch(()=>{}); };
+            videoEl.onerror = () => { if (errorEl) errorEl.style.display = 'block'; };
+            videoEl.src = src;
+            try { videoEl.load(); } catch(e) {}
+        }
+        return src;
     }
 
     function resolveExerciseImageJs(name, muscle, category) {
@@ -2164,48 +2200,38 @@ Safety: " : "") . $safety;
         const animLink = document.getElementById('exCurrentAnimLink');
         const previewVideo = document.getElementById('exPreviewVideo');
         const previewImg = document.getElementById('exPreviewImg');
+        const previewIframe = document.getElementById('exPreviewIframe');
         const previewError = document.getElementById('exPreviewError');
         const urlInput = document.getElementById('exAnimationUrlInput');
 
-        previewVideo.style.display = 'none';
-        previewImg.style.display = 'none';
-        previewError.style.display = 'none';
+        const src = renderExerciseMediaPreview(ex.animation_url, {
+            videoEl: previewVideo,
+            imgEl: previewImg,
+            iframeEl: previewIframe,
+            errorEl: previewError
+        });
 
-        if (ex.animation_url && ex.animation_url.trim() !== '') {
-            let raw = ex.animation_url.trim();
-            const src = (raw.startsWith('http://') || raw.startsWith('https://'))
-                ? raw
-                : (raw.startsWith('assets/') ? raw : 'assets/exercise_animations/' + raw);
-            
+        if (src) {
+            const raw = ex.animation_url.trim();
             animLink.href = src;
             animContainer.style.display = 'block';
-
-            if (raw.startsWith('http://') || raw.startsWith('https://')) {
-                urlInput.value = raw;
-            } else {
-                urlInput.value = '';
-            }
-
-            const cleanUrl = raw.split('?')[0].toLowerCase();
-            const isImg = cleanUrl.endsWith('.gif') || cleanUrl.endsWith('.webp') || cleanUrl.endsWith('.png') || cleanUrl.endsWith('.jpg') || cleanUrl.endsWith('.jpeg');
-            if (isImg) {
-                previewImg.onload = () => { previewImg.style.display = 'block'; };
-                previewImg.onerror = () => { previewError.style.display = 'block'; };
-                previewImg.src = src;
-            } else {
-                previewVideo.muted = true;
-                previewVideo.setAttribute('playsinline', '');
-                previewVideo.onloadeddata = () => { previewVideo.style.display = 'block'; previewVideo.play().catch(()=>{}); };
-                previewVideo.onerror = () => { previewError.style.display = 'block'; };
-                previewVideo.src = src;
-                try { previewVideo.load(); } catch(e) {}
-            }
+            urlInput.value = (raw.startsWith('http://') || raw.startsWith('https://')) ? raw : '';
         } else {
             animContainer.style.display = 'none';
             urlInput.value = '';
         }
-        
-        document.getElementById('exModal').showModal();
+
+        const exModal = document.getElementById('exModal');
+        if (exModal) {
+            if (!exModal.dataset.mediaCleanupBound) {
+                exModal.dataset.mediaCleanupBound = '1';
+                exModal.addEventListener('close', () => {
+                    if (previewIframe) previewIframe.src = '';
+                    if (previewVideo) { try { previewVideo.pause(); } catch(e) {} }
+                });
+            }
+            exModal.showModal();
+        }
     }
 
     // ── API Ninjas Modal & Import Client Logic ───────────────────
