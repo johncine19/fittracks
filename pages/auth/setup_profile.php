@@ -762,8 +762,25 @@ function setup_profile_page(): void
                     $curExp = isset($profile['fitness_tier']) ? (in_array((int)$profile['fitness_tier'], [1, 2]) ? 1 : (in_array((int)$profile['fitness_tier'], [3, 4]) ? 2 : 3)) : 1;
                     $curActivity = $profile['activity_level'] ?? 'lightly_active';
                     $curDiet = $profile['dietary_restrictions'] ?? 'none';
-                    $curDays = max(2, min(5, (int)($profile['weekly_workout_target'] ?? 3)));
-                    $curDuration = (int)($profile['preferred_duration_mins'] ?? 45);
+
+                    // Dynamic baseline recommendation from Experience Level + Daily Activity Level
+                    $isHighAct = in_array($curActivity, ['very_active', 'extra_active'], true);
+                    $isModOrHighAct = in_array($curActivity, ['moderately_active', 'very_active', 'extra_active'], true);
+                    if ($curExp === 1) {
+                        $recDays = $isHighAct ? 4 : 3;
+                        $recDuration = ($curActivity === 'sedentary') ? 30 : 45;
+                    } elseif ($curExp === 2) {
+                        $recDays = $isHighAct ? 5 : ($curActivity === 'sedentary' ? 3 : 4);
+                        $recDuration = $isHighAct ? 75 : 45;
+                    } else {
+                        $recDays = $isModOrHighAct ? 5 : 4;
+                        $recDuration = $isModOrHighAct ? 75 : 45;
+                    }
+
+                    $hasSavedDays = !empty($profile['weekly_workout_target']);
+                    $hasSavedDuration = !empty($profile['preferred_duration_mins']);
+                    $curDays = max(2, min(5, (int)($profile['weekly_workout_target'] ?? $recDays)));
+                    $curDuration = (int)($profile['preferred_duration_mins'] ?? $recDuration);
                     $curPrefDays = (string)($profile['preferred_workout_days'] ?? '');
                     if ($curPrefDays === '') {
                         $defaultDaysMap = [
@@ -1049,10 +1066,10 @@ function setup_profile_page(): void
                                     </label>
                                     <div class="setup-chip-options" id="prof-days-chip-options">
                                         <input type="hidden" name="weekly_workout_target" id="input_weekly_workout_target" value="<?= $curDays ?>">
-                                        <button type="button" class="setup-chip-btn <?= $curDays === 2 ? 'active' : '' ?>" data-value="2">2 Days</button>
-                                        <button type="button" class="setup-chip-btn <?= $curDays === 3 ? 'active' : '' ?>" data-value="3">3 Days (Recommended)</button>
-                                        <button type="button" class="setup-chip-btn <?= $curDays === 4 ? 'active' : '' ?>" data-value="4">4 Days</button>
-                                        <button type="button" class="setup-chip-btn <?= $curDays >= 5 ? 'active' : '' ?>" data-value="5">5+ Days</button>
+                                        <button type="button" class="setup-chip-btn <?= $curDays === 2 ? 'active' : '' ?>" data-value="2" data-base-label="2 Days">2 Days<?= $recDays === 2 ? ' (Recommended)' : '' ?></button>
+                                        <button type="button" class="setup-chip-btn <?= $curDays === 3 ? 'active' : '' ?>" data-value="3" data-base-label="3 Days">3 Days<?= $recDays === 3 ? ' (Recommended)' : '' ?></button>
+                                        <button type="button" class="setup-chip-btn <?= $curDays === 4 ? 'active' : '' ?>" data-value="4" data-base-label="4 Days">4 Days<?= $recDays === 4 ? ' (Recommended)' : '' ?></button>
+                                        <button type="button" class="setup-chip-btn <?= $curDays >= 5 ? 'active' : '' ?>" data-value="5" data-base-label="5+ Days">5+ Days<?= $recDays >= 5 ? ' (Recommended)' : '' ?></button>
                                     </div>
                                 </div>
 
@@ -1063,9 +1080,9 @@ function setup_profile_page(): void
                                     </label>
                                     <div class="setup-chip-options" id="prof-duration-chip-options">
                                         <input type="hidden" name="preferred_duration_mins" id="input_preferred_duration_mins" value="<?= $curDuration ?>">
-                                        <button type="button" class="setup-chip-btn <?= $curDuration <= 30 ? 'active' : '' ?>" data-value="30">30 mins (Quick)</button>
-                                        <button type="button" class="setup-chip-btn <?= ($curDuration > 30 && $curDuration <= 60) ? 'active' : '' ?>" data-value="45">45–60 mins (Standard)</button>
-                                        <button type="button" class="setup-chip-btn <?= $curDuration > 60 ? 'active' : '' ?>" data-value="75">75+ mins (Extended)</button>
+                                        <button type="button" class="setup-chip-btn <?= $curDuration <= 30 ? 'active' : '' ?>" data-value="30" data-base-label="30 mins (Quick)">30 mins (Quick)<?= $recDuration <= 30 ? ' (Recommended)' : '' ?></button>
+                                        <button type="button" class="setup-chip-btn <?= ($curDuration > 30 && $curDuration <= 60) ? 'active' : '' ?>" data-value="45" data-base-label="45–60 mins (Standard)">45–60 mins (Standard)<?= ($recDuration > 30 && $recDuration <= 60) ? ' (Recommended)' : '' ?></button>
+                                        <button type="button" class="setup-chip-btn <?= $curDuration > 60 ? 'active' : '' ?>" data-value="75" data-base-label="75+ mins (Extended)">75+ mins (Extended)<?= $recDuration > 60 ? ' (Recommended)' : '' ?></button>
                                     </div>
                                 </div>
                             </div>
@@ -1678,6 +1695,9 @@ function setup_profile_page(): void
         });
 
         // Routine Schedule Preference Chips (Days & Duration)
+        let manualDaysOverride = <?= $hasSavedDays ? 'true' : 'false' ?>;
+        let manualDurationOverride = <?= $hasSavedDuration ? 'true' : 'false' ?>;
+
         function initProfChips(containerId, inputId) {
             const container = document.getElementById(containerId);
             const hiddenInput = document.getElementById(inputId);
@@ -1689,13 +1709,80 @@ function setup_profile_page(): void
                     this.classList.add('active');
                     hiddenInput.value = this.getAttribute('data-value');
                     if (inputId === 'input_weekly_workout_target') {
+                        manualDaysOverride = true;
                         syncDaysToTarget();
+                    } else if (inputId === 'input_preferred_duration_mins') {
+                        manualDurationOverride = true;
                     }
                 });
             });
         }
         initProfChips('prof-days-chip-options', 'input_weekly_workout_target');
         initProfChips('prof-duration-chip-options', 'input_preferred_duration_mins');
+
+        function updateScheduleRecommendations() {
+            const expChecked = document.querySelector('input[name="experience_level"]:checked');
+            const expVal = expChecked ? parseInt(expChecked.value, 10) : 1;
+            const actEl = document.getElementById('field-activity');
+            const actVal = actEl ? actEl.value : 'lightly_active';
+
+            const isHighAct = actVal === 'very_active' || actVal === 'extra_active';
+            const isModOrHighAct = actVal === 'moderately_active' || isHighAct;
+
+            let recDays = 3;
+            let recDuration = 45;
+            if (expVal === 1) {
+                recDays = isHighAct ? 4 : 3;
+                recDuration = (actVal === 'sedentary') ? 30 : 45;
+            } else if (expVal === 2) {
+                recDays = isHighAct ? 5 : (actVal === 'sedentary' ? 3 : 4);
+                recDuration = isHighAct ? 75 : 45;
+            } else {
+                recDays = isModOrHighAct ? 5 : 4;
+                recDuration = isModOrHighAct ? 75 : 45;
+            }
+
+            const daysContainer = document.getElementById('prof-days-chip-options');
+            const daysInput = document.getElementById('input_weekly_workout_target');
+            if (daysContainer) {
+                daysContainer.querySelectorAll('.setup-chip-btn').forEach(btn => {
+                    const val = parseInt(btn.getAttribute('data-value'), 10);
+                    const base = btn.getAttribute('data-base-label') || btn.textContent.replace(' (Recommended)', '');
+                    btn.textContent = val === recDays ? `${base} (Recommended)` : base;
+                    if (!manualDaysOverride) {
+                        btn.classList.toggle('active', val === recDays);
+                    }
+                });
+                if (!manualDaysOverride && daysInput) {
+                    daysInput.value = String(recDays);
+                    syncDaysToTarget();
+                }
+            }
+
+            const durContainer = document.getElementById('prof-duration-chip-options');
+            const durInput = document.getElementById('input_preferred_duration_mins');
+            if (durContainer) {
+                durContainer.querySelectorAll('.setup-chip-btn').forEach(btn => {
+                    const val = parseInt(btn.getAttribute('data-value'), 10);
+                    const base = btn.getAttribute('data-base-label') || btn.textContent.replace(' (Recommended)', '');
+                    btn.textContent = val === recDuration ? `${base} (Recommended)` : base;
+                    if (!manualDurationOverride) {
+                        btn.classList.toggle('active', val === recDuration);
+                    }
+                });
+                if (!manualDurationOverride && durInput) {
+                    durInput.value = String(recDuration);
+                }
+            }
+        }
+
+        document.querySelectorAll('input[name="experience_level"]').forEach(el => {
+            el.addEventListener('change', updateScheduleRecommendations);
+        });
+        const actSelectEl = document.getElementById('field-activity');
+        if (actSelectEl) {
+            actSelectEl.addEventListener('change', updateScheduleRecommendations);
+        }
 
         // Prevent Enter key on steps 1–4 from prematurely submitting the form
         const profForm = document.getElementById('profile-form');
