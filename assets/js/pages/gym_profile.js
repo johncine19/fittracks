@@ -798,6 +798,25 @@
             };
 
             // Validate Xendit KYC Modal submission
+            const showXenditSwalError = (title, message, focusEl) => {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: title,
+                        text: message,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: 'var(--lime, #84cc16)',
+                        background: 'var(--panel, #111827)',
+                        color: 'var(--ink, #f8fafc)'
+                    }).then(() => {
+                        if (focusEl) focusEl.focus();
+                    });
+                } else {
+                    alert(message);
+                    if (focusEl) focusEl.focus();
+                }
+            };
+
             const kycSubmitBtn = document.getElementById('btn-submit-kyc-details');
             if (kycSubmitBtn) {
                 kycSubmitBtn.addEventListener('click', function (e) {
@@ -811,30 +830,42 @@
                             if (secretVal.startsWith('xnd_production_')) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                alert('Live keys (xnd_production_*) cannot be used in Test / Sandbox Mode. Please enter a Test key starting with xnd_development_, or switch to Live Xendit API Keys.');
-                                secretInput?.focus();
+                                showXenditSwalError(
+                                    'Wrong Key for Sandbox Mode',
+                                    'Live keys (xnd_production_*) cannot be used in Test / Sandbox Mode. Please enter a Test key starting with xnd_development_, or switch to Live Xendit API Keys.',
+                                    secretInput
+                                );
                                 return false;
                             }
                             if (!/^xnd_development_[A-Za-z0-9+/=_-]{20,}$/.test(secretVal)) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                alert('Invalid Xendit Test Secret Key format. A Test key must start with xnd_development_ followed by your full secret key.');
-                                secretInput?.focus();
+                                showXenditSwalError(
+                                    'Invalid Test Secret Key',
+                                    'Invalid Xendit Test Secret Key format. A Test key must start with xnd_development_ followed by your full secret key.',
+                                    secretInput
+                                );
                                 return false;
                             }
                         } else {
                             if (secretVal.startsWith('xnd_development_')) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                alert('Test keys (xnd_development_*) cannot be used in Live Mode. Please enter a Live key starting with xnd_production_, or switch to Test / Sandbox Mode.');
-                                secretInput?.focus();
+                                showXenditSwalError(
+                                    'Wrong Key for Live Mode',
+                                    'Test keys (xnd_development_*) cannot be used in Live Mode. Please enter a Live key starting with xnd_production_, or switch to Test / Sandbox Mode.',
+                                    secretInput
+                                );
                                 return false;
                             }
                             if (!/^xnd_production_[A-Za-z0-9+/=_-]{20,}$/.test(secretVal)) {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                alert('Invalid Xendit Secret Key format. A Live key must start with xnd_production_ followed by your full secret key.');
-                                secretInput?.focus();
+                                showXenditSwalError(
+                                    'Invalid Live Secret Key',
+                                    'Invalid Xendit Secret Key format. A Live key must start with xnd_production_ followed by your full secret key.',
+                                    secretInput
+                                );
                                 return false;
                             }
                         }

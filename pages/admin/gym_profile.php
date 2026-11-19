@@ -2555,7 +2555,59 @@ function gym_profile_page(): void
         <!-- ======================================================== -->
         <?php if (!$isPlatformAdmin): ?>
         <div class="custom-modal-backdrop" id="modal-xendit-kyc" onclick="handleBackdropClick(event, 'modal-xendit-kyc')">
-            <div class="custom-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-xendit-kyc-title" style="max-width: 520px;">
+            <div class="custom-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-xendit-kyc-title" style="max-width: 540px;">
+                <style>
+                    #modal-xendit-kyc .custom-modal-subtitle {
+                        font-size: 12px !important;
+                        line-height: 1.4 !important;
+                        margin-top: 3px !important;
+                    }
+                    #modal-xendit-kyc .custom-modal-body {
+                        gap: 12px !important;
+                        padding: 16px 20px !important;
+                    }
+                    #modal-xendit-kyc .field-label {
+                        font-size: 12px !important;
+                        margin-bottom: 5px !important;
+                    }
+                    #modal-xendit-kyc .field-hint {
+                        font-size: 11px !important;
+                        line-height: 1.45 !important;
+                        color: var(--muted) !important;
+                        margin-top: 5px !important;
+                        display: block;
+                    }
+                    #modal-xendit-kyc code {
+                        font-size: 10.5px !important;
+                        padding: 1px 5px !important;
+                        border-radius: 4px !important;
+                        background: rgba(148, 163, 184, 0.14);
+                        border: 1px solid rgba(148, 163, 184, 0.22);
+                    }
+                    #modal-xendit-kyc .xendit-mode-banner {
+                        border-radius: 9px;
+                        padding: 9px 12px;
+                        font-size: 11px;
+                        line-height: 1.45;
+                        color: var(--ink);
+                    }
+                    #modal-xendit-kyc .xendit-webhook-box {
+                        background: var(--surface);
+                        border: 1px solid var(--line);
+                        border-radius: 10px;
+                        padding: 12px 13px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }
+                    #modal-xendit-kyc .xendit-webhook-box-title {
+                        font-size: 10.5px;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        color: var(--muted);
+                    }
+                </style>
                 <div class="custom-modal-header">
                     <div>
                         <h3 class="custom-modal-title" id="modal-xendit-kyc-title"><?= $isPlatformAdmin ? 'Manage Facility Xendit Account' : 'Connect Independent Xendit Account' ?></h3>
@@ -2601,23 +2653,23 @@ function gym_profile_page(): void
                         </div>
                     </div>
 
-                    <div id="xendit-sandbox-mode-banner" style="display: <?= $defaultGatewayMode === 'test_sandbox' ? 'block' : 'none' ?>; background: rgba(245, 158, 11, 0.09); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 10px; padding: 11px 13px; font-size: 12px; line-height: 1.5; color: var(--ink);">
-                        <strong style="color: #f59e0b; display: block; margin-bottom: 3px;">Test / Sandbox Mode (Testing Only)</strong>
+                    <div id="xendit-sandbox-mode-banner" class="xendit-mode-banner" style="display: <?= $defaultGatewayMode === 'test_sandbox' ? 'block' : 'none' ?>; background: rgba(245, 158, 11, 0.09); border: 1px solid rgba(245, 158, 11, 0.35);">
+                        <strong style="color: #f59e0b; display: block; margin-bottom: 2px;">Test / Sandbox Mode (Testing Only)</strong>
                         <?php if ($testFallbackAvailable): ?>
                             Leave the Secret Key blank to test using FitTrack&apos;s built-in Xendit Test gateway, or paste your own Xendit Test Secret Key (<code>xnd_development_...</code>) and Webhook Token to test with your own Xendit account.
                         <?php else: ?>
                             Enter your own Xendit Test Secret Key (<code>xnd_development_...</code>) and Webhook Token to test with your Xendit Test account (built-in server fallback is disabled).
                         <?php endif; ?>
                         <?php if ($savedKeyIsTest): ?>
-                            <label style="display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11.5px; color: var(--ink); cursor: pointer;">
+                            <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--ink); cursor: pointer;">
                                 <input type="checkbox" name="use_builtin_sandbox" value="1">
                                 Reset to FitTrack&apos;s built-in demo test key
                             </label>
                         <?php endif; ?>
                     </div>
 
-                    <div id="xendit-live-mode-banner" style="display: <?= $defaultGatewayMode === 'custom_keys' ? 'block' : 'none' ?>; background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.3); border-radius: 10px; padding: 11px 13px; font-size: 12px; line-height: 1.5; color: var(--ink);">
-                        <strong style="color: var(--lime, #84cc16); display: block; margin-bottom: 3px;">Live Production Mode</strong>
+                    <div id="xendit-live-mode-banner" class="xendit-mode-banner" style="display: <?= $defaultGatewayMode === 'custom_keys' ? 'block' : 'none' ?>; background: rgba(132, 204, 22, 0.08); border: 1px solid rgba(132, 204, 22, 0.3);">
+                        <strong style="color: var(--lime, #84cc16); display: block; margin-bottom: 2px;">Live Production Mode</strong>
                         Requires your own verified Live Xendit Secret API Key (<code>xnd_production_...</code>). Test keys and silent fallbacks are blocked in Live Mode.
                     </div>
 
@@ -2625,7 +2677,7 @@ function gym_profile_page(): void
                         <label class="field-label" for="xendit_secret_key_submission">
                             Xendit Secret API Key (Money-In Only)
                             <span id="xendit-secret-key-req" style="color: #ef4444;<?= ($defaultGatewayMode === 'test_sandbox' || $savedKeyIsLive) ? ' display: none;' : '' ?>">*</span>
-                            <span id="xendit-secret-key-opt" style="font-size: 11px; font-weight: 500; color: var(--muted);<?= $defaultGatewayMode === 'custom_keys' ? ' display: none;' : '' ?>">(Optional)</span>
+                            <span id="xendit-secret-key-opt" style="font-size: 10.5px; font-weight: 500; color: var(--muted);<?= $defaultGatewayMode === 'custom_keys' ? ' display: none;' : '' ?>">(Optional)</span>
                         </label>
                         <div class="input-icon-wrap">
                             <input type="password"
@@ -2644,24 +2696,89 @@ function gym_profile_page(): void
                         <span class="field-hint" id="xendit-secret-key-hint">Use a scoped <strong>Money-In Only</strong> key (Money-Out / Transfers set to <code>None</code>). Verified live with Xendit on save.</span>
                     </div>
 
-                    <div>
-                        <label class="field-label" for="xendit_webhook_token_submission">Xendit Webhook Verification Token</label>
-                        <div class="input-icon-wrap">
-                            <input type="password"
-                                   name="xendit_webhook_token_submission"
-                                   id="xendit_webhook_token_submission"
-                                   class="input-with-icon has-toggle"
-                                   style="padding-left: 14px !important;"
-                                   value=""
-                                   placeholder="<?= $hasSavedWebhookToken ? 'Saved (Encrypted) — leave blank to keep' : 'Paste token from Xendit Webhooks (optional in Sandbox)' ?>"
-                                   autocomplete="new-password"
-                                   spellcheck="false"
-                                   data-lpignore="true">
+                    <?php
+                    $configuredAppUrl = trim((string)app_env('APP_URL', ''));
+                    if ($configuredAppUrl !== '') {
+                        $xenditWebhookUrl = rtrim($configuredAppUrl, '/') . '/index.php?page=xendit_webhook';
+                    } else {
+                        $webhookHost = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+                        if ($webhookHost === '' || str_starts_with($webhookHost, 'localhost') || str_starts_with($webhookHost, '127.0.0.1')) {
+                            $xenditWebhookUrl = 'https://fitworks.tech/index.php?page=xendit_webhook';
+                        } else {
+                            $webhookScheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                            $webhookBasePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/index.php')), '/');
+                            $xenditWebhookUrl = $webhookScheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'fitworks.tech') . $webhookBasePath . '/index.php?page=xendit_webhook';
+                        }
+                    }
+                    ?>
+                    <div class="xendit-webhook-box">
+                        <div class="xendit-webhook-box-title">Webhook Configuration</div>
+                        <div>
+                            <label class="field-label" for="xendit_webhook_url_copy">Web App Webhook URL</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="text"
+                                       id="xendit_webhook_url_copy"
+                                       value="<?= h($xenditWebhookUrl) ?>"
+                                       readonly
+                                       onclick="this.select();"
+                                       style="flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11.5px; padding: 8px 11px; height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); box-sizing: border-box;">
+                                <button type="button"
+                                        id="btn-copy-xendit-webhook"
+                                        onclick="copyXenditWebhookUrl()"
+                                        class="btn btn-secondary"
+                                        style="height: 36px; padding: 0 12px; border-radius: 8px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: pointer;">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                    <span id="btn-copy-xendit-webhook-label">Copy</span>
+                                </button>
+                            </div>
+                            <span class="field-hint">Paste in Xendit Dashboard &rarr; <strong>Settings &rarr; Developers &rarr; Webhooks</strong> (<code>payment_session.completed</code>).</span>
                         </div>
-                        <span class="field-hint">Verifies incoming Xendit <code>payment_session.completed</code> webhooks for your gym.</span>
-                    </div>
 
-                    <div style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 8px; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; color: var(--muted);">
+                        <div>
+                            <label class="field-label" for="xendit_webhook_token_submission">Xendit Webhook Verification Token</label>
+                            <div class="input-icon-wrap">
+                                <input type="password"
+                                       name="xendit_webhook_token_submission"
+                                       id="xendit_webhook_token_submission"
+                                       class="input-with-icon has-toggle"
+                                       style="padding-left: 14px !important;"
+                                       value=""
+                                       placeholder="<?= $hasSavedWebhookToken ? 'Saved (Encrypted) — leave blank to keep' : 'Paste token from Xendit Webhooks (optional in Sandbox)' ?>"
+                                       autocomplete="new-password"
+                                       spellcheck="false"
+                                       data-lpignore="true">
+                            </div>
+                            <span class="field-hint">Verifies incoming Xendit <code>payment_session.completed</code> webhooks for your gym.</span>
+                        </div>
+                    </div>
+                    <script>
+                    function copyXenditWebhookUrl() {
+                        const input = document.getElementById('xendit_webhook_url_copy');
+                        const label = document.getElementById('btn-copy-xendit-webhook-label');
+                        if (!input) return;
+                        const text = input.value;
+                        const onCopied = () => {
+                            if (label) {
+                                label.textContent = 'Copied!';
+                                setTimeout(() => { label.textContent = 'Copy'; }, 2000);
+                            }
+                        };
+                        if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(text).then(onCopied).catch(() => {
+                                input.select();
+                                document.execCommand('copy');
+                                onCopied();
+                            });
+                        } else {
+                            input.select();
+                            input.setSelectionRange(0, 99999);
+                            document.execCommand('copy');
+                            onCopied();
+                        }
+                    }
+                    </script>
+
+                    <div style="background: rgba(148, 163, 184, 0.07); border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 8px; padding: 9px 11px; font-size: 11px; line-height: 1.45; color: var(--muted);">
                         <strong style="color: var(--ink);">Security &amp; Live Mode Policy:</strong>
                         Credentials are encrypted at rest with <strong>AES-256-GCM</strong> and never displayed in plaintext. Automatic fallback only operates in <strong>Test / Sandbox Mode</strong> (<code>xnd_development_*</code>), never silently in Live Mode.
                     </div>
