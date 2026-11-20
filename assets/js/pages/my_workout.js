@@ -859,6 +859,10 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     if (window.stopVictorySound) {
                         window.stopVictorySound();
                     }
+                    const videoEl = document.getElementById('player-animation-video');
+                    if (videoEl) { try { videoEl.pause(); } catch (e) {} }
+                    const iframeEl = document.getElementById('player-animation-iframe');
+                    if (iframeEl) { iframeEl.style.display = 'none'; iframeEl.src = ''; }
                     const modal = document.getElementById('workout-player-modal');
                     if (modal) {
                         modal.classList.remove('is-active');
@@ -1053,7 +1057,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         if (!url || typeof url !== 'string') return null;
                         const match = url.trim().match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
                         if (!match) return null;
-                        return `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1&playsinline=1`;
+                        return `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
                     }
 
                     function loadNextCandidate(candidates) {
@@ -1296,6 +1300,12 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const videoEl = document.getElementById('player-animation-video');
                     if (videoEl) {
                         try { videoEl.pause(); } catch (e) {}
+                    }
+                    const iframeEl = document.getElementById('player-animation-iframe');
+                    if (iframeEl && iframeEl.src) {
+                        try {
+                            iframeEl.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
+                        } catch (e) {}
                     }
 
                     totalRestSeconds = Math.max(5, parseInt(seconds, 10) || 60);
