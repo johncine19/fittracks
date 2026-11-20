@@ -1238,8 +1238,32 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const rawVal = weightEl ? weightEl.value.trim() : '';
                     const parsedWeight = rawVal !== '' ? parseFloat(rawVal) : NaN;
 
-                    if (rawVal !== '' && !isNaN(parsedWeight) && parsedWeight > 0 && parsedWeight <= 500) {
-                        submitCompletedSet(parsedWeight);
+                    if (rawVal !== '') {
+                        if (!isNaN(parsedWeight) && parsedWeight > 0 && parsedWeight <= 500) {
+                            submitCompletedSet(parsedWeight);
+                            return;
+                        }
+                        if (window.Swal) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Invalid Weight',
+                                text: 'Please enter a positive weight between 0.5 and 500 kg, or clear the field to skip.',
+                                confirmButtonColor: 'var(--lime, #a3e635)',
+                                background: 'var(--panel, #121824)',
+                                color: 'var(--ink, #e2e8f0)',
+                                didOpen: () => {
+                                    const container = document.querySelector('.swal2-container');
+                                    if (container) container.style.zIndex = '30000000';
+                                }
+                            }).then(() => {
+                                if (weightEl) {
+                                    weightEl.focus();
+                                    weightEl.select();
+                                }
+                            });
+                            return;
+                        }
+                        submitCompletedSet(null);
                         return;
                     }
 
