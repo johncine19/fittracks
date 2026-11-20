@@ -188,16 +188,22 @@ function gym_onboarding_page(): void
             try {
                 // 1. Required: Business Permit
                 $permitFilename = null;
-                if (isset($_FILES['business_permit']) && $_FILES['business_permit']['error'] === UPLOAD_ERR_OK) {
+                $permitErr = $_FILES['business_permit']['error'] ?? UPLOAD_ERR_NO_FILE;
+                if ($permitErr === UPLOAD_ERR_OK) {
                     $permitFilename = FileUpload::storeBusinessPermit($_FILES['business_permit'], (int)$user['user_id']);
+                } elseif (in_array($permitErr, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                    throw new Exception('Business Permit file is too large for the server upload limit.');
                 } else {
                     throw new Exception('Business Permit is required.');
                 }
 
                 // 2. Required: Barangay Clearance
                 $brgyFilename = null;
-                if (isset($_FILES['barangay_clearance']) && $_FILES['barangay_clearance']['error'] === UPLOAD_ERR_OK) {
+                $brgyErr = $_FILES['barangay_clearance']['error'] ?? UPLOAD_ERR_NO_FILE;
+                if ($brgyErr === UPLOAD_ERR_OK) {
                     $brgyFilename = FileUpload::storeBarangayClearance($_FILES['barangay_clearance'], (int)$user['user_id']);
+                } elseif (in_array($brgyErr, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                    throw new Exception('Barangay Clearance file is too large for the server upload limit.');
                 } else {
                     throw new Exception('Barangay Clearance is required.');
                 }
@@ -1644,7 +1650,7 @@ function gym_onboarding_page(): void
                                         <strong>Verified Name:</strong> <?= h($onboardingDiditSummary['extracted_name']) ?>
                                         <?php if (!empty($onboardingDiditSummary['document_type'])): ?> &bull; <strong>ID:</strong> <?= h($onboardingDiditSummary['document_type']) ?><?php endif; ?>
                                         <?php if (!empty($onboardingDiditSummary['liveness_status'])): ?> &bull; <strong>Liveness:</strong> <?= h($onboardingDiditSummary['liveness_status']) ?><?php endif; ?>
-                                        <?php if (!empty($onboardingDiditSummary['decline_reasons'])): ?>
+                                        <?php if (!empty($onboardingDiditSummary['decline_reasons']) && strtolower((string)($onboardingDiditSummary['status'] ?? '')) !== 'approved'): ?>
                                             <div style="color: #dc2626; margin-top: 4px;"><strong>Reason:</strong> <?= h($onboardingDiditSummary['decline_reasons']) ?></div>
                                         <?php endif; ?>
                                     <?php else: ?>
@@ -3137,7 +3143,7 @@ function gym_onboarding_page(): void
                     if (s.extracted_name) html += '<strong>Verified Name:</strong> ' + escapeHtml(s.extracted_name);
                     if (s.document_type) html += (html ? ' &bull; ' : '') + '<strong>ID:</strong> ' + escapeHtml(s.document_type);
                     if (s.liveness_status) html += (html ? ' &bull; ' : '') + '<strong>Liveness:</strong> ' + escapeHtml(s.liveness_status);
-                    if (s.decline_reasons) {
+                    if (s.decline_reasons && norm !== 'approved') {
                         html += '<div style="color:#dc2626;margin-top:4px;"><strong>Reason:</strong> ' + escapeHtml(s.decline_reasons) + '</div>';
                     }
                     if (html) detailsEl.innerHTML = html;

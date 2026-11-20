@@ -19,7 +19,7 @@ ENV COMPOSER_ALLOW_SUPERUSER=1 \
 # Setting variables_order = EGPCS restores $_ENV while keeping production hardening.
 RUN a2enmod rewrite \
     && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
-    && printf "variables_order = EGPCS\nexpose_php = Off\ndisplay_errors = Off\ndisplay_startup_errors = Off\nlog_errors = On\nerror_log = /dev/stderr\n" > "$PHP_INI_DIR/conf.d/zz-security.ini"
+    && printf "variables_order = EGPCS\nexpose_php = Off\ndisplay_errors = Off\ndisplay_startup_errors = Off\nlog_errors = On\nerror_log = /dev/stderr\nupload_max_filesize = 16M\npost_max_size = 32M\n" > "$PHP_INI_DIR/conf.d/zz-security.ini"
 
 # Set working directory
 WORKDIR /var/www/html
