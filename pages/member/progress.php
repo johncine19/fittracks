@@ -536,14 +536,19 @@ function progress_page(): void
 
     // Weekly consistency metrics
     $weeklyTarget = !empty($member['weekly_workout_target']) ? (int)$member['weekly_workout_target'] : 4;
-    $workoutsThisWeek = (int) scalar(
-        'SELECT COUNT(DISTINCT check_in_date) FROM (
+    $completedDowRows = query_all(
+        'SELECT DISTINCT (WEEKDAY(check_in_date) + 1) AS dow_num FROM (
             SELECT DATE(check_in_time) as check_in_date FROM attendance WHERE user_id = ? AND check_in_time >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
             UNION
             SELECT completed_date as check_in_date FROM exercise_completions WHERE user_id = ? AND completed_date >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
         ) t',
         [$memberId, $memberId]
     );
+    $completedDowsThisWeek = [];
+    foreach ($completedDowRows as $cr) {
+        $completedDowsThisWeek[(int)$cr['dow_num']] = true;
+    }
+    $workoutsThisWeek = count($completedDowsThisWeek);
     $weeklyPct = $weeklyTarget > 0 ? min(100, max(0, round(($workoutsThisWeek / $weeklyTarget) * 100))) : 0;
 
     // --- 13 FITNESS GOALS PROGRESS & KPI CALCULATION ---
@@ -1186,8 +1191,12 @@ function progress_page(): void
                                 <?php foreach ($dayNames as $dowNum => $dayLabel): 
                                     $hasDayExercises = !empty($exercisesByDow[$dowNum]);
                                     $exCount = $hasDayExercises ? count($exercisesByDow[$dowNum]) : 0;
+                                    $isDayDone = isset($completedDowsThisWeek[$dowNum]);
                                 ?>
-                                    <div class="dow-pill <?= $hasDayExercises ? 'has-workout' : '' ?>">
+                                    <div class="dow-pill <?= $hasDayExercises ? 'has-workout' : '' ?> <?= $isDayDone ? 'is-completed' : '' ?>" title="<?= $isDayDone ? 'Completed this week' : ($hasDayExercises ? $exCount . ' scheduled exercises' : 'Rest day') ?>">
+                                        <?php if ($isDayDone): ?>
+                                            <span class="dow-done-badge" aria-label="Completed">&#10003;</span>
+                                        <?php endif; ?>
                                         <span class="day-name"><?= $dayLabel ?></span>
                                         <span class="workout-count"><?= $hasDayExercises ? $exCount . ' ex' : 'Rest' ?></span>
                                     </div>
@@ -1357,23 +1366,32 @@ function progress_page(): void
                         WHERE ec.user_id = ? AND ec.weight_lifted_kg IS NOT NULL AND ec.weight_lifted_kg > 0
                         GROUP BY e.exercise_id, e.name
                         ORDER BY last_date DESC, best_kg DESC
-                        LIMIT 8
                     ", [$memberId]);
                 } catch (Throwable) {
                     $liftedExercises = [];
                 }
+                $liftTotal = count($liftedExercises);
+                $liftPerPage = 6;
+                $liftTotalPages = max(1, (int) ceil($liftTotal / $liftPerPage));
                 ?>
                 <?php if (!empty($liftedExercises)): ?>
-                <div class="hub-card">
-                    <div class="hub-card-header" style="margin-bottom: 12px;">
+                <div class="hub-card" id="exerciseLiftRecordsCard">
+                    <div class="hub-card-header" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div class="hub-card-title-group">
                             <h3>Exercise Lift Records</h3>
                             <p>Weights logged from completed workouts</p>
                         </div>
+                        <?php if ($liftTotal > $liftPerPage): ?>
+                        <div style="display: inline-flex; align-items: center; gap: 6px;">
+                            <button type="button" id="liftPagePrevBtn" onclick="setLiftRecordsPage(liftRecordsPage - 1)" style="background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;">Prev</button>
+                            <span id="liftPageIndicator" style="font-size: 12px; font-weight: 700; color: var(--muted); min-width: 48px; text-align: center;">1 / <?= $liftTotalPages ?></span>
+                            <button type="button" id="liftPageNextBtn" onclick="setLiftRecordsPage(liftRecordsPage + 1)" style="background: var(--bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;">Next</button>
+                        </div>
+                        <?php endif; ?>
                     </div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-                        <?php foreach ($liftedExercises as $le): ?>
-                            <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div id="liftRecordsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <?php foreach ($liftedExercises as $idx => $le): ?>
+                            <div class="lift-record-item" data-lift-idx="<?= (int)$idx ?>" style="<?= $idx >= $liftPerPage ? 'display: none;' : 'display: flex;' ?> background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; justify-content: space-between; align-items: center; gap: 10px;">
                                 <div style="min-width: 0;">
                                     <div style="font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><?= h($le['name']) ?></div>
                                     <div style="font-size: 11px; color: var(--muted);">Best: <?= h((string)(float)$le['best_kg']) ?> kg &bull; <?= h(date('M j', strtotime((string)$le['last_date']))) ?></div>
@@ -1382,6 +1400,34 @@ function progress_page(): void
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <?php if ($liftTotal > $liftPerPage): ?>
+                    <script>
+                        let liftRecordsPage = 1;
+                        const liftRecordsPerPage = <?= $liftPerPage ?>;
+                        const liftRecordsTotalPages = <?= $liftTotalPages ?>;
+                        function setLiftRecordsPage(page) {
+                            liftRecordsPage = Math.min(Math.max(1, page), liftRecordsTotalPages);
+                            const start = (liftRecordsPage - 1) * liftRecordsPerPage;
+                            const end = start + liftRecordsPerPage;
+                            document.querySelectorAll('#liftRecordsGrid .lift-record-item').forEach((el, idx) => {
+                                el.style.display = (idx >= start && idx < end) ? 'flex' : 'none';
+                            });
+                            const ind = document.getElementById('liftPageIndicator');
+                            if (ind) ind.textContent = liftRecordsPage + ' / ' + liftRecordsTotalPages;
+                            const prev = document.getElementById('liftPagePrevBtn');
+                            const next = document.getElementById('liftPageNextBtn');
+                            if (prev) {
+                                prev.disabled = (liftRecordsPage <= 1);
+                                prev.style.opacity = prev.disabled ? '0.45' : '1';
+                            }
+                            if (next) {
+                                next.disabled = (liftRecordsPage >= liftRecordsTotalPages);
+                                next.style.opacity = next.disabled ? '0.45' : '1';
+                            }
+                        }
+                        setLiftRecordsPage(1);
+                    </script>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
 

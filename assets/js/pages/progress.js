@@ -1108,10 +1108,12 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         }
         
         const savedBfSettings = JSON.parse(localStorage.getItem('fittracks_bf_settings') || '{}');
-        const defaultGender = savedBfSettings.gender || (FT_DEFAULTS.gender || 'male');
+        const defaultGender = (FT_DEFAULTS.gender || savedBfSettings.gender || 'male').toLowerCase() === 'female' ? 'female' : 'male';
+        const genderLabel = defaultGender === 'female' ? 'Female' : 'Male';
         const defaultHeight = savedBfSettings.height || (FT_DEFAULTS.height || '');
-        const defaultNeck = savedBfSettings.neck || (FT_DEFAULTS.neck || '');
-        const defaultHip = savedBfSettings.hip || (FT_DEFAULTS.hips || '');
+        const defaultNeck = (savedState && savedState.neck_cm) ? savedState.neck_cm : (FT_DEFAULTS.neck || savedBfSettings.neck || '');
+        const defaultWaist = (savedState && savedState.waist_cm) ? savedState.waist_cm : (FT_DEFAULTS.waist || '');
+        const defaultHip = (savedState && savedState.hips_cm) ? savedState.hips_cm : (FT_DEFAULTS.hips || savedBfSettings.hip || '');
         
         Swal.fire({
             title: 'Estimate Body Fat %',
@@ -1121,11 +1123,10 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 </div>
                 <form id="bfCalcForm" style="text-align: left; display: flex; flex-direction: column; gap: 12px;">
                     <div style="display:flex;gap:12px;">
-                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Biological Sex *
-                            <select name="gender" class="form-control" style="width: 100%; box-sizing: border-box;" required>
-                                <option value="male" ${defaultGender === 'male' ? 'selected' : ''}>Male</option>
-                                <option value="female" ${defaultGender === 'female' ? 'selected' : ''}>Female</option>
-                            </select>
+                        <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Biological Sex
+                            <input type="hidden" name="gender" value="${defaultGender}">
+                            <input type="text" class="form-control" value="${genderLabel}" readonly disabled style="width: 100%; box-sizing: border-box; opacity: 0.75; cursor: not-allowed;" title="Change this in your Physical Profile">
+                            <span style="display:block; font-size:11px; color:var(--muted); margin-top:3px;">Set in Physical Profile</span>
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Height (cm) *
                             <input name="height" type="number" step="0.1" class="form-control" placeholder="e.g. 175" value="${defaultHeight}" required style="width: 100%; box-sizing: border-box;">
@@ -1137,7 +1138,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                             <input name="neck" type="number" step="0.1" class="form-control" placeholder="e.g. 38" value="${defaultNeck}" required style="width: 100%; box-sizing: border-box;">
                         </label>
                         <label style="display:block; flex:1; color: var(--muted); font-size: 13px;">Waist (cm) *
-                            <input name="waist" type="number" step="0.1" class="form-control" placeholder="e.g. 82" value="${savedState ? savedState.waist_cm : (FT_DEFAULTS.waist || '')}" required style="width: 100%; box-sizing: border-box;">
+                            <input name="waist" type="number" step="0.1" class="form-control" placeholder="e.g. 82" value="${defaultWaist}" required style="width: 100%; box-sizing: border-box;">
                         </label>
                     </div>
                     
@@ -1154,12 +1155,6 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             cancelButtonColor: 'var(--line)',
             background: 'var(--bg)',
             color: 'var(--ink)',
-            didOpen: () => {
-                const form = document.getElementById('bfCalcForm');
-                form.gender.addEventListener('change', (e) => {
-                    document.getElementById('hipContainer').style.display = e.target.value === 'female' ? 'flex' : 'none';
-                });
-            },
             preConfirm: () => {
                 const form = document.getElementById('bfCalcForm');
                 const gender = form.gender.value;
@@ -1279,75 +1274,90 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         const defaultNotes = savedState && savedState.notes !== undefined ? savedState.notes : '';
 
         Swal.fire({
-            title: 'Log Progress & Measurements',
+            title: '',
+            width: 540,
             html: `
-                <form id="progressForm" method="post" style="text-align: left; display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
-                    <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
-                    <input type="hidden" name="action" value="log_progress">
-                    ${FT_CURRENT_USER_ROLE === 'trainer' ? `<input type="hidden" name="member_user_id" value="${FT_MEMBER_ID}">` : ''}
-                    
-                    <div style="display:flex;gap:12px;">
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Date *</label>
-                            <input id="progressLogDateInput" name="log_date" type="text" class="form-control" required value="${defaultDate}" placeholder="mm/dd/yyyy" style="width: 100%; box-sizing: border-box;">
-                        </div>
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Weight (kg) *</label>
-                            <input name="weight_kg" type="number" step="0.01" class="form-control" placeholder="e.g. 74.0" value="${defaultWeight}" required style="width: 100%; box-sizing: border-box;">
-                        </div>
+                <div style="text-align: left;">
+                    <div style="padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--line);">
+                        <div style="font-size:17px; font-weight:800; color:var(--ink); line-height:1.25;">Log Progress &amp; Measurements</div>
+                        <div style="font-size:12px; color:var(--muted); margin-top:2px;">Track your weight, body composition, and tape measurements</div>
                     </div>
-                    
-                    <div style="display:flex;gap:12px;align-items:flex-end;">
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; min-height:18px;">
-                                <label style="color: var(--muted); font-size: 13px; font-weight:600; margin:0; white-space:nowrap;">Body Fat %</label>
-                                <a href="#" onclick="calculateBodyFat(event)" style="color:var(--lime); text-decoration:none; font-weight:700; font-size:11px; white-space:nowrap; margin-left:6px;">Calculate</a>
+
+                    <form id="progressForm" method="post" style="display:flex; flex-direction:column; gap:14px;">
+                        <input type="hidden" name="csrf_token" value="${FT_CSRF_TOKEN}">
+                        <input type="hidden" name="action" value="log_progress">
+                        ${FT_CURRENT_USER_ROLE === 'trainer' ? `<input type="hidden" name="member_user_id" value="${FT_MEMBER_ID}">` : ''}
+
+                        <div style="background:var(--panel-soft); border:1px solid var(--line); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+                            <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted);">Core Metrics</div>
+                            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;">
+                                <div style="display:flex; flex-direction:column; min-width:0;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Date <span style="color:#ef4444;">*</span></label>
+                                    <div style="position:relative; width:100%;">
+                                        <input id="progressLogDateInput" name="log_date" type="text" class="form-control" required value="${defaultDate || getLocalTodayStr()}" placeholder="mm/dd/yyyy" style="width:100%; box-sizing:border-box; padding-right:34px;">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); pointer-events:none;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    </div>
+                                </div>
+                                <div style="display:flex; flex-direction:column; min-width:0;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Weight (kg) <span style="color:#ef4444;">*</span></label>
+                                    <input name="weight_kg" type="number" step="0.01" class="form-control" placeholder="e.g. 74.0" value="${defaultWeight}" required style="width:100%; box-sizing:border-box;">
+                                </div>
                             </div>
-                            <input name="body_fat_percent" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultBf}" style="width: 100%; box-sizing: border-box;">
-                        </div>
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; min-height:18px;">
-                                <label style="color: var(--muted); font-size: 13px; font-weight:600; margin:0; white-space:nowrap;">Neck (cm)</label>
+                            <div style="display:flex; flex-direction:column; min-width:0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin:0;">Body Fat %</label>
+                                    <a href="#" onclick="calculateBodyFat(event)" style="color:var(--lime); text-decoration:underline; font-weight:700; font-size:11px;">Calculate</a>
+                                </div>
+                                <input name="body_fat_percent" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultBf}" style="width:100%; box-sizing:border-box;">
                             </div>
-                            <input name="neck_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultNeck}" style="width: 100%; box-sizing: border-box;">
                         </div>
-                    </div>
-                    
-                    <div style="display:flex;gap:12px;">
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Chest (cm)</label>
-                            <input name="chest_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultChest}" style="width: 100%; box-sizing: border-box;">
+
+                        <div style="background:var(--panel-soft); border:1px solid var(--line); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted);">Body Measurements</span>
+                                <span style="font-size:11px; color:var(--muted);">cm &bull; optional</span>
+                            </div>
+                            <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;">
+                                <div style="display:flex; flex-direction:column; min-width:0;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Neck (cm)</label>
+                                    <input name="neck_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultNeck}" style="width:100%; box-sizing:border-box;">
+                                </div>
+                                <div style="display:flex; flex-direction:column; min-width:0;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Chest (cm)</label>
+                                    <input name="chest_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultChest}" style="width:100%; box-sizing:border-box;">
+                                </div>
+                                <div style="display:flex; flex-direction:column; min-width:0;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Waist (cm)</label>
+                                    <input name="waist_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultWaist}" style="width:100%; box-sizing:border-box;">
+                                </div>
+                                <div style="display:flex; flex-direction:column; min-width:0;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Arms (cm)</label>
+                                    <input name="arm_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultArm}" style="width:100%; box-sizing:border-box;">
+                                </div>
+                                <div style="display:flex; flex-direction:column; min-width:0; grid-column: 1 / -1;">
+                                    <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Hips (cm)</label>
+                                    <input name="hips_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultHips}" style="width:100%; box-sizing:border-box;">
+                                </div>
+                            </div>
                         </div>
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Waist (cm)</label>
-                            <input name="waist_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultWaist}" style="width: 100%; box-sizing: border-box;">
+
+                        <div style="display:flex; flex-direction:column; min-width:0;">
+                            <label style="color:var(--muted); font-size:12px; font-weight:600; margin-bottom:4px;">Session Notes</label>
+                            <input name="notes" class="form-control" placeholder="How did you feel? Energy, sleep, or PR notes..." value="${defaultNotes}" style="width:100%; box-sizing:border-box;">
                         </div>
-                    </div>
-                    
-                    <div style="display:flex;gap:12px;">
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Arms (cm)</label>
-                            <input name="arm_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultArm}" style="width: 100%; box-sizing: border-box;">
-                        </div>
-                        <div style="flex:1; display:flex; flex-direction:column; min-width:0;">
-                            <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Hips (cm)</label>
-                            <input name="hips_cm" type="number" step="0.01" class="form-control" placeholder="optional" value="${defaultHips}" style="width: 100%; box-sizing: border-box;">
-                        </div>
-                    </div>
-                    
-                    <div style="display:flex; flex-direction:column; min-width:0;">
-                        <label style="color: var(--muted); font-size: 13px; font-weight:600; margin-bottom:5px; display:block;">Notes</label>
-                        <input name="notes" class="form-control" placeholder="Any workout or energy notes" value="${defaultNotes}" style="width: 100%; box-sizing: border-box;">
-                    </div>
-                </form>
+                    </form>
+                </div>
             `,
             showCancelButton: true,
-            confirmButtonText: 'Save Progress',
-            confirmButtonColor: 'var(--lime-dark)',
-            cancelButtonColor: 'var(--line)',
-            background: 'var(--bg)',
+            confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10); font-weight:800;">Save Progress</span>',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: 'var(--lime)',
+            cancelButtonColor: 'var(--panel-soft)',
+            background: 'var(--panel, var(--bg))',
             color: 'var(--ink)',
             didOpen: () => {
+                const htmlContainer = (typeof Swal !== 'undefined' && Swal.getHtmlContainer) ? Swal.getHtmlContainer() : null;
+                if (htmlContainer) htmlContainer.style.overflow = 'visible';
                 const dateEl = document.getElementById('progressLogDateInput');
                 if (dateEl && typeof flatpickr === 'function') {
                     flatpickr(dateEl, {
@@ -1356,8 +1366,27 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                         altFormat: 'm/d/Y',
                         altInputClass: 'form-control',
                         disableMobile: true,
+                        clickOpens: true,
+                        static: true,
                         maxDate: getLocalTodayStr(),
-                        defaultDate: defaultDate || getLocalTodayStr()
+                        defaultDate: defaultDate || getLocalTodayStr(),
+                        onReady: (_, __, inst) => {
+                            if (inst.altInput && inst.altInput.parentNode) {
+                                inst.altInput.parentNode.style.width = '100%';
+                                inst.altInput.parentNode.style.display = 'block';
+                            }
+                            if (inst.altInput) {
+                                inst.altInput.style.width = '100%';
+                                inst.altInput.style.boxSizing = 'border-box';
+                                inst.altInput.style.paddingRight = '34px';
+                                inst.altInput.style.cursor = 'pointer';
+                            }
+                        },
+                        onOpen: (_, __, inst) => {
+                            if (inst.calendarContainer) {
+                                inst.calendarContainer.style.zIndex = '20000';
+                            }
+                        }
                     });
                 }
             },
@@ -1365,6 +1394,10 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 const form = document.getElementById('progressForm');
                 if (!form.log_date.value || !form.weight_kg.value) {
                     Swal.showValidationMessage('Please fill all required fields (Date & Weight)');
+                    return false;
+                }
+                if (form.log_date.value > getLocalTodayStr()) {
+                    Swal.showValidationMessage('Date cannot be in the future.');
                     return false;
                 }
 

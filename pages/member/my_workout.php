@@ -170,7 +170,7 @@ function my_workout_page(): void
         $stmtEx = $pdo->prepare(
             'SELECT tpe.plan_exercise_id, tpe.exercise_id, tpe.day_of_week, tpe.sequence_order, 
                     tpe.sets, tpe.reps, tpe.target_weight_kg, tpe.rest_seconds, tpe.notes, tpe.tempo, tpe.rpe,
-                    e.name, e.category, e.muscle_group, e.animation_url, e.difficulty_level, e.description AS exercise_description 
+                    e.name, e.category, e.muscle_group, e.equipment, e.animation_url, e.difficulty_level, e.description AS exercise_description 
              FROM training_plan_exercises tpe 
              JOIN exercises e ON e.exercise_id = tpe.exercise_id 
              WHERE tpe.plan_id = ? 
@@ -253,6 +253,7 @@ function my_workout_page(): void
                 'name' => $ex['name'],
                 'category' => $ex['category'],
                 'muscle_group' => $ex['muscle_group'],
+                'equipment' => $ex['equipment'] ?? '',
                 'sets' => (int)($ex['sets'] ?? 3),
                 'reps' => $ex['reps'] ?? '10',
                 'target_weight_kg' => $ex['target_weight_kg'] !== null ? (float)$ex['target_weight_kg'] : null,
@@ -754,7 +755,7 @@ function my_workout_page(): void
                             </div>
                         </div>
 
-                        <div class="player-sets-section" style="margin-top: 10px;">
+                        <div id="player-weight-section" class="player-sets-section" style="margin-top: 10px;">
                             <label for="player-weight-lifted" class="player-section-label" style="display:block; margin-bottom:6px;">Weight Lifted (kg, optional)</label>
                             <input id="player-weight-lifted" type="number" step="0.5" min="0" max="500" placeholder="e.g. 60" style="width:100%; box-sizing:border-box; padding:9px 12px; border-radius:10px; border:1px solid var(--line); background:var(--panel-soft); color:var(--ink); font-size:13px;">
                         </div>

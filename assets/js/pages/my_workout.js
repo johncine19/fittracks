@@ -927,8 +927,13 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     document.getElementById('player-exercise-count').innerText = `EXERCISE ${currentExIndex + 1} OF ${totalEx}`;
                     document.getElementById('player-sets-status-summary').innerText = `Set ${currentSet} of ${totalSets}`;
                     document.getElementById('player-exercise-name').innerText = ex.name;
+                    const weightSectionEl = document.getElementById('player-weight-section');
+                    if (weightSectionEl) weightSectionEl.style.display = exerciseNeedsWeight(ex) ? '' : 'none';
                     const weightInputEl = document.getElementById('player-weight-lifted');
-                    if (weightInputEl) weightInputEl.value = '';
+                    if (weightInputEl) {
+                        const lastWeight = [...currentSetWeights].reverse().find(w => typeof w === 'number' && w > 0);
+                        weightInputEl.value = (exerciseNeedsWeight(ex) && lastWeight) ? String(lastWeight) : '';
+                    }
 
                     // Metric Badges
                     const metricContainer = document.getElementById('player-metric-tags');
@@ -1160,15 +1165,19 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     const weightEl = document.getElementById('player-weight-lifted');
 
                     currentSetWeights[currentSet - 1] = (typeof setWeight === 'number' && setWeight > 0) ? setWeight : null;
-                    if (weightEl) weightEl.value = '';
 
                     if (currentSet < totalSets) {
                         currentSet++;
                         saveLiveWorkoutState(true);
+                        if (weightEl) {
+                            const lastWeight = [...currentSetWeights].reverse().find(w => typeof w === 'number' && w > 0);
+                            weightEl.value = (exerciseNeedsWeight(ex) && lastWeight) ? String(lastWeight) : '';
+                        }
                         playPlayerTone(660, 0.12, 'sine');
                         if (navigator.vibrate) navigator.vibrate([60]);
                         startRest(ex.rest_seconds || 60, 'next_set');
                     } else {
+                        if (weightEl) weightEl.value = '';
                         const btn = document.getElementById('btn-complete-set');
                         const btnText = document.getElementById('btn-complete-set-text');
                         btn.disabled = true;
@@ -1230,9 +1239,30 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                     }
                 }
 
+                function exerciseNeedsWeight(ex) {
+                    if (!ex) return false;
+                    if (ex.target_weight_kg !== null && ex.target_weight_kg !== undefined && Number(ex.target_weight_kg) > 0) {
+                        return true;
+                    }
+                    const cat = String(ex.category || '').trim().toLowerCase();
+                    if (['cardio', 'stretching', 'flexibility', 'mobility'].includes(cat)) {
+                        return false;
+                    }
+                    const equip = String(ex.equipment || '').trim().toLowerCase();
+                    if (equip && ['bodyweight', 'body only', 'none', 'no equipment'].includes(equip)) {
+                        return false;
+                    }
+                    return true;
+                }
+
                 function completeSet() {
                     const ex = liveExercises[currentExIndex];
                     if (!ex) return;
+
+                    if (!exerciseNeedsWeight(ex)) {
+                        submitCompletedSet(null);
+                        return;
+                    }
 
                     const weightEl = document.getElementById('player-weight-lifted');
                     const rawVal = weightEl ? weightEl.value.trim() : '';
