@@ -321,6 +321,7 @@ function training_page(): void
 
     render_header('Workouts', $user);
 ?>
+<link rel="stylesheet" href="<?= h(asset_url('css/pages/training.css')) ?>">
 
 <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
     <div>
@@ -918,8 +919,6 @@ function training_page(): void
         </form>
     </div>
 </div>
-
-<link rel="stylesheet" href="<?= h(asset_url('css/pages/training.css')) ?>">
 
 <!-- Training Dashboard Configuration & Script -->
 <script>
