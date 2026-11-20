@@ -262,6 +262,12 @@ const esc = window.escapeHtml || function(s) {
                                         <button type="button" class="wb-level-filter-chip" data-filter-level="3">Expert</button>
                                     </div>
                                 </div>
+                                <div class="wb-level-chips-row" style="margin-bottom:8px;">
+                                    <span style="color:var(--muted); font-size:11px; font-weight:600; align-self:center; margin-right:2px;">Library:</span>
+                                    <button type="button" class="wb-level-filter-chip active" data-filter-source="all">All</button>
+                                    <button type="button" class="wb-level-filter-chip" data-filter-source="gym">Gym Only</button>
+                                    <button type="button" class="wb-level-filter-chip" data-filter-source="global">Global</button>
+                                </div>
                                 <div class="wb-combobox-search-box">
                                     <i class="fas fa-search" style="position: absolute; left: 11px; color: #64748b; font-size: 12px;"></i>
                                     <input type="text" id="wbExSearchInput" class="wb-combobox-search-input" placeholder="Search exercises by name, muscle, category, or level..." autocomplete="off">
@@ -380,6 +386,7 @@ const esc = window.escapeHtml || function(s) {
                 const selectedExercises = new Map();
                 const perExConfigs = new Map();
                 let activeLevelFilter = 'all';
+                let activeSourceFilter = 'all';
                 const seenKeys = new Set();
                 let localExercises = [];
                 (window.gymExercisesData || []).forEach(item => {
@@ -395,12 +402,23 @@ const esc = window.escapeHtml || function(s) {
                 const memberActivity = window.WORKOUT_BUILDER_CONFIG?.memberActivityLevel || 'Moderate';
 
                 // Level Filter Chip listeners
-                menu.querySelectorAll('.wb-level-filter-chip').forEach(chip => {
+                menu.querySelectorAll('.wb-level-filter-chip[data-filter-level]').forEach(chip => {
                     chip.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        menu.querySelectorAll('.wb-level-filter-chip').forEach(c => c.classList.remove('active'));
+                        menu.querySelectorAll('.wb-level-filter-chip[data-filter-level]').forEach(c => c.classList.remove('active'));
                         chip.classList.add('active');
                         activeLevelFilter = chip.getAttribute('data-filter-level');
+                        renderList(searchInput.value);
+                    });
+                });
+
+                // Source / Library Filter Chip listeners
+                menu.querySelectorAll('.wb-level-filter-chip[data-filter-source]').forEach(chip => {
+                    chip.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        menu.querySelectorAll('.wb-level-filter-chip[data-filter-source]').forEach(c => c.classList.remove('active'));
+                        chip.classList.add('active');
+                        activeSourceFilter = chip.getAttribute('data-filter-source');
                         renderList(searchInput.value);
                     });
                 });
@@ -412,6 +430,10 @@ const esc = window.escapeHtml || function(s) {
                         if (activeLevelFilter !== 'all' && String(diff) !== String(activeLevelFilter)) {
                             return false;
                         }
+                        const itemSource = e.source || 'gym';
+                        if (activeSourceFilter !== 'all' && itemSource !== activeSourceFilter) {
+                            return false;
+                        }
                         if (!q) return true;
                         const diffText = (diffLabels[diff] || '').toLowerCase();
                         return (e.name && e.name.toLowerCase().includes(q)) ||
@@ -421,7 +443,11 @@ const esc = window.escapeHtml || function(s) {
                     });
 
                     if (countEl) {
-                        const filterSuffix = activeLevelFilter !== 'all' ? ` (${diffLabels[activeLevelFilter]})` : '';
+                        const parts = [];
+                        if (activeSourceFilter === 'gym') parts.push('Gym Only');
+                        else if (activeSourceFilter === 'global') parts.push('Global');
+                        if (activeLevelFilter !== 'all') parts.push(diffLabels[activeLevelFilter]);
+                        const filterSuffix = parts.length ? ` (${parts.join(', ')})` : '';
                         countEl.textContent = q ? `${filtered.length} matching${filterSuffix}` : `${filtered.length} exercises available${filterSuffix}`;
                     }
 
@@ -469,6 +495,7 @@ const esc = window.escapeHtml || function(s) {
                                         </div>
                                         <div class="wb-combobox-item-badges">
                                             ${isAlreadyAdded ? `<span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:rgba(148,163,184,0.16);color:var(--muted);">Already added</span>` : ''}
+                                            ${item.source === 'gym' ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px;background:color-mix(in srgb, var(--lime) 14%, transparent);color:var(--lime);border:1px solid color-mix(in srgb, var(--lime) 30%, transparent);">Gym</span>` : ''}
                                             ${item.category ? `<span class="wb-combobox-item-category">${esc(item.category)}</span>` : ''}
                                             <span class="wb-combobox-item-level level-${diff}">
                                                 ${esc(diffName)}

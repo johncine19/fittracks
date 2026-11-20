@@ -600,6 +600,7 @@ function workout_builder_page(): void
             'category' => !empty($ex['category']) ? ucwords((string)$ex['category']) : '',
             'difficulty' => $dLevel,
             'difficulty_label' => $diffMap[$dLevel] ?? 'Beginner',
+            'source' => ((int)($ex['gym_id'] ?? 0) > 0) ? 'gym' : 'global',
             'description' => (string)($ex['description'] ?? '')
         ];
     }
