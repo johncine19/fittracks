@@ -870,6 +870,28 @@
                             }
                         }
                     }
+
+                    if (kycSubmitBtn.dataset.submitting === '1') {
+                        e.preventDefault();
+                        return false;
+                    }
+                    const parentForm = kycSubmitBtn.form;
+                    if (parentForm && typeof parentForm.checkValidity === 'function' && !parentForm.checkValidity()) {
+                        return;
+                    }
+
+                    kycSubmitBtn.dataset.submitting = '1';
+                    if (parentForm && !parentForm.querySelector('input[type="hidden"][name="submit_xendit_kyc"]')) {
+                        const hiddenSubmit = document.createElement('input');
+                        hiddenSubmit.type = 'hidden';
+                        hiddenSubmit.name = 'submit_xendit_kyc';
+                        hiddenSubmit.value = '1';
+                        parentForm.appendChild(hiddenSubmit);
+                    }
+                    kycSubmitBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 0.8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Verifying &amp; Activating...';
+                    kycSubmitBtn.style.opacity = '0.78';
+                    kycSubmitBtn.style.cursor = 'wait';
+                    setTimeout(() => { kycSubmitBtn.disabled = true; }, 0);
                 });
             }
         });
