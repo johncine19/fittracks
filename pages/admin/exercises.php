@@ -258,6 +258,14 @@ Safety: " : "") . $safety;
     $mgStmt->execute($filterParams);
     $allMuscleGroups = $mgStmt->fetchAll(PDO::FETCH_COLUMN);
 
+    $returnQuery = ['page' => 'exercises'];
+    foreach (['p', 'q', 'cat', 'muscle', 'diff', 'scope'] as $rk) {
+        if (isset($_GET[$rk]) && $_GET[$rk] !== '') {
+            $returnQuery[$rk] = $_GET[$rk];
+        }
+    }
+    $exercisesReturnUrl = 'index.php?' . http_build_query($returnQuery);
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $postAction = post('action');
 
@@ -424,7 +432,7 @@ Safety: " : "") . $safety;
                     if ($dupCheck) {
                         $isGlobal = ((int)$dupCheck['gym_id'] === 0);
                         flash('An exercise named "' . htmlspecialchars($name) . '" already exists ' . ($isGlobal ? 'in the global library.' : 'in your gym library.') . ' Duplicates are not allowed.', 'danger');
-                        redirect('exercises');
+                        redirect($exercisesReturnUrl);
                     }
                     $stmt = $pdo->prepare('INSERT INTO exercises (name, category, muscle_group, equipment, difficulty_level, description, gym_id, animation_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
                     $stmt->execute([$name, $category, $muscle_group, $equipment ?: null, $difficulty_level, $description, $targetGymId, $urlInput ?: null]);
@@ -453,7 +461,7 @@ Safety: " : "") . $safety;
                         if ($dupCheck) {
                             $isGlobal = ((int)$dupCheck['gym_id'] === 0);
                             flash('Cannot save: an exercise named "' . htmlspecialchars($name) . '" already exists ' . ($isGlobal ? 'in the global library.' : 'in your gym library.') . '.', 'danger');
-                            redirect('exercises');
+                            redirect($exercisesReturnUrl);
                         }
                         if ($user['role'] === 'platform_admin') {
                             $stmt = $pdo->prepare('UPDATE exercises SET name = ?, category = ?, muscle_group = ?, equipment = ?, difficulty_level = ?, description = ?, gym_id = ? WHERE exercise_id = ?');
@@ -481,19 +489,19 @@ Safety: " : "") . $safety;
                         flash('Exercise updated successfully.');
                     }
                 }
-                redirect('exercises');
+                redirect($exercisesReturnUrl);
             }
         } elseif ($postAction === 'delete') {
             $delId = (int) post('exercise_id');
             $exRow = query_one('SELECT exercise_id, gym_id, name FROM exercises WHERE exercise_id = ?', [$delId]);
             if (!$exRow) {
                 flash('Exercise not found.', 'danger');
-                redirect('exercises');
+                redirect($exercisesReturnUrl);
             }
 
             if (in_array($user['role'], ['gym_owner', 'trainer'], true) && (string)$exRow['gym_id'] !== (string)$gymId) {
                 flash('Permission denied.', 'danger');
-                redirect('exercises');
+                redirect($exercisesReturnUrl);
             }
 
             $exName = $exRow['name'];
@@ -527,7 +535,7 @@ Safety: " : "") . $safety;
 
             if ($tpeCount > 0 || $compCount > 0) {
                 flash('Cannot delete "' . htmlspecialchars((string)$exName) . '" because it is currently assigned to ' . $tpeCount . ' active workout plan(s) or member log(s). Please remove or replace it in those plans first.', 'warning');
-                redirect('exercises');
+                redirect($exercisesReturnUrl);
             }
 
             // 3. Delete exercise safely with try/catch
@@ -540,7 +548,7 @@ Safety: " : "") . $safety;
                 error_log('Failed to delete exercise ' . $delId . ': ' . $e->getMessage());
                 flash('Unable to delete exercise: related records depend on it.', 'danger');
             }
-            redirect('exercises');
+            redirect($exercisesReturnUrl);
         }
     }
 
@@ -1639,7 +1647,7 @@ Safety: " : "") . $safety;
     </div>
 
     <!-- Hidden Delete Form for SweetAlert -->
-    <form id="deleteExerciseForm" method="post" action="index.php?page=exercises" style="display:none;">
+    <form id="deleteExerciseForm" method="post" action="<?= h($exercisesReturnUrl) ?>" style="display:none;">
         <?= $csrfStr ?>
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="exercise_id" id="deleteExerciseId" value="">
@@ -1843,7 +1851,7 @@ Safety: " : "") . $safety;
             </button>
         </div>
         <div class="modal-body">
-            <form id="exForm" method="post" action="index.php?page=exercises" enctype="multipart/form-data" style="display:flex; flex-direction:column; gap:16px;">
+            <form id="exForm" method="post" action="<?= h($exercisesReturnUrl) ?>" enctype="multipart/form-data" style="display:flex; flex-direction:column; gap:16px;">
                 <?= $csrfStr ?>
                 <input type="hidden" name="action" id="exFormAction" value="create">
                 <input type="hidden" name="exercise_id" id="exFormId" value="">
