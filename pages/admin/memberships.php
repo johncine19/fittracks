@@ -1507,7 +1507,7 @@ function memberships_page(): void
                                                 </div>
                                                 <div style="margin-top: 8px; text-align: center;">
                                                     <button type="button"
-                                                        onclick="confirmCancelMembership(<?= (int)$currentPending['membership_id'] ?>, '<?= h(addslashes($currentPending['plan_name'])) ?>', 'pending')"
+                                                        onclick="confirmCancelMembership(<?= (int)$currentPending['membership_id'] ?>, '<?= h(addslashes((string)($currentPending['plan_name'] ?? ''))) ?>', 'pending')"
                                                         style="background: transparent; border: none; color: #ef4444; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; padding: 2px 6px;">
                                                         Cancel Request
                                                     </button>
@@ -1521,7 +1521,7 @@ function memberships_page(): void
                                                     Subscription Pending
                                                 </button>
                                                 <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center;">
-                                                    Resolve or <a href="javascript:void(0)" onclick="confirmCancelMembership(<?= (int)$currentPending['membership_id'] ?>, '<?= h(addslashes($currentPending['plan_name'])) ?>', 'pending')" style="color: #ef4444; text-decoration: underline;">cancel pending request</a> first
+                                                    Resolve or <a href="javascript:void(0)" onclick="confirmCancelMembership(<?= (int)$currentPending['membership_id'] ?>, '<?= h(addslashes((string)($currentPending['plan_name'] ?? ''))) ?>', 'pending')" style="color: #ef4444; text-decoration: underline;">cancel pending request</a> first
                                                 </div>
                                             <?php endif; ?>
                                         <?php elseif ($isActive): ?>
@@ -1664,7 +1664,7 @@ function memberships_page(): void
                                         <td style="text-align: right;">
                                             <?php if ($canCancel): ?>
                                                 <button type="button" 
-                                                    onclick="confirmCancelMembership(<?= (int)$row['membership_id'] ?>, '<?= h(addslashes($row['plan_name'])) ?>', '<?= h($row['status']) ?>')"
+                                                    onclick="confirmCancelMembership(<?= (int)$row['membership_id'] ?>, '<?= h(addslashes((string)($row['plan_name'] ?? ''))) ?>', '<?= h($row['status']) ?>')"
                                                     style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
                                                     <?= $row['status'] === 'pending' ? 'Cancel Request' : 'Cancel Subscription' ?>
                                                 </button>
@@ -1715,7 +1715,7 @@ function memberships_page(): void
                                 <?php if ($canCancel): ?>
                                     <div style="padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end;">
                                         <button type="button" 
-                                            onclick="confirmCancelMembership(<?= (int)$row['membership_id'] ?>, '<?= h(addslashes($row['plan_name'])) ?>', '<?= h($row['status']) ?>')"
+                                            onclick="confirmCancelMembership(<?= (int)$row['membership_id'] ?>, '<?= h(addslashes((string)($row['plan_name'] ?? ''))) ?>', '<?= h($row['status']) ?>')"
                                             style="padding: 5px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
                                             <?= $row['status'] === 'pending' ? 'Cancel Request' : 'Cancel Subscription' ?>
                                         </button>
@@ -1848,7 +1848,7 @@ function memberships_page(): void
                                             <td>
                                                 <?php if ($rowStatus === 'expired'): ?>
                                                     <?php if (!$hasActivePlan): ?>
-                                                        <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="padding:4px 9px;font-size:12px;font-weight:700;background:var(--lime);color:var(--bg);border:none;display:inline-flex;align-items:center;gap:4px;" title="Renew Membership">
+                                                        <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes((string)($row['member'] ?? ''))) ?>', '<?= h(addslashes((string)($row['plan_name'] ?? ''))) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="padding:4px 9px;font-size:12px;font-weight:700;background:var(--lime);color:var(--bg);border:none;display:inline-flex;align-items:center;gap:4px;" title="Renew Membership">
                                                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                                                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                                                             </svg>
@@ -1909,7 +1909,7 @@ function memberships_page(): void
                                     <div class="membership-card-actions">
                                         <?php if ($rowStatus === 'expired'): ?>
                                             <?php if (!$hasActivePlan): ?>
-                                                <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes($row['member'])) ?>', '<?= h(addslashes($row['plan_name'])) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--lime); color: var(--bg); border: none;">
+                                                <button type="button" onclick="renewMembership(<?= (int)$row['user_id'] ?>, <?= (int)$row['plan_id'] ?>, '<?= h(addslashes((string)($row['member'] ?? ''))) ?>', '<?= h(addslashes((string)($row['plan_name'] ?? ''))) ?>', '<?= h(addslashes($row['email'] ?? '')) ?>')" class="btn" style="width: 100%; padding: 8px 12px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; background: var(--lime); color: var(--bg); border: none;">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                                         <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
                                                     </svg>
@@ -2009,7 +2009,7 @@ function memberships_page(): void
                                             <td>
                                                 <?php if ($prow['status'] === 'pending'): ?>
                                                     <button type="button" 
-                                                            onclick="confirmPayment(<?= (int)$prow['payment_id'] ?>, '<?= h(addslashes($prow['member'])) ?>', '<?= h(addslashes($prow['plan_name'])) ?>', <?= (float)$prow['amount'] ?>, '<?= h($prow['payment_method']) ?>', '<?= h(addslashes($prow['receipt_number'])) ?>')" 
+                                                            onclick="confirmPayment(<?= (int)$prow['payment_id'] ?>, '<?= h(addslashes((string)($prow['member'] ?? ''))) ?>', '<?= h(addslashes((string)($prow['plan_name'] ?? ''))) ?>', <?= (float)$prow['amount'] ?>, '<?= h((string)($prow['payment_method'] ?? '')) ?>', '<?= h(addslashes((string)($prow['receipt_number'] ?? ''))) ?>')" 
                                                             class="btn" 
                                                             style="background: var(--lime); color: var(--bg); font-weight: 700; font-size: 11.5px; padding: 5px 12px; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transition: transform 0.15s, opacity 0.15s; border: none;"
                                                             onmouseover="this.style.opacity='0.9'; this.style.transform='translateY(-1px)';"
@@ -2074,7 +2074,7 @@ function memberships_page(): void
                                     <?php if ($prow['status'] === 'pending'): ?>
                                         <div class="payment-card-actions" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);">
                                             <button type="button" 
-                                                    onclick="confirmPayment(<?= (int)$prow['payment_id'] ?>, '<?= h(addslashes($prow['member'])) ?>', '<?= h(addslashes($prow['plan_name'])) ?>', <?= (float)$prow['amount'] ?>, '<?= h($prow['payment_method']) ?>', '<?= h(addslashes($prow['receipt_number'])) ?>')" 
+                                                    onclick="confirmPayment(<?= (int)$prow['payment_id'] ?>, '<?= h(addslashes((string)($prow['member'] ?? ''))) ?>', '<?= h(addslashes((string)($prow['plan_name'] ?? ''))) ?>', <?= (float)$prow['amount'] ?>, '<?= h((string)($prow['payment_method'] ?? '')) ?>', '<?= h(addslashes((string)($prow['receipt_number'] ?? ''))) ?>')" 
                                                     class="btn" 
                                                     style="width: 100%; background: var(--lime); color: var(--bg); font-weight: 700; font-size: 13px; padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 8px; border: none; cursor: pointer;">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
