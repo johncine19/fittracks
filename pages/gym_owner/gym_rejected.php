@@ -57,6 +57,24 @@ function gym_rejected_page(): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         verify_csrf();
         if (post('action') === 'resubmit') {
+            if (function_exists('didit_get_latest_for_gym')) {
+                try {
+                    $prevDidit = didit_get_latest_for_gym((int)$gym['gym_id']);
+                    if ($prevDidit && strtolower((string)($prevDidit['status'] ?? '')) === 'approved' && !empty($prevDidit['session_id'])) {
+                        $_SESSION['onboarding_didit_session_id'] = (string)$prevDidit['session_id'];
+                        $_SESSION['onboarding_didit_summary'] = [
+                            'status' => $prevDidit['status'],
+                            'extracted_name' => $prevDidit['extracted_name'] ?? null,
+                            'document_type' => $prevDidit['document_type'] ?? null,
+                            'document_number_masked' => $prevDidit['document_number_masked'] ?? null,
+                            'expiration_date' => $prevDidit['expiration_date'] ?? null,
+                            'liveness_status' => $prevDidit['liveness_status'] ?? null,
+                            'face_match_status' => $prevDidit['face_match_status'] ?? null,
+                            'decline_reasons' => $prevDidit['decline_reasons'] ?? null,
+                        ];
+                    }
+                } catch (Throwable) {}
+            }
             $pdo->prepare('DELETE FROM gyms WHERE gym_id = ?')->execute([$gym['gym_id']]);
             flash('You can now submit a new gym application.', 'success');
             redirect('gym_onboarding');
