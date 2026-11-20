@@ -998,7 +998,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         if (!url || typeof url !== 'string') return null;
                         const match = url.trim().match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
                         if (!match) return null;
-                        return `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1`;
+                        return `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1&playsinline=1`;
                     }
 
                     function loadNextCandidate(candidates) {
