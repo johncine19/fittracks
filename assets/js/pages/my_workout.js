@@ -18,6 +18,42 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 let currentSetWeights = [];
                 let restTimer = null;
 
+                function getLiveWorkoutStorageKey() {
+                    return `ft_live_workout_${PLAN_ID}_${TODAY_DATE}`;
+                }
+
+                function saveLiveWorkoutState(isOpen = true) {
+                    try {
+                        const activeEx = liveExercises[currentExIndex];
+                        if (!activeEx) return;
+                        localStorage.setItem(getLiveWorkoutStorageKey(), JSON.stringify({
+                            exerciseId: activeEx.exercise_id,
+                            currentSet,
+                            currentSetWeights,
+                            workoutElapsedSeconds: workoutElapsedSeconds || 0,
+                            isOpen: Boolean(isOpen),
+                            updatedAt: Date.now()
+                        }));
+                    } catch (e) {}
+                }
+
+                function loadLiveWorkoutState() {
+                    try {
+                        const raw = localStorage.getItem(getLiveWorkoutStorageKey());
+                        if (!raw) return null;
+                        const parsed = JSON.parse(raw);
+                        return (parsed && typeof parsed === 'object') ? parsed : null;
+                    } catch (e) {
+                        return null;
+                    }
+                }
+
+                function clearLiveWorkoutState() {
+                    try {
+                        localStorage.removeItem(getLiveWorkoutStorageKey());
+                    } catch (e) {}
+                }
+
                 function selectDate(dateStr) {
                     if (!CALENDAR_DATA[dateStr]) return;
                     selectedDate = dateStr;
@@ -742,16 +778,34 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         currentSetWeights = [];
                         tierUpgradedData = null;
 
+                        let restoredElapsed = 0;
+                        const savedState = loadLiveWorkoutState();
+                        if (savedState && savedState.exerciseId) {
+                            const matchedIdx = liveExercises.findIndex(e => String(e.exercise_id) === String(savedState.exerciseId));
+                            if (matchedIdx !== -1) {
+                                currentExIndex = matchedIdx;
+                                const maxSets = Math.max(1, parseInt(liveExercises[matchedIdx].sets, 10) || 1);
+                                currentSet = Math.min(Math.max(1, parseInt(savedState.currentSet, 10) || 1), maxSets);
+                                currentSetWeights = Array.isArray(savedState.currentSetWeights) ? savedState.currentSetWeights.slice(0, maxSets) : [];
+                                restoredElapsed = Math.max(0, parseInt(savedState.workoutElapsedSeconds, 10) || 0);
+                            }
+                        }
+
                         // Initialize workout chronograph
                         if (!workoutStopwatchInterval) {
-                            workoutElapsedSeconds = 0;
+                            workoutElapsedSeconds = restoredElapsed;
                             const elapsedEl = document.getElementById('player-elapsed-time');
-                            if (elapsedEl) elapsedEl.innerText = '00:00';
+                            if (elapsedEl) elapsedEl.innerText = formatElapsed(workoutElapsedSeconds);
                             workoutStopwatchInterval = setInterval(() => {
                                 workoutElapsedSeconds++;
                                 if (elapsedEl) elapsedEl.innerText = formatElapsed(workoutElapsedSeconds);
+                                if (workoutElapsedSeconds % 5 === 0) {
+                                    saveLiveWorkoutState(true);
+                                }
                             }, 1000);
                         }
+
+                        saveLiveWorkoutState(true);
 
                         // Pre-warm audio context
                         try {
@@ -795,6 +849,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 }
 
                 function confirmExitWorkout() {
+                    saveLiveWorkoutState(false);
                     cleanupPlayerModal();
                     window.location.reload();
                 }
@@ -1105,6 +1160,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
 
                     if (currentSet < totalSets) {
                         currentSet++;
+                        saveLiveWorkoutState(true);
                         playPlayerTone(660, 0.12, 'sine');
                         if (navigator.vibrate) navigator.vibrate([60]);
                         startRest(ex.rest_seconds || 60, 'next_set');
@@ -1154,8 +1210,10 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                             currentSetWeights = [];
 
                             if (currentExIndex < liveExercises.length) {
+                                saveLiveWorkoutState(true);
                                 startRest(ex.rest_seconds || 60, 'next_exercise');
                             } else {
+                                clearLiveWorkoutState();
                                 finishLiveWorkout();
                             }
                         })
@@ -1321,6 +1379,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         currentExIndex--;
                         currentSet = 1;
                         currentSetWeights = [];
+                        saveLiveWorkoutState(true);
                         renderLiveExercise();
                     }
                 }
@@ -1330,6 +1389,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         currentExIndex++;
                         currentSet = 1;
                         currentSetWeights = [];
+                        saveLiveWorkoutState(true);
                         renderLiveExercise();
                         playPlayerTone(660, 0.08, 'triangle');
                     } else {
@@ -1356,6 +1416,7 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 }
 
                 function finishLiveWorkout() {
+                    clearLiveWorkoutState();
                     stopClockTicking();
                     clearInterval(workoutStopwatchInterval);
                     clearInterval(restTimer);
@@ -1442,4 +1503,9 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                 // Initial render on page load: automatically loads initialSelectedDate
                 document.addEventListener('DOMContentLoaded', () => {
                     selectDate(selectedDate);
+                    const savedState = loadLiveWorkoutState();
+                    const todayData = CALENDAR_DATA[TODAY_DATE];
+                    if (savedState && savedState.isOpen && todayData && todayData.hasWorkout && todayData.exercises.some(e => !e.is_completed)) {
+                        startLiveWorkoutForToday();
+                    }
                 });
