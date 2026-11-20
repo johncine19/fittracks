@@ -356,7 +356,13 @@ try {
         ob_end_clean(); // discard any partial page that was buffered
     }
 
-    error_log('App Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString());
+    $errLogMsg = 'App Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . "\n" . $e->getTraceAsString();
+    error_log($errLogMsg);
+    $storageLogDir = __DIR__ . '/storage';
+    if (is_dir($storageLogDir) && is_writable($storageLogDir)) {
+        $reqUri = $_SERVER['REQUEST_URI'] ?? 'CLI';
+        @file_put_contents($storageLogDir . '/php_errors.log', sprintf("[%s] %s [URI: %s]\n", date('Y-m-d H:i:s'), $errLogMsg, $reqUri), FILE_APPEND | LOCK_EX);
+    }
 
     $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest')
         || (isset($_SERVER['HTTP_ACCEPT']) && str_contains($_SERVER['HTTP_ACCEPT'], 'application/json'))

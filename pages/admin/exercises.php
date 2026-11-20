@@ -427,6 +427,13 @@ Safety: " : "") . $safety;
                 flash('You must select a gym or Global for this exercise.', 'danger');
             } else {
                 $urlInput = trim((string) post('animation_url_input'));
+                if ($urlInput !== '' && preg_match('/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/', $urlInput, $ytMatch)) {
+                    $urlInput = 'https://www.youtube.com/watch?v=' . $ytMatch[1];
+                }
+                if ($urlInput !== '' && strlen($urlInput) > 255) {
+                    flash('Animation URL must be 255 characters or fewer.', 'danger');
+                    redirect($exercisesReturnUrl);
+                }
                 if ($postAction === 'create') {
                     $dupCheck = query_one('SELECT exercise_id, gym_id FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) AND LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1', [$targetGymId, $name]);
                     if ($dupCheck) {
@@ -1968,6 +1975,26 @@ Safety: " : "") . $safety;
                         alert(msg);
                     }
                     if (exNameInput) exNameInput.focus();
+                    return;
+                }
+                const animUrlEl = document.getElementById('exAnimationUrlInput');
+                if (animUrlEl) {
+                    let animUrl = animUrlEl.value.trim();
+                    const ytMatch = animUrl.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+                    if (ytMatch) {
+                        animUrl = 'https://www.youtube.com/watch?v=' + ytMatch[1];
+                        animUrlEl.value = animUrl;
+                    }
+                    if (animUrl.length > 255) {
+                        e.preventDefault();
+                        const lenMsg = 'Animation URL must be 255 characters or fewer.';
+                        if (window.Swal) {
+                            Swal.fire({ icon: 'warning', title: 'URL Too Long', text: lenMsg, confirmButtonColor: '#f59e0b' });
+                        } else {
+                            alert(lenMsg);
+                        }
+                        animUrlEl.focus();
+                    }
                 }
             });
         }
