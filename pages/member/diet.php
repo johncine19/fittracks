@@ -1830,7 +1830,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                     </div>
                     
                     <!-- Daily Totals -->
-                    <div style="margin-top: 24px; padding: 20px; background: rgba(163, 230, 53, 0.05); border: 1px solid rgba(163, 230, 53, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                    <div style="margin-top: 24px; padding: 20px; background: color-mix(in srgb, var(--lime) 6%, var(--panel)); border: 1px solid color-mix(in srgb, var(--lime) 24%, var(--line)); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <div style="background: var(--lime); color: var(--bg); width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
@@ -2193,7 +2193,7 @@ window.FT_CURRENT_DAY_NUM = window.DIET_CONFIG.currentDayNum;
                 </div>
 
                 <!-- Health Benefits & Notes -->
-                <div id="inspect-recipe-notes" style="display:none; margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: rgba(199,255,34,0.04); border-left: 3px solid var(--lime);">
+                <div id="inspect-recipe-notes" style="display:none; margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: color-mix(in srgb, var(--lime) 5%, transparent); border-left: 3px solid var(--lime);">
                     <div style="font-size: 11px; font-weight: 700; color: var(--lime); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: inline-flex; align-items: center; gap: 5px;">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         <span>Why This Food is Good for You</span>
