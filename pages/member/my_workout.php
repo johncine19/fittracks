@@ -25,6 +25,18 @@ function my_workout_page(): void
             $_SESSION['dismiss_progression_tip_' . $userId] = 1;
             echo json_encode(['success' => true]);
             exit;
+        } elseif ($action === 'refresh_current_plan') {
+            $activePlanId = (int) scalar(
+                'SELECT plan_id FROM training_plans WHERE member_user_id = ? AND trainer_id IS NULL AND status = "active" ORDER BY plan_id DESC LIMIT 1',
+                [$userId]
+            );
+            if ($activePlanId > 0) {
+                auto_populate_plan($activePlanId, $userId);
+                flash('Current workout plan refreshed with updated exercises and profile settings.', 'success');
+            } else {
+                generate_workout_plan($userId);
+                flash('Workout plan generated successfully.', 'success');
+            }
         } else {
             generate_workout_plan($userId);
             notify_user($userId, 'system', 'New Workout Plan Phase Created', 'Your new 4-week workout routine has been generated and activated.');
@@ -460,39 +472,203 @@ function my_workout_page(): void
 
         <?php if ($isReviewDue): ?>
             <!-- 4-Week Scheduled Review Banner -->
-            <div class="workout-review-banner animate-fade-in" style="background: linear-gradient(135deg, rgba(199, 255, 34, 0.12), rgba(30, 41, 59, 0.85)); border: 1px solid rgba(199, 255, 34, 0.4); border-radius: 14px; padding: 18px 22px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                <div style="display: flex; align-items: flex-start; gap: 14px; max-width: 700px;">
-                    <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(199, 255, 34, 0.2); color: var(--lime); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <style>
+                .workout-review-banner {
+                    position: relative;
+                    overflow: hidden;
+                    background: linear-gradient(135deg, color-mix(in srgb, var(--lime) 9%, var(--panel)), var(--panel));
+                    border: 1px solid color-mix(in srgb, var(--lime) 30%, var(--line));
+                    border-left: 3px solid var(--lime);
+                    border-radius: 14px;
+                    padding: 18px 22px;
+                    margin-bottom: 24px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 18px;
+                }
+                .workout-review-left {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 14px;
+                    flex: 1 1 360px;
+                    min-width: 0;
+                }
+                .workout-review-icon {
+                    width: 42px;
+                    height: 42px;
+                    border-radius: 11px;
+                    background: color-mix(in srgb, var(--lime) 14%, transparent);
+                    border: 1px solid color-mix(in srgb, var(--lime) 28%, transparent);
+                    color: var(--lime);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+                }
+                .workout-review-header {
+                    display: flex;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-bottom: 5px;
+                }
+                .workout-review-title {
+                    color: var(--ink);
+                    font-size: 15.5px;
+                    font-weight: 700;
+                    line-height: 1.3;
+                }
+                .workout-review-badge {
+                    font-size: 10.5px;
+                    font-weight: 800;
+                    letter-spacing: 0.04em;
+                    background: color-mix(in srgb, var(--lime) 18%, transparent);
+                    color: var(--lime);
+                    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+                    padding: 2px 8px;
+                    border-radius: 999px;
+                    text-transform: uppercase;
+                    white-space: nowrap;
+                }
+                .workout-review-phase {
+                    font-size: 11.5px;
+                    color: var(--muted);
+                    font-weight: 600;
+                    white-space: nowrap;
+                }
+                .workout-review-desc {
+                    margin: 0;
+                    color: var(--muted);
+                    font-size: 13px;
+                    line-height: 1.5;
+                    max-width: 640px;
+                }
+                .workout-review-actions {
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    flex-shrink: 0;
+                }
+                .workout-review-btn-secondary {
+                    background: var(--panel-soft, rgba(255,255,255,0.05));
+                    color: var(--ink);
+                    font-weight: 600;
+                    font-size: 13px;
+                    padding: 10px 16px;
+                    border-radius: 9px;
+                    border: 1px solid var(--line);
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .workout-review-btn-primary {
+                    background: var(--lime);
+                    color: var(--lime-btn-text, #080b0d);
+                    font-weight: 700;
+                    font-size: 13px;
+                    padding: 10px 18px;
+                    border-radius: 9px;
+                    border: none;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 7px;
+                    white-space: nowrap;
+                }
+                @media (max-width: 768px) {
+                    .workout-review-banner {
+                        flex-direction: column;
+                        align-items: stretch;
+                        padding: 16px;
+                        gap: 14px;
+                    }
+                    .workout-review-left {
+                        flex: 1 1 auto;
+                    }
+                    .workout-review-actions {
+                        flex-direction: column-reverse;
+                        width: 100%;
+                        gap: 8px;
+                    }
+                    .workout-review-actions form {
+                        width: 100%;
+                    }
+                    .workout-review-btn-secondary,
+                    .workout-review-btn-primary {
+                        width: 100%;
+                        justify-content: center;
+                        padding: 11px 16px;
+                    }
+                }
+            </style>
+            <div class="workout-review-banner animate-fade-in">
+                <div class="workout-review-left">
+                    <div class="workout-review-icon" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <path d="M9 14l2 2 4-4"/>
+                        </svg>
                     </div>
-                    <div>
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                            <strong style="color: var(--ink); font-size: 15.5px;">4-Week Workout Cycle Complete</strong>
-                            <span style="font-size: 11px; font-weight: 700; background: var(--lime); color: #080b0d; padding: 2px 7px; border-radius: 6px; text-transform: uppercase;">Review Due</span>
+                    <div style="min-width: 0;">
+                        <div class="workout-review-header">
+                            <strong class="workout-review-title">4-Week Workout Cycle Complete</strong>
+                            <span class="workout-review-badge">Review Due</span>
                             <?php if ($currentPlanVersion > 1): ?>
-                                <span style="font-size: 11px; color: var(--muted);">(Phase <?= $currentPlanVersion ?>)</span>
+                                <span class="workout-review-phase">Phase <?= $currentPlanVersion ?></span>
                             <?php endif; ?>
                         </div>
-                        <p style="margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.45;">
-                            You have completed this 4-week training cycle. Your current routine stays fully usable and active. You can keep running it for another 4 weeks, or generate your next training phase based on your updated fitness stats.
+                        <p class="workout-review-desc">
+                            You've finished this 4-week cycle. Keep running your current routine for another 4 weeks, or generate your next phase from your latest profile stats.
                         </p>
                     </div>
                 </div>
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <form method="post" style="margin: 0;">
+                <div class="workout-review-actions">
+                    <form id="extend-cycle-form" method="post" style="margin: 0;" onsubmit="return confirmExtendCycle(event, this);">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="extend_cycle">
                         <input type="hidden" name="plan_id" value="<?= (int)($plan['plan_id'] ?? 0) ?>">
-                        <button type="submit" class="btn" style="background: rgba(255,255,255,0.08); color: var(--ink); font-weight: 600; padding: 9px 16px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer;">
+                        <button type="submit" class="btn workout-review-btn-secondary">
                             Keep Current Routine (+4 Wks)
                         </button>
                     </form>
-                    <button type="button" onclick="openRegenModal()" class="btn" style="background: var(--lime); color: #080b0d; font-weight: 700; padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    <button type="button" onclick="openRegenModal()" class="btn workout-review-btn-primary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                         <span>Update to Next Phase</span>
                     </button>
                 </div>
             </div>
+            <script>
+            function confirmExtendCycle(e, form) {
+                if (form.dataset.confirmed === '1') return true;
+                e.preventDefault();
+                if (window.Swal) {
+                    Swal.fire({
+                        title: 'Keep Current Routine?',
+                        text: 'Extend your current workout plan by another 4 weeks without changing exercises.',
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonColor: 'var(--lime)',
+                        cancelButtonColor: 'var(--line)',
+                        confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10);font-weight:700;">Yes, Extend +4 Weeks</span>',
+                        cancelButtonText: 'Cancel',
+                        background: 'var(--panel)',
+                        color: 'var(--ink)'
+                    }).then(function(result) {
+                        if (result.isConfirmed) {
+                            form.dataset.confirmed = '1';
+                            form.submit();
+                        }
+                    });
+                } else if (window.confirm('Extend your current workout routine by another 4 weeks?')) {
+                    form.dataset.confirmed = '1';
+                    form.submit();
+                }
+                return false;
+            }
+            </script>
         <?php endif; ?>
 
         <?php if ($completionRate >= 80 && $monthCompletedPastCount >= 5 && empty($_SESSION['dismiss_progression_tip_' . $userId])): ?>
@@ -898,37 +1074,158 @@ function my_workout_page(): void
 
         <?php if ($isSelfGuided): ?>
             <!-- Workout Plan Regeneration Confirmation Modal -->
+            <style>
+                #regenPlanModal .regen-modal-card {
+                    background: var(--panel, #161e27);
+                    border: 1px solid var(--line, rgba(255,255,255,0.12));
+                    border-radius: 16px;
+                    max-width: 640px;
+                    width: 100%;
+                    padding: 24px;
+                    box-shadow: 0 24px 48px rgba(0,0,0,0.65);
+                    animation: fadeIn 0.2s ease-out;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                }
+                #regenPlanModal .regen-modal-icon {
+                    width: 38px;
+                    height: 38px;
+                    border-radius: 10px;
+                    background: color-mix(in srgb, var(--lime) 14%, transparent);
+                    border: 1px solid color-mix(in srgb, var(--lime) 28%, transparent);
+                    color: var(--lime);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+                }
+                #regenPlanModal .regen-stats-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 12px;
+                    font-size: 13px;
+                }
+                #regenPlanModal .regen-modal-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    align-items: center;
+                    flex-wrap: nowrap;
+                    gap: 8px;
+                }
+                #regenPlanModal .regen-modal-actions .btn {
+                    font-size: 13px;
+                    padding: 10px 14px;
+                    border-radius: 9px;
+                    white-space: nowrap;
+                }
+                #regenPlanModal .regen-btn-keep {
+                    margin-right: auto;
+                    background: rgba(255,255,255,0.08);
+                    color: var(--ink);
+                    border: 1px solid var(--line);
+                    font-weight: 600;
+                    cursor: pointer;
+                }
+                #regenPlanModal .regen-btn-refresh {
+                    background: color-mix(in srgb, var(--lime) 14%, transparent);
+                    color: var(--lime);
+                    border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
+                    font-weight: 700;
+                    cursor: pointer;
+                }
+                #regenPlanModal .regen-btn-confirm {
+                    background: var(--lime);
+                    color: var(--lime-btn-text, #080b0d);
+                    font-weight: 700;
+                    border: none;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                }
+                @media (max-width: 620px) {
+                    #regenPlanModal {
+                        padding: 12px !important;
+                    }
+                    #regenPlanModal .regen-modal-card {
+                        padding: 18px;
+                    }
+                    #regenPlanModal .regen-stats-grid {
+                        grid-template-columns: 1fr;
+                        gap: 10px;
+                    }
+                    #regenPlanModal .regen-modal-actions {
+                        flex-direction: column-reverse;
+                        align-items: stretch;
+                    }
+                    #regenPlanModal .regen-btn-keep {
+                        margin-right: 0;
+                    }
+                    #regenPlanModal .regen-modal-actions form,
+                    #regenPlanModal .regen-modal-actions button {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                }
+            </style>
             <div id="regenPlanModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 99999; align-items: center; justify-content: center; padding: 20px;" role="dialog" aria-modal="true" aria-labelledby="regenModalTitle">
-                <div style="background: var(--panel, #161e27); border: 1px solid var(--line, rgba(255,255,255,0.12)); border-radius: 16px; max-width: 540px; width: 100%; padding: 26px; box-shadow: 0 24px 48px rgba(0,0,0,0.65); animation: fadeIn 0.2s ease-out;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(199, 255, 34, 0.16); color: var(--lime); display: flex; align-items: center; justify-content: center;">
+                <div class="regen-modal-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                            <div class="regen-modal-icon">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                             </div>
-                            <h3 id="regenModalTitle" style="margin: 0; font-size: 18px; font-weight: 700; color: var(--ink);">Review &amp; Regenerate Workout Routine</h3>
+                            <h3 id="regenModalTitle" style="margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.25;">Review &amp; Regenerate Workout Routine</h3>
                         </div>
-                        <button type="button" onclick="closeRegenModal()" style="background: none; border: none; font-size: 24px; color: var(--muted); cursor: pointer; line-height: 1;" aria-label="Close modal">&times;</button>
+                        <button type="button" onclick="closeRegenModal()" style="background: none; border: none; font-size: 24px; color: var(--muted); cursor: pointer; line-height: 1; flex-shrink: 0;" aria-label="Close modal">&times;</button>
                     </div>
 
                     <p style="color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 18px;">
-                        Generating a new routine creates an updated 4-week training cycle. Your current workout plan will be <strong>safely archived</strong> into your version history, and all past workout completion logs remain intact.
+                        Choose <strong>Refresh Current Plan</strong> to update exercises in your active phase, or generate a new 4-week phase (archiving your current plan while keeping all completion logs intact).
                     </p>
 
+                    <?php
+                    $expNum = function_exists('resolve_member_experience_level')
+                        ? resolve_member_experience_level($memberProfile ?: [])
+                        : (int)($memberProfile['experience_level'] ?? 2);
+                    $expLabel = match ($expNum) {
+                        1 => 'Starter',
+                        3 => 'Advanced',
+                        default => 'Intermediate',
+                    };
+
+                    $prefDaysRaw = trim((string)($memberProfile['preferred_workout_days'] ?? ''));
+                    $prefDaysCount = 0;
+                    if ($prefDaysRaw !== '') {
+                        $prefDaysCount = count(array_filter(array_map('intval', explode(',', $prefDaysRaw)), fn($d) => $d >= 1 && $d <= 7));
+                    }
+                    $displayFreq = $prefDaysCount > 0
+                        ? $prefDaysCount
+                        : ((int)($memberProfile['weekly_workout_target'] ?? 0) > 0
+                            ? (int)$memberProfile['weekly_workout_target']
+                            : match ($memberProfile['activity_level'] ?? 'lightly_active') {
+                                'sedentary' => 2,
+                                'moderately_active' => 4,
+                                'very_active', 'extra_active' => 5,
+                                default => 3,
+                            });
+                    ?>
                     <!-- Summary of Current Profile, Goal & Recent Progress -->
                     <div style="background: var(--bg, #0d1217); border: 1px solid var(--line, rgba(255,255,255,0.08)); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
                         <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted); margin-bottom: 10px; letter-spacing: 0.5px;">Current Training Profile &amp; Stats</div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                        <div class="regen-stats-grid">
                             <div>
                                 <span style="color: var(--muted); font-size: 12px; display: block;">Primary Goal:</span>
                                 <strong style="color: var(--ink); font-size: 13.5px;"><?= h(ucwords(str_replace('_', ' ', $memberProfile['primary_goal'] ?? ($plan['goal'] ?? 'General Fitness')))) ?></strong>
                             </div>
                             <div>
                                 <span style="color: var(--muted); font-size: 12px; display: block;">Experience Level:</span>
-                                <strong style="color: var(--ink); font-size: 13.5px;"><?= h(ucwords((string)($memberProfile['experience_level'] ?? 'Intermediate'))) ?></strong>
+                                <strong style="color: var(--ink); font-size: 13.5px;"><?= h($expLabel) ?></strong>
                             </div>
                             <div>
                                 <span style="color: var(--muted); font-size: 12px; display: block;">Training Frequency:</span>
-                                <strong style="color: var(--ink); font-size: 13.5px;"><?= (int)($memberProfile['workout_days_per_week'] ?? 3) ?> Days / Week</strong>
+                                <strong style="color: var(--ink); font-size: 13.5px;"><?= $displayFreq ?> Days / Week</strong>
                             </div>
                             <div>
                                 <span style="color: var(--muted); font-size: 12px; display: block;">Recent Consistency:</span>
@@ -937,14 +1234,21 @@ function my_workout_page(): void
                         </div>
                     </div>
 
-                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
-                        <button type="button" onclick="closeRegenModal()" class="btn" style="background: rgba(255,255,255,0.08); color: var(--ink); border: 1px solid var(--line); padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                    <div class="regen-modal-actions">
+                        <button type="button" onclick="closeRegenModal()" class="btn regen-btn-keep">
                             Keep Current Plan
                         </button>
                         <form method="post" style="margin: 0;">
                             <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="refresh_current_plan">
+                            <button type="submit" class="btn regen-btn-refresh">
+                                Refresh Current Plan
+                            </button>
+                        </form>
+                        <form method="post" style="margin: 0;">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="action" value="regenerate_plan">
-                            <button type="submit" class="btn" style="background: var(--lime); color: #080b0d; font-weight: 700; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                            <button type="submit" class="btn regen-btn-confirm">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                                 <span>Confirm &amp; Generate Phase <?= $currentPlanVersion + 1 ?></span>
                             </button>
