@@ -1331,7 +1331,7 @@ function progress_page(): void
                             </button>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;">
                         <?php foreach ($memberTargetBars as $tb): ?>
                             <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
                                 <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
@@ -1389,7 +1389,7 @@ function progress_page(): void
                         </div>
                         <?php endif; ?>
                     </div>
-                    <div id="liftRecordsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                    <div id="liftRecordsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;">
                         <?php foreach ($liftedExercises as $idx => $le): ?>
                             <div class="lift-record-item" data-lift-idx="<?= (int)$idx ?>" style="<?= $idx >= $liftPerPage ? 'display: none;' : 'display: flex;' ?> background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; justify-content: space-between; align-items: center; gap: 10px;">
                                 <div style="min-width: 0;">
