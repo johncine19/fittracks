@@ -91,6 +91,58 @@ function _get_secondary_focus_targets(?string $secFocus): array
 }
 
 /**
+ * Scores an exercise for a member based on secondary focus, goal affinity, and experience level.
+ */
+function _score_exercise_for_member(
+    array $ex,
+    string $goal,
+    int $expLevel,
+    array $targetMuscles,
+    array $targetCategories,
+    array $targetNames
+): int {
+    $score = 0;
+    $mg = strtolower($ex['muscle_group'] ?? '');
+    $cat = strtolower($ex['category'] ?? '');
+    $name = strtolower($ex['name'] ?? '');
+
+    if (in_array($mg, $targetMuscles, true)) $score += 10;
+    if (in_array($cat, $targetCategories, true)) $score += 6;
+
+    foreach ($targetNames as $tn) {
+        if (str_contains($name, $tn)) $score += 8;
+    }
+
+    if ($goal === 'muscle_gain' && $cat === 'strength') $score += 2;
+    if (($goal === 'fat_loss' || $goal === 'weight_loss') && $cat === 'cardio') $score += 2;
+
+    // Soft difficulty bonus: keep foundational Beginner lifts in the pool,
+    // while prioritizing Intermediate/Advanced variations for experienced members.
+    $diff = max(1, (int)($ex['difficulty_level'] ?? 1));
+    if ($expLevel >= 3) {
+        $score += ($diff >= 3) ? 6 : (($diff === 2) ? 3 : 0);
+    } elseif ($expLevel === 2) {
+        $score += ($diff >= 2) ? 4 : 1;
+    }
+
+    return $score;
+}
+
+/**
+ * Picks up to $count items from a pre-sorted pool while preserving top-score bias and day-to-day variety.
+ */
+function _pick_varied_top_exercises(array $sortedPool, int $count): array
+{
+    if ($count <= 0 || empty($sortedPool)) {
+        return [];
+    }
+    $windowSize = min(count($sortedPool), max($count * 3, 5));
+    $topWindow = array_slice($sortedPool, 0, $windowSize);
+    shuffle($topWindow);
+    return array_slice($topWindow, 0, $count);
+}
+
+/**
  * Selects the daily exercise flow for a single training day up to $targetCount.
  */
 function _select_daily_exercises(array $dayExercises, array $profile, string $goal, int $targetCount): array
@@ -119,22 +171,31 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
             $secByGroup[$grpKey][] = $sx;
         }
 
-        $maxPerGroup = count($secByGroup) > 1 ? 1 : 2;
+        // Round-robin across focus muscle groups so multi-focus plans (e.g. Legs & Chest) get
+        // balanced coverage and up to 2-3 focus exercises before filling with general movements.
+        $maxPerGroup = count($secByGroup) > 1 ? 2 : 3;
+        $groupPools = [];
         foreach ($secByGroup as $grp => $grpExs) {
-            shuffle($grpExs);
-            $pickCount = min(count($grpExs), $maxPerGroup);
-            for ($i = 0; $i < $pickCount; $i++) {
-                if (count($assigned) < $targetCount) {
-                    $assigned[] = $grpExs[$i];
+            $groupPools[$grp] = _pick_varied_top_exercises($grpExs, $maxPerGroup);
+        }
+
+        for ($round = 0; $round < $maxPerGroup && count($assigned) < $targetCount; $round++) {
+            foreach ($groupPools as $pool) {
+                if (count($assigned) >= $targetCount) break;
+                if (isset($pool[$round])) {
+                    $assigned[] = $pool[$round];
                 }
             }
         }
 
-        shuffle($generalExercises);
-        foreach ($generalExercises as $gx) {
-            if (count($assigned) >= $targetCount) break;
-            if (!in_array($gx['exercise_id'], array_column($assigned, 'exercise_id'))) {
-                $assigned[] = $gx;
+        $remaining = $targetCount - count($assigned);
+        if ($remaining > 0 && !empty($generalExercises)) {
+            $generalPool = _pick_varied_top_exercises($generalExercises, $remaining + 2);
+            foreach ($generalPool as $gx) {
+                if (count($assigned) >= $targetCount) break;
+                if (!in_array($gx['exercise_id'], array_column($assigned, 'exercise_id'))) {
+                    $assigned[] = $gx;
+                }
             }
         }
 
@@ -143,9 +204,8 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
         }
     }
 
-    // Default flow: take the top-scored $targetCount exercises in sequence order
-    $numExercises = min(count($dayExercises), $targetCount);
-    return array_slice($dayExercises, 0, $numExercises);
+    // Default flow: take varied picks from the top-scored $targetCount exercises
+    return _pick_varied_top_exercises($dayExercises, min(count($dayExercises), $targetCount));
 }
 
 /**
@@ -171,46 +231,18 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
         $exercises = $stmt->fetchAll();
     }
 
-    // 3. Score & sort exercises by secondary_focus (muscle_group +10, name +8, category +6) and goal affinity (+2)
+    // 3. Score & sort exercises by secondary_focus (muscle_group +10, name +8, category +6),
+    // goal affinity (+2), and experience-level difficulty bonus (+0..+6).
     [$targetMuscles, $targetCategories, $targetNames] = _get_secondary_focus_targets($profile['secondary_focus'] ?? null);
 
-    if (!empty($targetMuscles) || !empty($targetCategories) || !empty($targetNames)) {
-        usort($exercises, function($a, $b) use ($goal, $targetMuscles, $targetCategories, $targetNames) {
-            $scoreA = 0;
-            $scoreB = 0;
-            $mga = strtolower($a['muscle_group'] ?? '');
-            $mgb = strtolower($b['muscle_group'] ?? '');
-            $cata = strtolower($a['category'] ?? '');
-            $catb = strtolower($b['category'] ?? '');
-            $namea = strtolower($a['name'] ?? '');
-            $nameb = strtolower($b['name'] ?? '');
-
-            if (in_array($mga, $targetMuscles, true)) $scoreA += 10;
-            if (in_array($mgb, $targetMuscles, true)) $scoreB += 10;
-
-            if (in_array($cata, $targetCategories, true)) $scoreA += 6;
-            if (in_array($catb, $targetCategories, true)) $scoreB += 6;
-
-            foreach ($targetNames as $tn) {
-                if (str_contains($namea, $tn)) $scoreA += 8;
-                if (str_contains($nameb, $tn)) $scoreB += 8;
-            }
-
-            if ($goal === 'muscle_gain' && $cata === 'strength') $scoreA += 2;
-            if ($goal === 'muscle_gain' && $catb === 'strength') $scoreB += 2;
-            if ($goal === 'fat_loss' && $cata === 'cardio') $scoreA += 2;
-            if ($goal === 'fat_loss' && $catb === 'cardio') $scoreB += 2;
-
+    if (!empty($targetMuscles) || !empty($targetCategories) || !empty($targetNames) || $expLevel >= 2 || $goal === 'muscle_gain' || $goal === 'fat_loss' || $goal === 'weight_loss') {
+        usort($exercises, function($a, $b) use ($goal, $expLevel, $targetMuscles, $targetCategories, $targetNames) {
+            $scoreA = _score_exercise_for_member($a, $goal, $expLevel, $targetMuscles, $targetCategories, $targetNames);
+            $scoreB = _score_exercise_for_member($b, $goal, $expLevel, $targetMuscles, $targetCategories, $targetNames);
             return $scoreB <=> $scoreA;
         });
     } else {
-        if ($goal === 'muscle_gain') {
-            usort($exercises, fn($a, $b) => ($a['category'] === 'strength' ? 0 : 1) <=> ($b['category'] === 'strength' ? 0 : 1));
-        } elseif ($goal === 'fat_loss' || $goal === 'weight_loss') {
-            usort($exercises, fn($a, $b) => ($a['category'] === 'cardio' ? 0 : 1) <=> ($b['category'] === 'cardio' ? 0 : 1));
-        } else {
-            shuffle($exercises);
-        }
+        shuffle($exercises);
     }
 
     // 4. Resolve weekly schedule priority: preferred_workout_days -> weekly_workout_target -> activity_level
