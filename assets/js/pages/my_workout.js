@@ -1302,32 +1302,97 @@ let selectedDate = FT_WORKOUT_CONFIG.initialSelectedDate || '';
                         return;
                     }
 
+                    const totalSets = Math.max(1, parseInt(ex.sets, 10) || 1);
+                    const lastWeight = [...currentSetWeights].reverse().find(w => typeof w === 'number' && w > 0);
+                    const suggestedWeight = (ex.target_weight_kg && Number(ex.target_weight_kg) > 0)
+                        ? Number(ex.target_weight_kg)
+                        : (lastWeight || '');
+                    const presetWeights = [...new Set([
+                        ...(lastWeight ? [lastWeight] : []),
+                        ...(ex.target_weight_kg && Number(ex.target_weight_kg) > 0 ? [Number(ex.target_weight_kg)] : []),
+                        20, 40, 60, 80
+                    ])].slice(0, 4);
+
                     Swal.fire({
-                        title: `Log Weight for Set ${currentSet}`,
-                        text: 'You left the weight lifted blank. Type the weight you lifted (kg) or skip this set.',
-                        input: 'number',
-                        inputAttributes: {
-                            min: '0.5',
-                            max: '500',
-                            step: '0.5',
-                            placeholder: 'e.g. 60'
-                        },
+                        title: '',
+                        html: `
+                            <div style="text-align:left;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+                                    <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+                                        <div style="width:36px; height:36px; border-radius:10px; background:color-mix(in srgb, var(--lime, #a3e635) 14%, transparent); border:1px solid color-mix(in srgb, var(--lime, #a3e635) 28%, transparent); color:var(--lime, #a3e635); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 5v14M18 5v14M2 9h4M18 9h4M2 15h4M18 15h4M6 12h12"/></svg>
+                                        </div>
+                                        <div style="min-width:0;">
+                                            <div style="font-size:16px; font-weight:800; color:var(--ink, #f8fafc); line-height:1.25;">Log Weight</div>
+                                            <div style="font-size:12.5px; color:var(--muted, #94a3b8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(ex.name || 'Exercise')}</div>
+                                        </div>
+                                    </div>
+                                    <span style="font-size:11px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; padding:4px 9px; border-radius:999px; background:color-mix(in srgb, var(--lime, #a3e635) 15%, transparent); color:var(--lime, #a3e635); border:1px solid color-mix(in srgb, var(--lime, #a3e635) 30%, transparent); white-space:nowrap;">Set ${currentSet} of ${totalSets}</span>
+                                </div>
+
+                                <p style="margin:0 0 12px; font-size:13px; color:var(--muted, #94a3b8); line-height:1.45;">
+                                    Enter the weight you lifted for this set to track progressive overload, or skip if bodyweight.
+                                </p>
+
+                                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                                    <button type="button" class="swal-w-step" data-delta="-2.5" style="width:42px; height:44px; border-radius:10px; border:1px solid var(--line, rgba(255,255,255,0.12)); background:var(--panel-soft, rgba(255,255,255,0.05)); color:var(--ink, #f8fafc); font-weight:700; font-size:14px; cursor:pointer; flex-shrink:0;">-2.5</button>
+                                    <div style="position:relative; flex:1;">
+                                        <input id="swal-live-weight-input" type="number" step="0.5" min="0.5" max="500" value="${suggestedWeight}" placeholder="e.g. 60" style="width:100%; box-sizing:border-box; height:44px; padding:0 42px 0 14px; border-radius:10px; border:1px solid color-mix(in srgb, var(--lime, #a3e635) 45%, var(--line)); background:var(--bg, #0d1217); color:var(--ink, #f8fafc); font-size:16px; font-weight:700; outline:none;">
+                                        <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:11.5px; font-weight:800; color:var(--muted, #94a3b8); letter-spacing:0.05em; pointer-events:none;">KG</span>
+                                    </div>
+                                    <button type="button" class="swal-w-step" data-delta="2.5" style="width:42px; height:44px; border-radius:10px; border:1px solid var(--line, rgba(255,255,255,0.12)); background:var(--panel-soft, rgba(255,255,255,0.05)); color:var(--ink, #f8fafc); font-weight:700; font-size:14px; cursor:pointer; flex-shrink:0;">+2.5</button>
+                                </div>
+
+                                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                                    ${presetWeights.map(w => `
+                                        <button type="button" class="swal-w-preset" data-val="${w}" style="padding:5px 10px; border-radius:999px; border:1px solid var(--line, rgba(255,255,255,0.12)); background:rgba(255,255,255,0.04); color:var(--ink, #e2e8f0); font-size:12px; font-weight:600; cursor:pointer;">${w} kg</button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `,
                         showDenyButton: true,
                         showCancelButton: true,
-                        confirmButtonText: 'Save Weight',
-                        denyButtonText: 'Skip',
+                        confirmButtonText: '<span style="color:var(--lime-btn-text, #090b10); font-weight:800;">Save Weight</span>',
+                        denyButtonText: '<span style="font-weight:600;">Skip</span>',
                         cancelButtonText: 'Cancel',
                         confirmButtonColor: 'var(--lime, #a3e635)',
-                        denyButtonColor: '#475569',
+                        denyButtonColor: '#334155',
                         background: 'var(--panel, #121824)',
                         color: 'var(--ink, #e2e8f0)',
+                        width: 'min(94vw, 440px)',
                         didOpen: () => {
                             const container = document.querySelector('.swal2-container');
                             if (container) container.style.zIndex = '30000000';
+                            const inp = document.getElementById('swal-live-weight-input');
+                            if (inp) {
+                                inp.focus();
+                                inp.select();
+                                inp.addEventListener('keydown', (ev) => {
+                                    if (ev.key === 'Enter') {
+                                        ev.preventDefault();
+                                        Swal.clickConfirm();
+                                    }
+                                });
+                            }
+                            document.querySelectorAll('.swal-w-preset').forEach(btn => {
+                                btn.addEventListener('click', () => {
+                                    if (inp) inp.value = btn.dataset.val;
+                                });
+                            });
+                            document.querySelectorAll('.swal-w-step').forEach(btn => {
+                                btn.addEventListener('click', () => {
+                                    if (!inp) return;
+                                    const cur = parseFloat(inp.value) || 0;
+                                    const next = Math.max(0.5, Math.min(500, cur + parseFloat(btn.dataset.delta)));
+                                    inp.value = String(next);
+                                });
+                            });
                         },
-                        preConfirm: (val) => {
-                            const num = parseFloat(val);
-                            if (!val || isNaN(num) || num <= 0 || num > 500) {
+                        preConfirm: () => {
+                            const inp = document.getElementById('swal-live-weight-input');
+                            const raw = inp ? inp.value.trim() : '';
+                            const num = parseFloat(raw);
+                            if (!raw || isNaN(num) || num <= 0 || num > 500) {
                                 Swal.showValidationMessage('Enter a valid weight between 0.5 and 500 kg, or click Skip.');
                                 return false;
                             }
