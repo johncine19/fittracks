@@ -99,7 +99,8 @@ function _score_exercise_for_member(
     int $expLevel,
     array $targetMuscles,
     array $targetCategories,
-    array $targetNames
+    array $targetNames,
+    int $age = 25
 ): int {
     $score = 0;
     $mg = strtolower($ex['muscle_group'] ?? '');
@@ -123,6 +124,13 @@ function _score_exercise_for_member(
         $score += ($diff >= 3) ? 6 : (($diff === 2) ? 3 : 0);
     } elseif ($expLevel === 2) {
         $score += ($diff >= 2) ? 4 : 1;
+    }
+
+    // Joint-friendly preference for older adults who are not Advanced
+    if (($age >= 60 && $expLevel <= 2) || ($age >= 55 && $expLevel === 1)) {
+        if (in_array($cat, ['strongman', 'plyometrics', 'olympic weightlifting'], true)) {
+            $score -= 8;
+        }
     }
 
     return $score;
@@ -232,13 +240,14 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     }
 
     // 3. Score & sort exercises by secondary_focus (muscle_group +10, name +8, category +6),
-    // goal affinity (+2), and experience-level difficulty bonus (+0..+6).
+    // goal affinity (+2), experience-level difficulty bonus (+0..+6), and age-aware recovery.
+    $age = max(16, (int)($profile['age'] ?? 25));
     [$targetMuscles, $targetCategories, $targetNames] = _get_secondary_focus_targets($profile['secondary_focus'] ?? null);
 
-    if (!empty($targetMuscles) || !empty($targetCategories) || !empty($targetNames) || $expLevel >= 2 || $goal === 'muscle_gain' || $goal === 'fat_loss' || $goal === 'weight_loss') {
-        usort($exercises, function($a, $b) use ($goal, $expLevel, $targetMuscles, $targetCategories, $targetNames) {
-            $scoreA = _score_exercise_for_member($a, $goal, $expLevel, $targetMuscles, $targetCategories, $targetNames);
-            $scoreB = _score_exercise_for_member($b, $goal, $expLevel, $targetMuscles, $targetCategories, $targetNames);
+    if (!empty($targetMuscles) || !empty($targetCategories) || !empty($targetNames) || $expLevel >= 2 || $age >= 55 || $goal === 'muscle_gain' || $goal === 'fat_loss' || $goal === 'weight_loss') {
+        usort($exercises, function($a, $b) use ($goal, $expLevel, $targetMuscles, $targetCategories, $targetNames, $age) {
+            $scoreA = _score_exercise_for_member($a, $goal, $expLevel, $targetMuscles, $targetCategories, $targetNames, $age);
+            $scoreB = _score_exercise_for_member($b, $goal, $expLevel, $targetMuscles, $targetCategories, $targetNames, $age);
             return $scoreB <=> $scoreA;
         });
     } else {
@@ -284,7 +293,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
  *   - Experience level (1 = Starter, 2 = Intermediate, 3 = Advanced)
  * Uses the exercise's DB description as notes when present, falling back to a goal/level form cue.
  */
-function _assign_exercise_details(string $goal, int $expLevel, array $ex): array
+function _assign_exercise_details(string $goal, int $expLevel, array $ex, int $age = 25): array
 {
     $cat = $ex['category'] ?? 'strength';
     $customDesc = !empty($ex['description']) ? trim((string)$ex['description']) : null;
@@ -410,6 +419,23 @@ function _assign_exercise_details(string $goal, int $expLevel, array $ex): array
             $tempo = '2-0-1-0'; 
             $rpe = 'RPE 7-8'; 
             $cue = 'Maintain balanced strength across all planes.';
+        }
+    }
+
+    // Age-aware recovery & intensity guard (keeps experience_level as primary driver)
+    if ($cat !== 'cardio' && $age > 0) {
+        if ($age < 18) {
+            if (in_array($reps, ['3-5', '5-6'], true)) {
+                $reps = '8-10';
+            }
+            if (in_array($rpe, ['RPE 8', 'RPE 8-9'], true)) {
+                $rpe = 'RPE 7';
+            }
+        } elseif ($age >= 55) {
+            $rest += ($age >= 65) ? 30 : 15;
+            if ($expLevel <= 2 && in_array($rpe, ['RPE 8', 'RPE 8-9'], true)) {
+                $rpe = ($age >= 65 && $expLevel === 1) ? 'RPE 7' : 'RPE 7-8';
+            }
         }
     }
 
@@ -598,7 +624,7 @@ function generate_workout_plan(int $memberUserId, ?int $coachId = null, ?int $gy
         
         $order = 1;
         foreach ($assigned as $ex) {
-            [$sets, $reps, $rest, $tempo, $rpe, $notes] = _assign_exercise_details($goal, $expLevel, $ex);
+            [$sets, $reps, $rest, $tempo, $rpe, $notes] = _assign_exercise_details($goal, $expLevel, $ex, (int)($profile['age'] ?? 25));
 
             $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds, tempo, rpe, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$planId, (int) $ex['exercise_id'], $dayOfWeek, $order++, $sets, $reps, $rest, $tempo, $rpe, $notes]);
@@ -644,7 +670,7 @@ function auto_populate_plan(int $planId, int $memberUserId): void
         
         $order = 1;
         foreach ($assigned as $ex) {
-            [$sets, $reps, $rest, $tempo, $rpe, $notes] = _assign_exercise_details($goal, $expLevel, $ex);
+            [$sets, $reps, $rest, $tempo, $rpe, $notes] = _assign_exercise_details($goal, $expLevel, $ex, (int)($profile['age'] ?? 25));
 
             $stmt = $pdo->prepare('INSERT INTO training_plan_exercises (plan_id, exercise_id, day_of_week, sequence_order, sets, reps, rest_seconds, tempo, rpe, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([$planId, (int) $ex['exercise_id'], $dayOfWeek, $order++, $sets, $reps, $rest, $tempo, $rpe, $notes]);

@@ -841,15 +841,20 @@ function setup_profile_page(): void
                                 </label>
                             </div>
 
+                            <?php
+                            $curBirthDate = trim((string)($profile['birth_date'] ?? ''));
+                            $maxDob = date('Y-m-d', strtotime('-16 years'));
+                            $minDob = date('Y-m-d', strtotime('-120 years'));
+                            ?>
                             <div class="split-form-row-2col">
                                 <div class="split-form-group">
-                                    <label>Age (16–120) <span class="req-star">*</span></label>
-                                    <div class="split-input-wrap auth-input-group input-with-unit">
-                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/>
+                                    <label>Date of Birth <span class="req-star">*</span> <span id="setup-age-preview" style="font-size:11.5px; font-weight:700; color:#65a30d; margin-left:4px;"><?= $curAge ? h('(' . (string)$curAge . ' yrs)') : '' ?></span></label>
+                                    <div class="split-input-wrap auth-input-group">
+                                        <svg class="split-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="cursor:pointer;" onclick="var d=document.getElementById('field-birth-date'); if(d){ d.focus(); if(d.showPicker) try{d.showPicker();}catch(e){} }">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                                         </svg>
-                                        <input id="field-age" name="age" type="number" inputmode="numeric" min="16" max="120" placeholder="e.g. 25" value="<?= h((string)$curAge) ?>" required>
-                                        <span class="metric-unit-tag">yrs</span>
+                                        <input id="field-birth-date" name="birth_date" type="date" min="<?= h($minDob) ?>" max="<?= h($maxDob) ?>" value="<?= h($curBirthDate) ?>" required style="padding-right: 14px;" onclick="if(this.showPicker) try{this.showPicker();}catch(e){}">
+                                        <input id="field-age" name="age" type="hidden" value="<?= h((string)$curAge) ?>">
                                     </div>
                                 </div>
 
@@ -1434,14 +1439,16 @@ function setup_profile_page(): void
 
         if (targetStep > currentProfileStep) {
             if (currentProfileStep === 1) {
+                const dobEl = document.getElementById('field-birth-date');
                 const age = document.getElementById('field-age');
                 const height = document.getElementById('field-height');
                 const weight = document.getElementById('field-weight');
 
-                [age, height, weight].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
+                [dobEl, height, weight].forEach(el => el?.closest('.split-input-wrap')?.classList.remove('has-error'));
 
-                if (!age?.value || parseFloat(age.value) < 16 || parseFloat(age.value) > 120) {
-                    return showStepError(age, 'Please enter a valid age between 16 and 120.');
+                const computedAge = age?.value ? parseFloat(age.value) : 0;
+                if (!dobEl?.value || computedAge < 16 || computedAge > 120) {
+                    return showStepError(dobEl || age, 'Please enter a valid date of birth (age 16–120).');
                 }
                 if (!height?.value || parseFloat(height.value) < 100 || parseFloat(height.value) > 250) {
                     return showStepError(height, 'Please enter a valid height between 100 and 250 cm.');
@@ -1689,8 +1696,36 @@ function setup_profile_page(): void
             });
         });
 
+        const dobInput = document.getElementById('field-birth-date');
+        const hiddenAgeInput = document.getElementById('field-age');
+        const agePreviewEl = document.getElementById('setup-age-preview');
+        const syncAgeFromDob = () => {
+            if (!dobInput || !hiddenAgeInput) return;
+            const raw = dobInput.value;
+            if (!raw) {
+                hiddenAgeInput.value = '';
+                if (agePreviewEl) agePreviewEl.textContent = '';
+                updateLiveMetrics();
+                return;
+            }
+            const d = new Date(raw + 'T00:00:00');
+            if (isNaN(d.getTime())) return;
+            const now = new Date();
+            let yrs = now.getFullYear() - d.getFullYear();
+            const m = now.getMonth() - d.getMonth();
+            if (m < 0 || (m === 0 && now.getDate() < d.getDate())) yrs--;
+            hiddenAgeInput.value = yrs > 0 ? String(yrs) : '';
+            if (agePreviewEl) agePreviewEl.textContent = (yrs >= 0 && yrs <= 130) ? `(${yrs} yrs)` : '';
+            updateLiveMetrics();
+        };
+        if (dobInput) {
+            dobInput.addEventListener('change', syncAgeFromDob);
+            dobInput.addEventListener('input', syncAgeFromDob);
+            syncAgeFromDob();
+        }
+
         // Sanitize numeric inputs so users cannot type, paste, or input negative numbers
-        const numericFieldIds = ['field-age', 'field-height', 'field-weight', 'field-neck', 'field-waist', 'field-hip'];
+        const numericFieldIds = ['field-height', 'field-weight', 'field-neck', 'field-waist', 'field-hip'];
         numericFieldIds.forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;

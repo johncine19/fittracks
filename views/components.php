@@ -1052,11 +1052,20 @@ function render_member_form(string $context, ?array $user = null, ?array $profil
                            <?= $context !== 'profile' ? 'required' : '' ?>
                            value="<?= h($profile['weight_kg'] ?? '') ?>">
                 </label>
-                <label class="pm-field">Age
-                    <input name="age" type="number" min="16" max="120"
-                           class="<?= isset($errors['age']) ? 'input-error' : '' ?>"
+                <?php
+                $birthDateVal = trim((string)($profile['birth_date'] ?? ''));
+                $computedAgeDisplay = isset($profile['age']) && (int)$profile['age'] > 0 ? ((int)$profile['age'] . ' yrs') : '—';
+                $maxDob = date('Y-m-d', strtotime('-16 years'));
+                $minDob = date('Y-m-d', strtotime('-120 years'));
+                ?>
+                <label class="pm-field">
+                    <span>Date of Birth <span id="pmAgeBadge_<?= h($context) ?>" style="font-size:11px; font-weight:700; color:var(--lime); margin-left:4px;">(<?= h($computedAgeDisplay) ?>)</span></span>
+                    <input name="birth_date" type="date"
+                           min="<?= h($minDob) ?>" max="<?= h($maxDob) ?>"
+                           class="<?= (isset($errors['birth_date']) || isset($errors['age'])) ? 'input-error' : '' ?>"
                            <?= $isTrainerAssessment ? 'readonly aria-readonly="true"' : '' ?>
-                           value="<?= h($profile['age'] ?? '') ?>">
+                           value="<?= h($birthDateVal) ?>"
+                           onchange="(function(el){ var b = document.getElementById('pmAgeBadge_<?= h($context) ?>'); if (!b) return; if (!el.value) { b.textContent='(—)'; return; } var d = new Date(el.value + 'T00:00:00'); if (isNaN(d.getTime())) return; var n = new Date(); var a = n.getFullYear() - d.getFullYear(); var m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; b.textContent = (a >= 0 && a <= 130) ? '(' + a + ' yrs)' : '(—)'; })(this);">
                 </label>
                 <?php
                 $currentSex = $profile['biological_sex'] ?? 'male';
