@@ -158,7 +158,7 @@
                     <div class="modal-quickstats">
                         <span style="color:#fbbf24;"><strong style="color:#fbbf24;">★ ${ratingScore.toFixed(1)}</strong> (${reviewCount})</span>
                         ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(0)}</strong></span>` : ''}
-                        <a href="index.php?page=view_gym&gym_id=${gym.gym_id}#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
+                        <a href="index.php?page=view_gym&gym_id=${gym.gym_id}&from=gym_map#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
                     </div>
                     ${gym.is_affiliated ? `
                         <div class="mobile-only" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 6px; background: rgba(45, 240, 165, 0.12); color: #2df0a5; border: 1px solid rgba(45, 240, 165, 0.3); font-size: 0.78rem; font-weight: 700; flex-shrink: 0;">

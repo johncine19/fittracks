@@ -204,7 +204,7 @@ const FT_CSRF_TOKEN = FT_CONFIG.csrfToken || (document.querySelector('meta[name=
                     <div class="modal-quickstats">
                         <span style="color:#fbbf24;"><strong style="color:#fbbf24;">★ ${ratingScore.toFixed(1)}</strong> (${reviewCount})</span>
                         ${minPrice !== null ? `<span>From <strong>₱${minPrice.toFixed(0)}</strong></span>` : ''}
-                        <a href="index.php?page=view_gym&gym_id=${gym.gym_id}#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
+                        <a href="index.php?page=view_gym&gym_id=${gym.gym_id}&from=gym_selection#gym-ratings-section" class="modal-reviews-link" style="color:var(--lime);font-size:12px;text-decoration:none;font-weight:600;margin-left:auto;">View Full Page & Reviews →</a>
                     </div>
                     ${gym.is_affiliated ? '' : `
                         <form method="post" action="index.php?page=gym_selection" class="mobile-only" style="margin: 0; flex-shrink: 0;">
