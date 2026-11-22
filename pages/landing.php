@@ -76,7 +76,7 @@ function landing_page(): void
 {
 
     // ── Handle Demo Request POST ─────────────────────────────────────
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['demo_request'])) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['demo_request']) || post('action') === 'demo_request')) {
         try {
             verify_csrf();
 
@@ -2747,8 +2747,9 @@ function landing_page(): void
                 </div>
 
                 <div class="modal-body">
-                    <form id="demoForm" onsubmit="submitDemoForm(event)">
+                    <form id="demoForm" action="index.php?page=landing" method="POST" onsubmit="submitDemoForm(event)">
                         <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="demo_request">
                         <input type="hidden" name="demo_request" value="1">
 
                         <!-- Honeypot anti-spam field (hidden from real users, caught by bots) -->

@@ -512,14 +512,26 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
 
                 try {
                     const formData = new FormData(form);
-                    const response = await fetch(window.location.href, {
+                    // Explicitly submit to landing page endpoint to avoid being misrouted if a user session is active
+                    const postUrl = form.getAttribute('action') || 'index.php?page=landing';
+                    const response = await fetch(postUrl, {
                         method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
                         body: formData
                     });
 
-                    const result = await response.json();
+                    let result = null;
+                    const responseText = await response.text();
+                    try {
+                        result = JSON.parse(responseText);
+                    } catch (parseErr) {
+                        console.error('Non-JSON response from demo endpoint:', responseText);
+                    }
 
-                    if (result.success) {
+                    if (result && result.success) {
                         form.reset();
                         closeDemoModal();
                         if (typeof Swal !== 'undefined') {
@@ -544,7 +556,21 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                             }, 3500);
                         }
                     } else {
-                        const errMsg = (result.errors && result.errors.length) ? result.errors.join('<br>') : 'Failed to submit request. Please try again.';
+                        let errMsg = 'Failed to submit request. Please try again.';
+                        if (result) {
+                            if (result.errors && Array.isArray(result.errors) && result.errors.length) {
+                                errMsg = result.errors.join('<br>');
+                            } else if (result.error) {
+                                errMsg = result.error;
+                            } else if (result.message) {
+                                errMsg = result.message;
+                            }
+                        } else if (response.status === 403) {
+                            errMsg = 'Security check failed or session expired. Please refresh the page and try again.';
+                        } else if (response.status === 429) {
+                            errMsg = 'Too many requests. Please wait a few minutes before trying again.';
+                        }
+
                         if (typeof Swal !== 'undefined') {
                             Swal.fire({
                                 icon: 'error',
@@ -559,15 +585,17 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                             alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
                             alertBox.style.border = '1px solid #ef4444';
                             alertBox.style.color = '#f87171';
-                            alertBox.innerText = (result.errors && result.errors.length) ? result.errors.join(', ') : 'Failed to submit request. Please try again.';
+                            alertBox.innerHTML = errMsg;
                         }
                     }
                 } catch (err) {
+                    console.error('Demo request submission failed:', err);
+                    const errorText = (err && err.message) ? err.message : 'Network error. Please check your connection and try again.';
                     if (typeof Swal !== 'undefined') {
                         Swal.fire({
                             icon: 'error',
-                            title: 'Network Error',
-                            text: 'Network error. Please try again.',
+                            title: 'Submission Error',
+                            text: errorText,
                             confirmButtonColor: '#ef4444',
                             background: '#11141d',
                             color: '#f8fafc'
@@ -577,7 +605,7 @@ const landingPlansData = FT_LANDING_CONFIG.plansData || {};
                         alertBox.style.background = 'rgba(239, 68, 68, 0.15)';
                         alertBox.style.border = '1px solid #ef4444';
                         alertBox.style.color = '#f87171';
-                        alertBox.innerText = 'Network error. Please try again.';
+                        alertBox.innerText = errorText;
                     }
                 } finally {
                     submitBtn.disabled = false;
