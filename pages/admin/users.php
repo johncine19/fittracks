@@ -976,6 +976,7 @@ function users_page(): void
         $tab = (string) ($_GET['tab'] ?? 'all');
         $gymFilter = (int) ($_GET['gym_id'] ?? 0);
         $searchQuery = trim((string) ($_GET['q'] ?? post('q') ?? ''));
+        $showDeleted = (int) ($_GET['show_deleted'] ?? 0) === 1;
 
         $where = 'u.role != "platform_admin"';
         $params = [];
@@ -993,9 +994,18 @@ function users_page(): void
             $params[] = (int)$user['user_id'];
         }
 
-        if (in_array($tab, ['gym_owner', 'trainer', 'member', 'staff'], true)) {
+        if ($tab === 'deleted') {
+            $where .= " AND (u.status = 'inactive' OR u.email LIKE 'deleted_%')";
+        } elseif (in_array($tab, ['gym_owner', 'trainer', 'member', 'staff'], true)) {
             $where .= ' AND u.role = ?';
             $params[] = $tab;
+            if (!$showDeleted) {
+                $where .= " AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%')";
+            }
+        } else {
+            if (!$showDeleted) {
+                $where .= " AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%')";
+            }
         }
 
         if ($isAdmin && $gymFilter) {
@@ -1042,7 +1052,7 @@ function users_page(): void
                 FROM users u 
                 LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
                 WHERE ' . $where . ' 
-                ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
+                ORDER BY (u.status = "inactive" OR u.email LIKE "deleted_%") ASC, CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
                 LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
 
         $stmt = db()->prepare($sql);
@@ -1093,7 +1103,7 @@ function users_page(): void
         }
 
         ob_start();
-        render_pagination($p, $totalPages, '?page=users&tab=' . urlencode($tab) . ($gymFilter ? '&gym_id=' . $gymFilter : '') . ($searchQuery !== '' ? '&q=' . urlencode($searchQuery) : ''));
+        render_pagination($p, $totalPages, '?page=users&tab=' . urlencode($tab) . ($gymFilter ? '&gym_id=' . $gymFilter : '') . ($showDeleted ? '&show_deleted=1' : '') . ($searchQuery !== '' ? '&q=' . urlencode($searchQuery) : ''));
         $paginationHtml = ob_get_clean();
 
         echo json_encode([
@@ -1115,6 +1125,7 @@ function users_page(): void
     $tab = $_GET['tab'] ?? 'all';
     $gymFilter = (int)($_GET['gym_id'] ?? 0);
     $searchQuery = trim((string)($_GET['q'] ?? ''));
+    $showDeleted = (int)($_GET['show_deleted'] ?? 0) === 1;
     
     $where = 'u.role != "platform_admin"';
     $params = [];
@@ -1132,9 +1143,18 @@ function users_page(): void
         $params[] = (int)$user['user_id'];
     }
     
-    if (in_array($tab, ['gym_owner', 'trainer', 'member', 'staff'], true)) {
+    if ($tab === 'deleted') {
+        $where .= " AND (u.status = 'inactive' OR u.email LIKE 'deleted_%')";
+    } elseif (in_array($tab, ['gym_owner', 'trainer', 'member', 'staff'], true)) {
         $where .= ' AND u.role = ?';
         $params[] = $tab;
+        if (!$showDeleted) {
+            $where .= " AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%')";
+        }
+    } else {
+        if (!$showDeleted) {
+            $where .= " AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%')";
+        }
     }
     
     if ($isAdmin && $gymFilter) {
@@ -1195,10 +1215,16 @@ function users_page(): void
     $statsStmt = db()->prepare("
         SELECT 
             COUNT(*) as count_all,
-            SUM(CASE WHEN u.role = 'member' THEN 1 ELSE 0 END) as count_member,
-            SUM(CASE WHEN u.role = 'trainer' THEN 1 ELSE 0 END) as count_trainer,
-            SUM(CASE WHEN u.role = 'staff' THEN 1 ELSE 0 END) as count_staff,
-            SUM(CASE WHEN u.role = 'gym_owner' THEN 1 ELSE 0 END) as count_owner,
+            SUM(CASE WHEN NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%') THEN 1 ELSE 0 END) as count_active_all,
+            SUM(CASE WHEN (u.status = 'inactive' OR u.email LIKE 'deleted_%') THEN 1 ELSE 0 END) as count_deleted,
+            SUM(CASE WHEN u.role = 'member' AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%') THEN 1 ELSE 0 END) as count_member,
+            SUM(CASE WHEN u.role = 'trainer' AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%') THEN 1 ELSE 0 END) as count_trainer,
+            SUM(CASE WHEN u.role = 'staff' AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%') THEN 1 ELSE 0 END) as count_staff,
+            SUM(CASE WHEN u.role = 'gym_owner' AND NOT (u.status = 'inactive' OR u.email LIKE 'deleted_%') THEN 1 ELSE 0 END) as count_owner,
+            SUM(CASE WHEN u.role = 'member' THEN 1 ELSE 0 END) as count_member_all,
+            SUM(CASE WHEN u.role = 'trainer' THEN 1 ELSE 0 END) as count_trainer_all,
+            SUM(CASE WHEN u.role = 'staff' THEN 1 ELSE 0 END) as count_staff_all,
+            SUM(CASE WHEN u.role = 'gym_owner' THEN 1 ELSE 0 END) as count_owner_all,
             SUM(CASE WHEN u.status = 'active' THEN 1 ELSE 0 END) as count_active,
             AVG(CASE WHEN u.role = 'member' AND u.status = 'active' AND u.engagement_score > 0 THEN u.engagement_score ELSE NULL END) as avg_member_score
         FROM users u 
@@ -1208,20 +1234,27 @@ function users_page(): void
     $statsData = $statsStmt->fetch() ?: [];
 
     $countAll = (int)($statsData['count_all'] ?? 0);
+    $countActiveAll = (int)($statsData['count_active_all'] ?? 0);
+    $countDeleted = (int)($statsData['count_deleted'] ?? 0);
     $countMember = (int)($statsData['count_member'] ?? 0);
     $countTrainer = (int)($statsData['count_trainer'] ?? 0);
     $countStaff = (int)($statsData['count_staff'] ?? 0);
     $countOwner = (int)($statsData['count_owner'] ?? 0);
+    $countMemberAll = (int)($statsData['count_member_all'] ?? 0);
+    $countTrainerAll = (int)($statsData['count_trainer_all'] ?? 0);
+    $countStaffAll = (int)($statsData['count_staff_all'] ?? 0);
+    $countOwnerAll = (int)($statsData['count_owner_all'] ?? 0);
     $countActive = (int)($statsData['count_active'] ?? 0);
     $avgMemberScore = round((float)($statsData['avg_member_score'] ?? 0));
 
     if ($searchQuery === '') {
         $total = match ($tab) {
-            'member'    => $countMember,
-            'trainer'   => $countTrainer,
-            'staff'     => $countStaff,
-            'gym_owner' => $countOwner,
-            default     => $countAll,
+            'deleted'   => $countDeleted,
+            'member'    => $showDeleted ? $countMemberAll : $countMember,
+            'trainer'   => $showDeleted ? $countTrainerAll : $countTrainer,
+            'staff'     => $showDeleted ? $countStaffAll : $countStaff,
+            'gym_owner' => $showDeleted ? $countOwnerAll : $countOwner,
+            default     => $showDeleted ? $countAll : $countActiveAll,
         };
     } else {
         $total = (int) scalar('SELECT COUNT(*) FROM users u WHERE ' . $where, $params);
@@ -1238,7 +1271,7 @@ function users_page(): void
             LEFT JOIN trainer_profiles tp ON u.user_id = tp.user_id 
             LEFT JOIN gyms g_tr ON g_tr.gym_id = tp.gym_id
             WHERE ' . $where . ' 
-            ORDER BY CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
+            ORDER BY (u.status = "inactive" OR u.email LIKE "deleted_%") ASC, CASE u.role WHEN "gym_owner" THEN 1 WHEN "staff" THEN 2 WHEN "trainer" THEN 3 WHEN "member" THEN 4 ELSE 5 END ASC, u.first_name ASC, u.last_name ASC 
             LIMIT ' . (int)$limit . ' OFFSET ' . (int)$offset;
 
     $stmt = db()->prepare($sql);
@@ -1737,27 +1770,31 @@ function users_page(): void
         <!-- Modern Segmented Role Filter Tabs -->
         <div class="users-controls-bar">
             <div class="users-tabs-pills" role="tablist">
-                <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="all" class="users-nav-pill <?= $tab === 'all' ? 'is-active' : '' ?>">
+                <a href="?page=users&tab=all<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?><?= $showDeleted ? '&show_deleted=1' : '' ?>" data-tab="all" class="users-nav-pill <?= $tab === 'all' ? 'is-active' : '' ?>">
                     <span class="pill-title">All Accounts</span>
-                    <span class="pill-chip"><?= number_format($countAll) ?></span>
+                    <span class="pill-chip"><?= number_format($showDeleted ? $countAll : $countActiveAll) ?></span>
                 </a>
                 <?php if ($isAdmin): ?>
-                <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="gym_owner" class="users-nav-pill <?= $tab === 'gym_owner' ? 'is-active' : '' ?>">
+                <a href="?page=users&tab=gym_owner<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?><?= $showDeleted ? '&show_deleted=1' : '' ?>" data-tab="gym_owner" class="users-nav-pill <?= $tab === 'gym_owner' ? 'is-active' : '' ?>">
                     <span class="pill-title">Gym Owners</span>
-                    <span class="pill-chip"><?= number_format($countOwner) ?></span>
+                    <span class="pill-chip"><?= number_format($showDeleted ? $countOwnerAll : $countOwner) ?></span>
                 </a>
                 <?php endif; ?>
-                <a href="?page=users&tab=staff<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="staff" class="users-nav-pill <?= $tab === 'staff' ? 'is-active' : '' ?>">
+                <a href="?page=users&tab=staff<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?><?= $showDeleted ? '&show_deleted=1' : '' ?>" data-tab="staff" class="users-nav-pill <?= $tab === 'staff' ? 'is-active' : '' ?>">
                     <span class="pill-title">Staff</span>
-                    <span class="pill-chip"><?= number_format($countStaff) ?></span>
+                    <span class="pill-chip"><?= number_format($showDeleted ? $countStaffAll : $countStaff) ?></span>
                 </a>
-                <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="trainer" class="users-nav-pill <?= $tab === 'trainer' ? 'is-active' : '' ?>">
+                <a href="?page=users&tab=trainer<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?><?= $showDeleted ? '&show_deleted=1' : '' ?>" data-tab="trainer" class="users-nav-pill <?= $tab === 'trainer' ? 'is-active' : '' ?>">
                     <span class="pill-title">Trainers</span>
-                    <span class="pill-chip"><?= number_format($countTrainer) ?></span>
+                    <span class="pill-chip"><?= number_format($showDeleted ? $countTrainerAll : $countTrainer) ?></span>
                 </a>
-                <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="member" class="users-nav-pill <?= $tab === 'member' ? 'is-active' : '' ?>">
+                <a href="?page=users&tab=member<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?><?= $showDeleted ? '&show_deleted=1' : '' ?>" data-tab="member" class="users-nav-pill <?= $tab === 'member' ? 'is-active' : '' ?>">
                     <span class="pill-title">Members</span>
-                    <span class="pill-chip"><?= number_format($countMember) ?></span>
+                    <span class="pill-chip"><?= number_format($showDeleted ? $countMemberAll : $countMember) ?></span>
+                </a>
+                <a href="?page=users&tab=deleted<?= $gymFilter ? '&gym_id='.$gymFilter : '' ?>" data-tab="deleted" class="users-nav-pill <?= $tab === 'deleted' ? 'is-active' : '' ?>" title="View deleted and anonymized accounts">
+                    <span class="pill-title">Deleted</span>
+                    <span class="pill-chip pill-chip-deleted"><?= number_format($countDeleted) ?></span>
                 </a>
             </div>
 
@@ -1766,6 +1803,9 @@ function users_page(): void
                 <form method="get" class="users-gym-filter-form">
                     <input type="hidden" name="page" value="users">
                     <input type="hidden" name="tab" value="<?= h($tab) ?>">
+                    <?php if ($showDeleted): ?>
+                        <input type="hidden" name="show_deleted" value="1">
+                    <?php endif; ?>
                     <select name="gym_id" onchange="this.form.submit()" class="users-gym-select">
                         <option value="">All Gym Facilities</option>
                         <?php foreach ($allGyms as $g): ?>
@@ -1806,6 +1846,10 @@ function users_page(): void
 
             <div class="users-toolbar-meta">
                 <div id="userSearchStatus" class="users-search-status" style="display: none;"></div>
+                <label class="users-toggle-deleted" title="Show or hide deleted and anonymized accounts">
+                    <input type="checkbox" id="toggleShowDeleted" <?= ($showDeleted || $tab === 'deleted') ? 'checked' : '' ?>>
+                    <span class="users-toggle-label">Include Deleted</span>
+                </label>
                 <div class="users-counter-chip" id="userCountBadge">
                     <span class="users-dot-pulse"></span>
                     <span id="userCountLabel"><?= number_format($total) ?> found</span>
@@ -2225,7 +2269,7 @@ function users_page(): void
             <?php endforeach; ?>
         </div>
         <div id="userPagination" style="<?= empty($rows) ? 'display: none;' : '' ?>">
-            <?php render_pagination($page, $totalPages, '?page=users&tab=' . urlencode($tab) . ($gymFilter ? '&gym_id=' . $gymFilter : '') . ($searchQuery !== '' ? '&q=' . urlencode($searchQuery) : '')); ?>
+            <?php render_pagination($page, $totalPages, '?page=users&tab=' . urlencode($tab) . ($gymFilter ? '&gym_id=' . $gymFilter : '') . ($showDeleted ? '&show_deleted=1' : '') . ($searchQuery !== '' ? '&q=' . urlencode($searchQuery) : '')); ?>
         </div>
     </section>
 
@@ -2235,6 +2279,7 @@ function users_page(): void
         csrfToken: <?= json_encode(csrf_token()) ?>,
         currentTab: <?= json_encode($tab) ?>,
         gymFilter: <?= json_encode($gymFilter) ?>,
+        showDeleted: <?= $showDeleted ? 'true' : 'false' ?>,
         isAdmin: <?= $isAdmin ? 'true' : 'false' ?>,
         isStaff: <?= $isStaff ? 'true' : 'false' ?>,
         hasOldUser: <?= json_encode(!empty($oldUser)) ?>,

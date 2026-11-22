@@ -408,6 +408,62 @@ html[data-theme="light"] .users-counter-chip {
     border-color: #e2e8f0;
 }
 
+/* ── Include Deleted Toggle ── */
+.users-toggle-deleted {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    background: color-mix(in srgb, var(--panel-soft) 45%, transparent);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.users-toggle-deleted:hover {
+    color: var(--ink);
+    border-color: color-mix(in srgb, var(--line) 50%, var(--lime));
+}
+
+.users-toggle-deleted input[type="checkbox"] {
+    cursor: pointer;
+    accent-color: var(--lime);
+    margin: 0;
+    width: 14px;
+    height: 14px;
+}
+
+html[data-theme="light"] .users-toggle-deleted {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #475569;
+}
+
+html[data-theme="light"] .users-toggle-deleted:hover {
+    color: #0f172a;
+    border-color: #94a3b8;
+}
+
+.pill-chip-deleted {
+    background: color-mix(in srgb, #ef4444 18%, transparent);
+    color: #ef4444;
+}
+
+html[data-theme="light"] .pill-chip-deleted {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.users-nav-pill.is-active .pill-chip-deleted {
+    background: rgba(0, 0, 0, 0.22);
+    color: #000000;
+}
+
 /* ── Empty State ── */
 .users-empty-state {
     text-align: center;

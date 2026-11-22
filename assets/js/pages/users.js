@@ -6,6 +6,7 @@
 const FT_USERS_CONFIG = window.USERS_CONFIG || {};
 let CURRENT_TAB = FT_USERS_CONFIG.currentTab || 'all';
 const GYM_FILTER = FT_USERS_CONFIG.gymFilter || '';
+let SHOW_DELETED = Boolean(FT_USERS_CONFIG.showDeleted);
 const IS_ADMIN = Boolean(FT_USERS_CONFIG.isAdmin);
 const IS_STAFF = Boolean(FT_USERS_CONFIG.isStaff);
 let CURRENT_CSRF_TOKEN = FT_USERS_CONFIG.csrfToken || (document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
@@ -1070,7 +1071,8 @@ if (FT_USERS_CONFIG.hasOldUser) {
                     userSearchStatus.textContent = 'Searching database...';
                 }
 
-                const url = `index.php?page=users&action=search_users&q=${encodeURIComponent(query)}&tab=${encodeURIComponent(CURRENT_TAB)}&gym_id=${encodeURIComponent(GYM_FILTER)}`;
+                const showDelParam = (SHOW_DELETED || CURRENT_TAB === 'deleted') ? '&show_deleted=1' : '';
+                const url = `index.php?page=users&action=search_users&q=${encodeURIComponent(query)}&tab=${encodeURIComponent(CURRENT_TAB)}&gym_id=${encodeURIComponent(GYM_FILTER)}${showDelParam}`;
 
                 fetch(url, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -1165,6 +1167,11 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
         CURRENT_TAB = targetTab;
 
+        const toggleShowDeleted = document.getElementById('toggleShowDeleted');
+        if (toggleShowDeleted) {
+            toggleShowDeleted.checked = Boolean(SHOW_DELETED || targetTab === 'deleted');
+        }
+
         // Update active class on tab pills
         document.querySelectorAll('.users-nav-pill').forEach(pill => {
             if (pill.getAttribute('data-tab') === targetTab) {
@@ -1187,8 +1194,9 @@ if (FT_USERS_CONFIG.hasOldUser) {
 
         const gymParam = GYM_FILTER ? `&gym_id=${encodeURIComponent(GYM_FILTER)}` : '';
         const pageParam = pageNum > 1 ? `&p=${pageNum}` : '';
-        const fetchUrl = `index.php?page=users&action=search_users&tab=${encodeURIComponent(targetTab)}${gymParam}${pageParam}`;
-        const browserUrl = `?page=users&tab=${encodeURIComponent(targetTab)}${gymParam}${pageParam}`;
+        const showDelParam = (SHOW_DELETED || targetTab === 'deleted') ? '&show_deleted=1' : '';
+        const fetchUrl = `index.php?page=users&action=search_users&tab=${encodeURIComponent(targetTab)}${gymParam}${pageParam}${showDelParam}`;
+        const browserUrl = `?page=users&tab=${encodeURIComponent(targetTab)}${gymParam}${pageParam}${showDelParam}`;
 
         if (pushHistory) {
             history.pushState({ tab: targetTab, page: pageNum }, '', browserUrl);
@@ -1322,11 +1330,28 @@ if (FT_USERS_CONFIG.hasOldUser) {
         }
     });
 
+    // Toggle "Include Deleted" Accounts Listener
+    const toggleShowDeleted = document.getElementById('toggleShowDeleted');
+    if (toggleShowDeleted) {
+        toggleShowDeleted.addEventListener('change', function() {
+            SHOW_DELETED = this.checked;
+            if (CURRENT_TAB === 'deleted' && !this.checked) {
+                loadTabUsers('all', 1, true);
+            } else {
+                loadTabUsers(CURRENT_TAB, 1, true);
+            }
+        });
+    }
+
     // Browser back/forward navigation support
     window.addEventListener('popstate', function(e) {
         const urlParams = new URLSearchParams(window.location.search);
         const tab = urlParams.get('tab') || 'all';
         const p = parseInt(urlParams.get('p') || '1', 10);
+        SHOW_DELETED = urlParams.get('show_deleted') === '1';
+        if (toggleShowDeleted) {
+            toggleShowDeleted.checked = Boolean(SHOW_DELETED || tab === 'deleted');
+        }
         loadTabUsers(tab, p, false);
     });
 
