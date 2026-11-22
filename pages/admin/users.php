@@ -549,6 +549,28 @@ function users_page(): void
                         return;
                     }
 
+                    if ($targetUser['role'] === 'gym_owner') {
+                        $ownerGym = query_one('SELECT gym_id, name FROM gyms WHERE owner_user_id = ? LIMIT 1', [$targetUserId]);
+                        if ($ownerGym) {
+                            $ownerGymId = (int) $ownerGym['gym_id'];
+                            $result = decommission_gym_facility($ownerGymId, (int) $user['user_id'], true);
+                            $activeCount = (int) ($result['active_members'] ?? 0);
+                            if ($activeCount > 0) {
+                                flash("Gym facility '{$ownerGym['name']}' and gym owner account safely decommissioned. {$activeCount} active membership(s) cancelled, members disaffiliated, and plans archived.", 'success');
+                            } else {
+                                flash("Gym facility '{$ownerGym['name']}' and gym owner account safely decommissioned.", 'success');
+                            }
+                            redirect('users');
+                            return;
+                        } else {
+                            anonymize_user_account($targetUserId, 'gym_owner', 'Owner');
+                            audit_log($user['user_id'], 'delete', 'user', (string) $targetUserId, json_encode(['role' => $targetUser['role']]));
+                            flash('Gym owner account deactivated and anonymized.');
+                            redirect('users');
+                            return;
+                        }
+                    }
+
                     if ($targetUser['role'] === 'member') {
                         $hasActiveMembership = (bool) scalar('SELECT 1 FROM memberships WHERE user_id = ? AND status = "active"', [$targetUserId]);
                         if ($hasActiveMembership) {
@@ -579,6 +601,27 @@ function users_page(): void
             }
         }
         redirect('users');
+    }
+
+    // ── AJAX: Check Gym Owner Active Members ─────────────────────────────
+    if (($_GET['action'] ?? post('action')) === 'check_gym_owner_members') {
+        $checkUserId = (int)($_GET['user_id'] ?? post('user_id'));
+        $gymRow = query_one('SELECT gym_id, name FROM gyms WHERE owner_user_id = ? LIMIT 1', [$checkUserId]);
+        if (!$gymRow) {
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['ok' => true, 'has_gym' => false, 'active_members' => 0]);
+            exit;
+        }
+        $activeCount = get_gym_active_member_count((int)$gymRow['gym_id']);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode([
+            'ok' => true,
+            'has_gym' => true,
+            'gym_id' => (int)$gymRow['gym_id'],
+            'gym_name' => $gymRow['name'],
+            'active_members' => $activeCount
+        ]);
+        exit;
     }
 
     // ── AJAX: Member Progress Quick Summary ──────────────────────────────

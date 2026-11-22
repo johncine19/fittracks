@@ -240,6 +240,104 @@ if (FT_USERS_CONFIG.hasOldUser) {
             tempForm.submit();
         };
 
+        if (userRole === 'gym_owner' && typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Checking facility records...',
+                text: 'Verifying active membership records...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+                background: 'var(--panel, #121721)',
+                color: 'var(--ink, #ffffff)'
+            });
+
+            fetch(`index.php?page=users&action=check_gym_owner_members&user_id=${encodeURIComponent(userId)}`, {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                const activeMembers = (data && data.ok) ? (parseInt(data.active_members, 10) || 0) : 0;
+                const gymName = (data && data.ok && data.gym_name) ? data.gym_name : '';
+                const gymLabel = gymName ? ` (${typeof escapeHtml === 'function' ? escapeHtml(gymName) : gymName})` : '';
+
+                if (activeMembers > 0) {
+                    Swal.fire({
+                        title: 'Active Members Detected!',
+                        html: `
+                            <div style="text-align: left; font-size: 14px; line-height: 1.5;">
+                                <p style="margin: 0 0 12px 0; color: var(--ink, #ffffff);">
+                                    <strong>${safeName}</strong>'s facility${gymLabel} currently has <strong style="color: #ef4444; font-size: 15px;">${activeMembers} active member subscription(s)</strong>.
+                                </p>
+                                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 14px; color: #f87171; font-size: 12.5px; line-height: 1.45;">
+                                    <strong style="display: block; margin-bottom: 4px;">⚠️ Safe Decommissioning Impact:</strong>
+                                    • Active memberships at this gym will be cancelled.<br>
+                                    • Members will be disaffiliated from this gym roster.<br>
+                                    • <em>Member FitTrack accounts, personal workout logs, and payment histories are 100% preserved.</em><br>
+                                    • Staff & trainer accounts for this facility will be deactivated.<br>
+                                    • The gym owner account will be safely deactivated & anonymized.
+                                </div>
+                                <p style="margin: 0; color: var(--muted, #94a3b8); font-size: 13px;">
+                                    Do you want to proceed with <strong>Safe Decommissioning</strong> or <strong>Cancel</strong>?
+                                </p>
+                            </div>
+                        `,
+                        icon: 'warning',
+                        iconColor: '#ef4444',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Safe Decommission',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#ef4444',
+                        cancelButtonColor: 'var(--line, #334155)',
+                        background: 'var(--panel, #121721)',
+                        color: 'var(--ink, #ffffff)',
+                        reverseButtons: true,
+                        focusCancel: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            doSubmit();
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Decommission Gym Owner?',
+                        html: `
+                            <div style="text-align: center; font-size: 14px; line-height: 1.5;">
+                                <p style="margin: 0 0 10px 0; color: var(--ink, #ffffff);">
+                                    Are you sure you want to decommission gym owner <strong>${safeName}</strong>${gymLabel}?
+                                </p>
+                                <p style="margin: 0; font-size: 12.5px; color: var(--muted, #94a3b8);">
+                                    The facility will be deactivated, membership plans archived, and employee accounts neutralized.
+                                </p>
+                            </div>
+                        `,
+                        icon: 'warning',
+                        iconColor: '#f59e0b',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Decommission',
+                        cancelButtonText: 'Cancel',
+                        confirmButtonColor: '#ef4444',
+                        cancelButtonColor: 'var(--line, #334155)',
+                        background: 'var(--panel, #121721)',
+                        color: 'var(--ink, #ffffff)',
+                        reverseButtons: true,
+                        focusCancel: true
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            doSubmit();
+                        }
+                    });
+                }
+            })
+            .catch(err => {
+                console.warn('Could not check gym owner active members:', err);
+                if (confirm(`Are you sure you want to decommission gym owner "${userName || 'this user'}"?`)) {
+                    doSubmit();
+                }
+            });
+            return false;
+        }
+
         const isDisaffiliate = !IS_ADMIN && userRole === 'member';
         const dialogTitle = isDisaffiliate ? 'Remove Member from Gym?' : 'Delete User Account?';
         const confirmBtnText = isDisaffiliate ? 'Yes, Remove Member' : 'Yes, Delete User';

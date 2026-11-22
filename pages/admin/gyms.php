@@ -10,6 +10,26 @@ function gyms_page(): void
     require_once __DIR__ . '/../../core/file_handler.php';
     FileUpload::ensureDatabaseAssetsSynced($pdo);
 
+    // AJAX: Check active members before decommission/delete
+    if (isset($_GET['ajax_check_active_members']) || post('ajax_check_active_members') === '1') {
+        $checkGymId = (int)($_GET['gym_id'] ?? post('gym_id'));
+        $gymRow = query_one('SELECT gym_id, name FROM gyms WHERE gym_id = ?', [$checkGymId]);
+        if (!$gymRow) {
+            header('Content-Type: application/json; charset=UTF-8');
+            echo json_encode(['ok' => false, 'error' => 'Gym not found.']);
+            exit;
+        }
+        $activeCount = get_gym_active_member_count($checkGymId);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode([
+            'ok' => true,
+            'gym_id' => $checkGymId,
+            'gym_name' => $gymRow['name'],
+            'active_members' => $activeCount
+        ]);
+        exit;
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $gymId = (int) post('gym_id');
         $action = post('action');
@@ -38,14 +58,18 @@ function gyms_page(): void
             $pdo->commit();
             flash('Gym reactivated.', 'success');
         } elseif ($action === 'delete') {
-            $pdo->beginTransaction();
-            if (function_exists('archive_defunct_plans')) {
-                archive_defunct_plans($gymId);
+            try {
+                $result = decommission_gym_facility($gymId, (int) $user['user_id'], true);
+                $activeCount = (int) ($result['active_members'] ?? 0);
+                if ($activeCount > 0) {
+                    flash("Facility '{$result['gym_name']}' safely decommissioned. {$activeCount} active membership(s) cancelled, members disaffiliated, and plans archived.", 'success');
+                } else {
+                    flash("Facility '{$result['gym_name']}' safely decommissioned and owner account neutralized.", 'success');
+                }
+            } catch (Throwable $e) {
+                error_log("Failed to decommission gym {$gymId}: " . $e->getMessage());
+                flash('An unexpected error occurred while decommissioning this facility. Please try again.', 'danger');
             }
-            $pdo->prepare('DELETE FROM gym_staff WHERE gym_id = ?')->execute([$gymId]);
-            $pdo->prepare('DELETE FROM gyms WHERE gym_id = ?')->execute([$gymId]);
-            $pdo->commit();
-            flash('Gym deleted successfully.', 'success');
         } elseif ($action === 'update_subscription') {
             $plan = trim((string) post('subscription_plan'));
             if ($plan === '' || strtolower($plan) === 'none') {
@@ -1521,7 +1545,7 @@ function gyms_page(): void
                                             <div class="action-kebab-divider"></div>
 
                                             <?php if ($gym['status'] === 'approved'): ?>
-                                                <form method="post" action="index.php?page=gyms" style="margin:0; width:100%;">
+                                                <form method="post" action="index.php?page=gyms" class="delete-gym-form" data-gym-id="<?= (int) $gym['gym_id'] ?>" data-gym-name="<?= h($gym['name']) ?>" style="margin:0; width:100%;">
                                                     <?= csrf_field() ?>
                                                     <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                                     <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
@@ -1534,7 +1558,7 @@ function gyms_page(): void
                                                     </button>
                                                 </form>
                                             <?php elseif ($gym['status'] === 'suspended'): ?>
-                                                <form method="post" action="index.php?page=gyms" style="margin:0; width:100%;">
+                                                <form method="post" action="index.php?page=gyms" class="delete-gym-form" data-gym-id="<?= (int) $gym['gym_id'] ?>" data-gym-name="<?= h($gym['name']) ?>" style="margin:0; width:100%;">
                                                     <?= csrf_field() ?>
                                                     <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                                     <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
@@ -1548,12 +1572,12 @@ function gyms_page(): void
                                                 </form>
                                             <?php endif; ?>
 
-                                            <form method="post" action="index.php?page=gyms" style="margin:0; width:100%;">
+                                            <form method="post" action="index.php?page=gyms" class="delete-gym-form" data-gym-id="<?= (int) $gym['gym_id'] ?>" data-gym-name="<?= h($gym['name']) ?>" style="margin:0; width:100%;">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                                 <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                                                 <input type="hidden" name="action" value="delete">
-                                                <button type="submit" class="action-kebab-item is-danger" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">
+                                                <button type="button" class="action-kebab-item is-danger btn-delete-gym" title="Decommission Gym Facility">
                                                     <span class="action-item-icon">
                                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                                     </span>
@@ -1728,7 +1752,7 @@ function gyms_page(): void
                         </button>
 
                         <?php if ($gym['status'] === 'approved'): ?>
-                            <form method="post" action="index.php?page=gyms" style="margin:0;">
+                            <form method="post" action="index.php?page=gyms" class="delete-gym-form" data-gym-id="<?= (int) $gym['gym_id'] ?>" data-gym-name="<?= h($gym['name']) ?>" style="margin:0;">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                 <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
@@ -1739,7 +1763,7 @@ function gyms_page(): void
                                 </button>
                             </form>
                         <?php elseif ($gym['status'] === 'suspended'): ?>
-                            <form method="post" action="index.php?page=gyms" style="margin:0;">
+                            <form method="post" action="index.php?page=gyms" class="delete-gym-form" data-gym-id="<?= (int) $gym['gym_id'] ?>" data-gym-name="<?= h($gym['name']) ?>" style="margin:0;">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                                 <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
@@ -1751,12 +1775,12 @@ function gyms_page(): void
                             </form>
                         <?php endif; ?>
 
-                        <form method="post" action="index.php?page=gyms" style="margin:0;">
+                        <form method="post" action="index.php?page=gyms" class="delete-gym-form" data-gym-id="<?= (int) $gym['gym_id'] ?>" data-gym-name="<?= h($gym['name']) ?>" style="margin:0;">
                             <?= csrf_field() ?>
                             <input type="hidden" name="return_url" value="<?= h($currentQueryUrl) ?>">
                             <input type="hidden" name="gym_id" value="<?= (int) $gym['gym_id'] ?>">
                             <input type="hidden" name="action" value="delete">
-                            <button type="submit" class="btn-sm btn-secondary" style="color:var(--danger); border-color:var(--danger);" data-confirm="Are you sure you want to permanently delete this gym? This cannot be undone.">
+                            <button type="button" class="btn-sm btn-secondary btn-delete-gym" style="color:var(--danger); border-color:var(--danger);" title="Decommission Gym Facility">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 Delete
                             </button>
@@ -2241,6 +2265,129 @@ function gyms_page(): void
                     }
                 }
             });
+        });
+
+        // SweetAlert handler for Decommission / Delete Gym
+        document.addEventListener('click', async function(e) {
+            const btn = e.target.closest('.btn-delete-gym');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const form = btn.closest('form.delete-gym-form');
+            if (!form) return;
+
+            const gymId = form.getAttribute('data-gym-id') || form.querySelector('input[name="gym_id"]')?.value;
+            const gymName = form.getAttribute('data-gym-name') || 'this facility';
+
+            if (!gymId) return;
+
+            // Close any open kebab dropdowns
+            document.querySelectorAll('.action-kebab-menu.is-open').forEach(menu => menu.classList.remove('is-open'));
+
+            if (typeof Swal === 'undefined') {
+                if (confirm(`Are you sure you want to decommission "${gymName}"?`)) {
+                    form.submit();
+                }
+                return;
+            }
+
+            // Show checking status loader
+            Swal.fire({
+                title: 'Checking facility records...',
+                text: 'Verifying member subscriptions...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+                background: 'var(--panel, var(--bg, #ffffff))',
+                color: 'var(--ink, #0f172a)'
+            });
+
+            let activeMembers = 0;
+            let fetchedGymName = gymName;
+            try {
+                const res = await fetch(`index.php?page=gyms&ajax_check_active_members=1&gym_id=${encodeURIComponent(gymId)}`, {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    activeMembers = parseInt(data.active_members, 10) || 0;
+                    if (data.gym_name) fetchedGymName = data.gym_name;
+                }
+            } catch (err) {
+                console.warn('Could not check active members count:', err);
+            }
+
+            const safeName = typeof escapeHtml === 'function' ? escapeHtml(fetchedGymName) : fetchedGymName;
+
+            if (activeMembers > 0) {
+                Swal.fire({
+                    title: 'Active Members Detected!',
+                    html: `
+                        <div style="text-align: left; font-size: 14px; line-height: 1.5;">
+                            <p style="margin: 0 0 12px 0; color: var(--ink, #ffffff);">
+                                <strong>${safeName}</strong> currently has <strong style="color: #ef4444; font-size: 15px;">${activeMembers} active member subscription(s)</strong>.
+                            </p>
+                            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 14px; color: #f87171; font-size: 12.5px; line-height: 1.45;">
+                                <strong style="display: block; margin-bottom: 4px;">⚠️ Safe Decommissioning Impact:</strong>
+                                • Active memberships at this gym will be cancelled.<br>
+                                • Members will be disaffiliated from this gym roster.<br>
+                                • <em>Member FitTrack accounts, personal workout logs, and payment histories are 100% preserved.</em><br>
+                                • Staff & trainer accounts for this facility will be deactivated.<br>
+                                • The gym owner account will be safely deactivated & anonymized.
+                            </div>
+                            <p style="margin: 0; color: var(--muted, #94a3b8); font-size: 13px;">
+                                Do you want to proceed with <strong>Safe Decommissioning</strong> or <strong>Cancel</strong>?
+                            </p>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    iconColor: '#ef4444',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Safe Decommission',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#64748b',
+                    reverseButtons: true,
+                    focusCancel: true,
+                    background: 'var(--panel, var(--bg, #ffffff))',
+                    color: 'var(--ink, #0f172a)'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        form.submit();
+                    }
+                });
+            } else {
+                Swal.fire({
+                    title: 'Decommission Facility?',
+                    html: `
+                        <div style="text-align: center; font-size: 14px; line-height: 1.5;">
+                            <p style="margin: 0 0 10px 0; color: var(--ink, #ffffff);">
+                                Are you sure you want to decommission <strong>${safeName}</strong>?
+                            </p>
+                            <p style="margin: 0; font-size: 12.5px; color: var(--muted, #94a3b8);">
+                                The facility will be deactivated, membership plans archived, and staff accounts neutralized.
+                            </p>
+                        </div>
+                    `,
+                    icon: 'warning',
+                    iconColor: '#f59e0b',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Decommission Facility',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#ef4444',
+                    cancelButtonColor: '#64748b',
+                    reverseButtons: true,
+                    focusCancel: true,
+                    background: 'var(--panel, var(--bg, #ffffff))',
+                    color: 'var(--ink, #0f172a)'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        form.submit();
+                    }
+                });
+            }
         });
     })();
     </script>

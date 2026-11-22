@@ -2280,3 +2280,184 @@ function get_member_strength_targets(int $userId): array
     }
 }
 
+/**
+ * Safely neutralizes/anonymizes a user account without breaking foreign key relationships
+ * (e.g. audit logs, historical payments, attendance records).
+ */
+function anonymize_user_account(int $targetId, string $targetRole = 'user', string $label = 'User'): void
+{
+    if ($targetId <= 0) {
+        return;
+    }
+    $pdo = db();
+    $userCols = $pdo->query('SHOW COLUMNS FROM users')->fetchAll(PDO::FETCH_COLUMN);
+    $anonEmail = 'deleted_' . $targetRole . '_' . $targetId . '_' . time() . '@deleted.local';
+    $updateFields = [
+        'first_name = "Deleted"',
+        'last_name = ?',
+        'email = ?',
+        'phone = NULL',
+        'password_hash = ""',
+        'profile_picture = NULL',
+        'status = "inactive"'
+    ];
+    $updateParams = [$label, $anonEmail];
+
+    if (in_array('google_id', $userCols, true)) {
+        $updateFields[] = 'google_id = NULL';
+    }
+    if (in_array('qr_token', $userCols, true)) {
+        $updateFields[] = 'qr_token = NULL';
+    }
+    if (in_array('qr_expires_at', $userCols, true)) {
+        $updateFields[] = 'qr_expires_at = NULL';
+    }
+    if (in_array('session_token', $userCols, true)) {
+        $updateFields[] = 'session_token = NULL';
+    }
+
+    $updateParams[] = $targetId;
+    $sql = 'UPDATE users SET ' . implode(', ', $updateFields) . ' WHERE user_id = ?';
+    $pdo->prepare($sql)->execute($updateParams);
+
+    // Invalidate active remember tokens if table exists
+    try {
+        $pdo->prepare('DELETE FROM user_remember_tokens WHERE user_id = ?')->execute([$targetId]);
+    } catch (Throwable) {}
+}
+
+/**
+ * Returns the number of distinct members with an active, unexpired membership at a given gym.
+ */
+function get_gym_active_member_count(int $gymId): int
+{
+    if ($gymId <= 0) {
+        return 0;
+    }
+    return (int) scalar(
+        'SELECT COUNT(DISTINCT m.user_id)
+         FROM memberships m
+         JOIN membership_plans mp ON mp.plan_id = m.plan_id
+         WHERE mp.gym_id = ? AND m.status = "active" AND m.end_date >= CURDATE()',
+        [$gymId]
+    );
+}
+
+/**
+ * Executes the Safe Decommissioning Protocol on a gym facility.
+ * Soft-deactivates the gym and plans, unlinks members, ends trainer assignments,
+ * neutralizes employee accounts, and optionally deactivates the gym owner account,
+ * preventing any Foreign Key constraint violations while preserving historical audit logs.
+ */
+function decommission_gym_facility(int $gymId, ?int $actorUserId = null, bool $deactivateOwner = true): array
+{
+    if ($gymId <= 0) {
+        return ['ok' => false, 'error' => 'Invalid gym ID.'];
+    }
+
+    $pdo = db();
+    $ownerGym = query_one('SELECT gym_id, name, owner_user_id FROM gyms WHERE gym_id = ? FOR UPDATE', [$gymId]);
+    if (!$ownerGym) {
+        return ['ok' => false, 'error' => 'Gym not found.'];
+    }
+
+    $gymName = (string) $ownerGym['name'];
+    $ownerUserId = (int) ($ownerGym['owner_user_id'] ?? 0);
+    $activeMemberCount = get_gym_active_member_count($gymId);
+    $actorId = $actorUserId ?? ($ownerUserId > 0 ? $ownerUserId : 1);
+
+    $startedTx = false;
+    if (!$pdo->inTransaction()) {
+        $pdo->beginTransaction();
+        $startedTx = true;
+    }
+
+    try {
+        // 1. Deactivate gym and its membership plans
+        $pdo->prepare('UPDATE gyms SET status = "rejected", subscription_status = "expired" WHERE gym_id = ?')
+            ->execute([$gymId]);
+        $pdo->prepare('UPDATE membership_plans SET is_active = 0 WHERE gym_id = ?')
+            ->execute([$gymId]);
+
+        // 2. Gym Staff: delete staff association and deactivate/anonymize user accounts
+        $staffList = query_all('SELECT user_id FROM gym_staff WHERE gym_id = ?', [$gymId]);
+        $pdo->prepare('DELETE FROM gym_staff WHERE gym_id = ?')->execute([$gymId]);
+        foreach ($staffList as $staff) {
+            $staffUserId = (int) ($staff['user_id'] ?? 0);
+            if ($staffUserId > 0) {
+                anonymize_user_account($staffUserId, 'staff', 'Staff');
+                audit_log($actorId, 'deactivate', 'user', (string) $staffUserId, 'Staff account deactivated due to gym facility decommissioning');
+            }
+        }
+
+        // 3. Gym Trainers: end client assignments, remove trainer profile, and deactivate/anonymize user accounts
+        $trainerList = query_all('SELECT trainer_id, user_id FROM trainer_profiles WHERE gym_id = ?', [$gymId]);
+        foreach ($trainerList as $trainer) {
+            $trainerId = (int) ($trainer['trainer_id'] ?? 0);
+            $trainerUserId = (int) ($trainer['user_id'] ?? 0);
+
+            if ($trainerId > 0) {
+                $pdo->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = NOW() WHERE trainer_id = ? AND status = "active"')
+                    ->execute([$trainerId]);
+                $pdo->prepare('DELETE FROM trainer_profiles WHERE trainer_id = ?')->execute([$trainerId]);
+            }
+            if ($trainerUserId > 0) {
+                anonymize_user_account($trainerUserId, 'trainer', 'Trainer');
+                audit_log($actorId, 'deactivate', 'user', (string) $trainerUserId, 'Trainer account deactivated due to gym facility decommissioning');
+            }
+        }
+
+        // 4. Classes & Schedules: cancel upcoming class bookings for this gym
+        try {
+            $pdo->prepare('UPDATE class_bookings SET booking_status = "cancelled" WHERE booking_status = "booked" AND schedule_id IN (SELECT schedule_id FROM class_schedules WHERE gym_id = ? OR class_id IN (SELECT class_id FROM classes WHERE gym_id = ?))')
+                ->execute([$gymId, $gymId]);
+        } catch (Throwable) {}
+
+        // 5. Gym Members: Disaffiliate members from this gym and cancel gym-specific memberships, but keep member accounts and personal fitness data completely intact!
+        $pdo->prepare('DELETE FROM gym_members WHERE gym_id = ?')->execute([$gymId]);
+        $pdo->prepare('UPDATE memberships SET status = "cancelled" WHERE plan_id IN (SELECT plan_id FROM membership_plans WHERE gym_id = ?) AND status != "cancelled"')
+            ->execute([$gymId]);
+
+        // Cancel waiting equipment queues at this gym if any
+        try {
+            $pdo->prepare('UPDATE equipment_queues SET status = "cancelled" WHERE equipment_id IN (SELECT equipment_id FROM gym_equipment WHERE gym_id = ?) AND status = "waiting"')
+                ->execute([$gymId]);
+        } catch (Throwable) {}
+
+        // Archive active and paused workout and diet plans issued by this defunct gym
+        if (function_exists('archive_defunct_plans')) {
+            archive_defunct_plans($gymId);
+        }
+
+        // 6. Gym Owner account deactivation (if requested)
+        if ($deactivateOwner && $ownerUserId > 0) {
+            anonymize_user_account($ownerUserId, 'gym_owner', 'Owner');
+            audit_log($actorId, 'delete_account', 'user', (string) $ownerUserId, "Gym owner account deactivated and anonymized due to decommissioning of facility '{$gymName}'");
+        }
+
+        audit_log($actorId, 'decommission', 'gym', (string) $gymId, json_encode([
+            'gym_id' => $gymId,
+            'gym_name' => $gymName,
+            'active_members_cancelled' => $activeMemberCount
+        ]));
+
+        if ($startedTx && $pdo->inTransaction()) {
+            $pdo->commit();
+        }
+
+        return [
+            'ok' => true,
+            'gym_id' => $gymId,
+            'gym_name' => $gymName,
+            'active_members' => $activeMemberCount
+        ];
+    } catch (Throwable $e) {
+        if ($startedTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Failed to decommission gym {$gymId}: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+
