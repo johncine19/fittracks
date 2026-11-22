@@ -5788,7 +5788,7 @@
 
         padding: 14px 18px;
 
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(199, 255, 34, 0.15);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px color-mix(in srgb, var(--lime) 15%, transparent);
 
         display: flex;
 
@@ -5808,9 +5808,9 @@
 
         border-radius: 12px;
 
-        background: rgba(199, 255, 34, 0.12);
+        background: color-mix(in srgb, var(--lime) 12%, transparent);
 
-        border: 1px solid rgba(199, 255, 34, 0.35);
+        border: 1px solid color-mix(in srgb, var(--lime) 35%, transparent);
 
         color: var(--lime);
 
@@ -5874,9 +5874,9 @@
 
         color: var(--lime);
 
-        background: rgba(199, 255, 34, 0.1);
+        background: color-mix(in srgb, var(--lime) 10%, transparent);
 
-        border: 1px solid rgba(199, 255, 34, 0.25);
+        border: 1px solid color-mix(in srgb, var(--lime) 25%, transparent);
 
         padding: 3px 9px;
 
@@ -5972,7 +5972,7 @@
 
         transition: all 0.2s ease;
 
-        box-shadow: 0 4px 14px rgba(199, 255, 34, 0.35);
+        box-shadow: 0 4px 14px color-mix(in srgb, var(--lime) 35%, transparent);
 
         white-space: nowrap;
 
@@ -5982,7 +5982,7 @@
 
         transform: translateY(-1px);
 
-        box-shadow: 0 6px 18px rgba(199, 255, 34, 0.5);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--lime) 50%, transparent);
 
         color: #000;
 
