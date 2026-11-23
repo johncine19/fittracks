@@ -261,9 +261,25 @@ By dynamically scaling targets based on the member's current fitness tier, the s
 
 ---
 
-### 6.3 Equipment Queue API & Anti-Abuse Attendance Gate
+### 6.3 ACSM Cardiorespiratory Progression & Workout Prescription Engine
 
-#### Q17: How did you solve the "Remote Phantom Booking" problem with gym equipment?
+#### Q17: How does your workout generation engine prescribe cardio duration, intervals, and intensity?
+**Answer:**  
+FitTrack implements the **American College of Sports Medicine (ACSM) Cardiorespiratory Progression Model** (`_assign_exercise_details()` in `pages/shared/workouts.php`). Rather than assigning flat, static cardio durations across all members, the engine dynamically calibrates volume, intervals, and Rate of Perceived Exertion (RPE):
+
+| Experience Level | ACSM Stage & Training Focus | Volume & Interval Structure | Target Intensity |
+| :--- | :--- | :--- | :--- |
+| **Starter (Level 1)** | **Stage 1: Aerobic Base Formation** | `1 x 20–30 mins` (Continuous steady-state) | **RPE 4–5** (Conversational aerobic pace; 40–59% HRR) |
+| **Intermediate (Level 2)** | **Stage 2: Aerobic Threshold & Intervals** | `1 x 30–45 mins` (Continuous) *or* `3 x 10 mins` (Intervals, 60s rest) | **RPE 5–7** (Moderate to vigorous aerobic threshold) |
+| **Advanced (Level 3)** | **Stage 3: High Capacity & HIIT** | `1 x 45–60 mins` (Sustained threshold) *or* `4 x 8 mins` (HIIT, 60s rest) | **RPE 6–9** (Near-maximal conditioning intervals) |
+
+Additionally, an **Age-Aware Safety Guard** automatically intercepts cardio intensity for older adults ($\ge 60$) and minors ($< 18$), clamping vigorous RPE 8–9 down to safe aerobic thresholds (RPE 5–7) with extended recovery intervals.
+
+---
+
+### 6.4 Equipment Queue API & Anti-Abuse Attendance Gate
+
+#### Q18: How did you solve the "Remote Phantom Booking" problem with gym equipment?
 **Answer:**  
 - **The Problem:** In initial prototypes, members sitting at home could open `page=equipment`, click "Start Session" or "Join Queue", and lock treadmill or bench press stations away from members who were physically standing on the gym floor.
 - **The Solution (Attendance-Gated Access):**
@@ -281,9 +297,9 @@ By dynamically scaling targets based on the member's current fitness tier, the s
 
 ---
 
-### 6.4 Midnight Auto Check-Out & Hybrid Fallback Engine
+### 6.5 Midnight Auto Check-Out & Hybrid Fallback Engine
 
-#### Q18: What happens if a member forgets to scan their QR code when leaving the gym?
+#### Q19: What happens if a member forgets to scan their QR code when leaving the gym?
 **Answer:**  
 Leaving sessions open causes three critical bugs:
 1. Skewed workout durations (e.g., 20+ hour sessions).
@@ -299,7 +315,7 @@ To prevent this, FitTrack uses a **Hybrid Auto Check-Out Architecture**:
 
 ## 7. Security, Hardening & Data Privacy
 
-### Q19: How does FitTrack protect against common web vulnerabilities (OWASP Top 10)?
+### Q20: How does FitTrack protect against common web vulnerabilities (OWASP Top 10)?
 **Answer:**  
 
 | Vulnerability | Attack Vector | FitTrack Defense Mechanism |
@@ -312,7 +328,7 @@ To prevent this, FitTrack uses a **Hybrid Auto Check-Out Architecture**:
 | **Data-at-Rest Exposure** | Database breach leaking personal medical/chat data | Authenticated Field-Level Encryption (**AES-256-GCM**) with random 12-byte IVs (`core/encryption.php`) for direct messages. |
 | **Direct File Access** | Publicly downloading uploaded business permits/IDs | Protected directory `/assets/permits/.htaccess` (`Require all denied`) served only via authorized PHP proxy `view_permit.php`. |
 
-### Q20: How are passwords stored and authenticated?
+### Q21: How are passwords stored and authenticated?
 **Answer:**  
 Passwords are never stored in plaintext. FitTrack uses PHP’s native `password_hash()` utilizing the **Bcrypt** algorithm with an adaptive cost factor of 12. Password verification is performed using `password_verify()`, which is inherently resistant to timing attacks.
 
@@ -320,14 +336,14 @@ Passwords are never stored in plaintext. FitTrack uses PHP’s native `password_
 
 ## 8. Testing, Usability & ISO/IEC 25010 Evaluation
 
-### Q21: What testing methodologies were conducted on the system?
+### Q22: What testing methodologies were conducted on the system?
 **Answer:**  
 1. **Unit & Integration Testing:** Tested individual modules (BMR calculator formulas, rate-limiter cooldowns, attendance check-in/out logic) using PHP test scripts in the `/tests` suite.
 2. **Database Concurrency Stress Testing:** Simulated simultaneous multi-threaded class booking requests to confirm that row-level locking (`FOR UPDATE`) prevented overbooking.
 3. **Black-Box Functional Testing:** Performed test case walkthroughs across all 4 user roles to ensure permission boundaries and access controls held true.
 4. **User Acceptance Testing (UAT):** Conducted at Star Gym with the owner, gym staff, 2 trainers, and 15 gym members.
 
-### Q22: What were the results of the ISO/IEC 25010 Software Quality Evaluation?
+### Q23: What were the results of the ISO/IEC 25010 Software Quality Evaluation?
 **Answer:**  
 The system was evaluated by IT professionals and target end-users using a 5-point Likert Scale across the 6 core ISO/IEC 25010 characteristics:
 

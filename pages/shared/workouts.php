@@ -288,7 +288,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
  * Rule-based prescription matrix for sets, reps, rest_seconds, tempo, RPE, and coaching notes.
  *
  * Prescribes training volume and intensity based on:
- *   - Exercise category ('cardio' -> fixed 3x15 mins, Steady Pace, RPE 7)
+ *   - Exercise category ('cardio' -> scaled by ACSM cardiorespiratory progression: Level 1 continuous 20-30m RPE 4-5, Level 2 steady/intervals RPE 5-7, Level 3 threshold/HIIT RPE 6-9)
  *   - Mapped primary goal ('strength', 'muscle_gain'/'hypertrophy', 'fat_loss'/'weight_loss', or general health)
  *   - Experience level (1 = Starter, 2 = Intermediate, 3 = Advanced)
  * Uses the exercise's DB description as notes when present, falling back to a goal/level form cue.
@@ -299,12 +299,49 @@ function _assign_exercise_details(string $goal, int $expLevel, array $ex, int $a
     $customDesc = !empty($ex['description']) ? trim((string)$ex['description']) : null;
     
     if ($cat === 'cardio') {
-        $sets = 3;
-        $reps = '15 mins';
-        $rest = 45;
-        $tempo = 'Steady Pace';
-        $rpe = 'RPE 7';
-        $cue = 'Keep cadence steady in target aerobic zone.';
+        if ($expLevel === 1) {
+            // Level 1 (Starter) - ACSM Stage 1 Aerobic Base (Continuous, RPE 4-5)
+            $sets = 1;
+            $reps = '20-30 mins';
+            $rest = 0;
+            $tempo = 'Continuous Aerobic';
+            $rpe = 'RPE 4-5';
+            $cue = 'Continuous steady-state pace; maintain conversational aerobic cadence (ACSM Stage 1).';
+        } elseif ($expLevel === 2) {
+            // Level 2 (Intermediate) - ACSM Stage 2 Aerobic Progression / Intervals (RPE 5-7)
+            if ($goal === 'fat_loss' || $goal === 'endurance') {
+                $sets = 3;
+                $reps = '10 mins';
+                $rest = 60;
+                $tempo = 'Interval Pace';
+                $rpe = 'RPE 7';
+                $cue = 'Interval conditioning: 10m tempo efforts separated by 60s active recovery.';
+            } else {
+                $sets = 1;
+                $reps = '30-45 mins';
+                $rest = 0;
+                $tempo = 'Steady Aerobic';
+                $rpe = 'RPE 5-6';
+                $cue = 'Steady aerobic endurance; maintain moderate output throughout.';
+            }
+        } else {
+            // Level 3 (Advanced) - ACSM Stage 3 High Capacity / HIIT (RPE 6-9)
+            if ($goal === 'fat_loss' || $goal === 'strength_power') {
+                $sets = 4;
+                $reps = '8 mins';
+                $rest = 60;
+                $tempo = 'HIIT Intervals';
+                $rpe = 'RPE 8-9';
+                $cue = 'High-intensity interval conditioning (HIIT). Push high aerobic output with full recovery.';
+            } else {
+                $sets = 1;
+                $reps = '45-60 mins';
+                $rest = 0;
+                $tempo = 'Sustained Threshold';
+                $rpe = 'RPE 6-7';
+                $cue = 'High-volume endurance pacing in upper aerobic threshold zone.';
+            }
+        }
     } elseif ($goal === 'strength' || $goal === 'strength_power') {
         if ($expLevel === 1) {
             $sets = 3; $reps = '6-8';
@@ -423,18 +460,29 @@ function _assign_exercise_details(string $goal, int $expLevel, array $ex, int $a
     }
 
     // Age-aware recovery & intensity guard (keeps experience_level as primary driver)
-    if ($cat !== 'cardio' && $age > 0) {
-        if ($age < 18) {
-            if (in_array($reps, ['3-5', '5-6'], true)) {
-                $reps = '8-10';
-            }
-            if (in_array($rpe, ['RPE 8', 'RPE 8-9'], true)) {
+    if ($age > 0) {
+        if ($cat === 'cardio') {
+            if ($age >= 60 && in_array($rpe, ['RPE 8-9', 'RPE 7'], true)) {
+                $rpe = ($age >= 65) ? 'RPE 5-6' : 'RPE 6-7';
+                if ($sets > 1) {
+                    $rest = max(60, $rest + 15);
+                }
+            } elseif ($age < 18 && $rpe === 'RPE 8-9') {
                 $rpe = 'RPE 7';
             }
-        } elseif ($age >= 55) {
-            $rest += ($age >= 65) ? 30 : 15;
-            if ($expLevel <= 2 && in_array($rpe, ['RPE 8', 'RPE 8-9'], true)) {
-                $rpe = ($age >= 65 && $expLevel === 1) ? 'RPE 7' : 'RPE 7-8';
+        } else {
+            if ($age < 18) {
+                if (in_array($reps, ['3-5', '5-6'], true)) {
+                    $reps = '8-10';
+                }
+                if (in_array($rpe, ['RPE 8', 'RPE 8-9'], true)) {
+                    $rpe = 'RPE 7';
+                }
+            } elseif ($age >= 55) {
+                $rest += ($age >= 65) ? 30 : 15;
+                if ($expLevel <= 2 && in_array($rpe, ['RPE 8', 'RPE 8-9'], true)) {
+                    $rpe = ($age >= 65 && $expLevel === 1) ? 'RPE 7' : 'RPE 7-8';
+                }
             }
         }
     }
