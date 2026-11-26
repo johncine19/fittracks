@@ -184,6 +184,15 @@ function save_member_profile(int $userId): void
     }
 
     // 6. Sync target/current metrics -> member_goals
+    $existingGoals = [];
+    try {
+        $egStmt = $pdo->prepare('SELECT goal_type, current_value, target_value FROM member_goals WHERE user_id = ?');
+        $egStmt->execute([$userId]);
+        foreach ($egStmt->fetchAll(PDO::FETCH_ASSOC) as $egRow) {
+            $existingGoals[(string)$egRow['goal_type']] = $egRow;
+        }
+    } catch (Throwable) {}
+
     $upsertGoal = $pdo->prepare('
         INSERT INTO member_goals (user_id, goal_type, exercise_or_activity, current_value, target_value, unit)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -194,9 +203,13 @@ function save_member_profile(int $userId): void
             unit = VALUES(unit)
     ');
 
+    $currBfVal = $bodyFatPercent !== null
+        ? $bodyFatPercent
+        : (!empty($existing['body_fat_percent']) ? (float)$existing['body_fat_percent'] : null);
+
     $goalMappings = [
         'weight'   => ['target_key' => 'target_weight_kg',        'curr' => $w > 0 ? $w : null, 'unit' => 'kg'],
-        'body_fat' => ['target_key' => 'target_body_fat_percent', 'curr' => $bodyFatPercent,    'unit' => '%'],
+        'body_fat' => ['target_key' => 'target_body_fat_percent', 'curr' => $currBfVal,          'unit' => '%'],
         'waist'    => ['target_key' => 'target_waist_cm',         'curr' => $waist,             'unit' => 'cm'],
         'arm'      => ['target_key' => 'target_arm_cm',           'curr' => $arm,               'unit' => 'cm'],
         'chest'    => ['target_key' => 'target_chest_cm',         'curr' => $chest,             'unit' => 'cm'],
@@ -206,7 +219,16 @@ function save_member_profile(int $userId): void
         if (array_key_exists($cfg['target_key'], $_POST)) {
             $tVal = $_POST[$cfg['target_key']] !== '' && $_POST[$cfg['target_key']] !== null ? abs((float)$_POST[$cfg['target_key']]) : null;
             if ($tVal !== null) {
-                $upsertGoal->execute([$userId, $gType, null, $cfg['curr'], $tVal, $cfg['unit']]);
+                $existingGoal = $existingGoals[$gType] ?? null;
+                $targetChanged = !$existingGoal
+                    || $existingGoal['target_value'] === null
+                    || abs((float)$existingGoal['target_value'] - $tVal) >= 0.01;
+                $startSnapshot = $targetChanged
+                    ? $cfg['curr']
+                    : (($existingGoal['current_value'] !== null && (float)$existingGoal['current_value'] > 0)
+                        ? (float)$existingGoal['current_value']
+                        : $cfg['curr']);
+                $upsertGoal->execute([$userId, $gType, null, $startSnapshot, $tVal, $cfg['unit']]);
             } else {
                 $pdo->prepare('DELETE FROM member_goals WHERE user_id = ? AND goal_type = ?')->execute([$userId, $gType]);
             }
@@ -417,6 +439,11 @@ function member_profile(int $userId, bool $forceRefresh = false): ?array
     $profile['target_arm_cm'] = null;
     $profile['target_chest_cm'] = null;
     $profile['target_waist_cm'] = null;
+    $profile['start_weight_kg'] = null;
+    $profile['start_body_fat_percent'] = null;
+    $profile['start_waist_cm'] = null;
+    $profile['start_arm_cm'] = null;
+    $profile['start_chest_cm'] = null;
     $profile['target_exercise'] = null;
     $profile['current_strength_max_kg'] = null;
     $profile['target_strength_max_kg'] = null;
@@ -436,18 +463,23 @@ function member_profile(int $userId, bool $forceRefresh = false): ?array
             switch ($g['goal_type']) {
                 case 'weight':
                     $profile['target_weight_kg'] = $g['target_value'];
+                    $profile['start_weight_kg'] = $g['current_value'];
                     break;
                 case 'body_fat':
                     $profile['target_body_fat_percent'] = $g['target_value'];
+                    $profile['start_body_fat_percent'] = $g['current_value'];
                     break;
                 case 'waist':
                     $profile['target_waist_cm'] = $g['target_value'];
+                    $profile['start_waist_cm'] = $g['current_value'];
                     break;
                 case 'arm':
                     $profile['target_arm_cm'] = $g['target_value'];
+                    $profile['start_arm_cm'] = $g['current_value'];
                     break;
                 case 'chest':
                     $profile['target_chest_cm'] = $g['target_value'];
+                    $profile['start_chest_cm'] = $g['current_value'];
                     break;
                 case 'strength':
                     $profile['target_exercise'] = $g['exercise_or_activity'];

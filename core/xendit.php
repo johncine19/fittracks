@@ -1005,11 +1005,7 @@ function xendit_activate_membership_payment(PDO $pdo, array $payment, string $xe
         throw $e;
     }
 
-    try {
-        process_trainer_commission((int)$lockedPayment['payment_id'], (float)$lockedPayment['amount']);
-    } catch (Throwable $e) {
-        error_log('Could not process Xendit member payment commission: ' . $e->getMessage());
-    }
+    // Note: Trainer commissions are decoupled from membership plans and processed via pt_payments.
 
     try {
         notify_user((int)$payment['member_user_id'], 'system', 'Membership Payment Confirmed', 'Payment confirmed for ' . $payment['plan_name'] . ' at ' . $payment['gym_name'] . '. Receipt: ' . $receiptNumber . '.');

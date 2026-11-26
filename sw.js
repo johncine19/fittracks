@@ -3,7 +3,7 @@
  * Enables scanner and attendance recording during network brownouts & outages.
  */
 
-const CACHE_NAME = 'fittracks-terminal-v3';
+const CACHE_NAME = 'fittracks-terminal-v4';
 
 const STATIC_ASSETS = [
     './manifest.json',
@@ -53,8 +53,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Navigation / HTML requests (e.g. index.php?page=scanner)
+    // Only intercept navigation / HTML requests for the offline-capable Scanner page.
+    // Let auth/redirect routes (e.g. ?page=logout, ?page=login) and normal pages pass straight to the browser.
     if (req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html')) {
+        if (url.searchParams.get('page') !== 'scanner') {
+            return;
+        }
         event.respondWith(
             fetch(req)
                 .then((networkRes) => {
@@ -65,21 +69,19 @@ self.addEventListener('fetch', (event) => {
                     return networkRes;
                 })
                 .catch(async () => {
-                    // Offline fallback: try exact match
+                    // Offline fallback: try exact match or cached scanner page
                     const cached = await caches.match(req);
                     if (cached) return cached;
-                    // Only fallback to scanner if the user was requesting the scanner page
-                    if (url.searchParams.get('page') === 'scanner') {
-                        const fallbackScanner = await caches.match('index.php?page=scanner');
-                        if (fallbackScanner) return fallbackScanner;
-                    }
+                    const fallbackScanner = await caches.match('index.php?page=scanner');
+                    if (fallbackScanner) return fallbackScanner;
                     return new Response(
+                        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>FitTracks Terminal Offline</title></head><body style="margin:0;background:#05080c;">' +
                         '<div style="font-family:sans-serif;text-align:center;padding:50px;background:#05080c;color:#fff;">' +
-                        '<h2>⚡ FitTracks Terminal Offline</h2>' +
+                        '<h2>FitTracks Terminal Offline</h2>' +
                         '<p>Please navigate to the Scanner page while online once to enable full offline support.</p>' +
                         '<button onclick="location.reload()" style="background:#22c55e;color:#000;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold;">Retry</button>' +
-                        '</div>',
-                        { headers: { 'Content-Type': 'text/html' } }
+                        '</div></body></html>',
+                        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
                     );
                 })
         );

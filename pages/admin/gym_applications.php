@@ -148,6 +148,7 @@ function gym_applications_page(): void
         $applications = hydrate_gym_rows($applications);
     }
 
+    $previewDocsByGym = [];
     foreach ($applications as &$app) {
         $diditRecord = function_exists('didit_get_latest_for_gym') ? didit_get_latest_for_gym((int)$app['gym_id']) : null;
         $ocrChecks = function_exists('doc_ocr_get_for_gym') ? doc_ocr_get_for_gym((int)$app['gym_id']) : [];
@@ -220,6 +221,31 @@ function gym_applications_page(): void
                 'type' => 'link'
             ];
         }
+        $previewList = [];
+        foreach ($docs as &$docItem) {
+            if (($docItem['type'] ?? '') === 'doc') {
+                $ocrMeta = null;
+                if (!empty($docItem['ocr']) && function_exists('doc_ocr_badge')) {
+                    $obItem = doc_ocr_badge((string)($docItem['ocr']['verdict'] ?? 'warning'));
+                    $ocrMeta = [
+                        'label'  => $obItem['icon'] . ' ' . $obItem['label'],
+                        'note'   => (string)($docItem['ocr']['summary_note'] ?? ''),
+                        'color'  => $obItem['color'],
+                        'bg'     => $obItem['bg'],
+                        'border' => $obItem['border'],
+                    ];
+                }
+                $docItem['preview_index'] = count($previewList);
+                $previewList[] = [
+                    'name' => $docItem['name'],
+                    'url'  => $docItem['url'],
+                    'ocr'  => $ocrMeta,
+                ];
+            }
+        }
+        unset($docItem);
+        $previewDocsByGym[(int)$app['gym_id']] = $previewList;
+
         $app['docs'] = $docs;
         $app['doc_count'] = count($docs);
         $app['has_permit'] = !empty($app['business_permit_url']) ? 1 : 0;
@@ -1411,7 +1437,7 @@ function gym_applications_page(): void
                                                             $statusTitle = !empty($diditRow['extracted_name']) ? 'Extracted: ' . $diditRow['extracted_name'] : '';
                                                         }
                                                     ?>
-                                                    <button type="button" class="doc-menu-item" title="<?= h($statusTitle) ?>" onclick='viewDocument(<?= json_encode($doc['url']) ?>, <?= json_encode($doc['name']) ?>, <?= json_encode($previewMeta) ?>); closeAllDocDropdowns();'>
+                                                    <button type="button" class="doc-menu-item" title="<?= h($statusTitle) ?>" onclick='viewDocument(<?= json_encode($doc['url']) ?>, <?= json_encode($doc['name']) ?>, <?= json_encode($previewMeta) ?>, <?= (int)$app['gym_id'] ?>, <?= (int)($doc['preview_index'] ?? 0) ?>); closeAllDocDropdowns();'>
                                                         <span class="doc-item-icon"><?= $doc['icon'] ?></span>
                                                         <span class="doc-item-title" style="display:flex; flex-direction:column; align-items:flex-start; gap:1px;">
                                                             <span><?= h($doc['name']) ?></span>
@@ -1643,7 +1669,7 @@ function gym_applications_page(): void
                                                     $mobTag = ' ' . $dbM['icon'];
                                                 }
                                             ?>
-                                            <button type="button" class="app-card-doc-pill" onclick='viewDocument(<?= json_encode($doc['url']) ?>, <?= json_encode($doc['name']) ?>, <?= json_encode($mobMeta) ?>)'>
+                                            <button type="button" class="app-card-doc-pill" onclick='viewDocument(<?= json_encode($doc['url']) ?>, <?= json_encode($doc['name']) ?>, <?= json_encode($mobMeta) ?>, <?= (int)$app['gym_id'] ?>, <?= (int)($doc['preview_index'] ?? 0) ?>)'>
                                                 <?= $doc['icon'] ?>
                                                 <span><?= h($doc['name']) . $mobTag ?></span>
                                             </button>
@@ -1832,44 +1858,124 @@ function gym_applications_page(): void
         }
     }
 
-    function viewDocument(url, docTitle = 'Document', ocrInfo = null) {
-        let clean = url.split('#')[0];
-        if (clean.includes('file=')) {
-            clean = decodeURIComponent(clean.split('file=').pop().split('&')[0]);
-        }
-        const ext = clean.split('.').pop().toLowerCase().split('?')[0].split('&')[0];
+    const GYM_PREVIEW_DOCS = <?= json_encode($previewDocsByGym ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
 
-        let ocrBannerHtml = '';
-        if (ocrInfo && ocrInfo.label) {
-            const esc = (v) => String(v || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-            ocrBannerHtml = `<div style="display:flex; justify-content:center; margin-bottom:12px;">`
-                + `<div style="padding:8px 14px; border-radius:8px; background:${esc(ocrInfo.bg)}; border:1px solid ${esc(ocrInfo.border)}; text-align:left; font-size:12.5px; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; max-width:680px;">`
-                + `<strong style="color:${esc(ocrInfo.color)}; white-space:nowrap;">${esc(ocrInfo.label)}</strong>`
-                + (ocrInfo.note ? `<span style="color:var(--ink, #1e293b); font-weight:500;">${esc(ocrInfo.note)}</span>` : '')
+    function viewDocument(url, docTitle = 'Document', ocrInfo = null, gymId = null, startIndex = 0) {
+        const gymDocs = (gymId && GYM_PREVIEW_DOCS && Array.isArray(GYM_PREVIEW_DOCS[gymId]) && GYM_PREVIEW_DOCS[gymId].length > 0)
+            ? GYM_PREVIEW_DOCS[gymId]
+            : [{ url, name: docTitle, ocr: ocrInfo }];
+
+        let currentIndex = Math.max(0, Math.min(Number(startIndex) || 0, gymDocs.length - 1));
+        const esc = (v) => String(v || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+        const getExt = (rawUrl) => {
+            let clean = String(rawUrl || '').split('#')[0];
+            if (clean.includes('file=')) {
+                clean = decodeURIComponent(clean.split('file=').pop().split('&')[0]);
+            }
+            return clean.split('.').pop().toLowerCase().split('?')[0].split('&')[0];
+        };
+
+        const buildOcrBanner = (meta) => {
+            if (!meta || !meta.label) return '';
+            return `<div style="display:flex; justify-content:center; margin-bottom:12px;">`
+                + `<div style="padding:8px 14px; border-radius:8px; background:${esc(meta.bg)}; border:1px solid ${esc(meta.border)}; text-align:left; font-size:12.5px; display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; max-width:680px;">`
+                + `<strong style="color:${esc(meta.color)}; white-space:nowrap;">${esc(meta.label)}</strong>`
+                + (meta.note ? `<span style="color:var(--ink, #1e293b); font-weight:500;">${esc(meta.note)}</span>` : '')
                 + `</div></div>`;
-        }
+        };
 
-        if (ext === 'pdf') {
-            Swal.fire({
-                title: docTitle,
-                html: `${ocrBannerHtml}<iframe src="${url}" style="width:100%; height:68vh; border:none;"></iframe>`,
-                width: '80%',
-                showCloseButton: true,
-                showConfirmButton: false,
-                background: 'var(--surface-color, #18251eff)',
-                color: 'var(--text-color, #ffffff)'
-            });
-        } else {
-            Swal.fire({
-                title: docTitle,
-                html: `${ocrBannerHtml}<div style="display: flex; justify-content: center; align-items: center; width: 100%; height: 68vh;"><img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px;" alt="${docTitle}"></div>`,
-                width: '80%',
-                showCloseButton: true,
-                showConfirmButton: false,
-                background: 'var(--surface, #18251eff)',
-                color: 'var(--text-color, #ffffff)'
-            });
-        }
+        const buildViewerBody = (doc) => {
+            const ext = getExt(doc.url);
+            if (ext === 'pdf') {
+                return `<iframe src="${esc(doc.url)}" style="width:100%; height:62vh; border:none; border-radius:6px;"></iframe>`;
+            }
+            return `<div style="display:flex; justify-content:center; align-items:center; width:100%; height:62vh;">`
+                + `<img src="${esc(doc.url)}" style="max-width:100%; max-height:100%; object-fit:contain; border-radius:4px;" alt="${esc(doc.name)}">`
+                + `</div>`;
+        };
+
+        const renderDocSlide = () => {
+            const doc = gymDocs[currentIndex];
+            const titleEl = Swal.getTitle();
+            if (titleEl) titleEl.textContent = doc.name || 'Document';
+
+            const ocrWrap = document.getElementById('docPreviewOcrWrap');
+            if (ocrWrap) ocrWrap.innerHTML = buildOcrBanner(doc.ocr || null);
+
+            const bodyWrap = document.getElementById('docPreviewBodyWrap');
+            if (bodyWrap) bodyWrap.innerHTML = buildViewerBody(doc);
+
+            const counterEl = document.getElementById('docPreviewCounter');
+            if (counterEl) counterEl.textContent = `${currentIndex + 1} / ${gymDocs.length}`;
+
+            const prevBtn = document.getElementById('docPreviewPrevBtn');
+            const nextBtn = document.getElementById('docPreviewNextBtn');
+            if (prevBtn) {
+                prevBtn.disabled = currentIndex <= 0;
+                prevBtn.style.opacity = currentIndex <= 0 ? '0.45' : '1';
+                prevBtn.style.cursor = currentIndex <= 0 ? 'not-allowed' : 'pointer';
+            }
+            if (nextBtn) {
+                nextBtn.disabled = currentIndex >= gymDocs.length - 1;
+                nextBtn.style.opacity = currentIndex >= gymDocs.length - 1 ? '0.45' : '1';
+                nextBtn.style.cursor = currentIndex >= gymDocs.length - 1 ? 'not-allowed' : 'pointer';
+            }
+        };
+
+        const navFooterHtml = gymDocs.length > 1
+            ? `<div style="display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; padding-top:12px; border-top:1px solid rgba(148,163,184,0.22);">`
+                + `<button type="button" id="docPreviewPrevBtn" style="display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; border:1px solid rgba(148,163,184,0.35); background:rgba(148,163,184,0.12); color:inherit; font-size:13px; font-weight:700;">&larr; Prev</button>`
+                + `<span id="docPreviewCounter" style="font-size:12.5px; font-weight:700; min-width:56px; text-align:center; opacity:0.85;">1 / ${gymDocs.length}</span>`
+                + `<button type="button" id="docPreviewNextBtn" style="display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; border:1px solid rgba(132,204,22,0.45); background:rgba(132,204,22,0.16); color:inherit; font-size:13px; font-weight:700;">Next &rarr;</button>`
+                + `</div>`
+            : '';
+
+        const onKeyDown = (e) => {
+            if (gymDocs.length <= 1) return;
+            if (e.key === 'ArrowLeft' && currentIndex > 0) {
+                currentIndex--;
+                renderDocSlide();
+            } else if (e.key === 'ArrowRight' && currentIndex < gymDocs.length - 1) {
+                currentIndex++;
+                renderDocSlide();
+            }
+        };
+
+        Swal.fire({
+            title: gymDocs[currentIndex].name || 'Document',
+            html: `<div id="docPreviewOcrWrap"></div><div id="docPreviewBodyWrap"></div>${navFooterHtml}`,
+            width: '80%',
+            showCloseButton: true,
+            showConfirmButton: false,
+            background: 'var(--surface-color, var(--surface, #18251eff))',
+            color: 'var(--text-color, #ffffff)',
+            didOpen: () => {
+                renderDocSlide();
+                const prevBtn = document.getElementById('docPreviewPrevBtn');
+                const nextBtn = document.getElementById('docPreviewNextBtn');
+                if (prevBtn) {
+                    prevBtn.addEventListener('click', () => {
+                        if (currentIndex > 0) {
+                            currentIndex--;
+                            renderDocSlide();
+                        }
+                    });
+                }
+                if (nextBtn) {
+                    nextBtn.addEventListener('click', () => {
+                        if (currentIndex < gymDocs.length - 1) {
+                            currentIndex++;
+                            renderDocSlide();
+                        }
+                    });
+                }
+                document.addEventListener('keydown', onKeyDown);
+            },
+            didClose: () => {
+                document.removeEventListener('keydown', onKeyDown);
+            }
+        });
     }
 
     // Live Search, Multi-Filter, Sorting & Responsive Pagination for Gym Applications

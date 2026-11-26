@@ -100,6 +100,286 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         currentMetric = 'measurements';
     }
     let currentTimeframe = 'all';
+    let lastFilteredChartData = rawChartData;
+
+    function escHtml(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function getTimeframeLabel() {
+        if (currentTimeframe === '1m') return 'Past 30 days';
+        if (currentTimeframe === '3m') return 'Past 3 months';
+        if (currentTimeframe === '6m') return 'Past 6 months';
+        if (currentTimeframe === 'custom') {
+            const f = document.getElementById('chart-custom-from')?.value || '';
+            const t = document.getElementById('chart-custom-to')?.value || '';
+            return (f && t) ? `${f} to ${t}` : 'Custom range';
+        }
+        return 'All recorded logs';
+    }
+
+    function getGoalDeltaColor(key, delta) {
+        if (delta === null || delta === 0) return 'var(--ink)';
+        const dirs = (FT_CONFIG.goalMeta && FT_CONFIG.goalMeta.directions) ? FT_CONFIG.goalMeta.directions : {};
+        const dir = dirs[key] || 'neutral';
+        if (dir === 'up') return delta > 0 ? '#22c55e' : '#f59e0b';
+        if (dir === 'down') return delta < 0 ? '#22c55e' : '#f59e0b';
+        if (dir === 'stable') return Math.abs(delta) <= 0.5 ? '#22c55e' : 'var(--ink)';
+        return 'var(--ink)';
+    }
+
+    function computeSeriesDelta(data, key) {
+        const pts = data.filter(d => d[key] !== null && d[key] !== undefined && Number(d[key]) > 0);
+        if (pts.length < 2) return null;
+        return Number((Number(pts[pts.length - 1][key]) - Number(pts[0][key])).toFixed(1));
+    }
+
+    function updateSummaryStatBoxes(filteredData) {
+        const rangeNote = document.getElementById('chartSummaryRangeNote');
+        if (rangeNote) {
+            rangeNote.textContent = currentTimeframe === 'all' ? '' : `(${getTimeframeLabel()})`;
+        }
+
+        const wEl = document.getElementById('chartSummaryWeight');
+        if (wEl) {
+            const wDelta = computeSeriesDelta(filteredData, 'weight');
+            wEl.textContent = wDelta !== null ? `${wDelta > 0 ? '+' : ''}${wDelta} kg` : '—';
+            wEl.style.color = getGoalDeltaColor('weight', wDelta);
+        }
+
+        const bfEl = document.getElementById('chartSummaryBf');
+        if (bfEl) {
+            const bfDelta = computeSeriesDelta(filteredData, 'body_fat');
+            bfEl.textContent = bfDelta !== null ? `${bfDelta > 0 ? '+' : ''}${bfDelta}%` : '—';
+            bfEl.style.color = getGoalDeltaColor('body_fat', bfDelta);
+        }
+
+        const focusEl = document.getElementById('chartSummaryFocus');
+        const focusLabelEl = document.getElementById('chartSummaryFocusLabel');
+        if (focusEl && focusLabelEl) {
+            const labelTxt = (focusLabelEl.textContent || '').toLowerCase();
+            let key = 'bmi';
+            let unit = '';
+            if (labelTxt.includes('arm')) { key = 'arm'; unit = ' cm'; }
+            else if (labelTxt.includes('chest')) { key = 'chest'; unit = ' cm'; }
+            else if (labelTxt.includes('waist')) { key = 'waist'; unit = ' cm'; }
+
+            const fDelta = computeSeriesDelta(filteredData, key);
+            focusEl.textContent = fDelta !== null ? `${fDelta > 0 ? '+' : ''}${fDelta}${unit}` : '—';
+            focusEl.style.color = getGoalDeltaColor(key, fDelta);
+        }
+    }
+
+    function updateChartInsight(filteredData) {
+        const banner = document.getElementById('chartInsightBanner');
+        const data = Array.isArray(filteredData) ? filteredData : [];
+        updateSummaryStatBoxes(data);
+        if (!banner) return;
+
+        const goalMeta = FT_CONFIG.goalMeta || {};
+        const targets = FT_CONFIG.targets || {};
+        const dirs = goalMeta.directions || {};
+        const isMgr = !!goalMeta.isManagerView;
+        const memberName = goalMeta.memberName || 'This member';
+        const goalTitle = goalMeta.title || 'General Fitness';
+        const rangeLabel = getTimeframeLabel();
+
+        const whoIs = isMgr ? `${memberName} is` : 'You are';
+        const whoIsLower = isMgr ? `${memberName} is` : 'you are';
+        const poss = isMgr ? `${memberName}'s` : 'your';
+
+        const fmtSigned = (v, unit = '') => `${v > 0 ? '+' : ''}${v.toFixed(1)}${unit ? ' ' + unit : ''}`;
+
+        let tone = 'neutral';
+        let badge = 'Trend';
+        let text = '';
+
+        if (currentMetric === 'measurements') {
+            const ci = window.hubChartInstance;
+            const specs = [
+                { idx: 0, key: 'waist', name: 'Waist', target: parseFloat(targets.targetWaist || '') || 0 },
+                { idx: 1, key: 'arm', name: 'Arms', target: parseFloat(targets.targetArm || '') || 0 },
+                { idx: 2, key: 'chest', name: 'Chest', target: parseFloat(targets.targetChest || '') || 0 }
+            ];
+
+            const parts = [];
+            let goodCount = 0;
+            let badCount = 0;
+            let flatCount = 0;
+
+            specs.forEach(sp => {
+                if (ci && ci.data && ci.data.datasets && ci.data.datasets[sp.idx] && !ci.isDatasetVisible(sp.idx)) {
+                    return;
+                }
+                const pts = data.filter(d => d[sp.key] !== null && d[sp.key] !== undefined && Number(d[sp.key]) > 0);
+                if (pts.length < 2) return;
+
+                const first = Number(pts[0][sp.key]);
+                const last = Number(pts[pts.length - 1][sp.key]);
+                const delta = Number((last - first).toFixed(1));
+                const dir = dirs[sp.key] || 'neutral';
+                parts.push(`${sp.name} ${fmtSigned(delta, 'cm')} (${first.toFixed(1)} → ${last.toFixed(1)} cm)`);
+
+                if (dir === 'down') {
+                    if (delta <= -0.3) goodCount++;
+                    else if (delta >= 0.4) badCount++;
+                    else flatCount++;
+                } else if (dir === 'up') {
+                    if (delta >= 0.3) goodCount++;
+                    else if (delta <= -0.4) badCount++;
+                    else flatCount++;
+                } else {
+                    if (Math.abs(delta) < 0.3) flatCount++;
+                }
+            });
+
+            if (parts.length === 0) {
+                tone = 'neutral';
+                badge = 'Needs More Data';
+                text = `Not enough measurement logs in ${rangeLabel}. ${isMgr ? `Have ${memberName} log` : 'Log'} at least 2 entries to see circumference progress.`;
+            } else {
+                if (badCount > 0 && goodCount === 0) {
+                    tone = 'bad';
+                    badge = 'Off Track';
+                    text = `${rangeLabel}: ${parts.join(', ')} — moving away from ${poss} ${goalTitle} target.`;
+                } else if (goodCount > 0) {
+                    tone = 'good';
+                    badge = 'Progressing';
+                    text = `${rangeLabel}: ${parts.join(', ')} — moving in the right direction for ${goalTitle}.`;
+                } else if (flatCount > 0) {
+                    tone = 'warn';
+                    badge = 'Maintaining / Plateau';
+                    text = `${rangeLabel}: ${parts.join(', ')} — measurements are holding steady.`;
+                } else {
+                    tone = 'neutral';
+                    badge = 'Trend Summary';
+                    text = `${rangeLabel}: ${parts.join(', ')}.`;
+                }
+            }
+        } else {
+            const cfg = METRIC_CONFIG[currentMetric] || METRIC_CONFIG.weight;
+            const unit = cfg.unit ? cfg.unit : '';
+            const pts = data.filter(d => d[currentMetric] !== null && d[currentMetric] !== undefined && Number(d[currentMetric]) > 0);
+
+            if (pts.length < 2) {
+                tone = 'neutral';
+                badge = 'Needs More Data';
+                const singleNote = pts.length === 1 ? `Latest logged value is ${Number(pts[0][currentMetric]).toFixed(1)}${unit ? ' ' + unit : ''}. ` : '';
+                text = `${singleNote}${rangeLabel} has fewer than 2 ${cfg.label} entries — ${isMgr ? 'at least 2 logs are needed' : 'log one more entry'} to evaluate whether ${whoIsLower} progressing.`;
+            } else {
+                const first = Number(pts[0][currentMetric]);
+                const last = Number(pts[pts.length - 1][currentMetric]);
+                const delta = Number((last - first).toFixed(1));
+                const spanDays = Math.max(0, Math.round((new Date(pts[pts.length - 1].date) - new Date(pts[0].date)) / 86400000));
+                const weeklyRate = spanDays >= 7 ? Number((delta / (spanDays / 7)).toFixed(2)) : null;
+
+                if (currentMetric === 'bmi') {
+                    let bmiCat = 'Normal range';
+                    if (last < 18.5) bmiCat = 'Underweight';
+                    else if (last <= 24.9) bmiCat = 'Normal range';
+                    else if (last <= 29.9) bmiCat = 'Overweight';
+                    else bmiCat = 'Obese';
+
+                    const inNormal = last >= 18.5 && last <= 24.9;
+                    const movingTowardNormal = (first > 24.9 && delta <= -0.2) || (first < 18.5 && delta >= 0.2);
+                    const movingAwayFromNormal = (last > 24.9 && delta >= 0.2) || (last < 18.5 && delta <= -0.2);
+
+                    if (inNormal && Math.abs(delta) < 0.2) {
+                        tone = 'good';
+                        badge = 'Healthy Range';
+                    } else if (inNormal || movingTowardNormal) {
+                        tone = 'good';
+                        badge = 'Progressing';
+                    } else if (movingAwayFromNormal) {
+                        tone = 'bad';
+                        badge = 'Off Track';
+                    } else {
+                        tone = 'warn';
+                        badge = 'Plateau';
+                    }
+                    text = `${rangeLabel}: BMI shifted from ${first.toFixed(1)} to ${last.toFixed(1)} (${fmtSigned(delta)}), currently in the ${bmiCat} bracket.`;
+                } else {
+                    const dir = dirs[currentMetric] || 'neutral';
+                    const noise = currentMetric === 'weight' ? 0.3 : 0.4;
+                    const targetVal = currentMetric === 'weight'
+                        ? (parseFloat(targets.targetWeight || '') || 0)
+                        : (parseFloat(targets.targetBodyFat || '') || 0);
+
+                    const targetHit = targetVal > 0 && ((dir === 'down' && last <= targetVal) || (dir === 'up' && last >= targetVal));
+                    let paceText = '';
+                    if (weeklyRate !== null) {
+                        paceText = ` (~${fmtSigned(weeklyRate, unit + '/wk')})`;
+                    }
+
+                    let etaText = '';
+                    if (!targetHit && targetVal > 0 && weeklyRate !== null && Math.abs(weeklyRate) >= 0.05) {
+                        const rem = targetVal - last;
+                        if ((rem > 0 && weeklyRate > 0) || (rem < 0 && weeklyRate < 0)) {
+                            const etaWks = Math.ceil(Math.abs(rem) / Math.abs(weeklyRate));
+                            if (etaWks >= 1 && etaWks <= 104) {
+                                etaText = ` At this pace, ~${etaWks} wks from ${poss} ${targetVal} ${unit} target.`;
+                            }
+                        }
+                    }
+
+                    if (targetHit) {
+                        tone = 'good';
+                        badge = 'Goal Reached';
+                        text = `${rangeLabel}: ${cfg.label} moved from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)}), meeting the ${targetVal} ${unit} target.`;
+                    } else if (dir === 'down') {
+                        if (delta <= -noise) {
+                            tone = 'good';
+                            badge = 'Progressing';
+                            text = `${rangeLabel}: ${cfg.label} dropped from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)})${paceText} — moving toward ${poss} ${goalTitle} goal.${etaText}`;
+                        } else if (delta >= noise) {
+                            tone = 'bad';
+                            badge = 'Off Track';
+                            text = `${rangeLabel}: ${cfg.label} rose from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)})${paceText} — moving opposite to ${poss} ${goalTitle} goal.`;
+                        } else {
+                            tone = 'warn';
+                            badge = 'Maintaining / Plateau';
+                            text = `${rangeLabel}: ${cfg.label} stayed flat (${first.toFixed(1)} → ${last.toFixed(1)} ${unit}, ${fmtSigned(delta, unit)}).`;
+                        }
+                    } else if (dir === 'up') {
+                        if (delta >= noise) {
+                            tone = 'good';
+                            badge = 'Progressing';
+                            text = `${rangeLabel}: ${cfg.label} increased from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)})${paceText} — aligned with ${poss} ${goalTitle} goal.${etaText}`;
+                        } else if (delta <= -noise) {
+                            tone = 'bad';
+                            badge = 'Off Track';
+                            text = `${rangeLabel}: ${cfg.label} dropped from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)})${paceText} — moving opposite to ${poss} ${goalTitle} goal.`;
+                        } else {
+                            tone = 'warn';
+                            badge = 'Maintaining / Plateau';
+                            text = `${rangeLabel}: ${cfg.label} stayed flat (${first.toFixed(1)} → ${last.toFixed(1)} ${unit}, ${fmtSigned(delta, unit)}).`;
+                        }
+                    } else if (dir === 'stable') {
+                        if (Math.abs(delta) <= 1.0) {
+                            tone = 'good';
+                            badge = 'Steady Scale';
+                            text = `${rangeLabel}: ${cfg.label} held steady (${first.toFixed(1)} → ${last.toFixed(1)} ${unit}, ${fmtSigned(delta, unit)}) — ideal while recomposing waist/body fat.`;
+                        } else {
+                            tone = 'warn';
+                            badge = 'Shifting';
+                            text = `${rangeLabel}: ${cfg.label} shifted from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)}). Check Waist/Body Fat to confirm composition direction.`;
+                        }
+                    } else {
+                        tone = 'neutral';
+                        badge = 'Trend Summary';
+                        text = `${rangeLabel}: ${cfg.label} went from ${first.toFixed(1)} to ${last.toFixed(1)} ${unit} (${fmtSigned(delta, unit)})${paceText}.`;
+                    }
+                }
+            }
+        }
+
+        banner.className = `chart-insight-banner insight-${tone}`;
+        banner.innerHTML = `<span class="insight-badge">${escHtml(badge)}</span><span class="insight-text">${escHtml(text)}</span>`;
+    }
 
     function setChartMetric(metric) {
         if (metric === 'waist' || metric === 'arm' || metric === 'chest') {
@@ -307,6 +587,7 @@ const rawChartData = FT_CONFIG.rawChartData || [];
             badge.style.filter = meta.hidden ? 'grayscale(0.7)' : 'none';
             badge.style.textDecoration = meta.hidden ? 'line-through' : 'none';
         }
+        updateChartInsight(lastFilteredChartData);
     };
 
     function hexToRgba(hex, alpha = 1) {
@@ -476,9 +757,11 @@ const rawChartData = FT_CONFIG.rawChartData || [];
         const labels = filtered.map(d => d.label);
         const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
 
+        lastFilteredChartData = filtered;
         window.hubChartInstance.data.labels = labels;
         window.hubChartInstance.data.datasets = getDatasetsForMetric(currentMetric, filtered, isDark);
         window.hubChartInstance.update();
+        updateChartInsight(filtered);
     }
 
     function initHubChart() {
@@ -694,6 +977,8 @@ const rawChartData = FT_CONFIG.rawChartData || [];
                 }
             }
         });
+        lastFilteredChartData = rawChartData;
+        updateChartInsight(rawChartData);
     }
 
     // Historical Progress Logs Filter Logic

@@ -287,10 +287,8 @@ function training_page(): void
             LEFT JOIN trainer_profiles tp ON p.trainer_id = tp.trainer_id
             LEFT JOIN users t ON tp.user_id = t.user_id
             WHERE p.trainer_id = ?
-               OR p.member_user_id IN (SELECT member_user_id FROM trainer_assignments WHERE trainer_id = ? AND status = "active")
-               ' . ($resolvedGymId ? ' OR p.gym_id = ' . $resolvedGymId : '') . '
             ORDER BY p.created_at DESC
-        ', [$coachId, $coachId]);
+        ', [$coachId]);
     } else {
         $allPlans = query_all('
             SELECT p.*, 

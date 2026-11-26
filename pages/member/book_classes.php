@@ -161,10 +161,7 @@ function book_classes_page(): void
             redirect('book_classes');
         }
 
-        // Post-commit side-effects
-        if ($assignedTrainerId !== null) {
-            grant_retroactive_commission((int)$user['user_id'], $assignedTrainerId);
-        }
+        // Trainer commissions are processed via dedicated PT payments rather than membership plans.
         
         $when = date('D, M j \a\t g:i A', strtotime($lockedClass['start_datetime']));
         $location = !empty($lockedClass['room_location']) ? ' in ' . $lockedClass['room_location'] : '';

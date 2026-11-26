@@ -307,10 +307,6 @@ function users_page(): void
                             $pStmt->execute([$membershipId, $amount, $start->format('Y-m-d'), $method, $paymentStatus, $receipt, $user['user_id']]);
                             $paymentId = (int) db()->lastInsertId();
 
-                            if ($paymentStatus === 'paid' && $amount > 0 && function_exists('process_trainer_commission')) {
-                                process_trainer_commission($paymentId, $amount);
-                            }
-
                             $facilityGymId = $planGymId ?: $gymId;
                             $gymName = $facilityGymId ? (scalar('SELECT name FROM gyms WHERE gym_id = ?', [$facilityGymId]) ?: 'our gym') : 'our gym';
                             if ($membershipStatus === 'active') {
@@ -804,37 +800,52 @@ function users_page(): void
         elseif ($engScore < 45) $engTier = 'At-Risk';
 
         // Milestone progress calculation
+        $goalProg = function_exists('calculate_member_goal_progress')
+            ? calculate_member_goal_progress($targetMemberId, $memberData, $logs)
+            : null;
+        $targetDirs = $goalProg['directions'] ?? (function_exists('get_goal_metric_directions')
+            ? get_goal_metric_directions((string)($memberData['primary_goal'] ?? ''), $memberData)
+            : []);
+
         $progressPct = 0;
-        if ($targetWeight !== null && $startingWeight !== null && $currentWeight !== null) {
-            $totalDistance = abs($targetWeight - $startingWeight);
-            if ($totalDistance > 0) {
-                $isWeightLoss = ($startingWeight > $targetWeight);
-                $covered = $isWeightLoss ? ($startingWeight - $currentWeight) : ($currentWeight - $startingWeight);
-                if ($covered > 0) {
-                    $progressPct = (int) min(100, max(0, round(($covered / $totalDistance) * 100)));
-                } else {
-                    $progressPct = 0;
-                }
+        $targetStartWeight = !empty($memberData['start_weight_kg']) ? (float)$memberData['start_weight_kg'] : $startingWeight;
+        if ($targetWeight !== null && $targetStartWeight !== null && $currentWeight !== null) {
+            if (function_exists('compute_target_bar_progress')) {
+                $wBar = compute_target_bar_progress(
+                    'Weight',
+                    'kg',
+                    $targetWeight,
+                    $currentWeight,
+                    $targetStartWeight,
+                    (string)($targetDirs['weight'] ?? 'neutral')
+                );
+                $progressPct = $wBar ? (int)$wBar['pct'] : 0;
             } else {
-                $progressPct = 100;
+                $totalDistance = abs($targetWeight - $targetStartWeight);
+                if ($totalDistance >= 0.05) {
+                    $isWeightLoss = ($targetStartWeight > $targetWeight);
+                    $covered = $isWeightLoss ? ($targetStartWeight - $currentWeight) : ($currentWeight - $targetStartWeight);
+                    $progressPct = $covered > 0 ? (int) min(100, max(0, round(($covered / $totalDistance) * 100))) : 0;
+                } else {
+                    $progressPct = abs($currentWeight - $targetWeight) <= 0.1 ? 100 : 0;
+                }
             }
-            } elseif (function_exists('calculate_member_goal_progress')) {
-            $goalProg = calculate_member_goal_progress($targetMemberId, $memberData, $logs);
-            if (isset($goalProg['progress_pct']) && $goalProg['progress_pct'] !== null) {
-                $progressPct = (int)$goalProg['progress_pct'];
-            }
+        } elseif ($goalProg && isset($goalProg['progress_pct']) && $goalProg['progress_pct'] !== null) {
+            $progressPct = (int)$goalProg['progress_pct'];
         }
 
         // Additional configured target progress bars (Body Fat, Waist, Arms, Chest)
-        $computeMetricBar = static function (string $label, string $unit, ?float $targetVal, ?float $currentVal, string $logCol, ?float $profileVal) use ($logs): ?array {
+        $computeMetricBar = static function (string $label, string $unit, ?float $targetVal, ?float $currentVal, string $logCol, ?float $profileVal, ?float $goalStartVal = null, string $desiredDir = 'neutral') use ($logs): ?array {
             if ($targetVal === null || $targetVal <= 0) {
                 return null;
             }
-            $startVal = null;
-            for ($i = count($logs) - 1; $i >= 0; $i--) {
-                if (!empty($logs[$i][$logCol]) && (float)$logs[$i][$logCol] > 0) {
-                    $startVal = (float)$logs[$i][$logCol];
-                    break;
+            $startVal = ($goalStartVal !== null && $goalStartVal > 0) ? $goalStartVal : null;
+            if ($startVal === null) {
+                for ($i = count($logs) - 1; $i >= 0; $i--) {
+                    if (!empty($logs[$i][$logCol]) && (float)$logs[$i][$logCol] > 0) {
+                        $startVal = (float)$logs[$i][$logCol];
+                        break;
+                    }
                 }
             }
             if ($startVal === null && $profileVal !== null && $profileVal > 0) {
@@ -843,15 +854,18 @@ function users_page(): void
             if ($startVal === null) {
                 $startVal = $currentVal;
             }
+            if (function_exists('compute_target_bar_progress')) {
+                return compute_target_bar_progress($label, $unit, $targetVal, $currentVal, $startVal, $desiredDir);
+            }
             $pct = 0;
             if ($startVal !== null && $currentVal !== null) {
                 $dist = abs($targetVal - $startVal);
-                if ($dist > 0) {
+                if ($dist >= 0.05) {
                     $isDown = ($startVal > $targetVal);
                     $covered = $isDown ? ($startVal - $currentVal) : ($currentVal - $startVal);
                     $pct = $covered > 0 ? (int) min(100, max(0, round(($covered / $dist) * 100))) : 0;
                 } else {
-                    $pct = 100;
+                    $pct = abs($currentVal - $targetVal) <= 0.1 ? 100 : 0;
                 }
             }
             return [
@@ -871,7 +885,9 @@ function users_page(): void
                 !empty($memberData['target_body_fat_percent']) ? (float)$memberData['target_body_fat_percent'] : null,
                 $bodyFat,
                 'body_fat_percent',
-                !empty($memberData['body_fat_percent']) ? (float)$memberData['body_fat_percent'] : null
+                !empty($memberData['body_fat_percent']) ? (float)$memberData['body_fat_percent'] : null,
+                !empty($memberData['start_body_fat_percent']) ? (float)$memberData['start_body_fat_percent'] : null,
+                (string)($targetDirs['body_fat'] ?? 'down')
             ),
             $computeMetricBar(
                 'Waist',
@@ -879,7 +895,9 @@ function users_page(): void
                 !empty($memberData['target_waist_cm']) ? (float)$memberData['target_waist_cm'] : null,
                 $waistVal,
                 'waist_cm',
-                !empty($memberData['waist_cm']) ? (float)$memberData['waist_cm'] : null
+                !empty($memberData['waist_cm']) ? (float)$memberData['waist_cm'] : null,
+                !empty($memberData['start_waist_cm']) ? (float)$memberData['start_waist_cm'] : null,
+                (string)($targetDirs['waist'] ?? 'neutral')
             ),
             $computeMetricBar(
                 'Arms',
@@ -887,7 +905,9 @@ function users_page(): void
                 !empty($memberData['target_arm_cm']) ? (float)$memberData['target_arm_cm'] : null,
                 $armVal,
                 'arm_cm',
-                !empty($memberData['arm_cm']) ? (float)$memberData['arm_cm'] : null
+                !empty($memberData['arm_cm']) ? (float)$memberData['arm_cm'] : null,
+                !empty($memberData['start_arm_cm']) ? (float)$memberData['start_arm_cm'] : null,
+                (string)($targetDirs['arm'] ?? 'up')
             ),
             $computeMetricBar(
                 'Chest',
@@ -895,16 +915,21 @@ function users_page(): void
                 !empty($memberData['target_chest_cm']) ? (float)$memberData['target_chest_cm'] : null,
                 $chestVal,
                 'chest_cm',
-                !empty($memberData['chest_cm']) ? (float)$memberData['chest_cm'] : null
+                !empty($memberData['chest_cm']) ? (float)$memberData['chest_cm'] : null,
+                !empty($memberData['start_chest_cm']) ? (float)$memberData['start_chest_cm'] : null,
+                (string)($targetDirs['chest'] ?? 'up')
             ),
-            ...array_map(function (array $st): array {
+            ...array_map(function (array $st): ?array {
                 $cur = $st['current_max_kg'] !== null ? (float)$st['current_max_kg'] : 0.0;
                 $start = $st['start_max_kg'] !== null ? (float)$st['start_max_kg'] : $cur;
                 $tgt = (float)$st['target_max_kg'];
+                if (function_exists('compute_target_bar_progress')) {
+                    return compute_target_bar_progress('Strength: ' . (string)$st['exercise_name'], 'kg', $tgt, $cur, $start, 'up');
+                }
                 $span = $tgt - $start;
-                $pct = ($span > 0)
+                $pct = (abs($span) >= 0.05)
                     ? (int) min(100, max(0, round((($cur - $start) / $span) * 100)))
-                    : (($tgt > 0 && $cur >= $tgt) ? 100 : 0);
+                    : (($tgt > 0 && abs($cur - $tgt) <= 0.1) ? 100 : 0);
                 return [
                     'label'   => 'Strength: ' . (string)$st['exercise_name'],
                     'unit'    => 'kg',

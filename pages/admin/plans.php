@@ -21,36 +21,20 @@ function plans_page(): void
             if ($isPopular) {
                 $pdo->prepare('UPDATE membership_plans SET is_popular = 0 WHERE gym_id = ?')->execute([$gymId]);
             }
-            $allowCommission = post('allow_trainer_commission') ? 1 : 0;
-            $description = sync_plan_trainer_feature_text((string) post('description'), $allowCommission === 1);
-            $pdo->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = ?, allow_trainer_commission = ?, is_popular = ? WHERE plan_id = ? AND gym_id = ?')->execute([
+            $description = trim((string) post('description'));
+            $pdo->prepare('UPDATE membership_plans SET plan_name = ?, plan_type = ?, duration_days = ?, price = ?, description = ?, is_active = ?, commission_rate = 0.00, allow_trainer_commission = 0, is_popular = ? WHERE plan_id = ? AND gym_id = ?')->execute([
                 post('plan_name'),
                 post('plan_type'),
                 post('duration_days'),
                 $price,
                 $description,
                 post('is_active', 0) ? 1 : 0,
-                post('commission_rate', 5.0),
-                $allowCommission,
                 $isPopular,
                 post('id'),
                 $gymId
             ]);
 
-            // When commissions are enabled for a plan, credit retroactive commissions for any currently assigned active members
-            if ($allowCommission === 1 && function_exists('grant_retroactive_commission')) {
-                $activeAssignments = query_all("
-                    SELECT ta.member_user_id, ta.trainer_id 
-                    FROM trainer_assignments ta
-                    JOIN memberships m ON m.user_id = ta.member_user_id
-                    WHERE m.plan_id = ? AND m.status = 'active' AND ta.status = 'active'
-                ", [(int)post('id')]);
-                foreach ($activeAssignments as $aa) {
-                    grant_retroactive_commission((int)$aa['member_user_id'], (int)$aa['trainer_id']);
-                }
-            }
-
-            audit_log($user['user_id'], 'edit', 'plan', (string) post('id'), json_encode(['plan_name' => post('plan_name'), 'price' => $price, 'allow_trainer_commission' => $allowCommission, 'is_popular' => $isPopular]));
+            audit_log($user['user_id'], 'edit', 'plan', (string) post('id'), json_encode(['plan_name' => post('plan_name'), 'price' => $price, 'is_popular' => $isPopular]));
             flash('Membership plan updated.');
         } else {
             $price = (float) post('price');
@@ -58,9 +42,8 @@ function plans_page(): void
             if ($isPopular) {
                 $pdo->prepare('UPDATE membership_plans SET is_popular = 0 WHERE gym_id = ?')->execute([$gymId]);
             }
-            $allowCommission = post('allow_trainer_commission') ? 1 : 0;
-            $description = sync_plan_trainer_feature_text((string) post('description'), $allowCommission === 1);
-            $pdo->prepare('INSERT INTO membership_plans (gym_id, plan_name, plan_type, duration_days, price, description, is_active, commission_rate, allow_trainer_commission, is_popular) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([
+            $description = trim((string) post('description'));
+            $pdo->prepare('INSERT INTO membership_plans (gym_id, plan_name, plan_type, duration_days, price, description, is_active, commission_rate, allow_trainer_commission, is_popular) VALUES (?, ?, ?, ?, ?, ?, ?, 0.00, 0, ?)')->execute([
                 $gymId,
                 post('plan_name'),
                 post('plan_type'),
@@ -68,11 +51,9 @@ function plans_page(): void
                 $price,
                 $description,
                 post('is_active', 0) ? 1 : 0,
-                post('commission_rate', 5.0),
-                $allowCommission,
                 $isPopular
             ]);
-            audit_log($user['user_id'], 'create', 'plan', (string) $pdo->lastInsertId(), json_encode(['plan_name' => post('plan_name'), 'price' => $price, 'allow_trainer_commission' => $allowCommission, 'is_popular' => $isPopular]));
+            audit_log($user['user_id'], 'create', 'plan', (string) $pdo->lastInsertId(), json_encode(['plan_name' => post('plan_name'), 'price' => $price, 'is_popular' => $isPopular]));
             flash('Membership plan saved.');
         }
         redirect('plans');
@@ -86,7 +67,7 @@ function plans_page(): void
         <div class="plans-header-row">
             <div class="plans-header-content">
                 <h1 class="plans-header-title">Membership Plans &amp; Pricing</h1>
-                <p class="plans-header-desc">Edit pricing, descriptions, and feature bullet points offered to gym members.</p>
+                <p class="plans-header-desc">Configure gym facility access tiers. Personal Training packages, session fees, and trainer commissions are managed separately under <a href="index.php?page=commissions&tab=settings" style="color:var(--lime); font-weight:700; text-decoration:none;">Trainer Commissions &rarr;</a></p>
             </div>
             <div class="plans-header-actions">
                 <button type="button" onclick="addPlan()" class="btn-add-plan">
@@ -166,24 +147,9 @@ function plans_page(): void
                                 </label>
                             </div>
 
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
-                                <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
-                                    <span>Comm. Rate (%) <span class="req-star">*</span></span>
-                                    <input type="number" step="0.01" name="commission_rate" class="form-control plan-input" style="margin-top: 0;" value="<?= h((string)$plan['commission_rate']) ?>" required>
-                                </label>
-
-                                <label class="plan-label" style="display: flex; flex-direction: column; gap: 5px;">
-                                    <span>Status</span>
-                                    <label class="popular-checkbox-label" style="padding: 0 12px; margin: 0; height: 42px; box-sizing: border-box; display: flex; align-items: center;">
-                                        <input type="checkbox" name="is_active" value="1" <?= $plan['is_active'] ? 'checked' : '' ?> class="popular-checkbox">
-                                        <span class="popular-checkbox-text">Active Plan</span>
-                                    </label>
-                                </label>
-                            </div>
-
                             <label class="popular-checkbox-label" style="margin-bottom: 2px;">
-                                <input type="checkbox" name="allow_trainer_commission" value="1" <?= ($plan['allow_trainer_commission'] ?? 1) ? 'checked' : '' ?> class="popular-checkbox">
-                                <span class="popular-checkbox-text">Allow Trainer Commission <small style="display:block; font-size:11.5px; color:var(--muted); font-weight:normal;">If unchecked, trainers earn 0% from this plan regardless of their rate.</small></span>
+                                <input type="checkbox" name="is_active" value="1" <?= $plan['is_active'] ? 'checked' : '' ?> class="popular-checkbox">
+                                <span class="popular-checkbox-text">Active Plan</span>
                             </label>
 
                             <label class="popular-checkbox-label">
@@ -194,7 +160,7 @@ function plans_page(): void
                             <label class="plan-label">
                                 Feature Bullet Points
                                 <span class="field-hint">Enter one feature per line. Checkmarks (✓) will be auto-rendered.</span>
-                                <textarea name="description" rows="6" class="form-control plan-input plan-textarea" placeholder="Full Gym Access&#10;Group Class Bookings&#10;Locker Room Access"><?= h(sync_plan_trainer_feature_text((string)($plan['description'] ?? ''), (bool)($plan['allow_trainer_commission'] ?? 1))) ?></textarea>
+                                <textarea name="description" rows="6" class="form-control plan-input plan-textarea" placeholder="Full Gym Access&#10;Group Class Bookings&#10;Locker Room Access"><?= h((string)($plan['description'] ?? '')) ?></textarea>
                             </label>
 
                             <div style="display: flex; gap: 10px; align-items: center; margin-top: 8px;">
@@ -687,10 +653,6 @@ function plans_page(): void
                             <span style="white-space: nowrap;">Price (PHP) *</span>
                             <input name="price" type="number" step="0.01" class="form-control" placeholder="0.00" style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
                         </label>
-                        <label style="display:flex; flex-direction:column; flex:1; min-width:0; color: var(--muted); font-size: 13.5px; font-weight: 600;">
-                            <span style="white-space: nowrap;">Comm. Rate (%) *</span>
-                            <input name="commission_rate" type="number" step="0.01" class="form-control" placeholder="5.00" value="5.00" style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
-                        </label>
                     </div>
                     
                     <label style="display:block; color: var(--muted); font-size: 13.5px; font-weight: 600;">
@@ -700,9 +662,6 @@ function plans_page(): void
                     </label>
                     
                     <div style="display:flex; flex-direction:column; gap:8px; margin-top: 4px;">
-                        <label class="check" style="display:flex; align-items:center; gap:8px; color: var(--ink); font-size: 13.5px; font-weight: 600; cursor: pointer;">
-                            <input type="checkbox" name="allow_trainer_commission" value="1" checked style="accent-color: var(--lime); width: 16px; height: 16px;"> Allow Trainer Commission
-                        </label>
                         <label class="check" style="display:flex; align-items:center; gap:8px; color: var(--ink); font-size: 13.5px; font-weight: 600; cursor: pointer;">
                             <input type="checkbox" name="is_popular" value="1" style="accent-color: var(--lime); width: 16px; height: 16px;"> Highlight as "Most Popular" Plan
                         </label>
@@ -718,55 +677,19 @@ function plans_page(): void
                 cancelButtonColor: 'var(--line)',
                 background: 'var(--bg)',
                 color: 'var(--ink)',
-                didOpen: () => {
-                    const form = document.getElementById('addPlanForm');
-                    if (!form) return;
-                    const cb = form.querySelector('input[name="allow_trainer_commission"]');
-                    const ta = form.querySelector('textarea[name="description"]');
-                    if (cb && ta) {
-                        cb.addEventListener('change', () => syncTrainerFeatureInTextarea(ta, cb.checked));
-                    }
-                },
                 preConfirm: () => {
                     const form = document.getElementById('addPlanForm');
                     if (!form.plan_name.value || !form.duration_days.value || !form.price.value) {
                         Swal.showValidationMessage('Please fill all required fields');
                         return false;
                     }
-                    const cb = form.querySelector('input[name="allow_trainer_commission"]');
-                    const ta = form.querySelector('textarea[name="description"]');
-                    if (cb && ta && ta.value.trim() !== '') {
-                        syncTrainerFeatureInTextarea(ta, cb.checked);
-                    }
                     form.submit();
                 }
             });
         }
 
-        function syncTrainerFeatureInTextarea(textarea, allowTrainer) {
-            if (!textarea) return;
-            const lines = textarea.value
-                .replace(/\r\n?/g, '\n')
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => {
-                    if (!line) return false;
-                    const lower = line.toLowerCase();
-                    return lower !== 'personal trainer included' && lower !== 'no trainer included';
-                });
-            lines.push(allowTrainer ? 'Personal Trainer Included' : 'No Trainer Included');
-            textarea.value = lines.join('\n');
-        }
-
-        // Dynamic UI feedback when checking "Highlight as Most Popular Plan" or "Allow Trainer Commission"
+        // Dynamic UI feedback when checking "Highlight as Most Popular Plan"
         document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('.plan-edit-form input[name="allow_trainer_commission"]').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const form = this.closest('.plan-edit-form');
-                    const textarea = form ? form.querySelector('textarea[name="description"]') : null;
-                    syncTrainerFeatureInTextarea(textarea, this.checked);
-                });
-            });
             document.querySelectorAll('.plan-popular-toggle').forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     if (this.checked) {

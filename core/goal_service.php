@@ -114,6 +114,978 @@ function get_goal_metadata(string $goal): array
 }
 
 /**
+ * Computes accurate progress bar percentage, status, tone, and plain-English note
+ * for a single Fitness Target milestone.
+ */
+function compute_target_bar_progress(
+    string $label,
+    string $unit,
+    ?float $targetVal,
+    ?float $currentVal,
+    ?float $startVal,
+    string $desiredDir = 'neutral'
+): ?array {
+    if ($targetVal === null || $targetVal <= 0) {
+        return null;
+    }
+
+    if ($startVal === null || $startVal <= 0) {
+        $startVal = $currentVal;
+    }
+
+    $fmt = static function (float $v): string {
+        $s = number_format($v, 1, '.', '');
+        return rtrim(rtrim($s, '0'), '.');
+    };
+
+    $pct = 0;
+    $status = 'not_started';
+    $tone = 'neutral';
+    $note = 'No measurement logged yet';
+
+    if ($startVal !== null && $currentVal !== null) {
+        $dist = abs($targetVal - $startVal);
+        $gap = round($currentVal - $targetVal, 1);
+
+        if ($dist < 0.05) {
+            if (abs($gap) <= 0.1) {
+                $pct = 100;
+                $status = 'reached';
+                $tone = 'good';
+                $note = 'On target!';
+            } else {
+                $pct = 0;
+                $status = 'off_target';
+                $tone = 'bad';
+                $note = $fmt(abs($gap)) . ' ' . $unit . ($gap > 0 ? ' above goal' : ' below goal');
+            }
+        } elseif ($desiredDir === 'down' && $startVal < $targetVal && $currentVal > $targetVal + 0.1) {
+            $pct = 0;
+            $status = 'off_target';
+            $tone = 'bad';
+            $note = $fmt($currentVal - $targetVal) . ' ' . $unit . ' above goal';
+        } elseif ($desiredDir === 'up' && $startVal > $targetVal && $currentVal < $targetVal - 0.1) {
+            $pct = 0;
+            $status = 'off_target';
+            $tone = 'bad';
+            $note = $fmt($targetVal - $currentVal) . ' ' . $unit . ' below goal';
+        } else {
+            $isDown = ($startVal > $targetVal);
+            $covered = $isDown ? ($startVal - $currentVal) : ($currentVal - $startVal);
+            $remaining = $isDown ? ($currentVal - $targetVal) : ($targetVal - $currentVal);
+
+            if ($remaining <= 0.1) {
+                $overshoot = abs(min(0.0, $remaining));
+                if ($overshoot > 0.5) {
+                    $pct = 100;
+                    $status = 'exceeded';
+                    $tone = 'warn';
+                    $note = 'Exceeded goal by ' . ($isDown ? '-' : '+') . $fmt($overshoot) . ' ' . $unit;
+                } else {
+                    $pct = 100;
+                    $status = 'reached';
+                    $tone = 'good';
+                    $note = 'Goal reached!';
+                }
+            } elseif ($covered > 0.05) {
+                $pct = (int) min(99, max(1, round(($covered / $dist) * 100)));
+                $status = 'in_progress';
+                $tone = 'good';
+                $note = $fmt($remaining) . ' ' . $unit . ($isDown ? ' to lose' : ' to gain');
+            } elseif ($covered < -0.05) {
+                $pct = 0;
+                $status = 'off_target';
+                $tone = 'bad';
+                $note = $fmt($remaining) . ' ' . $unit . ($isDown ? ' to lose' : ' to gain')
+                    . ' (' . ($isDown ? '+' : '-') . $fmt(abs($covered)) . ' from start)';
+            } else {
+                $pct = 0;
+                $status = 'not_started';
+                $tone = 'neutral';
+                $note = $fmt($remaining) . ' ' . $unit . ($isDown ? ' to lose' : ' to gain');
+            }
+        }
+    }
+
+    return [
+        'label'   => $label,
+        'unit'    => $unit,
+        'start'   => $startVal,
+        'current' => $currentVal,
+        'target'  => $targetVal,
+        'pct'     => $pct,
+        'status'  => $status,
+        'note'    => $note,
+        'tone'    => $tone,
+    ];
+}
+
+/**
+ * Returns desired metric directions ('down' | 'up' | 'stable' | 'neutral') tailored to the member's goal.
+ */
+function get_goal_metric_directions(string $rawGoal, array $profile = []): array
+{
+    $model = get_goal_metric_model($rawGoal);
+    $g = strtolower(trim(str_replace(['_', '-'], ' ', $rawGoal)));
+
+    switch ($model) {
+        case 'fat_loss':
+            $dirs = [
+                'weight'   => 'down',
+                'body_fat' => 'down',
+                'waist'    => 'down',
+                'arm'      => 'neutral',
+                'chest'    => 'neutral',
+                'bmi'      => 'down',
+            ];
+            break;
+
+        case 'hypertrophy':
+            if (str_contains($g, 'six pack')) {
+                $dirs = [
+                    'weight'   => 'down',
+                    'body_fat' => 'down',
+                    'waist'    => 'down',
+                    'arm'      => 'up',
+                    'chest'    => 'up',
+                    'bmi'      => 'neutral',
+                ];
+            } elseif (str_contains($g, 'biceps') || str_contains($g, 'arms') || str_contains($g, 'chest')) {
+                $dirs = [
+                    'weight'   => 'up',
+                    'body_fat' => 'down',
+                    'waist'    => 'down',
+                    'arm'      => 'up',
+                    'chest'    => 'up',
+                    'bmi'      => 'neutral',
+                ];
+            } else {
+                $dirs = [
+                    'weight'   => 'up',
+                    'body_fat' => 'down',
+                    'waist'    => 'neutral',
+                    'arm'      => 'up',
+                    'chest'    => 'up',
+                    'bmi'      => 'neutral',
+                ];
+            }
+            break;
+
+        case 'recomposition':
+            $dirs = [
+                'weight'   => 'stable',
+                'body_fat' => 'down',
+                'waist'    => 'down',
+                'arm'      => 'up',
+                'chest'    => 'up',
+                'bmi'      => 'neutral',
+            ];
+            break;
+
+        case 'strength':
+            $dirs = [
+                'weight'   => 'neutral',
+                'body_fat' => 'down',
+                'waist'    => 'neutral',
+                'arm'      => 'up',
+                'chest'    => 'up',
+                'bmi'      => 'neutral',
+            ];
+            break;
+
+        case 'endurance':
+        case 'mobility':
+        case 'lifestyle':
+        default:
+            $dirs = [
+                'weight'   => 'neutral',
+                'body_fat' => 'down',
+                'waist'    => 'down',
+                'arm'      => 'neutral',
+                'chest'    => 'neutral',
+                'bmi'      => 'neutral',
+            ];
+            break;
+    }
+
+    // Refine any 'neutral' direction using explicit configured targets vs baseline
+    $targetOverrides = [
+        'weight'   => ['target' => 'target_weight_kg', 'base_keys' => ['baseline_weight_kg', 'weight_kg']],
+        'body_fat' => ['target' => 'target_body_fat_percent', 'base_keys' => ['baseline_body_fat_percent', 'body_fat_percent']],
+        'waist'    => ['target' => 'target_waist_cm', 'base_keys' => ['baseline_waist_cm', 'waist_cm']],
+        'arm'      => ['target' => 'target_arm_cm', 'base_keys' => ['baseline_arm_cm', 'arm_cm']],
+        'chest'    => ['target' => 'target_chest_cm', 'base_keys' => ['baseline_chest_cm', 'chest_cm']],
+    ];
+    foreach ($targetOverrides as $metricKey => $cfg) {
+        if (($dirs[$metricKey] ?? 'neutral') !== 'neutral') {
+            continue;
+        }
+        $targetVal = !empty($profile[$cfg['target']]) ? (float)$profile[$cfg['target']] : 0.0;
+        $baseVal = 0.0;
+        foreach ($cfg['base_keys'] as $bk) {
+            if (!empty($profile[$bk]) && (float)$profile[$bk] > 0) {
+                $baseVal = (float)$profile[$bk];
+                break;
+            }
+        }
+        if ($targetVal > 0 && $baseVal > 0 && abs($targetVal - $baseVal) >= 0.5) {
+            $dirs[$metricKey] = $targetVal < $baseVal ? 'down' : 'up';
+        }
+    }
+
+    return $dirs;
+}
+
+/**
+ * Pure trend analyzer over newest-first progress logs for a single numeric column.
+ */
+function analyze_progress_metric_series(array $progressLogsDesc, string $column, ?float $targetVal = null): array
+{
+    $chrono = array_reverse($progressLogsDesc);
+    $series = [];
+    foreach ($chrono as $row) {
+        if (isset($row[$column]) && is_numeric($row[$column]) && (float)$row[$column] > 0) {
+            $series[] = [
+                'date' => (string)($row['log_date'] ?? ''),
+                'val'  => (float)$row[$column],
+            ];
+        }
+    }
+
+    $count = count($series);
+    if ($count === 0) {
+        return [
+            'count'             => 0,
+            'first'             => null,
+            'first_date'        => null,
+            'latest'            => null,
+            'latest_date'       => null,
+            'recent_start'      => null,
+            'recent_start_date' => null,
+            'delta'             => null,
+            'total_delta'       => null,
+            'span_days'         => 0,
+            'weekly_rate'       => null,
+            'eta_weeks'         => null,
+        ];
+    }
+
+    $first = $series[0];
+    $latest = $series[$count - 1];
+
+    if ($count === 1) {
+        return [
+            'count'             => 1,
+            'first'             => $first['val'],
+            'first_date'        => $first['date'],
+            'latest'            => $latest['val'],
+            'latest_date'       => $latest['date'],
+            'recent_start'      => $first['val'],
+            'recent_start_date' => $first['date'],
+            'delta'             => null,
+            'total_delta'       => null,
+            'span_days'         => 0,
+            'weekly_rate'       => null,
+            'eta_weeks'         => null,
+        ];
+    }
+
+    // Pick the log closest to 30 days before latest_date (most recent log <= latest - 30d; fallback to oldest)
+    $latestTs = strtotime($latest['date']);
+    $cutoffDate = $latestTs ? date('Y-m-d', strtotime('-30 days', $latestTs)) : '';
+    $recentStart = $first;
+    if ($cutoffDate !== '') {
+        for ($i = $count - 2; $i >= 0; $i--) {
+            if ($series[$i]['date'] !== '' && $series[$i]['date'] <= $cutoffDate) {
+                $recentStart = $series[$i];
+                break;
+            }
+        }
+    }
+
+    $delta = round($latest['val'] - $recentStart['val'], 1);
+    $totalDelta = round($latest['val'] - $first['val'], 1);
+
+    $recentTs = strtotime($recentStart['date']);
+    $spanDays = ($latestTs && $recentTs) ? max(0, (int)round(($latestTs - $recentTs) / 86400)) : 0;
+    $weeklyRate = $spanDays >= 7 ? round($delta / ($spanDays / 7.0), 2) : null;
+
+    $etaWeeks = null;
+    if ($targetVal !== null && $targetVal > 0 && $weeklyRate !== null && abs($weeklyRate) >= 0.05) {
+        $remaining = $targetVal - $latest['val'];
+        if (($remaining > 0 && $weeklyRate > 0) || ($remaining < 0 && $weeklyRate < 0)) {
+            $eta = (int)ceil(abs($remaining) / abs($weeklyRate));
+            if ($eta >= 1 && $eta <= 104) {
+                $etaWeeks = $eta;
+            }
+        }
+    }
+
+    return [
+        'count'             => $count,
+        'first'             => $first['val'],
+        'first_date'        => $first['date'],
+        'latest'            => $latest['val'],
+        'latest_date'       => $latest['date'],
+        'recent_start'      => $recentStart['val'],
+        'recent_start_date' => $recentStart['date'],
+        'delta'             => $delta,
+        'total_delta'       => $totalDelta,
+        'span_days'         => $spanDays,
+        'weekly_rate'       => $weeklyRate,
+        'eta_weeks'         => $etaWeeks,
+    ];
+}
+
+/**
+ * Pure, deterministic, rule-based progress verdict engine (zero DB queries).
+ * Produces second-person phrasing for members and third-person phrasing for trainers/admins.
+ */
+function evaluate_member_progress_verdict(array $profile, array $progressLogs, array $context = []): array
+{
+    $rawGoal = (string)($profile['primary_goal'] ?? 'general_fitness');
+    $model = get_goal_metric_model($rawGoal);
+    $goalTitle = get_goal_display_title($rawGoal);
+    $g = strtolower(trim(str_replace(['_', '-'], ' ', $rawGoal)));
+
+    $isManagerView = !empty($context['is_manager_view']);
+    $memberName = trim((string)($context['member_name'] ?? $profile['first_name'] ?? ''));
+    if ($memberName === '') {
+        $memberName = 'This member';
+    }
+
+    // Perspective helpers (member = 2nd person, trainer/admin = 3rd person)
+    $subj = $isManagerView ? $memberName : 'You';
+    $subjIs = $isManagerView ? ($memberName . ' is') : 'You are';
+    $subjHas = $isManagerView ? ($memberName . ' has') : 'You have';
+    $poss = $isManagerView ? ($memberName . "'s") : 'your';
+    $possCap = $isManagerView ? ($memberName . "'s") : 'Your';
+
+    $targetWeight = !empty($profile['target_weight_kg']) ? (float)$profile['target_weight_kg'] : 0.0;
+    $targetBf = !empty($profile['target_body_fat_percent']) ? (float)$profile['target_body_fat_percent'] : 0.0;
+    $targetWaist = !empty($profile['target_waist_cm']) ? (float)$profile['target_waist_cm'] : 0.0;
+    $targetArm = !empty($profile['target_arm_cm']) ? (float)$profile['target_arm_cm'] : 0.0;
+    $targetChest = !empty($profile['target_chest_cm']) ? (float)$profile['target_chest_cm'] : 0.0;
+
+    $weightSeries = analyze_progress_metric_series($progressLogs, 'weight_kg', $targetWeight > 0 ? $targetWeight : null);
+    $bfSeries = analyze_progress_metric_series($progressLogs, 'body_fat_percent', $targetBf > 0 ? $targetBf : null);
+    $waistSeries = analyze_progress_metric_series($progressLogs, 'waist_cm', $targetWaist > 0 ? $targetWaist : null);
+    $armSeries = analyze_progress_metric_series($progressLogs, 'arm_cm', $targetArm > 0 ? $targetArm : null);
+    $chestSeries = analyze_progress_metric_series($progressLogs, 'chest_cm', $targetChest > 0 ? $targetChest : null);
+
+    // Enrich profile with earliest logged baseline so neutral goals can infer target direction cleanly
+    $dirProfile = $profile;
+    if (empty($dirProfile['baseline_weight_kg']) && $weightSeries['first'] !== null) {
+        $dirProfile['baseline_weight_kg'] = $weightSeries['first'];
+    }
+    if (empty($dirProfile['baseline_body_fat_percent']) && $bfSeries['first'] !== null) {
+        $dirProfile['baseline_body_fat_percent'] = $bfSeries['first'];
+    }
+    if (empty($dirProfile['baseline_waist_cm']) && $waistSeries['first'] !== null) {
+        $dirProfile['baseline_waist_cm'] = $waistSeries['first'];
+    }
+    if (empty($dirProfile['baseline_arm_cm']) && $armSeries['first'] !== null) {
+        $dirProfile['baseline_arm_cm'] = $armSeries['first'];
+    }
+    if (empty($dirProfile['baseline_chest_cm']) && $chestSeries['first'] !== null) {
+        $dirProfile['baseline_chest_cm'] = $chestSeries['first'];
+    }
+    $directions = get_goal_metric_directions($rawGoal, $dirProfile);
+
+    $workoutsThisWeek = (int)($context['workouts_this_week'] ?? 0);
+    $weeklyTarget = max(1, (int)($context['weekly_target'] ?? ($profile['weekly_workout_target'] ?? 3)));
+    $weeklyPct = min(100, (int)round(($workoutsThisWeek / $weeklyTarget) * 100));
+    $checkins30d = (int)($context['checkins_30d'] ?? 0);
+    $exercises30d = (int)($context['exercises_30d'] ?? 0);
+
+    $strengthTargets = is_array($context['strength_targets'] ?? null) ? $context['strength_targets'] : [];
+    $liftedExercises = is_array($context['lifted_exercises'] ?? null) ? $context['lifted_exercises'] : [];
+
+    $nutrition = is_array($context['nutrition'] ?? null) ? $context['nutrition'] : [];
+    $nutDays = (int)($nutrition['days_logged'] ?? 0);
+    $avgCals = (int)($nutrition['avg_cals'] ?? 0);
+    $targetCals = (int)($nutrition['target_cals'] ?? 0);
+    $avgPro = (float)($nutrition['avg_protein'] ?? 0);
+    $targetPro = (float)($nutrition['target_protein'] ?? 0);
+    $calDiff = ($nutDays > 0 && $targetCals > 0 && $avgCals > 0) ? ($avgCals - $targetCals) : null;
+
+    $statusDefs = [
+        'goal_reached' => [
+            'code'         => 'goal_reached',
+            'label'        => 'Goal Reached',
+            'short_answer' => 'Yes — Goal Reached',
+            'icon'         => '🏆',
+            'badge_cls'    => 'goal-status-ontrack',
+            'verdict_cls'  => 'verdict-reached',
+            'color'        => '#22c55e',
+        ],
+        'progressing' => [
+            'code'         => 'progressing',
+            'label'        => 'Progressing',
+            'short_answer' => 'Yes — Progressing',
+            'icon'         => '↗',
+            'badge_cls'    => 'goal-status-ontrack',
+            'verdict_cls'  => 'verdict-progressing',
+            'color'        => '#22c55e',
+        ],
+        'plateau' => [
+            'code'         => 'plateau',
+            'label'        => 'Plateau / Maintaining',
+            'short_answer' => 'Maintaining / Plateau',
+            'icon'         => '→',
+            'badge_cls'    => 'goal-status-attention',
+            'verdict_cls'  => 'verdict-plateau',
+            'color'        => '#eab308',
+        ],
+        'off_track' => [
+            'code'         => 'off_track',
+            'label'        => 'Off Track',
+            'short_answer' => 'Not Progressing Yet',
+            'icon'         => '↘',
+            'badge_cls'    => 'goal-status-offtrack',
+            'verdict_cls'  => 'verdict-offtrack',
+            'color'        => '#ef4444',
+        ],
+        'needs_data' => [
+            'code'         => 'needs_data',
+            'label'        => 'Needs More Data',
+            'short_answer' => 'Not Enough Data Yet',
+            'icon'         => '○',
+            'badge_cls'    => 'goal-status-calibrating',
+            'verdict_cls'  => 'verdict-needs-data',
+            'color'        => '#94a3b8',
+        ],
+    ];
+
+    $fmtSigned = static function (float $v, string $unit = ''): string {
+        $sign = $v > 0 ? '+' : '';
+        return $sign . number_format($v, 1) . ($unit !== '' ? ' ' . $unit : '');
+    };
+
+    $currWeight = $weightSeries['latest'] ?? (!empty($profile['weight_kg']) ? (float)$profile['weight_kg'] : 0.0);
+    $currBf = $bfSeries['latest'] ?? (!empty($profile['body_fat_percent']) ? (float)$profile['body_fat_percent'] : 0.0);
+    $currWaist = $waistSeries['latest'] ?? (!empty($profile['waist_cm']) ? (float)$profile['waist_cm'] : 0.0);
+    $currArm = $armSeries['latest'] ?? (!empty($profile['arm_cm']) ? (float)$profile['arm_cm'] : 0.0);
+    $currChest = $chestSeries['latest'] ?? (!empty($profile['chest_cm']) ? (float)$profile['chest_cm'] : 0.0);
+
+    $statusCode = 'needs_data';
+    $headline = '';
+    $explanation = '';
+    $nextStep = '';
+    $primarySignal = null;
+    $paceSignal = null;
+
+    // Helper to explain nutrition/workout drivers when plateaued or off track
+    $buildDriverSentence = static function (string $goalMode) use (
+        $calDiff, $avgCals, $targetCals, $avgPro, $targetPro, $nutDays,
+        $workoutsThisWeek, $weeklyTarget, $weeklyPct, $checkins30d, $subjIs, $subjHas, $poss
+    ): string {
+        $reasons = [];
+        if ($calDiff !== null) {
+            if ($goalMode === 'deficit' && $calDiff > 200) {
+                $reasons[] = "logged calories average " . number_format($avgCals) . " kcal vs a " . number_format($targetCals) . " kcal target (+" . number_format($calDiff) . " kcal over)";
+            } elseif ($goalMode === 'surplus' && $calDiff < -200) {
+                $reasons[] = "logged calories average " . number_format($avgCals) . " kcal vs a " . number_format($targetCals) . " kcal target (" . number_format($calDiff) . " kcal under)";
+            }
+        }
+        if ($nutDays > 0 && $targetPro > 0 && $avgPro > 0 && $avgPro < ($targetPro * 0.8)) {
+            $reasons[] = "protein intake is averaging " . round($avgPro) . "g vs " . round($targetPro) . "g target";
+        }
+        if ($workoutsThisWeek === 0 && $checkins30d < 4) {
+            $reasons[] = "{$subjHas} low recent workout attendance ({$workoutsThisWeek}/{$weeklyTarget} this week, {$checkins30d} visits in 30d)";
+        } elseif ($weeklyPct < 60 && $checkins30d < ($weeklyTarget * 2)) {
+            $reasons[] = "weekly training is below target ({$workoutsThisWeek}/{$weeklyTarget} sessions)";
+        }
+        if (empty($reasons)) {
+            return '';
+        }
+        return ' Likely factor: ' . ucfirst(implode(' and ', $reasons)) . '.';
+    };
+
+    switch ($model) {
+        case 'fat_loss':
+            $wDelta = $weightSeries['delta'];
+            $waistDelta = $waistSeries['delta'];
+            $bfDelta = $bfSeries['delta'];
+
+            if ($targetWeight > 0 && $currWeight > 0 && $currWeight <= $targetWeight) {
+                $statusCode = 'goal_reached';
+                $headline = "{$subjHas} reached the {$targetWeight} kg target weight";
+                $explanation = "Current weight is " . number_format($currWeight, 1) . " kg (target: {$targetWeight} kg)" . ($wDelta !== null ? ", down " . abs($wDelta) . " kg in the recent window" : "") . ".";
+                $nextStep = $isManagerView
+                    ? "Review maintenance calories or set a new body composition target for {$memberName}."
+                    : "Switch to maintenance calories or set a new fitness target to keep progressing.";
+                $primarySignal = ['label' => 'Weight', 'value' => number_format($currWeight, 1) . " / {$targetWeight} kg", 'tone' => 'good'];
+            } elseif ($targetWeight <= 0 && $targetBf > 0 && $currBf > 0 && $currBf <= $targetBf) {
+                $statusCode = 'goal_reached';
+                $headline = "{$subjHas} reached the {$targetBf}% body fat target";
+                $explanation = "Body fat is currently " . number_format($currBf, 1) . "%, meeting the {$targetBf}% milestone.";
+                $nextStep = $isManagerView ? "Transition {$memberName} to a maintenance or lean-gain phase." : "Transition to maintenance or set your next body composition milestone.";
+                $primarySignal = ['label' => 'Body Fat', 'value' => number_format($currBf, 1) . " / {$targetBf}%", 'tone' => 'good'];
+            } elseif ($weightSeries['count'] < 2 && $waistSeries['count'] < 2 && $bfSeries['count'] < 2) {
+                $statusCode = 'needs_data';
+                $headline = "At least 2 measurement logs are needed to confirm {$poss} fat-loss trend";
+                $explanation = "Only " . max($weightSeries['count'], $waistSeries['count'], $bfSeries['count']) . " log is recorded so far. One check-in establishes a baseline, not a trend.";
+                $nextStep = $isManagerView
+                    ? "Have {$memberName} log another weigh-in or waist check in 5–7 days."
+                    : "Log another morning weigh-in and waist measurement in 5–7 days to unlock trend analysis.";
+            } else {
+                $isDroppingWeight = ($wDelta !== null && $wDelta <= -0.3);
+                $isDroppingWaist = ($waistDelta !== null && $waistDelta <= -0.5);
+                $isDroppingBf = ($bfDelta !== null && $bfDelta <= -0.4);
+
+                $isRisingWeight = ($wDelta !== null && $wDelta >= 0.4);
+                $isRisingWaist = ($waistDelta !== null && $waistDelta >= 0.8);
+                $isRisingBf = ($bfDelta !== null && $bfDelta >= 0.6);
+
+                if ($isDroppingWeight || $isDroppingWaist || $isDroppingBf) {
+                    $statusCode = 'progressing';
+                    $parts = [];
+                    if ($isDroppingWeight) {
+                        $parts[] = "weight changed by " . $fmtSigned($wDelta, 'kg');
+                        $primarySignal = ['label' => 'Weight Trend', 'value' => $fmtSigned($wDelta, 'kg'), 'tone' => 'good'];
+                    }
+                    if ($isDroppingWaist) {
+                        $parts[] = "waist trimmed by " . $fmtSigned($waistDelta, 'cm');
+                        if (!$primarySignal) {
+                            $primarySignal = ['label' => 'Waist Trend', 'value' => $fmtSigned($waistDelta, 'cm'), 'tone' => 'good'];
+                        }
+                    }
+                    if ($isDroppingBf) {
+                        $parts[] = "body fat shifted by " . $fmtSigned($bfDelta, '%');
+                        if (!$primarySignal) {
+                            $primarySignal = ['label' => 'Body Fat Trend', 'value' => $fmtSigned($bfDelta, '%'), 'tone' => 'good'];
+                        }
+                    }
+                    $headline = "{$subjIs} progressing steadily toward {$poss} {$goalTitle} goal";
+                    $explanation = ucfirst(implode(' and ', $parts)) . " over the recent tracking window.";
+                    if ($weightSeries['weekly_rate'] !== null && $weightSeries['weekly_rate'] < 0) {
+                        $rateStr = number_format(abs($weightSeries['weekly_rate']), 2) . ' kg/wk';
+                        $explanation .= " Average pace is -{$rateStr}.";
+                        $paceSignal = ['label' => 'Pace', 'value' => "-{$rateStr}", 'tone' => 'good'];
+                        if ($weightSeries['eta_weeks'] !== null && $targetWeight > 0) {
+                            $explanation .= " At this pace, {$subjIs} ~{$weightSeries['eta_weeks']} weeks from {$targetWeight} kg.";
+                            $paceSignal = ['label' => 'Est. ETA', 'value' => "~{$weightSeries['eta_weeks']} wks (-{$rateStr})", 'tone' => 'good'];
+                        }
+                    }
+                    $nextStep = $isManagerView
+                        ? "Keep {$memberName} on the current caloric deficit and weekly training split."
+                        : "Stay consistent with your current calorie target and weekly training sessions.";
+                } elseif ($isRisingWeight || $isRisingWaist || $isRisingBf) {
+                    $statusCode = 'off_track';
+                    $parts = [];
+                    if ($isRisingWeight) {
+                        $parts[] = "weight increased by " . $fmtSigned($wDelta, 'kg');
+                        $primarySignal = ['label' => 'Weight Trend', 'value' => $fmtSigned($wDelta, 'kg'), 'tone' => 'bad'];
+                    } elseif ($isRisingWaist) {
+                        $parts[] = "waist increased by " . $fmtSigned($waistDelta, 'cm');
+                        $primarySignal = ['label' => 'Waist Trend', 'value' => $fmtSigned($waistDelta, 'cm'), 'tone' => 'bad'];
+                    } else {
+                        $parts[] = "body fat increased by " . $fmtSigned($bfDelta, '%');
+                        $primarySignal = ['label' => 'Body Fat Trend', 'value' => $fmtSigned($bfDelta, '%'), 'tone' => 'bad'];
+                    }
+                    $headline = "Metrics are moving away from {$poss} {$goalTitle} target";
+                    $explanation = ucfirst(implode(' and ', $parts)) . " over the recent window." . $buildDriverSentence('deficit');
+                    if ($calDiff !== null && $calDiff > 200) {
+                        $nextStep = $isManagerView
+                            ? "Review {$memberName}'s diet adherence and trim daily intake closer to {$targetCals} kcal."
+                            : "Review your Food Diary to bring daily intake closer to your {$targetCals} kcal target.";
+                    } else {
+                        $nextStep = $isManagerView
+                            ? "Audit {$memberName}'s calorie logging accuracy and increase weekly conditioning volume."
+                            : "Double-check portion logging and aim for {$weeklyTarget} workouts this week.";
+                    }
+                } else {
+                    $statusCode = 'plateau';
+                    $headline = "{$subjIs} maintaining rather than losing fat right now";
+                    $deltaNote = $wDelta !== null ? "Weight changed by only " . $fmtSigned($wDelta, 'kg') : "Body measurements have barely shifted";
+                    $explanation = "{$deltaNote} across the recent tracking window, indicating a plateau." . $buildDriverSentence('deficit');
+                    $primarySignal = $wDelta !== null
+                        ? ['label' => 'Weight Trend', 'value' => $fmtSigned($wDelta, 'kg') . ' (flat)', 'tone' => 'warn']
+                        : ['label' => 'Waist Trend', 'value' => $waistDelta !== null ? $fmtSigned($waistDelta, 'cm') : 'Flat', 'tone' => 'warn'];
+                    $nextStep = ($calDiff !== null && $calDiff > 150)
+                        ? ($isManagerView ? "Trim {$memberName}'s daily surplus (+{$calDiff} kcal) back to {$targetCals} kcal." : "Reduce daily intake by ~{$calDiff} kcal to re-establish a calorie deficit.")
+                        : ($isManagerView ? "Consider a modest 150–250 kcal reduction or an extra cardio session for {$memberName}." : "Tighten calorie tracking for 7 days or add 1 extra conditioning session.");
+                }
+            }
+            break;
+
+        case 'hypertrophy':
+            $isSixPack = str_contains($g, 'six pack');
+            $isArmFocus = str_contains($g, 'biceps') || str_contains($g, 'arms');
+            $isChestFocus = str_contains($g, 'chest');
+
+            if ($isSixPack) {
+                $pSeries = $waistSeries;
+                $pCurr = $currWaist;
+                $pTarget = $targetWaist;
+                $pLabel = 'Waist';
+                $pUnit = 'cm';
+                $pDir = 'down';
+                $sSeries = $bfSeries;
+                $sLabel = 'Body Fat';
+                $sUnit = '%';
+                $sDir = 'down';
+            } elseif ($isArmFocus) {
+                $pSeries = $armSeries;
+                $pCurr = $currArm;
+                $pTarget = $targetArm;
+                $pLabel = 'Arms';
+                $pUnit = 'cm';
+                $pDir = 'up';
+                $sSeries = $weightSeries;
+                $sLabel = 'Weight';
+                $sUnit = 'kg';
+                $sDir = 'up';
+            } elseif ($isChestFocus) {
+                $pSeries = $chestSeries;
+                $pCurr = $currChest;
+                $pTarget = $targetChest;
+                $pLabel = 'Chest';
+                $pUnit = 'cm';
+                $pDir = 'up';
+                $sSeries = $weightSeries;
+                $sLabel = 'Weight';
+                $sUnit = 'kg';
+                $sDir = 'up';
+            } else {
+                $pSeries = $weightSeries;
+                $pCurr = $currWeight;
+                $pTarget = $targetWeight;
+                $pLabel = 'Weight';
+                $pUnit = 'kg';
+                $pDir = 'up';
+                $sSeries = $armSeries['count'] >= $chestSeries['count'] ? $armSeries : $chestSeries;
+                $sLabel = $armSeries['count'] >= $chestSeries['count'] ? 'Arms' : 'Chest';
+                $sUnit = 'cm';
+                $sDir = 'up';
+            }
+
+            $goalHit = ($pTarget > 0 && $pCurr > 0) && (($pDir === 'down' && $pCurr <= $pTarget) || ($pDir === 'up' && $pCurr >= $pTarget));
+            if ($goalHit) {
+                $statusCode = 'goal_reached';
+                $headline = "{$subjHas} reached the {$pTarget} {$pUnit} {$pLabel} target";
+                $explanation = "Current {$pLabel} measurement is " . number_format($pCurr, 1) . " {$pUnit}, meeting the {$pTarget} {$pUnit} milestone.";
+                $nextStep = $isManagerView ? "Set a higher progressive milestone for {$memberName}." : "Set your next target milestone to keep building momentum.";
+                $primarySignal = ['label' => $pLabel, 'value' => number_format($pCurr, 1) . " / {$pTarget} {$pUnit}", 'tone' => 'good'];
+            } elseif ($pSeries['count'] < 2 && $sSeries['count'] < 2) {
+                $statusCode = 'needs_data';
+                $headline = "More {$pLabel} logs are needed to verify {$poss} {$goalTitle} progress";
+                $explanation = "{$subjHas} completed {$workoutsThisWeek}/{$weeklyTarget} workouts this week, but fewer than 2 {$pLabel} measurements are logged to confirm physical growth.";
+                $nextStep = $isManagerView
+                    ? "Log {$memberName}'s {$pLabel} measurement again in 1–2 weeks to verify growth."
+                    : "Log your {$pLabel} measurement again in 1–2 weeks to verify progress.";
+            } else {
+                $pDelta = $pSeries['delta'];
+                $sDelta = $sSeries['delta'];
+                $goodThreshold = ($pUnit === 'cm') ? ($pDir === 'down' ? -0.5 : 0.3) : 0.3;
+                $badThreshold = ($pUnit === 'cm') ? ($pDir === 'down' ? 0.6 : -0.4) : -0.5;
+
+                $pGood = $pDelta !== null && (($pDir === 'down' && $pDelta <= $goodThreshold) || ($pDir === 'up' && $pDelta >= $goodThreshold));
+                $pBad = $pDelta !== null && (($pDir === 'down' && $pDelta >= $badThreshold) || ($pDir === 'up' && $pDelta <= $badThreshold));
+
+                $sGood = false;
+                $sBad = false;
+                if ($sDelta !== null) {
+                    $sGoodThresh = ($sUnit === 'cm') ? ($sDir === 'down' ? -0.5 : 0.3) : ($sUnit === '%' ? -0.4 : 0.3);
+                    $sBadThresh = ($sUnit === 'cm') ? ($sDir === 'down' ? 0.6 : -0.4) : ($sUnit === '%' ? 0.6 : -0.5);
+                    $sGood = ($sDir === 'down') ? ($sDelta <= $sGoodThresh) : ($sDelta >= $sGoodThresh);
+                    $sBad = ($sDir === 'down') ? ($sDelta >= $sBadThresh) : ($sDelta <= $sBadThresh);
+                }
+
+                if ($pGood || (!$pBad && $sGood)) {
+                    $statusCode = 'progressing';
+                    $usedLabel = $pGood ? $pLabel : $sLabel;
+                    $usedDelta = $pGood ? $pDelta : $sDelta;
+                    $usedUnit = $pGood ? $pUnit : $sUnit;
+                    $headline = "{$subjIs} making measurable {$goalTitle} progress";
+                    $explanation = "{$usedLabel} changed by " . $fmtSigned($usedDelta, $usedUnit) . " over the recent window, supported by {$workoutsThisWeek}/{$weeklyTarget} workouts this week.";
+                    $primarySignal = ['label' => "{$usedLabel} Trend", 'value' => $fmtSigned($usedDelta, $usedUnit), 'tone' => 'good'];
+                    if ($pGood && $pSeries['eta_weeks'] !== null && $pTarget > 0) {
+                        $explanation .= " At this pace, {$subjIs} ~{$pSeries['eta_weeks']} weeks from {$pTarget} {$pUnit}.";
+                        $paceSignal = ['label' => 'Est. ETA', 'value' => "~{$pSeries['eta_weeks']} wks", 'tone' => 'good'];
+                    }
+                    $nextStep = $isManagerView
+                        ? "Keep progressing working sets and protein intake for {$memberName}."
+                        : "Keep applying progressive overload and hitting your daily protein target.";
+                } elseif ($pBad || $sBad) {
+                    $statusCode = 'off_track';
+                    $usedLabel = $pBad ? $pLabel : $sLabel;
+                    $usedDelta = $pBad ? $pDelta : $sDelta;
+                    $usedUnit = $pBad ? $pUnit : $sUnit;
+                    $headline = "{$usedLabel} is trending opposite to {$poss} {$goalTitle} goal";
+                    $explanation = "{$usedLabel} shifted by " . $fmtSigned($usedDelta, $usedUnit) . " in the recent tracking window." . $buildDriverSentence($isSixPack ? 'deficit' : 'surplus');
+                    $primarySignal = ['label' => "{$usedLabel} Trend", 'value' => $fmtSigned($usedDelta, $usedUnit), 'tone' => 'bad'];
+                    $nextStep = $isSixPack
+                        ? ($isManagerView ? "Dial in {$memberName}'s calorie deficit and core training consistency." : "Tighten your calorie deficit and hit {$weeklyTarget} weekly workouts.")
+                        : ($isManagerView ? "Check {$memberName}'s calorie surplus and protein intake to support tissue growth." : "Ensure you are eating in a slight calorie surplus with adequate protein.");
+                } else {
+                    $statusCode = 'plateau';
+                    $usedDelta = $pDelta ?? $sDelta;
+                    $usedLabel = $pDelta !== null ? $pLabel : $sLabel;
+                    $usedUnit = $pDelta !== null ? $pUnit : $sUnit;
+                    $headline = "{$usedLabel} has plateaued over the recent tracking window";
+                    $explanation = "{$usedLabel} changed by only " . ($usedDelta !== null ? $fmtSigned($usedDelta, $usedUnit) : '0.0 ' . $usedUnit) . " recently." . $buildDriverSentence($isSixPack ? 'deficit' : 'surplus');
+                    $primarySignal = ['label' => "{$usedLabel} Trend", 'value' => ($usedDelta !== null ? $fmtSigned($usedDelta, $usedUnit) : 'Flat') . ' (flat)', 'tone' => 'warn'];
+                    $nextStep = $isSixPack
+                        ? ($isManagerView ? "Slightly tighten {$memberName}'s calorie intake or add conditioning." : "Review calorie adherence or add 1 extra conditioning session this week.")
+                        : ($isManagerView ? "Increase training volume slightly or bump {$memberName}'s daily calories by ~150–200 kcal." : "Push progressive overload on key lifts and add ~150–200 kcal if weight is flat.");
+                }
+            }
+            break;
+
+        case 'recomposition':
+            $wDelta = $weightSeries['delta'];
+            $waistDelta = $waistSeries['delta'];
+            $bfDelta = $bfSeries['delta'];
+            $strengthImproved = false;
+            foreach ($strengthTargets as $st) {
+                if ((float)($st['current_max_kg'] ?? 0) > (float)($st['start_max_kg'] ?? 0)) {
+                    $strengthImproved = true;
+                    break;
+                }
+            }
+
+            if ($waistSeries['count'] < 2 && $bfSeries['count'] < 2 && $weightSeries['count'] < 2 && !$strengthImproved) {
+                $statusCode = 'needs_data';
+                $headline = "Log at least 2 waist or body-fat entries to evaluate recomposition";
+                $explanation = "Body recomposition cannot be judged from scale weight alone; at least 2 circumference or body-fat logs are needed.";
+                $nextStep = $isManagerView
+                    ? "Have {$memberName} log waist and body-fat measurements every 1–2 weeks."
+                    : "Log your waist and body-fat % every 1–2 weeks alongside strength sessions.";
+            } elseif (($waistDelta !== null && $waistDelta <= -0.5) || ($bfDelta !== null && $bfDelta <= -0.4) || ($wDelta !== null && abs($wDelta) <= 1.0 && $strengthImproved)) {
+                $statusCode = 'progressing';
+                $headline = "{$subjIs} successfully recomposing";
+                $parts = [];
+                if ($waistDelta !== null && $waistDelta <= -0.5) {
+                    $parts[] = "waist dropped " . $fmtSigned($waistDelta, 'cm');
+                    $primarySignal = ['label' => 'Waist Trend', 'value' => $fmtSigned($waistDelta, 'cm'), 'tone' => 'good'];
+                }
+                if ($bfDelta !== null && $bfDelta <= -0.4) {
+                    $parts[] = "body fat dropped " . $fmtSigned($bfDelta, '%');
+                    if (!$primarySignal) {
+                        $primarySignal = ['label' => 'Body Fat Trend', 'value' => $fmtSigned($bfDelta, '%'), 'tone' => 'good'];
+                    }
+                }
+                if ($wDelta !== null && abs($wDelta) <= 1.0) {
+                    $parts[] = "scale weight stayed steady (" . $fmtSigned($wDelta, 'kg') . ")";
+                }
+                if ($strengthImproved) {
+                    $parts[] = "strength targets increased";
+                    if (!$primarySignal) {
+                        $primarySignal = ['label' => 'Strength', 'value' => 'PRs rising', 'tone' => 'good'];
+                    }
+                }
+                $explanation = ucfirst(implode(', ', $parts)) . " — indicating fat loss alongside lean mass retention.";
+                $nextStep = $isManagerView
+                    ? "Keep {$memberName} near maintenance calories with high protein and progressive resistance training."
+                    : "Keep protein high and continue progressive overload while staying near maintenance calories.";
+            } elseif (($waistDelta !== null && $waistDelta >= 0.8) || ($bfDelta !== null && $bfDelta >= 0.6)) {
+                $statusCode = 'off_track';
+                $headline = "Waist or body fat is creeping up instead of leaning out";
+                $metricText = ($waistDelta !== null && $waistDelta >= 0.8)
+                    ? "Waist increased by " . $fmtSigned($waistDelta, 'cm')
+                    : "Body fat increased by " . $fmtSigned($bfDelta, '%');
+                $explanation = "{$metricText} in the recent tracking window." . $buildDriverSentence('deficit');
+                $primarySignal = ($waistDelta !== null && $waistDelta >= 0.8)
+                    ? ['label' => 'Waist Trend', 'value' => $fmtSigned($waistDelta, 'cm'), 'tone' => 'bad']
+                    : ['label' => 'Body Fat Trend', 'value' => $fmtSigned($bfDelta, '%'), 'tone' => 'bad'];
+                $nextStep = $isManagerView
+                    ? "Bring {$memberName}'s daily calories back to maintenance or a slight deficit with high protein."
+                    : "Trim excess calories toward maintenance and prioritize high-protein meals.";
+            } else {
+                $statusCode = 'plateau';
+                $headline = "Body composition markers are holding steady";
+                $explanation = "Scale weight and waist/body-fat measurements have remained flat in the recent window." . $buildDriverSentence('deficit');
+                $primarySignal = ['label' => 'Composition', 'value' => 'Holding steady', 'tone' => 'warn'];
+                $nextStep = $isManagerView
+                    ? "Progressively increase training intensity or adjust {$memberName}'s calorie/protein split."
+                    : "Focus on adding reps or weight to compound lifts while keeping protein at 1.6–2.2g/kg.";
+            }
+            break;
+
+        case 'strength':
+            $hasTargets = !empty($strengthTargets);
+            $allMet = false;
+            $anyImproved = false;
+            $bestTargetSummary = null;
+
+            if ($hasTargets) {
+                $metCount = 0;
+                foreach ($strengthTargets as $st) {
+                    $startKg = isset($st['start_max_kg']) && $st['start_max_kg'] !== null ? (float)$st['start_max_kg'] : (float)($st['current_max_kg'] ?? 0);
+                    $currKg = (float)($st['current_max_kg'] ?? 0);
+                    $tgtKg = (float)($st['target_max_kg'] ?? 0);
+                    if ($tgtKg > 0 && $currKg >= $tgtKg) {
+                        $metCount++;
+                    }
+                    if ($currKg > $startKg) {
+                        $anyImproved = true;
+                        $bestTargetSummary = ($st['exercise_name'] ?? 'Lift') . ": {$startKg} → {$currKg} kg";
+                    } elseif ($bestTargetSummary === null && $tgtKg > 0) {
+                        $bestTargetSummary = ($st['exercise_name'] ?? 'Lift') . ": {$currKg} / {$tgtKg} kg";
+                    }
+                }
+                $allMet = ($metCount > 0 && $metCount === count($strengthTargets));
+            } else {
+                $currMax = !empty($profile['current_strength_max_kg']) ? (float)$profile['current_strength_max_kg'] : 0.0;
+                $tgtMax = !empty($profile['target_strength_max_kg']) ? (float)$profile['target_strength_max_kg'] : 0.0;
+                if ($tgtMax > 0 && $currMax >= $tgtMax) {
+                    $allMet = true;
+                    $bestTargetSummary = ($profile['target_exercise'] ?? 'Primary Lift') . ": {$currMax} / {$tgtMax} kg";
+                }
+            }
+
+            if ($allMet) {
+                $statusCode = 'goal_reached';
+                $headline = "{$subjHas} hit all configured strength PR targets";
+                $explanation = ($bestTargetSummary ? $bestTargetSummary . '. ' : '') . "All active strength milestones have been achieved.";
+                $nextStep = $isManagerView ? "Set new progressive PR targets for {$memberName}." : "Set a higher target weight on your core lifts to keep progressing.";
+                $primarySignal = ['label' => 'Strength PRs', 'value' => 'Target achieved', 'tone' => 'good'];
+            } elseif ($anyImproved || (!empty($liftedExercises) && $weeklyPct >= 75)) {
+                $statusCode = 'progressing';
+                $headline = "{$subjIs} progressing in strength performance";
+                if ($anyImproved && $bestTargetSummary) {
+                    $explanation = "Logged working max improved ({$bestTargetSummary}), backed by {$workoutsThisWeek}/{$weeklyTarget} workouts this week.";
+                    $primarySignal = ['label' => 'Lift PR', 'value' => $bestTargetSummary, 'tone' => 'good'];
+                } else {
+                    $explanation = count($liftedExercises) . " exercise lift(s) recorded with {$workoutsThisWeek}/{$weeklyTarget} weekly sessions completed.";
+                    $primarySignal = ['label' => 'Logged Lifts', 'value' => count($liftedExercises) . ' exercises', 'tone' => 'good'];
+                }
+                $nextStep = $isManagerView
+                    ? "Continue progressive overload and log updated working weights when PRs increase."
+                    : "Keep adding 1–2.5 kg or extra reps when top sets feel controlled, and log new PRs.";
+            } elseif (!$hasTargets && empty($liftedExercises) && $workoutsThisWeek === 0 && $checkins30d < 2) {
+                $statusCode = 'needs_data';
+                $headline = "No strength PRs or recent workout lifts logged yet";
+                $explanation = "Add a strength target or log weights during workouts so progress can be measured accurately.";
+                $nextStep = $isManagerView
+                    ? "Set a primary lift target for {$memberName} via Adjust Targets."
+                    : "Click \"Set Targets\" to add a lift goal (e.g. Bench Press or Squat) and log your current max.";
+            } elseif ($weeklyPct >= 50 || $checkins30d >= 4) {
+                $statusCode = 'plateau';
+                $headline = "Training is active, but no new strength PRs are logged yet";
+                $explanation = "{$subjHas} completed {$workoutsThisWeek}/{$weeklyTarget} sessions this week ({$checkins30d} in 30d), with working maxes unchanged so far.";
+                $primarySignal = ['label' => 'Lift Status', 'value' => $bestTargetSummary ?? 'No PR change', 'tone' => 'warn'];
+                $nextStep = $isManagerView
+                    ? "Encourage {$memberName} to log updated lift PRs or adjust rep/set intensity."
+                    : "Log any new lift weights using \"+ Log PR\" or add 2.5 kg to your top compound set.";
+            } else {
+                $statusCode = 'off_track';
+                $headline = "Low workout frequency is holding back strength gains";
+                $explanation = "Only {$workoutsThisWeek}/{$weeklyTarget} sessions completed this week ({$checkins30d} visits in 30d), below what is needed for steady strength progression.";
+                $primarySignal = ['label' => 'Lift Status', 'value' => 'Low volume', 'tone' => 'bad'];
+                $nextStep = $isManagerView
+                    ? "Check in with {$memberName} to remove scheduling barriers and rebuild weekly consistency."
+                    : "Aim to complete at least {$weeklyTarget} structured strength sessions this week.";
+            }
+            break;
+
+        case 'endurance':
+        case 'mobility':
+        case 'lifestyle':
+        default:
+            $enduranceHit = false;
+            if ($model === 'endurance') {
+                $currDist = !empty($profile['current_endurance_distance_km']) ? (float)$profile['current_endurance_distance_km'] : 0.0;
+                $tgtDist = !empty($profile['target_endurance_distance_km']) ? (float)$profile['target_endurance_distance_km'] : 0.0;
+                $currTime = !empty($profile['current_endurance_time_mins']) ? (int)$profile['current_endurance_time_mins'] : 0;
+                $tgtTime = !empty($profile['target_endurance_time_mins']) ? (int)$profile['target_endurance_time_mins'] : 0;
+                $enduranceHit = ($tgtDist > 0 && $currDist >= $tgtDist) || ($tgtTime > 0 && $currTime >= $tgtTime);
+            }
+
+            if ($enduranceHit) {
+                $statusCode = 'goal_reached';
+                $headline = "{$subjHas} reached {$poss} endurance milestone";
+                $explanation = "Cardio performance metrics meet or exceed the configured distance/duration target.";
+                $nextStep = $isManagerView ? "Increase {$memberName}'s target pace or distance." : "Raise your distance or pace target for the next training block.";
+                $primarySignal = ['label' => 'Endurance', 'value' => 'Target achieved', 'tone' => 'good'];
+            } elseif ($checkins30d === 0 && $workoutsThisWeek === 0 && count($progressLogs) < 2) {
+                $statusCode = 'needs_data';
+                $headline = "Not enough recent activity or logs to assess {$poss} routine";
+                $explanation = "Zero workouts are logged this week and fewer than 2 progress check-ins exist.";
+                $nextStep = $isManagerView
+                    ? "Help {$memberName} schedule their first {$weeklyTarget} sessions for this week."
+                    : "Complete a workout check-in or log baseline measurements to start tracking progress.";
+            } elseif ($weeklyPct >= 75 || $checkins30d >= max(6, $weeklyTarget * 2)) {
+                $statusCode = 'progressing';
+                $headline = "{$subjIs} building strong consistency toward {$goalTitle}";
+                $explanation = "{$subjHas} completed {$workoutsThisWeek}/{$weeklyTarget} sessions this week ({$weeklyPct}%) and {$checkins30d} gym visits in the last 30 days.";
+                $primarySignal = ['label' => '30d Activity', 'value' => "{$checkins30d} visits", 'tone' => 'good'];
+                $nextStep = $isManagerView
+                    ? "Keep reinforcing {$memberName}'s weekly rhythm."
+                    : "Keep up this weekly cadence to lock in long-term fitness gains.";
+            } elseif ($weeklyPct >= 40 || $checkins30d >= 3) {
+                $statusCode = 'plateau';
+                $headline = "Routine is moderate — room to improve weekly consistency";
+                $explanation = "{$workoutsThisWeek}/{$weeklyTarget} workouts logged this week and {$checkins30d} visits in the last 30 days. Consistency is below the full weekly target.";
+                $primarySignal = ['label' => '30d Activity', 'value' => "{$checkins30d} visits", 'tone' => 'warn'];
+                $nextStep = $isManagerView
+                    ? "Encourage {$memberName} to hit {$weeklyTarget} sessions per week consistently."
+                    : "Schedule one more session this week to reach {$weeklyTarget}/{$weeklyTarget} workouts.";
+            } else {
+                $statusCode = 'off_track';
+                $headline = "Recent activity has dropped below {$poss} weekly target";
+                $explanation = "Only {$workoutsThisWeek}/{$weeklyTarget} workouts completed this week and {$checkins30d} check-ins over the past 30 days.";
+                $primarySignal = ['label' => '30d Activity', 'value' => "{$checkins30d} visits (low)", 'tone' => 'bad'];
+                $nextStep = $isManagerView
+                    ? "Reach out to {$memberName} to restart a manageable weekly schedule."
+                    : "Start with 1–2 short sessions this week to rebuild momentum.";
+            }
+            break;
+    }
+
+    // Build Contributing Signals Pills (2-4 concise chips)
+    $signals = [];
+    if ($primarySignal !== null) {
+        $signals[] = $primarySignal;
+    }
+    $workoutTone = $weeklyPct >= 75 ? 'good' : ($weeklyPct >= 40 ? 'warn' : 'bad');
+    $signals[] = [
+        'label' => 'Workouts',
+        'value' => "{$workoutsThisWeek}/{$weeklyTarget} this wk ({$weeklyPct}%)",
+        'tone'  => $workoutTone,
+    ];
+    if ($calDiff !== null) {
+        $isFatLossGoal = ($model === 'fat_loss' || str_contains($g, 'six pack'));
+        $isSurplusGoal = ($model === 'hypertrophy' && !$isFatLossGoal);
+        if ($isFatLossGoal) {
+            $calTone = $calDiff > 200 ? 'bad' : ($calDiff <= 150 && $calDiff >= -500 ? 'good' : 'warn');
+        } elseif ($isSurplusGoal) {
+            $calTone = $calDiff < -200 ? 'bad' : ($calDiff >= -100 && $calDiff <= 350 ? 'good' : 'warn');
+        } else {
+            $calTone = abs($calDiff) <= 200 ? 'good' : 'warn';
+        }
+        $diffText = $calDiff > 0 ? ('+' . number_format($calDiff) . ' kcal over') : ($calDiff < 0 ? (number_format($calDiff) . ' kcal under') : 'On target');
+        $signals[] = [
+            'label' => 'Calories',
+            'value' => number_format($avgCals) . " vs " . number_format($targetCals) . " ({$diffText})",
+            'tone'  => $calTone,
+        ];
+    }
+    if ($paceSignal !== null) {
+        $signals[] = $paceSignal;
+    }
+
+    $def = $statusDefs[$statusCode] ?? $statusDefs['needs_data'];
+
+    return [
+        'code'         => $def['code'],
+        'label'        => $def['label'],
+        'short_answer' => $def['short_answer'],
+        'icon'         => $def['icon'],
+        'badge_cls'    => $def['badge_cls'],
+        'verdict_cls'  => $def['verdict_cls'],
+        'color'        => $def['color'],
+        'headline'     => $headline,
+        'explanation'  => $explanation,
+        'next_step'    => $nextStep,
+        'signals'      => $signals,
+        'directions'   => $directions,
+    ];
+}
+
+/**
  * Calculates tailored KPIs, directional progress status, and milestone data for a member
  * Highly scalable: Reuses pre-computed metrics from $additionalContext whenever available.
  */
@@ -200,6 +1172,17 @@ function calculate_member_goal_progress(int $memberId, array $profile, array $pr
         'milestone_note' => ''
     ];
 
+    // Strength targets (reuse pre-loaded context when available to avoid redundant queries)
+    $strengthTargets = $additionalContext['strength_targets'] ?? null;
+    if (!is_array($strengthTargets)) {
+        $strengthTargets = ($memberId > 0 && function_exists('get_member_strength_targets'))
+            ? get_member_strength_targets($memberId)
+            : [];
+    }
+    $liftedExercises = is_array($additionalContext['lifted_exercises'] ?? null)
+        ? $additionalContext['lifted_exercises']
+        : [];
+
     // Determine status & specific KPIs based on model
     switch ($model) {
         case 'strength':
@@ -207,12 +1190,29 @@ function calculate_member_goal_progress(int $memberId, array $profile, array $pr
             $currMax = !empty($profile['current_strength_max_kg']) ? (float)$profile['current_strength_max_kg'] : 0.0;
             $targetMax = !empty($profile['target_strength_max_kg']) ? (float)$profile['target_strength_max_kg'] : 0.0;
 
+            if (!empty($strengthTargets)) {
+                $firstTarget = $strengthTargets[0];
+                $targetExercise = (string)($firstTarget['exercise_name'] ?? $targetExercise);
+                $currMax = $firstTarget['current_max_kg'] !== null ? (float)$firstTarget['current_max_kg'] : $currMax;
+                $targetMax = $firstTarget['target_max_kg'] !== null ? (float)$firstTarget['target_max_kg'] : $targetMax;
+            }
+
             $liftPct = null;
             if ($targetMax > 0 && $currMax > 0) {
                 $liftPct = (int)min(100, round(($currMax / $targetMax) * 100));
             }
 
-            $prsCount = max(1, (int)floor($exercisesCompleted30d / 6));
+            $prsCount = 0;
+            foreach ($strengthTargets as $st) {
+                $stStart = isset($st['start_max_kg']) && $st['start_max_kg'] !== null ? (float)$st['start_max_kg'] : (float)($st['current_max_kg'] ?? 0);
+                $stCurr = (float)($st['current_max_kg'] ?? 0);
+                if ($stCurr > $stStart) {
+                    $prsCount++;
+                }
+            }
+            if ($prsCount === 0 && !empty($liftedExercises)) {
+                $prsCount = count($liftedExercises);
+            }
             $result['progress_pct'] = $liftPct;
 
             if ($liftPct && $liftPct >= 95) {
@@ -235,12 +1235,12 @@ function calculate_member_goal_progress(int $memberId, array $profile, array $pr
                     'progress_pct' => $liftPct
                 ],
                 [
-                    'label' => 'Personal Records',
-                    'current' => "+{$prsCount}",
-                    'target' => null,
-                    'unit' => 'PRs',
-                    'badge' => 'This month',
-                    'type' => 'good',
+                    'label' => !empty($strengthTargets) ? 'Improved Targets' : 'Logged Exercises',
+                    'current' => (string)$prsCount,
+                    'target' => !empty($strengthTargets) ? (string)count($strengthTargets) : null,
+                    'unit' => !empty($strengthTargets) ? 'PRs' : 'lifts',
+                    'badge' => $prsCount > 0 ? 'Active gains' : 'Log a PR',
+                    'type' => $prsCount > 0 ? 'good' : 'neutral',
                     'progress_pct' => null
                 ],
                 [
@@ -592,6 +1592,26 @@ function calculate_member_goal_progress(int $memberId, array $profile, array $pr
         'model' => $model
     ]);
     $result['milestones'] = evaluate_and_award_goal_milestones($memberId, $profile, $progressLogs, $rawGoal, $milestoneContext);
+
+    // Phase 4: Evaluate rule-based progress verdict (why & next step)
+    $verdictContext = array_merge($additionalContext, [
+        'workouts_this_week' => $workoutsDoneThisWeek,
+        'weekly_target'      => $weeklyTarget,
+        'checkins_30d'       => $checkins30d,
+        'exercises_30d'      => $exercisesCompleted30d,
+        'strength_targets'   => $strengthTargets,
+        'lifted_exercises'   => $liftedExercises,
+    ]);
+    $verdict = evaluate_member_progress_verdict($profile, $progressLogs, $verdictContext);
+    $result['status'] = [
+        'code'      => $verdict['code'],
+        'label'     => $verdict['label'],
+        'icon'      => $verdict['icon'],
+        'badge_cls' => $verdict['badge_cls'],
+        'color'     => $verdict['color'],
+    ];
+    $result['verdict'] = $verdict;
+    $result['directions'] = $verdict['directions'];
 
     return $result;
 }
@@ -1172,8 +2192,39 @@ function render_goal_hero_card(array $goalProgress, bool $canEdit = true, bool $
             </div>
         </div>
 
-        <!-- Headline Summary -->
-        <?php if (!empty($goalProgress['headline_summary'])): ?>
+        <!-- Progress Verdict Explanation Box (or legacy summary fallback) -->
+        <?php if (!empty($goalProgress['verdict'])):
+            $v = $goalProgress['verdict'];
+            $vCls = (string)($v['verdict_cls'] ?? 'verdict-needs-data');
+        ?>
+            <div class="goal-verdict-box <?= h($vCls) ?>" id="goalVerdictBox">
+                <div class="verdict-top-row">
+                    <span class="verdict-answer-pill"><?= h($v['icon'] ?? '○') ?> <?= h($v['short_answer'] ?? $v['label'] ?? 'Status') ?></span>
+                    <strong class="verdict-headline"><?= h($v['headline'] ?? '') ?></strong>
+                </div>
+                <?php if (!empty($v['explanation'])): ?>
+                    <p class="verdict-explanation"><?= h($v['explanation']) ?></p>
+                <?php endif; ?>
+                <?php if (!empty($v['signals'])): ?>
+                    <div class="verdict-signals-row">
+                        <?php foreach ($v['signals'] as $sig):
+                            $sigTone = (string)($sig['tone'] ?? 'neutral');
+                        ?>
+                            <span class="verdict-signal-chip signal-<?= h($sigTone) ?>">
+                                <span class="sig-label"><?= h($sig['label'] ?? '') ?>:</span>
+                                <strong class="sig-val"><?= h($sig['value'] ?? '') ?></strong>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($v['next_step'])): ?>
+                    <div class="verdict-next-step">
+                        <span class="next-step-tag">Next step</span>
+                        <span><?= h($v['next_step']) ?></span>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php elseif (!empty($goalProgress['headline_summary'])): ?>
             <p class="goal-hero-summary"><?= h($goalProgress['headline_summary']) ?></p>
         <?php endif; ?>
 

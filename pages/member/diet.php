@@ -81,6 +81,7 @@ function get_swap_meal_catalog(?PDO $pdo = null, ?int $gymId = null): array
             'id' => 'db_' . $item['food_id'],
             'food_id' => (int) $item['food_id'],
             'title' => (string) $item['name'],
+            'serving_size' => !empty($item['serving_size']) ? (string) $item['serving_size'] : '1 serving',
             'tags' => $tags,
             'restrictions' => $restrictions,
             'dietary_restriction' => $rest,
@@ -274,19 +275,24 @@ function diet_page(): void
 
         $options = [];
         foreach ($candidates as $rec) {
-            $baseCals = (int) ($rec['base_calories'] ?? 0);
-            if ($baseCals > 0) {
-                $scale = $targetCals / $baseCals;
-                $p_g = (float) round($rec['base_protein'] * $scale, 1);
-                $c_g = (float) round($rec['base_carbs'] * $scale, 1);
-                $f_g = (float) round($rec['base_fat'] * $scale, 1);
+            if (function_exists('scale_food_item_for_target') && (int) ($rec['base_calories'] ?? 0) > 0) {
+                $scaled = scale_food_item_for_target($rec, (float) $targetCals);
+                $optCals = (int) $scaled['calories'];
+                $p_g = (float) $scaled['protein_g'];
+                $c_g = (float) $scaled['carbs_g'];
+                $f_g = (float) $scaled['fat_g'];
+                $foodStr = $scaled['food_items'];
+                $grams = $scaled['grams'];
+                $servings = (float) $scaled['servings'];
             } else {
+                $optCals = (int) $targetCals;
                 $p_g = (float) round(($targetCals * ($rec['pro_pct'] ?? 0.30)) / 4, 1);
                 $c_g = (float) round(($targetCals * ($rec['carbs_pct'] ?? 0.40)) / 4, 1);
                 $f_g = (float) round(($targetCals * ($rec['fat_pct'] ?? 0.30)) / 9, 1);
+                $foodStr = ($rec['title'] ?? 'Meal') . ' (' . ($rec['serving_size'] ?? '1 serving') . ')';
+                $grams = null;
+                $servings = 1.0;
             }
-            $grams = (int) round($targetCals / 1.5);
-            $foodStr = "{$grams}g of {$rec['title']}";
 
             $foodRest = $rec['dietary_restriction'] ?? 'none';
             $compat = function_exists('get_compatible_dietary_restrictions') ? get_compatible_dietary_restrictions($userRest) : [];
@@ -303,11 +309,12 @@ function diet_page(): void
                 'food_id' => $rec['food_id'] ?? null,
                 'title' => $rec['title'],
                 'food_items' => $foodStr,
-                'calories' => $targetCals,
+                'calories' => $optCals,
                 'protein_g' => $p_g,
                 'carbs_g' => $c_g,
                 'fat_g' => $f_g,
                 'grams' => $grams,
+                'servings' => $servings,
                 'tags' => $rec['tags'] ?? [],
                 'desc' => $rec['desc'] ?? '',
                 'image_url' => $rec['image_url'] ?? null,
@@ -723,26 +730,28 @@ function diet_page(): void
                     $pct = $dist[$mType];
                     $options = $foodsByType[$mType];
                     $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
-                    $portionGrams = max(50, (int) round($mCals / 1.5));
 
                     if ($selectedFood) {
-                        $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
-                        $scale = $mCals / $baseCals;
-
-                        $mP = (float) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale, 1);
-                        $mC = (float) round((float)($selectedFood['carbs_g'] ?: ($c_g * $pct)) * $scale, 1);
-                        $mF = (float) round((float)($selectedFood['fat_g'] ?: ($f_g * $pct)) * $scale, 1);
-                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $scaled = scale_food_item_for_target($selectedFood, (float) $mCals);
+                        $actualCals = (int) $scaled['calories'];
+                        $mP = (float) $scaled['protein_g'];
+                        $mC = (float) $scaled['carbs_g'];
+                        $mF = (float) $scaled['fat_g'];
+                        $mFood = $scaled['food_items'];
                         $mImg = !empty($selectedFood['image_url']) 
                             ? $selectedFood['image_url'] 
                             : (function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($selectedFood['name'], $mType) : null);
+                        $servings = (float) $scaled['servings'];
                     } else {
+                        $actualCals = (int) $mCals;
                         $mP = (float) round($p_g * $pct, 1);
                         $mC = (float) round($c_g * $pct, 1);
                         $mF = (float) round($f_g * $pct, 1);
-                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mFood = '1 serving of Balanced ' . $mType;
                         $mImg = function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($mFood, $mType) : null;
+                        $servings = 1.00;
                     }
+                    $mCals = $actualCals;
 
                     $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, (int) round($mP), (int) round($mC), (int) round($mF)]);
                 }

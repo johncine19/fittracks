@@ -28,29 +28,25 @@ function trainer_members_page(): void
                 $newGid = bin2hex(random_bytes(16));
                 db()->prepare('UPDATE trainer_assignments SET group_id = ? WHERE assignment_id = ?')->execute([$newGid, $assignmentId]);
             }
-            // Scope to the logged-in trainer so a trainer cannot accept (and earn commission on) another trainer's assignment
+            // Scope to the logged-in trainer so a trainer cannot accept another trainer's assignment
             db()->prepare('UPDATE trainer_assignments SET status = "active" WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
-            $stmt = db()->prepare('SELECT member_user_id, assigned_date, ended_date, assigned_by FROM trainer_assignments WHERE assignment_id = ? AND trainer_id = ?');
+            $stmt = db()->prepare('
+                SELECT ca.member_user_id, ca.assigned_date, ca.ended_date, ca.assigned_by, ca.package_id, ca.pt_payment_id, ca.payment_status,
+                       ptp.status AS pt_pay_status, ptp.amount AS pt_pay_amount, ptp.payment_type AS pt_pay_type,
+                       ptp.sessions_purchased, ptp.sessions_remaining,
+                       pkg.package_name AS pt_package_name
+                FROM trainer_assignments ca
+                LEFT JOIN pt_payments ptp ON ptp.pt_payment_id = ca.pt_payment_id
+                LEFT JOIN trainer_packages pkg ON pkg.package_id = ca.package_id
+                WHERE ca.assignment_id = ? AND ca.trainer_id = ?
+            ');
             $stmt->execute([$assignmentId, $coachId]);
             $assignment = $stmt->fetch();
             if ($assignment) {
                 $memberUserId = (int)$assignment['member_user_id'];
-                
-                $trainerCoveragePlan = query_all("
-                    SELECT mp.plan_name, mp.allow_trainer_commission 
-                    FROM memberships m 
-                    JOIN membership_plans mp ON mp.plan_id = m.plan_id 
-                    WHERE m.user_id = ? AND m.status = 'active' AND m.end_date >= CURDATE()
-                    ORDER BY mp.allow_trainer_commission DESC, m.end_date DESC 
-                    LIMIT 1
-                ", [$memberUserId])[0] ?? null;
-
-                $hasTrainerCoverage = !empty($trainerCoveragePlan) && (int)$trainerCoveragePlan['allow_trainer_commission'] === 1;
-                $hasActivePlan = !empty($trainerCoveragePlan);
-                
                 $assignedDate = !empty($assignment['assigned_date']) ? (string)$assignment['assigned_date'] : '';
                 $endedDate = !empty($assignment['ended_date']) ? (string)$assignment['ended_date'] : '';
-                
+
                 $aptDateStr = '';
                 if ($assignedDate && $endedDate) {
                     if (date('Y-m-d', strtotime($assignedDate)) === date('Y-m-d', strtotime($endedDate))) {
@@ -63,34 +59,42 @@ function trainer_members_page(): void
                 }
 
                 $sessionRate = (float) scalar('SELECT session_rate FROM trainer_profiles WHERE trainer_id = ?', [$coachId]);
-                $rateText = $sessionRate > 0 ? ' (Fee: ₱' . number_format($sessionRate, 2) . ')' : '';
+                $ptPayStatus = (string) ($assignment['pt_pay_status'] ?? '');
+                $ptFee = isset($assignment['pt_pay_amount']) ? (float) $assignment['pt_pay_amount'] : $sessionRate;
+                $pkgLabel = !empty($assignment['pt_package_name']) ? ' (' . $assignment['pt_package_name'] . ')' : '';
+                $feeLabel = $ptFee > 0 ? '₱' . number_format($ptFee, 2) : '';
 
-                if ($hasTrainerCoverage) {
-                    notify_user($memberUserId, 'system', 'Appointment Accepted', 'Your trainer appointment request was accepted by ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . '.');
+                if ($ptPayStatus === 'paid' || ($assignment['payment_status'] ?? '') === 'paid') {
+                    $notifMsg = 'Your PT appointment' . $pkgLabel . ' with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been accepted! Your PT payment is already confirmed.';
+                    notify_user($memberUserId, 'system', 'Appointment Confirmed (PT Paid)', $notifMsg);
+                    flash('Appointment accepted. Client\'s PT payment is already marked Paid.');
+                } elseif (($assignment['payment_status'] ?? '') === 'complimentary' || ($ptFee <= 0 && $ptPayStatus === '')) {
+                    $notifMsg = 'Your complimentary trainer appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been accepted!';
+                    notify_user($memberUserId, 'system', 'Appointment Confirmed', $notifMsg);
                     flash('Appointment accepted.');
-                } elseif ($hasActivePlan) {
-                    $notifMsg = 'Your appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Your membership plan does not include personal trainer sessions. Please prepare your session fee' . $rateText . ' to pay the trainer directly.';
-                    notify_user($memberUserId, 'system', 'Appointment Confirmed (Direct Payment)', $notifMsg);
-                    flash('Appointment accepted. Note: Client\'s membership plan does not include trainer sessions and will pay you directly for the session' . $rateText . '.');
                 } else {
-                    $notifMsg = 'Your appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Please prepare your personal session fee' . $rateText . ' to pay the trainer directly at the appointment.';
-                    notify_user($memberUserId, 'system', 'Appointment Confirmed (Direct Payment)', $notifMsg);
-                    flash('Appointment accepted. Note: Client does not have an active gym membership plan and will pay you directly for the session' . $rateText . '.');
+                    $notifMsg = 'Your PT appointment' . $pkgLabel . ' with ' . $user['first_name'] . ' ' . $user['last_name'] . ($aptDateStr ? ' for ' . $aptDateStr : '') . ' has been confirmed! Personal training is billed separately from gym membership — please settle ' . ($feeLabel ?: 'your PT fee') . ' at the front desk.';
+                    notify_user($memberUserId, 'system', 'Appointment Confirmed (PT Payment Pending)', $notifMsg);
+                    flash('Appointment accepted. Note: Client\'s PT payment' . ($feeLabel ? ' (' . $feeLabel . ')' : '') . ' is pending settlement at the front desk.');
                 }
 
                 if ($assignment['assigned_by']) {
                     notify_user((int)$assignment['assigned_by'], 'system', 'Appointment Accepted', 'Trainer ' . $user['first_name'] . ' accepted the appointment request.');
                 }
-                grant_retroactive_commission($memberUserId, (int)$coachId);
             }
-        } elseif (post('action') === 'update_session_rate') {
-            $newRate = max(0.0, (float) post('session_rate', 0));
-            db()->prepare('UPDATE trainer_profiles SET session_rate = ? WHERE trainer_id = ?')->execute([$newRate, $coachId]);
-            flash('Your per-session rate has been updated successfully to ₱' . number_format($newRate, 2) . '.');
-            redirect('trainer_members');
         } elseif (post('action') === 'complete_session') {
             $assignmentId = (int) post('assignment_id');
-            $assignRow = query_all('SELECT assignment_id, member_user_id, assigned_date, ended_date FROM trainer_assignments WHERE assignment_id = ? AND trainer_id = ?', [$assignmentId, $coachId])[0] ?? null;
+            $assignRow = query_all(
+                'SELECT ca.assignment_id, ca.member_user_id, ca.assigned_date, ca.ended_date, ca.pt_payment_id,
+                        ptp.status AS pt_pay_status, ptp.payment_type AS pt_pay_type,
+                        ptp.sessions_purchased, ptp.sessions_remaining,
+                        pkg.package_name AS pt_package_name
+                 FROM trainer_assignments ca
+                 LEFT JOIN pt_payments ptp ON ptp.pt_payment_id = ca.pt_payment_id
+                 LEFT JOIN trainer_packages pkg ON pkg.package_id = ca.package_id
+                 WHERE ca.assignment_id = ? AND ca.trainer_id = ?',
+                [$assignmentId, $coachId]
+            )[0] ?? null;
             if (!$assignRow) {
                 flash('Assignment not found.', 'danger');
                 redirect('trainer_members');
@@ -103,9 +107,31 @@ function trainer_members_page(): void
                     redirect('trainer_members');
                 }
             }
-            db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = NOW() WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
-            notify_user((int)$assignRow['member_user_id'], 'system', 'Coaching Session Concluded', 'Your coaching session / appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ' has concluded. Thank you!');
-            flash('Coaching session marked as completed.');
+
+            $ptPaymentId = (int) ($assignRow['pt_payment_id'] ?? 0);
+            $sessionsRemaining = (int) ($assignRow['sessions_remaining'] ?? 0);
+            $isMultiSessionPack = $ptPaymentId > 0 && ($assignRow['pt_pay_type'] ?? '') === 'pt_package' && $sessionsRemaining > 1;
+
+            if ($isMultiSessionPack) {
+                db()->prepare('UPDATE pt_payments SET sessions_remaining = sessions_remaining - 1 WHERE pt_payment_id = ? AND sessions_remaining > 0')
+                    ->execute([$ptPaymentId]);
+                $newRemaining = $sessionsRemaining - 1;
+                $pkgName = !empty($assignRow['pt_package_name']) ? ' (' . $assignRow['pt_package_name'] . ')' : '';
+                notify_user(
+                    (int)$assignRow['member_user_id'],
+                    'system',
+                    'PT Session Completed',
+                    '1 session from your PT package' . $pkgName . ' with ' . $user['first_name'] . ' ' . $user['last_name'] . ' was completed. You have ' . $newRemaining . ' session' . ($newRemaining === 1 ? '' : 's') . ' remaining.'
+                );
+                flash('1 PT package session logged (' . $newRemaining . ' remaining). Client remains active.');
+            } else {
+                if ($ptPaymentId > 0 && $sessionsRemaining > 0) {
+                    db()->prepare('UPDATE pt_payments SET sessions_remaining = 0 WHERE pt_payment_id = ?')->execute([$ptPaymentId]);
+                }
+                db()->prepare('UPDATE trainer_assignments SET status = "ended", ended_date = NOW() WHERE assignment_id = ? AND trainer_id = ?')->execute([$assignmentId, $coachId]);
+                notify_user((int)$assignRow['member_user_id'], 'system', 'Coaching Session Concluded', 'Your coaching session / appointment with ' . $user['first_name'] . ' ' . $user['last_name'] . ' has concluded. Thank you!');
+                flash('Coaching session marked as completed.');
+            }
             redirect('trainer_members');
         } elseif (post('action') === 'reject_appointment') {
             $assignmentId = (int) post('assignment_id');
@@ -149,26 +175,40 @@ function trainer_members_page(): void
         (SELECT dp.plan_id FROM dietary_plans dp WHERE dp.member_user_id = ca.member_user_id AND dp.status = "active" AND EXISTS (SELECT 1 FROM dietary_plan_meals dpm WHERE dpm.plan_id = dp.plan_id AND TRIM(dpm.food_items) <> "") ORDER BY (dp.trainer_id = ca.trainer_id) DESC, dp.is_preferred DESC, dp.plan_id DESC LIMIT 1) AS active_diet_id,
         (SELECT COUNT(*) FROM progress_logs WHERE user_id = ca.member_user_id) AS logs_count,
         (SELECT COUNT(DISTINCT log_date) FROM member_meal_logs WHERE user_id = ca.member_user_id) AS food_logs_count,
-        (EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = ca.member_user_id AND m.status = "active" AND m.end_date >= CURDATE())) AS has_gym_membership
+        (EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = ca.member_user_id AND m.status = "active" AND m.end_date >= CURDATE())) AS has_gym_membership,
+        ptp.status AS pt_pay_status,
+        ptp.amount AS pt_pay_amount,
+        ptp.payment_type AS pt_pay_type,
+        ptp.sessions_purchased,
+        ptp.sessions_remaining,
+        pkg.package_name AS pt_package_name
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 
     LEFT JOIN member_profiles mp ON mp.user_id = u.user_id 
+    LEFT JOIN pt_payments ptp ON ptp.pt_payment_id = ca.pt_payment_id
+    LEFT JOIN trainer_packages pkg ON pkg.package_id = ca.package_id
     WHERE ca.trainer_id = ? AND ca.status = ? 
     ORDER BY ' . ($tab === 'past' ? 'ca.ended_date DESC, ' : '') . 'ca.assignment_id DESC', [$coachId, $tab === 'past' ? 'ended' : 'active']);
 
     $pending_requests = query_all('SELECT ca.*, u.first_name, u.last_name, u.email, u.profile_picture, 
         (SELECT pl.weight_kg FROM progress_logs pl WHERE pl.user_id = ca.member_user_id ORDER BY pl.log_date DESC, pl.log_id DESC LIMIT 1) AS weight_kg,
         mp.height_cm, mp.primary_goal,
-        (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = ca.member_user_id) AS secondary_focus 
+        (SELECT GROUP_CONCAT(fa.name SEPARATOR ", ") FROM member_focus_areas mfa JOIN focus_areas fa ON fa.focus_area_id = mfa.focus_area_id WHERE mfa.user_id = ca.member_user_id) AS secondary_focus,
+        ptp.status AS pt_pay_status,
+        ptp.amount AS pt_pay_amount,
+        ptp.payment_type AS pt_pay_type,
+        ptp.sessions_purchased,
+        ptp.sessions_remaining,
+        pkg.package_name AS pt_package_name
     FROM trainer_assignments ca 
     JOIN users u ON u.user_id = ca.member_user_id 
     LEFT JOIN member_profiles mp ON mp.user_id = u.user_id 
+    LEFT JOIN pt_payments ptp ON ptp.pt_payment_id = ca.pt_payment_id
+    LEFT JOIN trainer_packages pkg ON pkg.package_id = ca.package_id
     WHERE ca.trainer_id = ? AND ca.status = "pending_trainer" 
     ORDER BY ca.assignment_id DESC', [$coachId]);
     
     render_header('Clients', $user);
-    
-    $currentSessionRate = (float) scalar('SELECT session_rate FROM trainer_profiles WHERE trainer_id = ?', [$coachId]);
 
     // KPI Stats calculation
     $totalClients = count($members);
@@ -194,13 +234,6 @@ function trainer_members_page(): void
                     Assigned Clients
                 </h1>
                 <p class="tm-header-subtitle">Monitor client progress, build personalized training & diet plans, and update assessments.</p>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <button type="button" onclick="editMySessionRate(<?= $currentSessionRate ?>)" class="btn" style="background:var(--panel-soft, rgba(255,255,255,0.04)); border:1px solid var(--line); color:var(--ink); font-size:13px; font-weight:600; padding:8px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:8px; cursor:pointer;" title="Click to update your direct session fee">
-                    <span style="color:var(--muted); font-weight:normal;">My Session Rate:</span>
-                    <strong style="color:var(--lime);"><?= $currentSessionRate > 0 ? '₱' . number_format($currentSessionRate, 2) : 'Free / Included' ?></strong>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                </button>
             </div>
         </div>
 
@@ -477,10 +510,23 @@ function trainer_members_page(): void
                                 <?= h($member['secondary_focus']) ?>
                             </span>
                         <?php endif; ?>
-                        <?php if (empty($member['has_gym_membership'])): ?>
-                            <span class="tm-badge-activity" title="Session is paid directly by the client">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                                <span>Direct Pay</span>
+                        <?php
+                            $ptStatusBadge = (string) ($member['pt_pay_status'] ?: ($member['payment_status'] ?? ''));
+                            $ptSessPurchased = (int) ($member['sessions_purchased'] ?? 0);
+                            $ptSessRemaining = (int) ($member['sessions_remaining'] ?? 0);
+                        ?>
+                        <?php if ($ptStatusBadge === 'paid'): ?>
+                            <span class="tm-badge-activity" style="background:rgba(34,197,94,0.12); color:#22c55e; border-color:rgba(34,197,94,0.28);" title="Personal Training fee settled">
+                                <span>PT Paid<?= !empty($member['pt_pay_amount']) ? ' • ₱' . number_format((float)$member['pt_pay_amount'], 0) : '' ?></span>
+                            </span>
+                        <?php elseif ($ptStatusBadge === 'pending' || $ptStatusBadge === 'unpaid'): ?>
+                            <span class="tm-badge-activity" style="background:rgba(245,158,11,0.12); color:#f59e0b; border-color:rgba(245,158,11,0.28);" title="Personal Training payment pending at front desk">
+                                <span>PT Unpaid<?= !empty($member['pt_pay_amount']) ? ' • ₱' . number_format((float)$member['pt_pay_amount'], 0) : '' ?></span>
+                            </span>
+                        <?php endif; ?>
+                        <?php if (($member['pt_pay_type'] ?? '') === 'pt_package' && $ptSessPurchased > 1): ?>
+                            <span class="tm-badge-activity" title="Remaining sessions in PT package">
+                                <span><?= $ptSessRemaining ?>/<?= $ptSessPurchased ?> sessions left</span>
                             </span>
                         <?php endif; ?>
                         <?php if ($activityTitle): ?>
@@ -586,15 +632,19 @@ function trainer_members_page(): void
                                 <input type="hidden" name="action" value="complete_session">
                                 <input type="hidden" name="assignment_id" value="<?= (int)$member['assignment_id'] ?>">
                             </form>
-                            <?php if ($isFutureSession): ?>
+                            <?php
+                                $isMultiSessionRemaining = (($member['pt_pay_type'] ?? '') === 'pt_package' && (int)($member['sessions_remaining'] ?? 0) > 1);
+                                $remCount = (int)($member['sessions_remaining'] ?? 0);
+                            ?>
+                            <?php if ($isFutureSession && !$isMultiSessionRemaining): ?>
                                 <button type="button" class="tm-btn-tool" style="padding: 0 12px; opacity: 0.55; cursor: not-allowed; background: rgba(255,255,255,0.03);" disabled title="Session is scheduled for <?= date('M j, Y g:i A', $assignedTs) ?>. Cannot complete before it occurs.">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                     <span>Upcoming</span>
                                 </button>
                             <?php else: ?>
-                                <button type="button" class="tm-btn-tool" style="padding: 0 12px; <?= $isEarlyRange ? 'color: #f59e0b !important;' : '' ?>" onclick="confirmCompleteSession(<?= (int)$member['assignment_id'] ?>, <?= htmlspecialchars(json_encode($name), ENT_QUOTES, 'UTF-8') ?>, <?= $isEarlyRange ? 'true' : 'false' ?>, <?= htmlspecialchars(json_encode($endDateFormatted), ENT_QUOTES, 'UTF-8') ?>)" title="<?= $isEarlyRange ? 'Coaching duration not finished yet - click to end early' : 'Mark this coaching session as completed' ?>">
+                                <button type="button" class="tm-btn-tool" style="padding: 0 12px; <?= (!$isMultiSessionRemaining && $isEarlyRange) ? 'color: #f59e0b !important;' : '' ?>" onclick="confirmCompleteSession(<?= (int)$member['assignment_id'] ?>, <?= htmlspecialchars(json_encode($name), ENT_QUOTES, 'UTF-8') ?>, <?= (!$isMultiSessionRemaining && $isEarlyRange) ? 'true' : 'false' ?>, <?= htmlspecialchars(json_encode($endDateFormatted), ENT_QUOTES, 'UTF-8') ?>, <?= $isMultiSessionRemaining ? $remCount : 0 ?>)" title="<?= $isMultiSessionRemaining ? 'Deduct 1 session from this PT package (' . $remCount . ' remaining)' : ($isEarlyRange ? 'Coaching duration not finished yet - click to end early' : 'Mark this coaching session as completed') ?>">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                                    <span>Complete</span>
+                                    <span><?= $isMultiSessionRemaining ? 'Log Session (' . $remCount . ')' : 'Complete' ?></span>
                                 </button>
                             <?php endif; ?>
                         <?php endif; ?>
@@ -672,38 +722,31 @@ function trainer_members_page(): void
         csrfToken: <?= json_encode(csrf_token()) ?>
     };
 
-    function editMySessionRate(currentRate) {
-        Swal.fire({
-            title: 'My Per-Session Rate',
-            html: `
-                <div style="text-align:left; margin-top:8px;">
-                    <p style="font-size:13px; color:var(--muted); margin-bottom:14px; line-height:1.45;">
-                        Set your fee for members whose plans exclude personal training (such as Monthly plans or non-member bookings). This amount will be displayed directly to members when booking an appointment.
-                    </p>
-                    <form id="rateForm" method="post">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="action" value="update_session_rate">
-                        <label style="font-size:12.5px; font-weight:700; color:var(--ink); display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Session Fee (PHP):</label>
-                        <div style="position:relative;">
-                            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-weight:700; color:var(--lime);">₱</span>
-                            <input type="number" step="0.01" min="0" name="session_rate" id="swal_session_rate" class="form-control" value="${parseFloat(currentRate || 0).toFixed(2)}" style="padding-left:28px; width:100%; box-sizing:border-box; font-size:15px; font-weight:600;" required>
-                        </div>
-                        <small style="display:block; margin-top:6px; color:var(--muted); font-size:11.5px;">Set to 0.00 if your appointments are complimentary / included.</small>
-                    </form>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Save Rate',
-            confirmButtonColor: 'var(--lime-dark)',
-            preConfirm: () => {
-                const form = document.getElementById('rateForm');
-                if (form) form.submit();
-            }
-        });
-    }
-
-    function confirmCompleteSession(assignmentId, clientName, isEarly = false, endDateStr = '') {
-        if (isEarly && endDateStr) {
+    function confirmCompleteSession(assignmentId, clientName, isEarly = false, endDateStr = '', packSessionsRemaining = 0) {
+        if (packSessionsRemaining > 1) {
+            const after = packSessionsRemaining - 1;
+            Swal.fire({
+                title: 'Log Completed PT Session?',
+                html: `
+                    <div style="text-align: left; font-size: 13.5px; line-height: 1.5; color: var(--ink);">
+                        Mark 1 PT package session as completed for <strong style="color: var(--lime);">${clientName}</strong>?
+                        <br><br>
+                        Remaining sessions will update from <strong>${packSessionsRemaining}</strong> to <strong>${after}</strong>, and the client will remain active.
+                    </div>
+                `,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Log Session',
+                confirmButtonColor: 'var(--lime-dark)',
+                cancelButtonColor: 'var(--line)',
+                background: 'var(--bg)',
+                color: 'var(--ink)'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    document.getElementById('complete-form-' + assignmentId).submit();
+                }
+            });
+        } else if (isEarly && endDateStr) {
             Swal.fire({
                 title: 'End Coaching Early?',
                 html: `

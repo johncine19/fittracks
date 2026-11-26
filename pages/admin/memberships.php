@@ -154,11 +154,7 @@ function memberships_page(): void
             // Also update payment status if it exists and status is active
             if ($status === 'active') {
                 $todayDate = date('Y-m-d');
-                $pendingPayRows = db()->query('SELECT payment_id, amount FROM payments WHERE membership_id = ' . $membershipId . ' AND status = "pending"')->fetchAll();
                 db()->prepare('UPDATE payments SET status = "paid", payment_date = COALESCE(payment_date, ?) WHERE membership_id = ? AND status = "pending"')->execute([$todayDate, $membershipId]);
-                foreach ($pendingPayRows as $ppRow) {
-                    process_trainer_commission((int)$ppRow['payment_id'], (float)$ppRow['amount']);
-                }
 
                 if ($mInfo && !$isEndDatePast) {
                     // Cancel older active plans for this member at THIS gym only (supports concurrent plans at different gyms)
@@ -271,10 +267,7 @@ function memberships_page(): void
                 db()->prepare('INSERT IGNORE INTO gym_members (gym_id, user_id) VALUES (?, ?)')->execute([$gymId, $memberUserId]);
             }
 
-            // 3. Process trainer commission
-            process_trainer_commission($paymentId, $amount);
-
-            // 4. Notifications & Email
+            // 3. Notifications & Email (Trainer commissions are tracked separately via pt_payments)
             notify_user(
                 $memberUserId,
                 'system',
@@ -408,8 +401,6 @@ function memberships_page(): void
 
                 // Clear any other duplicate pending payments for this membership
                 db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
-
-                process_trainer_commission($paymentId, $amount);
             }
 
             $paymentInfo = query_all(
@@ -520,7 +511,6 @@ function memberships_page(): void
         );
 
         if ($paymentStatus === 'paid') {
-            process_trainer_commission($paymentId, (float) $finalPrice);
             notify_user(
                 $memberUserId,
                 'system',
@@ -680,10 +670,6 @@ function memberships_page(): void
             db()->prepare('INSERT INTO payments (membership_id, amount, payment_date, payment_method, status, receipt_number) VALUES (?, ?, ?, ?, ?, ?)')
                 ->execute([$membershipId, $finalPrice, $start->format('Y-m-d'), $paymentMethod, $paymentStatus, $receipt]);
             $paymentId = (int) db()->lastInsertId();
-
-            if ($paymentStatus === 'paid') {
-                process_trainer_commission($paymentId, (float) $finalPrice);
-            }
 
             $planGymId = (int) ($plan['gym_id'] ?? 0);
             $ownerUserId = (int) scalar('SELECT owner_user_id FROM gyms WHERE gym_id = ?', [$planGymId]);

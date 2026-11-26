@@ -355,34 +355,33 @@ function diet_builder_page(): void
                     $pct = $dist[$mType];
                     $options = $foodsByType[$mType];
                     $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
-                    $portionGrams = max(50, (int) round($mCals / 1.5));
                     
                     if ($selectedFood) {
-                        $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
-                        $scale = $mCals / $baseCals;
-                        
-                        $mP = (float) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale, 1);
-                        $mC = (float) round((float)($selectedFood['carbs_g'] ?: ($c_g * $pct)) * $scale, 1);
-                        $mF = (float) round((float)($selectedFood['fat_g'] ?: ($f_g * $pct)) * $scale, 1);
-                        $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                        $scaled = scale_food_item_for_target($selectedFood, (float) $mCals);
+                        $actualCals = (int) $scaled['calories'];
+                        $mP = (float) $scaled['protein_g'];
+                        $mC = (float) $scaled['carbs_g'];
+                        $mF = (float) $scaled['fat_g'];
+                        $mFood = $scaled['food_items'];
                         $mImg = !empty($selectedFood['image_url']) 
                             ? $selectedFood['image_url'] 
                             : (function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($selectedFood['name'], $mType) : null);
-                        $servings = round($scale, 2);
+                        $servings = (float) $scaled['servings'];
                         $foodId = (int)$selectedFood['food_id'];
                         $foodName = (string)$selectedFood['name'];
                     } else {
+                        $actualCals = (int) $mCals;
                         $mP = (float) round($p_g * $pct, 1);
                         $mC = (float) round($c_g * $pct, 1);
                         $mF = (float) round($f_g * $pct, 1);
-                        $mFood = $portionGrams . "g of Healthy " . $mType;
+                        $mFood = '1 serving of Balanced ' . $mType;
                         $mImg = function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($mFood, $mType) : null;
                         $servings = 1.00;
                         $foodId = null;
                         $foodName = $mFood;
                     }
                     
-                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, (int) round($mP), (int) round($mC), (int) round($mF)]);
+                    $stmt->execute([$planId, $d, $mType, $mFood, $mImg, $actualCals, (int) round($mP), (int) round($mC), (int) round($mF)]);
                     $newMealId = (int)$pdo->lastInsertId();
                     if ($newMealId > 0) {
                         try {
@@ -392,7 +391,7 @@ function diet_builder_page(): void
                                 $foodId,
                                 $foodName,
                                 $servings,
-                                $mCals,
+                                $actualCals,
                                 $mP,
                                 $mC,
                                 $mF

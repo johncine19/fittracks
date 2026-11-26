@@ -57,10 +57,14 @@ function _get_secondary_focus_targets(?string $secFocus): array
             if (str_contains($sec, 'abs') || str_contains($sec, 'core')) {
                 $targetMuscles[] = 'abdominals';
                 $targetMuscles[] = 'obliques';
+                $targetMuscles[] = 'core';
                 $targetCategories[] = 'core';
             }
             if (str_contains($sec, 'arm') || str_contains($sec, 'bicep') || str_contains($sec, 'tricep')) {
                 $targetMuscles[] = 'arms';
+                $targetMuscles[] = 'biceps';
+                $targetMuscles[] = 'triceps';
+                $targetMuscles[] = 'forearms';
             }
             if (str_contains($sec, 'chest') || str_contains($sec, 'upper')) {
                 $targetMuscles[] = 'chest';
@@ -68,9 +72,16 @@ function _get_secondary_focus_targets(?string $secFocus): array
             }
             if (str_contains($sec, 'back') || str_contains($sec, 'lat')) {
                 $targetMuscles[] = 'back';
+                $targetMuscles[] = 'lats';
+                $targetMuscles[] = 'middle back';
+                $targetMuscles[] = 'lower back';
             }
             if (str_contains($sec, 'glute') || str_contains($sec, 'leg') || str_contains($sec, 'lower')) {
                 $targetMuscles[] = 'legs';
+                $targetMuscles[] = 'quadriceps';
+                $targetMuscles[] = 'hamstrings';
+                $targetMuscles[] = 'glutes';
+                $targetMuscles[] = 'calves';
                 $targetMuscles[] = 'posterior chain';
             }
             if (str_contains($sec, 'cardio') || str_contains($sec, 'stamina')) {
@@ -157,9 +168,8 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
 {
     $secFocus = trim((string)($profile['secondary_focus'] ?? ''));
     if ($secFocus !== '') {
-        // Prioritize exercises matching secondary_focus first (balanced across muscle groups), then fill remaining slots
+        // Balance Primary Goal (compounds/cardio first) with Secondary Focus (capped at ~50% of slots)
         [$targetMuscles, $targetCategories] = _get_secondary_focus_targets($secFocus);
-        $assigned = [];
         $secExercises = [];
         $generalExercises = [];
         
@@ -175,38 +185,46 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
 
         $secByGroup = [];
         foreach ($secExercises as $sx) {
-            $grpKey = $sx['muscle_group'] ?? 'general';
+            $grpKey = normalize_muscle_group_key((string)($sx['muscle_group'] ?? 'general'));
             $secByGroup[$grpKey][] = $sx;
         }
 
-        // Round-robin across focus muscle groups so multi-focus plans (e.g. Legs & Chest) get
-        // balanced coverage and up to 2-3 focus exercises before filling with general movements.
+        $secTarget = !empty($generalExercises)
+            ? max(1, (int) floor($targetCount * 0.5))
+            : $targetCount;
+
+        $secAssigned = [];
         $maxPerGroup = count($secByGroup) > 1 ? 2 : 3;
         $groupPools = [];
         foreach ($secByGroup as $grp => $grpExs) {
             $groupPools[$grp] = _pick_varied_top_exercises($grpExs, $maxPerGroup);
         }
 
-        for ($round = 0; $round < $maxPerGroup && count($assigned) < $targetCount; $round++) {
+        for ($round = 0; $round < $maxPerGroup && count($secAssigned) < $secTarget; $round++) {
             foreach ($groupPools as $pool) {
-                if (count($assigned) >= $targetCount) break;
+                if (count($secAssigned) >= $secTarget) break;
                 if (isset($pool[$round])) {
-                    $assigned[] = $pool[$round];
+                    $secAssigned[] = $pool[$round];
                 }
             }
         }
 
-        $remaining = $targetCount - count($assigned);
+        $primaryAssigned = [];
+        $remaining = $targetCount - count($secAssigned);
         if ($remaining > 0 && !empty($generalExercises)) {
             $generalPool = _pick_varied_top_exercises($generalExercises, $remaining + 2);
+            $usedIds = array_column($secAssigned, 'exercise_id');
             foreach ($generalPool as $gx) {
-                if (count($assigned) >= $targetCount) break;
-                if (!in_array($gx['exercise_id'], array_column($assigned, 'exercise_id'))) {
-                    $assigned[] = $gx;
+                if (count($primaryAssigned) >= $remaining) break;
+                if (!in_array($gx['exercise_id'], $usedIds, true)) {
+                    $primaryAssigned[] = $gx;
+                    $usedIds[] = $gx['exercise_id'];
                 }
             }
         }
 
+        // Order primary-goal compound/cardio movements first, followed by secondary-focus isolation/core work (ACSM/NSCA order)
+        $assigned = array_merge($primaryAssigned, $secAssigned);
         if (!empty($assigned)) {
             return $assigned;
         }
@@ -214,6 +232,70 @@ function _select_daily_exercises(array $dayExercises, array $profile, string $go
 
     // Default flow: take varied picks from the top-scored $targetCount exercises
     return _pick_varied_top_exercises($dayExercises, min(count($dayExercises), $targetCount));
+}
+
+/**
+ * Checks whether an exercise's required equipment is available for the member:
+ *  - Bodyweight / None / Outdoor exercises are always available.
+ *  - No gym selected ($memberGymId <= 0): restricts to Bodyweight / Home-Friendly exercises.
+ *  - Gym selected with logged `gym_equipment`: requires matching `available` or `in_use` equipment.
+ */
+function _is_exercise_available_for_member(array $ex, int $memberGymId, array $gymEquipItems, bool $hasGymInventory): bool
+{
+    $equipRaw = strtolower(trim((string) ($ex['equipment'] ?? '')));
+    if (
+        $equipRaw === ''
+        || str_contains($equipRaw, 'bodyweight')
+        || str_contains($equipRaw, 'none')
+    ) {
+        return true;
+    }
+
+    if ($memberGymId <= 0) {
+        return false;
+    }
+
+    if (!$hasGymInventory) {
+        // Gym hasn't logged equipment yet: allow standard catalog, skip extreme strongman specialty implements
+        return strtolower(trim((string) ($ex['category'] ?? ''))) !== 'strongman';
+    }
+
+    // Split multi-option equipment strings like "Barbell / Dumbbells" or "Dumbbells, Bench"
+    $parts = preg_split('/[\/,]+/', $equipRaw) ?: [$equipRaw];
+    foreach ($parts as $part) {
+        $req = trim($part);
+        if ($req === '') continue;
+
+        foreach ($gymEquipItems as $ge) {
+            $gName = strtolower((string) ($ge['name'] ?? ''));
+            $gCat  = strtolower((string) ($ge['category'] ?? ''));
+
+            if ($gName !== '' && (str_contains($gName, $req) || str_contains($req, $gName))) {
+                return true;
+            }
+            // Free weights / rack / bench equivalents
+            if (str_contains($req, 'dumbbell') && (str_contains($gName, 'dumbbell') || $gCat === 'free weights')) {
+                return true;
+            }
+            if (str_contains($req, 'barbell') && (str_contains($gName, 'barbell') || str_contains($gName, 'squat rack') || str_contains($gName, 'bench press') || $gCat === 'free weights')) {
+                return true;
+            }
+            if (str_contains($req, 'bench') && (str_contains($gName, 'bench') || $gCat === 'free weights')) {
+                return true;
+            }
+            if (str_contains($req, 'cable') && str_contains($gName, 'cable')) {
+                return true;
+            }
+            if ((str_contains($req, 'pull-up') || str_contains($req, 'pull up')) && (str_contains($gName, 'pull-up') || str_contains($gName, 'pullup') || str_contains($gName, 'squat rack') || str_contains($gName, 'lat pulldown'))) {
+                return true;
+            }
+            if (str_contains($req, 'bike') && (str_contains($gName, 'bike') || str_contains($gName, 'cycle'))) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -229,14 +311,48 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
     $memberGymId = (int) $pdo->query('SELECT gym_id FROM gym_members WHERE user_id = ' . (int)($profile['user_id'] ?? 0))->fetchColumn();
 
     // 2. Filter exercises by difficulty_level <= experience_level AND gym_id (including universal catalog gym_id = 0)
-    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE difficulty_level <= ? AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)');
-    $stmt->execute([$expLevel, $memberGymId]);
+    //    Order gym-owned rows before global (gym_id = 0) so deduplicating by name prefers the gym's custom version.
+    $stmt = $pdo->prepare('SELECT * FROM exercises WHERE difficulty_level <= ? AND (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) ORDER BY (gym_id = ?) DESC, exercise_id ASC');
+    $stmt->execute([$expLevel, $memberGymId, $memberGymId]);
     $exercises = $stmt->fetchAll();
     
     if (!$exercises) {
-        $stmt = $pdo->prepare('SELECT * FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL)');
-        $stmt->execute([$memberGymId]);
+        $stmt = $pdo->prepare('SELECT * FROM exercises WHERE (gym_id = ? OR gym_id = 0 OR gym_id IS NULL) ORDER BY (gym_id = ?) DESC, exercise_id ASC');
+        $stmt->execute([$memberGymId, $memberGymId]);
         $exercises = $stmt->fetchAll();
+    }
+
+    // Deduplicate by lowercase exercise name so gym-specific + global rows never appear twice
+    $seenExNames = [];
+    $dedupedExercises = [];
+    foreach ($exercises as $exRow) {
+        $exKey = strtolower(trim((string) ($exRow['name'] ?? '')));
+        if ($exKey === '' || isset($seenExNames[$exKey])) {
+            continue;
+        }
+        $seenExNames[$exKey] = true;
+        $dedupedExercises[] = $exRow;
+    }
+    $exercises = $dedupedExercises;
+
+    // 2b. Equipment-aware filtering:
+    //     - Member has a gym with `gym_equipment` rows -> match available/in_use equipment + bodyweight
+    //     - Member has no gym ($memberGymId <= 0) -> Home / Bodyweight-only exercises
+    $gymEquipItems = [];
+    $hasGymInventory = false;
+    if ($memberGymId > 0) {
+        $eqStmt = $pdo->prepare("SELECT name, category FROM gym_equipment WHERE gym_id = ? AND status IN ('available', 'in_use')");
+        $eqStmt->execute([$memberGymId]);
+        $gymEquipItems = $eqStmt->fetchAll(PDO::FETCH_ASSOC);
+        $hasGymInventory = !empty($gymEquipItems);
+    }
+
+    $equipFiltered = array_values(array_filter(
+        $exercises,
+        static fn(array $ex): bool => _is_exercise_available_for_member($ex, $memberGymId, $gymEquipItems, $hasGymInventory)
+    ));
+    if (count($equipFiltered) >= 4) {
+        $exercises = $equipFiltered;
     }
 
     // 3. Score & sort exercises by secondary_focus (muscle_group +10, name +8, category +6),
@@ -295,7 +411,7 @@ function _get_workout_parameters(array $profile, PDO $pdo): array
  */
 function _assign_exercise_details(string $goal, int $expLevel, array $ex, int $age = 25): array
 {
-    $cat = $ex['category'] ?? 'strength';
+    $cat = strtolower(trim((string)($ex['category'] ?? 'strength')));
     $customDesc = !empty($ex['description']) ? trim((string)$ex['description']) : null;
     
     if ($cat === 'cardio') {

@@ -229,7 +229,12 @@ function render_header(string $title, ?array $user = null): void
             // Register Service Worker for PWA & Offline Support
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js').catch(err => {
+                    const swUrl = 'sw.js?v=<?= file_exists(__DIR__ . '/../sw.js') ? filemtime(__DIR__ . '/../sw.js') : 1 ?>';
+                    navigator.serviceWorker.register(swUrl).then(reg => {
+                        if (reg && typeof reg.update === 'function') {
+                            reg.update().catch(() => {});
+                        }
+                    }).catch(err => {
                         console.warn('[PWA] Service Worker registration failed:', err);
                     });
                 });

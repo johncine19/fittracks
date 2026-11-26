@@ -15,40 +15,95 @@ function trainers_page(): void
     $currentGym = get_user_gym($user);
     $gymId = $currentGym ? (int) $currentGym['gym_id'] : 0;
     
-    $hasActivePlan = (bool) scalar("SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? " . ($gymId > 0 ? " AND mp.gym_id = ?" : "") . " AND m.status = 'active' AND m.end_date >= CURDATE()", $gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
-    $hasTrainerCoverage = (bool) scalar("SELECT 1 FROM memberships m JOIN membership_plans mp ON mp.plan_id = m.plan_id WHERE m.user_id = ? " . ($gymId > 0 ? " AND mp.gym_id = ?" : "") . " AND m.status = 'active' AND m.end_date >= CURDATE() AND mp.allow_trainer_commission = 1", $gymId > 0 ? [$user['user_id'], $gymId] : [$user['user_id']]);
+    $ptPackages = $gymId > 0
+        ? query_all(
+            'SELECT package_id, trainer_id, package_name, package_type, session_count, duration_days, price, description
+             FROM trainer_packages
+             WHERE gym_id = ? AND is_active = 1
+             ORDER BY price ASC, package_id ASC',
+            [$gymId]
+        )
+        : [];
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && post('action') === 'request_appointment') {
         $trainerId = (int) post('trainer_id');
-        
-        $assignedDate = date('Y-m-d H:i:s');
-        $endedDate = null;
-        if (!$hasTrainerCoverage) {
-            $aptType = post('appointment_type') === 'range' ? 'range' : 'single';
-            $reqDate = post('appointment_date');
-            if (!$reqDate) {
-                flash('Please select an appointment date and time.', 'danger');
+        $trainerRow = query_all(
+            'SELECT trainer_id, user_id, session_rate FROM trainer_profiles WHERE trainer_id = ? AND gym_id = ? LIMIT 1',
+            [$trainerId, $gymId]
+        )[0] ?? null;
+
+        if (!$trainerRow) {
+            flash('Selected trainer was not found for this gym.', 'danger');
+            redirect('trainers');
+        }
+
+        $aptType = post('appointment_type', 'single');
+        if (!in_array($aptType, ['single', 'range', 'package'], true)) {
+            $aptType = 'single';
+        }
+        $packageId = (int) post('package_id', 0);
+        $selectedPkg = null;
+
+        if ($aptType === 'package' || $packageId > 0) {
+            $selectedPkg = query_all(
+                'SELECT * FROM trainer_packages WHERE package_id = ? AND gym_id = ? AND is_active = 1 AND (trainer_id IS NULL OR trainer_id = ?) LIMIT 1',
+                [$packageId, $gymId, $trainerId]
+            )[0] ?? null;
+            if (!$selectedPkg) {
+                flash('Please select a valid Personal Training package.', 'danger');
                 redirect('trainers');
             }
-            $assignedDate = date('Y-m-d H:i:s', strtotime($reqDate));
+            $aptType = 'package';
+        }
 
-            if ($aptType === 'range') {
-                $reqEndDate = post('appointment_end_date');
-                if (!$reqEndDate) {
-                    $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate));
-                } else {
-                    $startTime = strtotime($reqDate);
-                    $endTime = strtotime($reqEndDate);
-                    if ($endTime < strtotime(date('Y-m-d', $startTime))) {
-                        flash('End date cannot be earlier than start date.', 'danger');
-                        redirect('trainers');
-                    }
-                    $endedDate = date('Y-m-d 23:59:59', $endTime);
-                }
-            } else {
-                // Specific Day Only: session automatically ends at 23:59:59 of that day
-                $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate));
+        $reqDate = post('appointment_date');
+        if (!$reqDate) {
+            flash('Please select an appointment date and time.', 'danger');
+            redirect('trainers');
+        }
+        $assignedDate = date('Y-m-d H:i:s', strtotime($reqDate));
+        $endedDate = null;
+
+        if ($selectedPkg) {
+            $durationDays = (int) ($selectedPkg['duration_days'] ?? 0);
+            if ($durationDays > 0) {
+                $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate . ' +' . $durationDays . ' days'));
             }
+            $fee = max(0.0, (float) $selectedPkg['price']);
+            $paymentType = 'pt_package';
+            $sessionsPurchased = $selectedPkg['package_type'] === 'monthly_coaching'
+                ? max(1, (int) ($selectedPkg['session_count'] ?: 30))
+                : max(1, (int) ($selectedPkg['session_count'] ?: 1));
+            $activityTitle = (string) $selectedPkg['package_name'];
+            $paymentNotes = 'PT Package: ' . $selectedPkg['package_name'];
+        } elseif ($aptType === 'range') {
+            $reqEndDate = post('appointment_end_date');
+            if (!$reqEndDate) {
+                $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate));
+            } else {
+                $startTime = strtotime($reqDate);
+                $endTime = strtotime($reqEndDate);
+                if ($endTime < strtotime(date('Y-m-d', $startTime))) {
+                    flash('End date cannot be earlier than start date.', 'danger');
+                    redirect('trainers');
+                }
+                $endedDate = date('Y-m-d 23:59:59', $endTime);
+            }
+            $fee = max(0.0, (float) ($trainerRow['session_rate'] ?? 0));
+            $paymentType = 'pt_session';
+            $sessionsPurchased = 1;
+            $activityTitle = null;
+            $paymentNotes = 'Per-session PT appointment (Date Range)';
+            $packageId = 0;
+        } else {
+            // Specific Day Only: session automatically ends at 23:59:59 of that day
+            $endedDate = date('Y-m-d 23:59:59', strtotime($reqDate));
+            $fee = max(0.0, (float) ($trainerRow['session_rate'] ?? 0));
+            $paymentType = 'pt_session';
+            $sessionsPurchased = 1;
+            $activityTitle = null;
+            $paymentNotes = 'Per-session PT appointment';
+            $packageId = 0;
         }
         
         // Check if there is already an active or pending assignment for this facility
@@ -64,20 +119,63 @@ function trainers_page(): void
             flash('You already have an active or pending trainer appointment for this facility. You must end it before requesting a new one.', 'danger');
         } else {
             $assignmentGroupId = bin2hex(random_bytes(16));
-            db()->prepare('INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, assigned_date, ended_date, status) VALUES (?, ?, ?, ?, ?, "pending_trainer")')->execute([$assignmentGroupId, $trainerId, $user['user_id'], $assignedDate, $endedDate]);
+            $paymentStatus = $fee > 0 ? 'unpaid' : 'complimentary';
+            db()->prepare(
+                'INSERT INTO trainer_assignments (group_id, trainer_id, member_user_id, package_id, payment_status, activity_title, assigned_date, ended_date, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, "pending_trainer")'
+            )->execute([
+                $assignmentGroupId,
+                $trainerId,
+                $user['user_id'],
+                $packageId > 0 ? $packageId : null,
+                $paymentStatus,
+                $activityTitle,
+                $assignedDate,
+                $endedDate,
+            ]);
+            $newAssignmentId = (int) db()->lastInsertId();
+
+            if ($fee > 0) {
+                $receiptNum = 'PT-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+                db()->prepare(
+                    'INSERT INTO pt_payments (gym_id, member_user_id, trainer_id, assignment_id, package_id, payment_type, sessions_purchased, sessions_remaining, amount, payment_date, payment_method, status, receipt_number, notes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), "cash", "pending", ?, ?)'
+                )->execute([
+                    $gymId,
+                    $user['user_id'],
+                    $trainerId,
+                    $newAssignmentId,
+                    $packageId > 0 ? $packageId : null,
+                    $paymentType,
+                    $sessionsPurchased,
+                    $sessionsPurchased,
+                    $fee,
+                    $receiptNum,
+                    $paymentNotes,
+                ]);
+                $ptPaymentId = (int) db()->lastInsertId();
+                db()->prepare('UPDATE trainer_assignments SET pt_payment_id = ? WHERE assignment_id = ?')
+                    ->execute([$ptPaymentId, $newAssignmentId]);
+            }
             
             // Notify the specific trainer
-            $trainerUserId = scalar('SELECT user_id FROM trainer_profiles WHERE trainer_id = ?', [$trainerId]);
-            if ($trainerUserId) {
-                if ($endedDate && date('Y-m-d', strtotime($assignedDate)) !== date('Y-m-d', strtotime($endedDate))) {
+            $trainerUserId = (int) ($trainerRow['user_id'] ?? 0);
+            if ($trainerUserId > 0) {
+                if ($selectedPkg) {
+                    $dateStr = date('M j, Y g:i A', strtotime($assignedDate)) . ' (' . $selectedPkg['package_name'] . ' — ₱' . number_format($fee, 2) . ')';
+                } elseif ($endedDate && date('Y-m-d', strtotime($assignedDate)) !== date('Y-m-d', strtotime($endedDate))) {
                     $dateStr = date('M j, Y g:i A', strtotime($assignedDate)) . ' to ' . date('M j, Y', strtotime($endedDate));
                 } else {
                     $dateStr = date('M j, Y g:i A', strtotime($assignedDate)) . ' (Single Day Session)';
                 }
-                notify_user((int) $trainerUserId, 'system', 'New Appointment Request', $user['first_name'] . ' ' . $user['last_name'] . ' has requested an appointment with you for ' . $dateStr . '.');
+                notify_user($trainerUserId, 'system', 'New Appointment Request', $user['first_name'] . ' ' . $user['last_name'] . ' has requested a PT booking with you starting ' . $dateStr . '.');
             }
             
-            flash('Your appointment request has been sent directly to the trainer for approval.');
+            if ($fee > 0) {
+                flash('Your PT booking request has been sent to the trainer. Please settle ₱' . number_format($fee, 2) . ' at the front desk to confirm payment.');
+            } else {
+                flash('Your appointment request has been sent directly to the trainer for approval.');
+            }
         }
         redirect('trainers');
     }
@@ -90,12 +188,20 @@ function trainers_page(): void
                u.last_name AS coach_ln, 
                u.profile_picture AS coach_picture,
                tp.specialization,
+               pkg.package_name AS pt_package_name,
+               ptp.status AS pt_pay_status,
+               ptp.amount AS pt_pay_amount,
+               ptp.payment_type AS pt_pay_type,
+               ptp.sessions_purchased,
+               ptp.sessions_remaining,
                (CASE WHEN ca.group_id IS NOT NULL AND ca.group_id != '' 
                      THEN (SELECT COUNT(*) FROM trainer_assignments WHERE group_id = ca.group_id AND status = 'active') 
                      ELSE 1 END) AS group_members_count
         FROM trainer_assignments ca
         JOIN trainer_profiles tp ON tp.trainer_id = ca.trainer_id
         JOIN users u ON u.user_id = tp.user_id
+        LEFT JOIN trainer_packages pkg ON pkg.package_id = ca.package_id
+        LEFT JOIN pt_payments ptp ON ptp.pt_payment_id = ca.pt_payment_id
         WHERE ca.member_user_id = ? " . ($gymId > 0 ? " AND tp.gym_id = ?" : "") . " 
           AND ca.status IN ('active', 'pending_admin', 'pending_trainer')
         ORDER BY ca.assigned_date DESC
@@ -289,6 +395,17 @@ function trainers_page(): void
                                                 <span>Group (<?= (int)$assign['group_members_count'] ?>)</span>
                                             </span>
                                         <?php endif; ?>
+                                        <?php
+                                            $assignPayStatus = (string) ($assign['pt_pay_status'] ?: ($assign['payment_status'] ?? ''));
+                                            if ($assignPayStatus === 'paid'):
+                                        ?>
+                                            <span class="badge" style="background:rgba(34,197,94,0.12); color:#22c55e; border:1px solid rgba(34,197,94,0.28); font-size:11px; padding:2px 8px; border-radius:12px;">PT Paid</span>
+                                        <?php elseif ($assignPayStatus === 'pending' || $assignPayStatus === 'unpaid'): ?>
+                                            <span class="badge" style="background:rgba(245,158,11,0.12); color:#f59e0b; border:1px solid rgba(245,158,11,0.28); font-size:11px; padding:2px 8px; border-radius:12px;">PT Unpaid<?= !empty($assign['pt_pay_amount']) ? ' • ₱' . number_format((float)$assign['pt_pay_amount'], 0) : '' ?></span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($assign['pt_pay_type']) && $assign['pt_pay_type'] === 'pt_package' && (int)($assign['sessions_purchased'] ?? 0) > 1): ?>
+                                            <span class="badge badge-group"><?= (int)($assign['sessions_remaining'] ?? 0) ?>/<?= (int)$assign['sessions_purchased'] ?> sessions left</span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                                 <?php
@@ -318,7 +435,11 @@ function trainers_page(): void
         <?php endif; ?>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 20px; margin-top: 20px;">
-            <?php foreach ($trainers as $trainer): ?>
+            <?php foreach ($trainers as $trainer):
+                $trainerPkgs = array_values(array_filter($ptPackages, static function (array $pkg) use ($trainer): bool {
+                    return $pkg['trainer_id'] === null || (int) $pkg['trainer_id'] === (int) $trainer['trainer_id'];
+                }));
+            ?>
                 <div class="card" style="padding: 20px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; text-align: center; position: relative;">
                     <?php if ($trainer['is_present']): ?>
                         <div style="position: absolute; top: 12px; right: 12px; background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); padding: 4px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px;" title="Trainer is currently checked in at the gym">
@@ -333,11 +454,37 @@ function trainers_page(): void
                         <?php if ((float)($trainer['session_rate'] ?? 0) > 0): ?>
                             <span>₱<?= number_format((float)$trainer['session_rate'], 2) ?></span> <span style="font-weight: 400; font-size: 11px; opacity: 0.85;">/ session</span>
                         <?php else: ?>
-                            <span>Complimentary / Included</span>
+                            <span>Complimentary</span>
                         <?php endif; ?>
                     </div>
 
-                    <p style="color: var(--muted); font-size: 14px; flex-grow: 1; margin-bottom: 20px;"><?= h($trainer['bio'] ?? 'No bio available.') ?></p>
+                    <p style="color: var(--muted); font-size: 14px; flex-grow: 1; margin-bottom: <?= $trainerPkgs ? '14px' : '20px' ?>;"><?= h($trainer['bio'] ?? 'No bio available.') ?></p>
+
+                    <?php if ($trainerPkgs): ?>
+                        <div style="width: 100%; text-align: left; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; box-sizing: border-box;">
+                            <div style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px;">
+                                PT Packages (<?= count($trainerPkgs) ?>)
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <?php foreach (array_slice($trainerPkgs, 0, 2) as $pkg):
+                                    $pkgMeta = $pkg['package_type'] === 'monthly_coaching'
+                                        ? ((int)($pkg['duration_days'] ?: 30) . 'd Monthly')
+                                        : ((int)($pkg['session_count'] ?: 1) . ' Sessions');
+                                ?>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px;">
+                                        <span style="color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            <?= h($pkg['package_name']) ?>
+                                            <span style="font-weight: 400; color: var(--muted); font-size: 11.5px;">· <?= h($pkgMeta) ?></span>
+                                        </span>
+                                        <strong style="color: var(--lime); white-space: nowrap;">₱<?= number_format((float)$pkg['price'], 2) ?></strong>
+                                    </div>
+                                <?php endforeach; ?>
+                                <?php if (count($trainerPkgs) > 2): ?>
+                                    <div style="font-size: 11px; color: var(--muted);">+<?= count($trainerPkgs) - 2 ?> more package<?= (count($trainerPkgs) - 2) === 1 ? '' : 's' ?> inside</div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     
                     <form id="form-trainer-<?= $trainer['trainer_id'] ?>" method="post" style="width: 100%;">
                         <?= csrf_field() ?>
@@ -351,16 +498,13 @@ function trainers_page(): void
                             <?php else: ?>
                                 <button type="button" class="btn" style="width: 100%; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: not-allowed;" disabled>Request Appointment</button>
                             <?php endif; ?>
-                        <?php elseif (!$hasTrainerCoverage): ?>
+                        <?php else: ?>
                             <input type="hidden" name="appointment_type" id="type-<?= $trainer['trainer_id'] ?>" value="single">
+                            <input type="hidden" name="package_id" id="pkg-<?= $trainer['trainer_id'] ?>" value="0">
                             <input type="hidden" name="appointment_date" id="date-<?= $trainer['trainer_id'] ?>" value="">
                             <input type="hidden" name="appointment_end_date" id="end-date-<?= $trainer['trainer_id'] ?>" value="">
-                            <button type="button" onclick="requestTrainerDate(<?= $trainer['trainer_id'] ?>, <?= (float)($trainer['session_rate'] ?? 0) ?>, <?= htmlspecialchars(json_encode($trainer['first_name'] . ' ' . $trainer['last_name'])) ?>)" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
-                            <?php if ($hasActivePlan): ?>
-                                <small style="display:block; margin-top:6px; font-size:11.5px; color:var(--muted);">Plan excludes coaching • Direct payment session</small>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <button type="submit" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Request Appointment</button>
+                            <button type="button" onclick="requestTrainerDate(<?= (int)$trainer['trainer_id'] ?>, <?= (float)($trainer['session_rate'] ?? 0) ?>, <?= htmlspecialchars(json_encode($trainer['first_name'] . ' ' . $trainer['last_name']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($trainerPkgs), ENT_QUOTES, 'UTF-8') ?>)" class="btn" style="width: 100%; background: var(--lime); color: var(--bg); border: none; font-weight: 600;">Book Personal Training</button>
+                            <small style="display:block; margin-top:6px; font-size:11.5px; color:var(--muted);">Billed separately from gym membership</small>
                         <?php endif; ?>
                     </form>
                 </div>
@@ -376,77 +520,135 @@ function trainers_page(): void
 
     <script>
     window.swalAptMode = 'single';
-    window.swalSwitchMode = function(mode) {
-        window.swalAptMode = mode;
-        const tabSingle = document.getElementById('swal-tab-single');
-        const tabRange = document.getElementById('swal-tab-range');
-        const groupSingle = document.getElementById('swal-group-single');
-        const groupRange = document.getElementById('swal-group-range');
-        
-        if (mode === 'single') {
-            tabSingle.style.background = 'var(--lime)';
-            tabSingle.style.color = '#000';
-            tabSingle.style.border = '1px solid var(--lime)';
-            tabRange.style.background = 'transparent';
-            tabRange.style.color = 'var(--muted)';
-            tabRange.style.border = '1px solid transparent';
-            groupSingle.style.display = 'block';
-            groupRange.style.display = 'none';
+    window.swalSessionRate = 0;
+    window.swalTrainerName = 'Trainer';
+    window.swalTrainerPkgs = [];
+
+    window.swalRenderPtNotice = function() {
+        const noticeEl = document.getElementById('swal-pt-notice');
+        if (!noticeEl) return;
+
+        let fee = window.swalSessionRate;
+        let label = 'Per-Session PT Fee';
+        let sub = `Personal training is billed separately from gym membership plans. Please settle this fee at the front desk for <strong>Coach ${window.swalTrainerName}</strong>.`;
+
+        if (window.swalAptMode === 'package') {
+            const sel = document.getElementById('swal-pkg-select');
+            const pkgId = sel ? parseInt(sel.value, 10) : 0;
+            const pkg = window.swalTrainerPkgs.find(p => parseInt(p.package_id, 10) === pkgId);
+            if (pkg) {
+                fee = parseFloat(pkg.price) || 0;
+                const sessionsInfo = pkg.package_type === 'monthly_coaching'
+                    ? (pkg.duration_days ? `${pkg.duration_days} days monthly coaching` : 'Monthly coaching')
+                    : `${pkg.session_count || 1} session(s)`;
+                label = `PT Package: ${pkg.package_name} (${sessionsInfo})`;
+            }
+        }
+
+        if (fee > 0) {
+            noticeEl.innerHTML = `
+                <div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:flex-start;gap:10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div style="font-size:12.5px;color:#f59e0b;line-height:1.45;">
+                        <div style="font-weight:700;margin-bottom:2px;">${label}: ₱${fee.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <span>${sub}</span>
+                    </div>
+                </div>
+            `;
         } else {
-            tabRange.style.background = 'var(--lime)';
-            tabRange.style.color = '#000';
-            tabRange.style.border = '1px solid var(--lime)';
-            tabSingle.style.background = 'transparent';
-            tabSingle.style.color = 'var(--muted)';
-            tabSingle.style.border = '1px solid transparent';
-            groupSingle.style.display = 'none';
-            groupRange.style.display = 'block';
+            noticeEl.innerHTML = `
+                <div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);display:flex;align-items:flex-start;gap:10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    <div style="font-size:12.5px;color:#22c55e;line-height:1.45;">
+                        <div style="font-weight:700;margin-bottom:2px;">Complimentary Session</div>
+                        <span>Coach ${window.swalTrainerName} offers this booking with no additional PT fee.</span>
+                    </div>
+                </div>
+            `;
         }
     };
 
-    function requestTrainerDate(trainerId, sessionRate = 0, trainerName = 'Trainer') {
-        window.swalAptMode = 'single';
+    window.swalSwitchMode = function(mode) {
+        window.swalAptMode = mode;
+        const modes = ['single', 'package', 'range'];
+        modes.forEach((m) => {
+            const tab = document.getElementById('swal-tab-' + m);
+            const grp = document.getElementById('swal-group-' + m);
+            if (tab) {
+                if (m === mode) {
+                    tab.style.background = 'var(--lime)';
+                    tab.style.color = '#000';
+                    tab.style.border = '1px solid var(--lime)';
+                } else {
+                    tab.style.background = 'transparent';
+                    tab.style.color = 'var(--muted)';
+                    tab.style.border = '1px solid transparent';
+                }
+            }
+            if (grp) {
+                grp.style.display = (m === mode) ? 'block' : 'none';
+            }
+        });
+        window.swalRenderPtNotice();
+    };
+
+    function requestTrainerDate(trainerId, sessionRate = 0, trainerName = 'Trainer', packages = []) {
+        window.swalTrainerPkgs = Array.isArray(packages) ? packages : [];
+        window.swalSessionRate = parseFloat(sessionRate) || 0;
+        window.swalTrainerName = trainerName;
+        window.swalAptMode = window.swalTrainerPkgs.length > 0 ? 'package' : 'single';
         const minDateTime = '<?= date('Y-m-d\TH:i') ?>';
         const minDate = '<?= date('Y-m-d') ?>';
-        const isPlanWithoutTrainer = <?= ($hasActivePlan && !$hasTrainerCoverage) ? 'true' : 'false' ?>;
-        const rateFloat = parseFloat(sessionRate) || 0;
+        const hasPkgs = window.swalTrainerPkgs.length > 0;
 
-        const rateNoticeHtml = rateFloat > 0 ? `
-            <div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);display:flex;align-items:flex-start;gap:10px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <div style="font-size:12.5px;color:#f59e0b;line-height:1.45;">
-                    <div style="font-weight:700;margin-bottom:2px;">Direct Session Fee: ₱${rateFloat.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} / session</div>
-                    <span>${isPlanWithoutTrainer ? 'Your current gym plan does not include trainer sessions.' : 'Non-member appointment.'} Please prepare your payment to pay <strong>Coach ${trainerName}</strong> directly at the session.</span>
-                </div>
-            </div>
-        ` : `
-            <div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);display:flex;align-items:flex-start;gap:10px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                <div style="font-size:12.5px;color:#22c55e;line-height:1.45;">
-                    <div style="font-weight:700;margin-bottom:2px;">Complimentary Session</div>
-                    <span>Coach ${trainerName} offers this appointment with no additional direct fee.</span>
-                </div>
-            </div>
-        `;
+        const pkgOptionsHtml = window.swalTrainerPkgs.map((p) => {
+            const pPrice = parseFloat(p.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            const meta = p.package_type === 'monthly_coaching'
+                ? `${p.duration_days || 30}d Monthly`
+                : `${p.session_count || 1} Sessions`;
+            return `<option value="${p.package_id}">${p.package_name} — ${meta} (₱${pPrice})</option>`;
+        }).join('');
 
         const modalHtml = `
             <div style="text-align:left; margin-top:10px;">
-                <label style="font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Session Option</label>
-                <div style="display: flex; gap: 8px; margin-bottom: 16px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; border: 1px solid var(--line);">
-                    <button type="button" id="swal-tab-single" onclick="swalSwitchMode('single')" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--lime); background: var(--lime); color: #000; transition: all 0.2s;">
-                        Specific Day Only
+                <label style="font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px;">Booking Option</label>
+                <div style="display: flex; gap: 6px; margin-bottom: 16px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px; border: 1px solid var(--line);">
+                    ${hasPkgs ? `
+                    <button type="button" id="swal-tab-package" onclick="swalSwitchMode('package')" style="flex: 1; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--lime); background: var(--lime); color: #000; transition: all 0.2s;">
+                        PT Package
+                    </button>` : ''}
+                    <button type="button" id="swal-tab-single" onclick="swalSwitchMode('single')" style="flex: 1; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid ${hasPkgs ? 'transparent' : 'var(--lime)'}; background: ${hasPkgs ? 'transparent' : 'var(--lime)'}; color: ${hasPkgs ? 'var(--muted)' : '#000'}; transition: all 0.2s;">
+                        Single Session
                     </button>
-                    <button type="button" id="swal-tab-range" onclick="swalSwitchMode('range')" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--muted); transition: all 0.2s;">
+                    <button type="button" id="swal-tab-range" onclick="swalSwitchMode('range')" style="flex: 1; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--muted); transition: all 0.2s;">
                         Date Range
                     </button>
                 </div>
 
+                ${hasPkgs ? `
+                <!-- PT Package Group -->
+                <div id="swal-group-package">
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 13px; color: var(--ink); font-weight: 500; margin-bottom: 6px; display: block;">Select PT Package:</label>
+                        <select id="swal-pkg-select" class="form-control" style="width:100%; box-sizing: border-box;" onchange="swalRenderPtNotice()">
+                            ${pkgOptionsHtml}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 13px; color: var(--ink); font-weight: 500; margin-bottom: 6px; display: block;">Preferred Start Date & Time:</label>
+                        <input type="datetime-local" id="swal-input-pkg-date" class="form-control" style="width:100%; box-sizing: border-box;" min="${minDateTime}">
+                    </div>
+                    <div style="font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4;">
+                        Session packs track remaining sessions automatically as your trainer completes each session.
+                    </div>
+                </div>` : ''}
+
                 <!-- Single Day Group -->
-                <div id="swal-group-single">
+                <div id="swal-group-single" style="display: ${hasPkgs ? 'none' : 'block'};">
                     <label style="font-size: 13px; color: var(--ink); font-weight: 500; margin-bottom: 6px; display: block;">Session Date & Time:</label>
                     <input type="datetime-local" id="swal-input-date" class="form-control" style="width:100%; box-sizing: border-box;" min="${minDateTime}">
                     <div style="font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4;">
-                        Single-day appointment that automatically concludes at 11:59 PM on the selected day.
+                        Single-day personal training session that automatically concludes at 11:59 PM on the selected day.
                     </div>
                 </div>
 
@@ -461,16 +663,16 @@ function trainers_page(): void
                         <input type="date" id="swal-input-end-date" class="form-control" style="width:100%; box-sizing: border-box;" min="${minDate}">
                     </div>
                     <div style="font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4;">
-                        Coaching duration runs until 11:59 PM on the selected end date, after which it automatically completes.
+                        Coaching duration runs until 11:59 PM on the selected end date.
                     </div>
                 </div>
 
-                ${rateNoticeHtml}
+                <div id="swal-pt-notice"></div>
             </div>
         `;
 
         Swal.fire({
-            title: 'Schedule Appointment',
+            title: 'Book Personal Training',
             html: modalHtml,
             focusConfirm: false,
             showCancelButton: true,
@@ -479,14 +681,25 @@ function trainers_page(): void
             cancelButtonColor: 'var(--line)',
             background: 'var(--bg)',
             color: 'var(--ink)',
+            didOpen: () => {
+                window.swalRenderPtNotice();
+            },
             preConfirm: () => {
-                if (window.swalAptMode === 'single') {
+                if (window.swalAptMode === 'package') {
+                    const pkgId = document.getElementById('swal-pkg-select')?.value || '0';
+                    const startVal = document.getElementById('swal-input-pkg-date')?.value || '';
+                    if (!startVal) {
+                        Swal.showValidationMessage('Please select a preferred start date and time');
+                        return false;
+                    }
+                    return { type: 'package', packageId: pkgId, startDate: startVal, endDate: '' };
+                } else if (window.swalAptMode === 'single') {
                     const val = document.getElementById('swal-input-date').value;
                     if (!val) {
                         Swal.showValidationMessage('Please select a date and time for your appointment');
                         return false;
                     }
-                    return { type: 'single', startDate: val, endDate: '' };
+                    return { type: 'single', packageId: '0', startDate: val, endDate: '' };
                 } else {
                     const startVal = document.getElementById('swal-input-start-date').value;
                     const endVal = document.getElementById('swal-input-end-date').value;
@@ -503,12 +716,13 @@ function trainers_page(): void
                         Swal.showValidationMessage('End date cannot be earlier than start date');
                         return false;
                     }
-                    return { type: 'range', startDate: startVal, endDate: endVal };
+                    return { type: 'range', packageId: '0', startDate: startVal, endDate: endVal };
                 }
             }
         }).then((result) => {
             if (result.isConfirmed && result.value) {
                 document.getElementById('type-' + trainerId).value = result.value.type;
+                document.getElementById('pkg-' + trainerId).value = result.value.packageId;
                 document.getElementById('date-' + trainerId).value = result.value.startDate;
                 document.getElementById('end-date-' + trainerId).value = result.value.endDate;
                 document.getElementById('form-trainer-' + trainerId).submit();

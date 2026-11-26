@@ -302,6 +302,14 @@ try {
     require_once __DIR__ . '/database/migrations/normalize_phase6_lookups.php';
     run_normalize_phase6_migration($pdo);
     echo "<li><span style='color:green;'>Success:</span> Normalized Phase 6 lookup tables (badges, exercise_categories, muscle_groups, fitness_goals, v_member_badges, v_exercises, v_member_profiles_unified)</li>";
+
+    require_once __DIR__ . '/database/migrations/separate_pt_commissions.php';
+    migrate_separate_pt_commissions($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Separated PT packages &amp; payments from membership plans (trainer_packages, pt_payments, decoupled trainer_commissions &amp; trainer_assignments)</li>";
+
+    require_once __DIR__ . '/database/migrations/seed_global_exercises.php';
+    $seedExRes = seed_global_platform_exercises($pdo);
+    echo "<li><span style='color:green;'>Success:</span> Seeded global exercises catalog ({$seedExRes['inserted']} inserted, {$seedExRes['skipped']} already existed)</li>";
     
     // Automatically align tables to utf8mb4_0900_ai_ci on MySQL (skipped on TiDB Cloud where online index collation conversion is unsupported - error 8200)
     if (!db_is_tidb($pdo)) {

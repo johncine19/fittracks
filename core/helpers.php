@@ -402,9 +402,10 @@ function trainer_commission_metrics(int $trainerProfileId, int $trainerUserId): 
         [$trainerProfileId]
     );
     $monthlyRevenue = (float) scalar(
-        "SELECT COALESCE(SUM(COALESCE(tc.base_amount, p.amount)), 0)
+        "SELECT COALESCE(SUM(COALESCE(tc.base_amount, ptp.amount, p.amount, 0)), 0)
          FROM trainer_commissions tc
-         JOIN payments p ON p.payment_id = tc.payment_id
+         LEFT JOIN payments p ON p.payment_id = tc.payment_id
+         LEFT JOIN pt_payments ptp ON ptp.pt_payment_id = tc.pt_payment_id
          WHERE tc.trainer_id = ? AND tc.status IN ('pending', 'paid')
            AND tc.created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')",
         [$trainerUserId]
@@ -662,6 +663,197 @@ function reverse_trainer_commission_for_payment(int $paymentId, string $reason =
                 SET ta.status = 'ended', ta.ended_date = CURDATE()
                 WHERE ta.member_user_id = ? AND (tp.gym_id <=> ? OR ? = 0) AND ta.status = 'active'
             ")->execute([$memberUserId, $gymId, $gymId]);
+        }
+    }
+
+    return $reversedCount;
+}
+
+/**
+ * Credit a trainer commission for a paid Personal Training (PT) session or package payment.
+ *
+ * 4-Level PT Rate Hierarchy (highest priority wins; NULL inherits; explicit 0.00 = 0%):
+ *   Level 1: Trainer Personal Rate (trainer_profiles.commission_rate)
+ *   Level 2: PT Package Rate       (trainer_packages.commission_rate)
+ *   Level 3: Gym Default Rate      (gyms.default_commission_rate)
+ *   Level 4: Platform PT Default   (system_settings 'platform_default_pt_commission_rate' or fallback 100.00%)
+ *
+ * @return int|null Newly created commission_id, or null if skipped/already credited.
+ */
+function process_pt_commission(int $ptPaymentId): ?int
+{
+    if ($ptPaymentId <= 0) {
+        return null;
+    }
+
+    $pdo = db();
+
+    // Idempotency: do not credit twice for the same PT payment
+    $alreadyCredited = (bool) scalar(
+        'SELECT 1 FROM trainer_commissions WHERE pt_payment_id = ? LIMIT 1',
+        [$ptPaymentId]
+    );
+    if ($alreadyCredited) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT ptp.pt_payment_id, ptp.gym_id, ptp.member_user_id, ptp.trainer_id,
+               ptp.assignment_id, ptp.package_id, ptp.payment_type, ptp.amount, ptp.status,
+               tp.user_id AS trainer_user_id, tp.commission_rate AS trainer_rate,
+               tpkg.commission_rate AS package_rate,
+               g.default_commission_rate AS gym_rate
+        FROM pt_payments ptp
+        JOIN trainer_profiles tp ON tp.trainer_id = ptp.trainer_id
+        LEFT JOIN trainer_packages tpkg ON tpkg.package_id = ptp.package_id
+        LEFT JOIN gyms g ON g.gym_id = ptp.gym_id
+        WHERE ptp.pt_payment_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$ptPaymentId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row || (string)$row['status'] !== 'paid') {
+        return null;
+    }
+
+    $baseAmount = (float)$row['amount'];
+    if ($baseAmount <= 0) {
+        return null;
+    }
+
+    // Resolve PT commission rate (4-level hierarchy)
+    $baseRate = null;
+    $rateSource = 'platform';
+
+    if ($row['trainer_rate'] !== null) {
+        $baseRate = (float)$row['trainer_rate'];
+        $rateSource = 'trainer';
+    } elseif ($row['package_rate'] !== null) {
+        $baseRate = (float)$row['package_rate'];
+        $rateSource = 'package';
+    } elseif ($row['gym_rate'] !== null && (float)$row['gym_rate'] > 0) {
+        $baseRate = (float)$row['gym_rate'];
+        $rateSource = 'gym';
+    } else {
+        $platformSetting = get_setting('platform_default_pt_commission_rate', '100.00');
+        $baseRate = is_numeric($platformSetting) ? (float)$platformSetting : 100.00;
+        $rateSource = 'platform';
+    }
+
+    $baseRate = max(0.0, (float)$baseRate);
+    $finalRate = min(100.0, $baseRate);
+    $commissionAmount = round($baseAmount * $finalRate / 100, 2);
+
+    // Sync linked assignment payment status
+    if (!empty($row['assignment_id'])) {
+        $pdo->prepare("UPDATE trainer_assignments SET payment_status = 'paid', pt_payment_id = ? WHERE assignment_id = ?")
+            ->execute([$ptPaymentId, (int)$row['assignment_id']]);
+    }
+
+    if ($commissionAmount <= 0) {
+        return null;
+    }
+
+    $sourceType = in_array((string)$row['payment_type'], ['pt_session', 'pt_package'], true)
+        ? (string)$row['payment_type']
+        : 'pt_session';
+
+    $pdo->prepare('
+        INSERT INTO trainer_commissions
+            (trainer_id, payment_id, source_type, pt_payment_id, assignment_id, amount, base_amount, rate_applied, base_rate, rate_source, status)
+        VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, "pending")
+    ')->execute([
+        (int)$row['trainer_user_id'],
+        $sourceType,
+        $ptPaymentId,
+        !empty($row['assignment_id']) ? (int)$row['assignment_id'] : null,
+        $commissionAmount,
+        $baseAmount,
+        $finalRate,
+        $baseRate,
+        $rateSource,
+    ]);
+
+    return (int)$pdo->lastInsertId();
+}
+
+/**
+ * Immutable commission reversal/cancellation when a PT payment is refunded or cancelled.
+ */
+function reverse_trainer_commission_for_pt_payment(
+    int $ptPaymentId,
+    string $reason = 'PT payment refunded',
+    ?int $actorUserId = null,
+    bool $endTrainerAssignment = true
+): int {
+    if ($ptPaymentId <= 0) {
+        return 0;
+    }
+
+    $pdo = db();
+    $commissions = query_all(
+        'SELECT * FROM trainer_commissions WHERE pt_payment_id = ? AND status IN ("pending", "paid")',
+        [$ptPaymentId]
+    );
+
+    $reversedCount = 0;
+    $now = date('Y-m-d H:i:s');
+
+    foreach ($commissions as $comm) {
+        $commId = (int)$comm['commission_id'];
+        $status = (string)$comm['status'];
+
+        if ($status === 'pending') {
+            $pdo->prepare('
+                UPDATE trainer_commissions
+                SET status = "cancelled",
+                    reversal_reason = ?,
+                    reversed_at = ?,
+                    reversed_by = ?
+                WHERE commission_id = ? AND status = "pending"
+            ')->execute([$reason, $now, $actorUserId, $commId]);
+            $reversedCount++;
+        } elseif ($status === 'paid') {
+            $pdo->prepare('
+                UPDATE trainer_commissions
+                SET status = "reversed",
+                    reversal_reason = ?,
+                    reversed_at = ?,
+                    reversed_by = ?
+                WHERE commission_id = ? AND status = "paid"
+            ')->execute([$reason, $now, $actorUserId, $commId]);
+
+            $debitAmount = -abs((float)$comm['amount']);
+            $debitBase = $comm['base_amount'] !== null ? -abs((float)$comm['base_amount']) : null;
+
+            $pdo->prepare('
+                INSERT INTO trainer_commissions
+                    (trainer_id, payment_id, source_type, pt_payment_id, assignment_id, amount, base_amount, rate_applied, base_rate, rate_source, status, reversal_reason, reversed_at, reversed_by)
+                VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, "reversed", ?, ?, ?)
+            ')->execute([
+                (int)$comm['trainer_id'],
+                (string)($comm['source_type'] ?? 'pt_session'),
+                $ptPaymentId,
+                !empty($comm['assignment_id']) ? (int)$comm['assignment_id'] : null,
+                $debitAmount,
+                $debitBase,
+                $comm['rate_applied'],
+                $comm['base_rate'],
+                $comm['rate_source'] ?? 'trainer',
+                'Reversal debit: ' . $reason,
+                $now,
+                $actorUserId,
+            ]);
+            $reversedCount++;
+        }
+    }
+
+    if ($endTrainerAssignment) {
+        $ptRow = query_one('SELECT assignment_id FROM pt_payments WHERE pt_payment_id = ? LIMIT 1', [$ptPaymentId]);
+        if ($ptRow && !empty($ptRow['assignment_id'])) {
+            $pdo->prepare("UPDATE trainer_assignments SET status = 'ended', ended_date = CURDATE(), payment_status = 'unpaid' WHERE assignment_id = ? AND status = 'active'")
+                ->execute([(int)$ptRow['assignment_id']]);
         }
     }
 
@@ -2160,6 +2352,13 @@ function sync_trainer_assignments_with_memberships(?int $memberUserId = null): a
                          AND m_active.status = 'active' 
                          AND m_active.end_date >= CURDATE()
                          AND mp_active.allow_trainer_commission = 1
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1
+                       FROM pt_payments ptp_active
+                       WHERE ptp_active.pt_payment_id = ca.pt_payment_id
+                         AND ptp_active.status = 'paid'
+                         AND ptp_active.sessions_remaining > 0
                      )" . $userCondition;
         $ended = (int) $pdo->exec($endSql);
     } catch (Throwable $e) {

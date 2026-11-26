@@ -625,7 +625,11 @@ function handle_notification_click(): void
     } elseif ($notif['type'] === 'renewal_reminder') {
         redirect('member_membership');
     } elseif ($notif['type'] === 'milestone') {
-        redirect('member_progress');
+        $refMemberId = (int) ($notif['reference_id'] ?? 0);
+        if (($user['role'] ?? 'member') !== 'member' && $refMemberId > 0) {
+            redirect('progress&member_user_id=' . $refMemberId);
+        }
+        redirect('progress');
     } elseif ($notif['type'] === 'system' && str_starts_with($notif['title'], 'Trainer Appointment Request')) {
         redirect('trainer_assignments');
     } elseif ($notif['type'] === 'system' && str_starts_with($notif['title'], 'New Member Review')) {

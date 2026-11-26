@@ -165,8 +165,7 @@ function payments_page(): void
 
             // Clear any other duplicate pending payments for this membership
             db()->prepare('UPDATE payments SET status = "paid" WHERE membership_id = ? AND status = "pending"')->execute([$membershipId]);
-
-            process_trainer_commission($paymentId, $amount);
+            // Note: Trainer commissions are now decoupled from membership plans and processed via pt_payments.
         }
 
         $paymentInfo = query_all(

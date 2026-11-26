@@ -551,16 +551,6 @@ function progress_page(): void
     $workoutsThisWeek = count($completedDowsThisWeek);
     $weeklyPct = $weeklyTarget > 0 ? min(100, max(0, round(($workoutsThisWeek / $weeklyTarget) * 100))) : 0;
 
-    // --- 13 FITNESS GOALS PROGRESS & KPI CALCULATION ---
-    $goalProgress = calculate_member_goal_progress(
-        $memberId,
-        $member ?: [],
-        $rows,
-        [
-            'workouts_this_week' => $workoutsThisWeek,
-        ]
-    );
-
     // --- NUTRITION & FOOD DIARY LOGS ---
     $targetDietPlanStmt = db()->prepare('
         SELECT dp.plan_id, dp.title, dp.goal 
@@ -657,6 +647,52 @@ function progress_page(): void
     $avgFoodPro = $totalFoodLoggedDays > 0 ? round(array_sum(array_column($nutritionLogsByDate, 'pro')) / $totalFoodLoggedDays, 1) : 0;
     $avgFoodCarbs = $totalFoodLoggedDays > 0 ? round(array_sum(array_column($nutritionLogsByDate, 'carbs')) / $totalFoodLoggedDays, 1) : 0;
     $avgFoodFat = $totalFoodLoggedDays > 0 ? round(array_sum(array_column($nutritionLogsByDate, 'fat')) / $totalFoodLoggedDays, 1) : 0;
+
+    // --- STRENGTH TARGETS & EXERCISE LIFT RECORDS ---
+    $strengthTargets = $memberId > 0 ? get_member_strength_targets($memberId) : [];
+    $liftedExercises = [];
+    if ($memberId > 0) {
+        try {
+            $liftedExercises = query_all("
+                SELECT e.exercise_id, e.name,
+                       MAX(ec.weight_lifted_kg) AS best_kg,
+                       SUBSTRING_INDEX(GROUP_CONCAT(ec.weight_lifted_kg ORDER BY ec.completed_date DESC, ec.completion_id DESC), ',', 1) AS latest_kg,
+                       MAX(ec.completed_date) AS last_date,
+                       COUNT(*) AS log_count
+                FROM exercise_completions ec
+                JOIN exercises e ON e.exercise_id = ec.exercise_id
+                WHERE ec.user_id = ? AND ec.weight_lifted_kg IS NOT NULL AND ec.weight_lifted_kg > 0
+                GROUP BY e.exercise_id, e.name
+                ORDER BY last_date DESC, best_kg DESC
+            ", [$memberId]);
+        } catch (Throwable) {
+            $liftedExercises = [];
+        }
+    }
+
+    // --- 13 FITNESS GOALS PROGRESS & KPI CALCULATION ---
+    $memberFirstName = trim((string)($member['first_name'] ?? '')) ?: 'This member';
+    $goalProgress = calculate_member_goal_progress(
+        $memberId,
+        $member ?: [],
+        $rows,
+        [
+            'workouts_this_week' => $workoutsThisWeek,
+            'weekly_target'      => $weeklyTarget,
+            'is_manager_view'    => $isManager,
+            'viewer_role'        => $user['role'],
+            'member_name'        => $memberFirstName,
+            'strength_targets'   => $strengthTargets,
+            'lifted_exercises'   => $liftedExercises,
+            'nutrition'          => [
+                'days_logged'    => $totalFoodLoggedDays,
+                'avg_cals'       => $avgFoodCals,
+                'target_cals'    => (int)($targetNutritionMacros['cals'] ?? 0),
+                'avg_protein'    => $avgFoodPro,
+                'target_protein' => (float)($targetNutritionMacros['protein'] ?? 0),
+            ],
+        ]
+    );
 
     // --- RECENT ACTIVITY TIMELINE ---
     $recentActivities = [];
@@ -998,8 +1034,18 @@ function progress_page(): void
                     <span class="kpi-unit">kg</span>
                 </div>
                 <div>
-                    <?php if ($weightDelta !== null): ?>
-                        <span class="kpi-delta-pill <?= $weightDelta > 0 ? 'kpi-delta-up-warn' : ($weightDelta < 0 ? 'kpi-delta-up-good' : 'kpi-delta-neutral') ?>">
+                    <?php if ($weightDelta !== null):
+                        $weightDir = $goalProgress['directions']['weight'] ?? 'down';
+                        $wDeltaCls = 'kpi-delta-neutral';
+                        if ($weightDir === 'up') {
+                            $wDeltaCls = $weightDelta > 0 ? 'kpi-delta-up-good' : ($weightDelta < 0 ? 'kpi-delta-up-warn' : 'kpi-delta-neutral');
+                        } elseif ($weightDir === 'down') {
+                            $wDeltaCls = $weightDelta < 0 ? 'kpi-delta-up-good' : ($weightDelta > 0 ? 'kpi-delta-up-warn' : 'kpi-delta-neutral');
+                        } elseif ($weightDir === 'stable') {
+                            $wDeltaCls = abs($weightDelta) <= 0.5 ? 'kpi-delta-up-good' : 'kpi-delta-neutral';
+                        }
+                    ?>
+                        <span class="kpi-delta-pill <?= $wDeltaCls ?>">
                             <?= $weightDelta > 0 ? '+' : '' ?><?= $weightDelta ?> kg vs last mo
                         </span>
                     <?php else: ?>
@@ -1247,18 +1293,21 @@ function progress_page(): void
             <!-- RIGHT COLUMN: Progress Overview Chart & Recent Activity -->
             <div class="hub-col-right">
                 <?php
-                $buildMemberTargetBar = static function (string $label, string $unit, ?float $targetVal, $currentRaw, string $logCol, ?float $profileVal) use ($rows): ?array {
+                $targetDirs = $goalProgress['directions'] ?? [];
+                $buildMemberTargetBar = static function (string $label, string $unit, ?float $targetVal, $currentRaw, string $logCol, ?float $profileVal, ?float $goalStartVal = null, string $desiredDir = 'neutral') use ($rows): ?array {
                     if ($targetVal === null || $targetVal <= 0) {
                         return null;
                     }
                     $currentVal = ($currentRaw !== '' && $currentRaw !== null && (float)$currentRaw > 0)
                         ? (float)$currentRaw
                         : (($profileVal !== null && $profileVal > 0) ? $profileVal : null);
-                    $startVal = null;
-                    for ($i = count($rows) - 1; $i >= 0; $i--) {
-                        if (!empty($rows[$i][$logCol]) && (float)$rows[$i][$logCol] > 0) {
-                            $startVal = (float)$rows[$i][$logCol];
-                            break;
+                    $startVal = ($goalStartVal !== null && $goalStartVal > 0) ? $goalStartVal : null;
+                    if ($startVal === null) {
+                        for ($i = count($rows) - 1; $i >= 0; $i--) {
+                            if (!empty($rows[$i][$logCol]) && (float)$rows[$i][$logCol] > 0) {
+                                $startVal = (float)$rows[$i][$logCol];
+                                break;
+                            }
                         }
                     }
                     if ($startVal === null && $profileVal !== null && $profileVal > 0) {
@@ -1267,50 +1316,21 @@ function progress_page(): void
                     if ($startVal === null) {
                         $startVal = $currentVal;
                     }
-                    $pct = 0;
-                    if ($startVal !== null && $currentVal !== null) {
-                        $dist = abs($targetVal - $startVal);
-                        if ($dist > 0) {
-                            $isDown = ($startVal > $targetVal);
-                            $covered = $isDown ? ($startVal - $currentVal) : ($currentVal - $startVal);
-                            $pct = $covered > 0 ? (int) min(100, max(0, round(($covered / $dist) * 100))) : 0;
-                        } else {
-                            $pct = 100;
-                        }
-                    }
-                    return [
-                        'label'   => $label,
-                        'unit'    => $unit,
-                        'start'   => $startVal,
-                        'current' => $currentVal,
-                        'target'  => $targetVal,
-                        'pct'     => $pct,
-                    ];
+                    return compute_target_bar_progress($label, $unit, $targetVal, $currentVal, $startVal, $desiredDir);
                 };
 
                 $memberTargetBars = array_values(array_filter([
-                    $buildMemberTargetBar('Weight', 'kg', !empty($member['target_weight_kg']) ? (float)$member['target_weight_kg'] : null, $recentWeight, 'weight_kg', !empty($member['weight_kg']) ? (float)$member['weight_kg'] : null),
-                    $buildMemberTargetBar('Body Fat', '%', !empty($member['target_body_fat_percent']) ? (float)$member['target_body_fat_percent'] : null, $recentBf, 'body_fat_percent', !empty($member['body_fat_percent']) ? (float)$member['body_fat_percent'] : null),
-                    $buildMemberTargetBar('Waist', 'cm', !empty($member['target_waist_cm']) ? (float)$member['target_waist_cm'] : null, $recentWaist, 'waist_cm', !empty($member['waist_cm']) ? (float)$member['waist_cm'] : null),
-                    $buildMemberTargetBar('Arms', 'cm', !empty($member['target_arm_cm']) ? (float)$member['target_arm_cm'] : null, $recentArm, 'arm_cm', !empty($member['arm_cm']) ? (float)$member['arm_cm'] : null),
-                    $buildMemberTargetBar('Chest', 'cm', !empty($member['target_chest_cm']) ? (float)$member['target_chest_cm'] : null, $recentChest, 'chest_cm', !empty($member['chest_cm']) ? (float)$member['chest_cm'] : null),
-                    ...array_map(function (array $st): array {
+                    $buildMemberTargetBar('Weight', 'kg', !empty($member['target_weight_kg']) ? (float)$member['target_weight_kg'] : null, $recentWeight, 'weight_kg', !empty($member['weight_kg']) ? (float)$member['weight_kg'] : null, !empty($member['start_weight_kg']) ? (float)$member['start_weight_kg'] : null, (string)($targetDirs['weight'] ?? 'neutral')),
+                    $buildMemberTargetBar('Body Fat', '%', !empty($member['target_body_fat_percent']) ? (float)$member['target_body_fat_percent'] : null, $recentBf, 'body_fat_percent', !empty($member['body_fat_percent']) ? (float)$member['body_fat_percent'] : null, !empty($member['start_body_fat_percent']) ? (float)$member['start_body_fat_percent'] : null, (string)($targetDirs['body_fat'] ?? 'down')),
+                    $buildMemberTargetBar('Waist', 'cm', !empty($member['target_waist_cm']) ? (float)$member['target_waist_cm'] : null, $recentWaist, 'waist_cm', !empty($member['waist_cm']) ? (float)$member['waist_cm'] : null, !empty($member['start_waist_cm']) ? (float)$member['start_waist_cm'] : null, (string)($targetDirs['waist'] ?? 'neutral')),
+                    $buildMemberTargetBar('Arms', 'cm', !empty($member['target_arm_cm']) ? (float)$member['target_arm_cm'] : null, $recentArm, 'arm_cm', !empty($member['arm_cm']) ? (float)$member['arm_cm'] : null, !empty($member['start_arm_cm']) ? (float)$member['start_arm_cm'] : null, (string)($targetDirs['arm'] ?? 'up')),
+                    $buildMemberTargetBar('Chest', 'cm', !empty($member['target_chest_cm']) ? (float)$member['target_chest_cm'] : null, $recentChest, 'chest_cm', !empty($member['chest_cm']) ? (float)$member['chest_cm'] : null, !empty($member['start_chest_cm']) ? (float)$member['start_chest_cm'] : null, (string)($targetDirs['chest'] ?? 'up')),
+                    ...array_map(function (array $st): ?array {
                         $cur = $st['current_max_kg'] !== null ? (float)$st['current_max_kg'] : 0.0;
                         $start = $st['start_max_kg'] !== null ? (float)$st['start_max_kg'] : $cur;
                         $tgt = (float)$st['target_max_kg'];
-                        $span = $tgt - $start;
-                        $pct = ($span > 0)
-                            ? (int) min(100, max(0, round((($cur - $start) / $span) * 100)))
-                            : (($tgt > 0 && $cur >= $tgt) ? 100 : 0);
-                        return [
-                            'label'   => 'Strength: ' . (string)$st['exercise_name'],
-                            'unit'    => 'kg',
-                            'start'   => $start,
-                            'current' => $cur,
-                            'target'  => $tgt,
-                            'pct'     => $pct,
-                        ];
-                    }, get_member_strength_targets($memberId)),
+                        return compute_target_bar_progress('Strength: ' . (string)$st['exercise_name'], 'kg', $tgt, $cur, $start, 'up');
+                    }, $strengthTargets),
                 ]));
                 ?>
                 <?php if (!empty($memberTargetBars)): ?>
@@ -1321,7 +1341,7 @@ function progress_page(): void
                             <p>Progress toward your configured milestones</p>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                            <?php if (!empty(get_member_strength_targets($memberId))): ?>
+                            <?php if (!empty($strengthTargets)): ?>
                             <button type="button" onclick="openLogStrengthPrModal()" class="btn btn-sm" style="background: rgba(79,70,229,0.1); color: #4f46e5; border: 1px solid rgba(79,70,229,0.25); font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 8px; cursor: pointer;">
                                 + Log PR
                             </button>
@@ -1332,20 +1352,45 @@ function progress_page(): void
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;">
-                        <?php foreach ($memberTargetBars as $tb): ?>
+                        <?php foreach ($memberTargetBars as $tb):
+                            $tone = (string)($tb['tone'] ?? 'neutral');
+                            $pctColor = match ($tone) {
+                                'good' => '#22c55e',
+                                'warn' => '#eab308',
+                                'bad'  => '#ef4444',
+                                default => 'var(--muted)',
+                            };
+                            $barBg = match ($tone) {
+                                'good' => 'linear-gradient(90deg, #10b981, var(--lime))',
+                                'warn' => '#eab308',
+                                'bad'  => '#ef4444',
+                                default => 'var(--muted)',
+                            };
+                            $noteBg = match ($tone) {
+                                'good' => 'rgba(34, 197, 94, 0.1)',
+                                'warn' => 'rgba(234, 179, 8, 0.1)',
+                                'bad'  => 'rgba(239, 68, 68, 0.1)',
+                                default => 'var(--panel-soft)',
+                            };
+                        ?>
                             <div style="background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;">
                                 <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
                                     <strong style="font-size: 13px; color: var(--ink);"><?= h($tb['label']) ?></strong>
-                                    <span style="font-size: 12px; font-weight: 700; color: var(--lime);"><?= (int)$tb['pct'] ?>%</span>
+                                    <span style="font-size: 12px; font-weight: 800; color: <?= h($pctColor) ?>;"><?= (int)$tb['pct'] ?>%</span>
                                 </div>
                                 <div style="height: 7px; border-radius: 999px; background: var(--panel-soft); overflow: hidden;">
-                                    <div style="height: 100%; width: <?= (int)$tb['pct'] ?>%; border-radius: 999px; background: linear-gradient(90deg, #10b981, var(--lime)); transition: width 0.3s ease;"></div>
+                                    <div style="height: 100%; width: <?= (int)$tb['pct'] ?>%; border-radius: 999px; background: <?= h($barBg) ?>; transition: width 0.3s ease;"></div>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted);">
                                     <span>Start: <?= $tb['start'] !== null ? h($tb['start'] . ' ' . $tb['unit']) : '—' ?></span>
                                     <span>Now: <strong style="color: var(--ink);"><?= $tb['current'] !== null ? h($tb['current'] . ' ' . $tb['unit']) : '—' ?></strong></span>
                                     <span>Goal: <?= h($tb['target'] . ' ' . $tb['unit']) ?></span>
                                 </div>
+                                <?php if (!empty($tb['note'])): ?>
+                                    <div style="font-size: 11px; font-weight: 700; color: <?= h($pctColor) ?>; background: <?= h($noteBg) ?>; border-radius: 6px; padding: 3px 8px; width: fit-content; margin-top: 2px;">
+                                        <?= h($tb['note']) ?>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -1353,23 +1398,6 @@ function progress_page(): void
                 <?php endif; ?>
 
                 <?php
-                $liftedExercises = [];
-                try {
-                    $liftedExercises = query_all("
-                        SELECT e.exercise_id, e.name,
-                               MAX(ec.weight_lifted_kg) AS best_kg,
-                               SUBSTRING_INDEX(GROUP_CONCAT(ec.weight_lifted_kg ORDER BY ec.completed_date DESC, ec.completion_id DESC), ',', 1) AS latest_kg,
-                               MAX(ec.completed_date) AS last_date,
-                               COUNT(*) AS log_count
-                        FROM exercise_completions ec
-                        JOIN exercises e ON e.exercise_id = ec.exercise_id
-                        WHERE ec.user_id = ? AND ec.weight_lifted_kg IS NOT NULL AND ec.weight_lifted_kg > 0
-                        GROUP BY e.exercise_id, e.name
-                        ORDER BY last_date DESC, best_kg DESC
-                    ", [$memberId]);
-                } catch (Throwable) {
-                    $liftedExercises = [];
-                }
                 $liftTotal = count($liftedExercises);
                 $liftPerPage = 6;
                 $liftTotalPages = max(1, (int) ceil($liftTotal / $liftPerPage));
@@ -1520,6 +1548,9 @@ function progress_page(): void
                         </div>
                     </div>
 
+                    <!-- Live Chart Interpretation Banner -->
+                    <div id="chartInsightBanner" class="chart-insight-banner insight-neutral" aria-live="polite"></div>
+
                     <!-- Chart Canvas -->
                     <div class="chart-canvas-wrap">
                         <canvas id="hubTrendChart"></canvas>
@@ -1573,23 +1604,33 @@ function progress_page(): void
                         $focusDeltaVal = $totalBmiChange !== null ? ($totalBmiChange > 0 ? '+' : '') . $totalBmiChange : '—';
                         $focusDeltaColor = ($totalBmiChange !== null && $totalBmiChange < 0) ? '#22c55e' : 'var(--ink)';
                     }
+
+                    $weightDir = $goalProgress['directions']['weight'] ?? 'down';
+                    $summaryWeightColor = 'var(--ink)';
+                    if ($totalWeightChange != 0.0) {
+                        if ($weightDir === 'up') {
+                            $summaryWeightColor = $totalWeightChange > 0 ? '#22c55e' : '#f59e0b';
+                        } elseif ($weightDir === 'down') {
+                            $summaryWeightColor = $totalWeightChange < 0 ? '#22c55e' : '#f59e0b';
+                        }
+                    }
                     ?>
                     <div class="chart-summary-stats">
                         <div class="summary-stat-box">
-                            <span class="stat-label">Weight Change</span>
-                            <span class="stat-delta" style="color: <?= $totalWeightChange < 0 ? '#22c55e' : ($totalWeightChange > 0 ? '#f59e0b' : 'var(--ink)') ?>;">
+                            <span class="stat-label">Weight Change <span id="chartSummaryRangeNote" class="stat-range-note"></span></span>
+                            <span class="stat-delta" id="chartSummaryWeight" style="color: <?= h($summaryWeightColor) ?>;">
                                 <?= $totalWeightChange > 0 ? '+' : '' ?><?= $totalWeightChange ?> kg
                             </span>
                         </div>
                         <div class="summary-stat-box">
                             <span class="stat-label">Body Fat Change</span>
-                            <span class="stat-delta" style="color: <?= ($totalBfChange !== null && $totalBfChange < 0) ? '#22c55e' : 'var(--ink)' ?>;">
+                            <span class="stat-delta" id="chartSummaryBf" style="color: <?= ($totalBfChange !== null && $totalBfChange < 0) ? '#22c55e' : 'var(--ink)' ?>;">
                                 <?= $totalBfChange !== null ? ($totalBfChange > 0 ? '+' : '') . $totalBfChange . '%' : '—' ?>
                             </span>
                         </div>
                         <div class="summary-stat-box">
-                            <span class="stat-label"><?= h($focusDeltaLabel) ?></span>
-                            <span class="stat-delta" style="color: <?= h($focusDeltaColor) ?>;">
+                            <span class="stat-label" id="chartSummaryFocusLabel"><?= h($focusDeltaLabel) ?></span>
+                            <span class="stat-delta" id="chartSummaryFocus" style="color: <?= h($focusDeltaColor) ?>;">
                                 <?= h($focusDeltaVal) ?>
                             </span>
                         </div>
@@ -2087,8 +2128,15 @@ function progress_page(): void
             targetExercise: <?= json_encode((string)($member['target_exercise'] ?? 'Bench Press')) ?>,
             currentStrengthMax: <?= json_encode((string)($member['current_strength_max_kg'] ?? '')) ?>,
             targetStrengthMax: <?= json_encode((string)($member['target_strength_max_kg'] ?? '')) ?>,
-            strengthTargets: <?= json_encode(get_member_strength_targets($memberId)) ?>,
+            strengthTargets: <?= json_encode($strengthTargets) ?>,
             weeklyWorkouts: <?= json_encode((string)($member['weekly_workout_target'] ?? '3')) ?>
+        },
+        goalMeta: {
+            model: <?= json_encode((string)($goalProgress['model'] ?? 'lifestyle')) ?>,
+            title: <?= json_encode((string)($goalProgress['goal_title'] ?? 'General Fitness')) ?>,
+            isManagerView: <?= json_encode($isManager) ?>,
+            memberName: <?= json_encode($memberFirstName) ?>,
+            directions: <?= json_encode($goalProgress['directions'] ?? []) ?>
         },
         defaults: {
             gender: <?= json_encode(strtolower((string)($member['biological_sex'] ?? 'male'))) ?>,

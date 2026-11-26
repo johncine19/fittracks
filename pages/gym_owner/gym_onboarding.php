@@ -427,6 +427,7 @@ function gym_onboarding_page(): void
 
         /* Stepper */
         .onboarding-stepper {
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
             margin-bottom: 12px !important;
             gap: 10px !important;
         }
@@ -900,6 +901,113 @@ function gym_onboarding_page(): void
             color: #ef4444 !important;
         }
 
+        /* Step 2: Required Documents Checklist */
+        .req-docs-intro {
+            font-size: 12.5px;
+            color: #475569;
+            margin: 0 0 12px;
+            line-height: 1.45;
+        }
+        .req-docs-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .req-doc-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 11px;
+            padding: 11px 13px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .req-doc-card.is-wide {
+            grid-column: 1 / -1;
+            background: rgba(79, 70, 229, 0.04);
+            border-color: rgba(79, 70, 229, 0.25);
+        }
+        .req-doc-card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .req-doc-card-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12.5px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .req-doc-badge {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 2px 7px;
+            border-radius: 999px;
+            white-space: nowrap;
+        }
+        .req-doc-badge.required {
+            background: rgba(132, 204, 22, 0.18);
+            color: #3f6212;
+            border: 1px solid rgba(132, 204, 22, 0.4);
+        }
+        .req-doc-badge.didit {
+            background: rgba(79, 70, 229, 0.12);
+            color: #4338ca;
+            border: 1px solid rgba(79, 70, 229, 0.28);
+        }
+        .req-doc-badge.optional {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .req-doc-desc {
+            margin: 0;
+            font-size: 11.5px;
+            color: #475569;
+            line-height: 1.4;
+        }
+        .req-id-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 2px;
+        }
+        .req-id-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #1e293b;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 3px 8px;
+        }
+        .req-docs-tip {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 9px 12px;
+            border-radius: 9px;
+            background: rgba(132, 204, 22, 0.1);
+            border: 1px solid rgba(132, 204, 22, 0.3);
+            font-size: 11.5px;
+            color: #334155;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 640px) {
+            .req-docs-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* Review Details (Step 3) */
         .onboarding-card .review-card {
             padding: 8px 12px !important;
@@ -1290,7 +1398,7 @@ function gym_onboarding_page(): void
                     <p class="split-card-subtitle">Facility details &amp; verification for <span class="brand-highlight">FitTrack</span></p>
                 </div>
 
-                <!-- 3-Step Progress Stepper -->
+                <!-- 4-Step Progress Stepper -->
                 <div class="onboarding-stepper" id="onboarding-stepper">
                     <button type="button" class="stepper-item active" id="stepper-tab-1" onclick="goToStep(1)">
                         <span class="stepper-label">
@@ -1301,15 +1409,22 @@ function gym_onboarding_page(): void
                     </button>
                     <button type="button" class="stepper-item" id="stepper-tab-2" onclick="goToStep(2)">
                         <span class="stepper-label">
-                            <span class="stepper-label-full">2. Verification Documents</span>
-                            <span class="stepper-label-short">2. Documents</span>
+                            <span class="stepper-label-full">2. Required Docs</span>
+                            <span class="stepper-label-short">2. Checklist</span>
                         </span>
                         <span class="stepper-bar"></span>
                     </button>
                     <button type="button" class="stepper-item" id="stepper-tab-3" onclick="goToStep(3)">
                         <span class="stepper-label">
-                            <span class="stepper-label-full">3. Review &amp; Submit</span>
-                            <span class="stepper-label-short">3. Review</span>
+                            <span class="stepper-label-full">3. Upload &amp; Verify</span>
+                            <span class="stepper-label-short">3. Upload</span>
+                        </span>
+                        <span class="stepper-bar"></span>
+                    </button>
+                    <button type="button" class="stepper-item" id="stepper-tab-4" onclick="goToStep(4)">
+                        <span class="stepper-label">
+                            <span class="stepper-label-full">4. Review &amp; Submit</span>
+                            <span class="stepper-label-short">4. Review</span>
                         </span>
                         <span class="stepper-bar"></span>
                     </button>
@@ -1450,7 +1565,7 @@ function gym_onboarding_page(): void
                             <!-- Step 1 Navigation Row -->
                             <div class="onboarding-nav-row">
                                 <button type="button" class="split-submit-btn" onclick="goToStep(2)">
-                                    <span>Continue to Documents</span>
+                                    <span>Continue to Required Docs</span>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="5" y1="12" x2="19" y2="12"></line>
                                         <polyline points="12 5 19 12 12 19"></polyline>
@@ -1459,8 +1574,102 @@ function gym_onboarding_page(): void
                             </div>
                         </div>
 
-                        <!-- STEP 2: Verification Documents -->
+                        <!-- STEP 2: Required Documents Checklist -->
                         <div class="split-step-pane step-hidden" id="onboarding-pane-2">
+                            <div class="onboarding-section-title">What You Need to Register</div>
+                            <p class="req-docs-intro">Please prepare the following documents before proceeding to verification and upload:</p>
+
+                            <div class="req-docs-grid">
+                                <!-- 1. Government ID (Didit) -->
+                                <div class="req-doc-card is-wide">
+                                    <div class="req-doc-card-head">
+                                        <span class="req-doc-card-title">
+                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                            <span>1. Valid Government ID <?= didit_is_configured() ? '(via Didit)' : '' ?></span>
+                                        </span>
+                                        <span class="req-doc-badge <?= didit_is_configured() ? 'didit' : 'required' ?>"><?= didit_is_configured() ? 'Didit • Choose 1' : 'Required' ?></span>
+                                    </div>
+                                    <p class="req-doc-desc">
+                                        <?php if (didit_is_configured()): ?>
+                                            In the next step, Didit will let you choose whichever valid ID you have (plus a quick selfie check):
+                                        <?php else: ?>
+                                            Prepare a clear photo or PDF of one Primary Government ID (or one Secondary ID + one Supporting ID):
+                                        <?php endif; ?>
+                                    </p>
+                                    <div class="req-id-chips">
+                                        <span class="req-id-chip">National ID card</span>
+                                        <span class="req-id-chip">Passport</span>
+                                        <span class="req-id-chip">Driving licence</span>
+                                        <span class="req-id-chip">Residence permit</span>
+                                        <span class="req-id-chip">Health Insurance Card</span>
+                                        <span class="req-id-chip">Tax card</span>
+                                        <span class="req-id-chip">Social Security Card</span>
+                                    </div>
+                                </div>
+
+                                <!-- 2. Business Permit -->
+                                <div class="req-doc-card">
+                                    <div class="req-doc-card-head">
+                                        <span class="req-doc-card-title">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                            <span>2. Business Permit</span>
+                                        </span>
+                                        <span class="req-doc-badge required">Required</span>
+                                    </div>
+                                    <p class="req-doc-desc">DTI Certificate, SEC Registration, or Mayor's Business Permit (PDF, JPG, PNG, or WebP).</p>
+                                </div>
+
+                                <!-- 3. Barangay Clearance -->
+                                <div class="req-doc-card">
+                                    <div class="req-doc-card-head">
+                                        <span class="req-doc-card-title">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                                            <span>3. Barangay Clearance</span>
+                                        </span>
+                                        <span class="req-doc-badge required">Required</span>
+                                    </div>
+                                    <p class="req-doc-desc">Current-year Barangay Clearance issued for your gym facility address.</p>
+                                </div>
+
+                                <!-- 4. Optional Supporting Items -->
+                                <div class="req-doc-card is-wide" style="background: #f8fafc; border-color: #cbd5e1;">
+                                    <div class="req-doc-card-head">
+                                        <span class="req-doc-card-title">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                            <span>4. Fire Safety Cert. (FSIC) &amp; Facebook Page</span>
+                                        </span>
+                                        <span class="req-doc-badge optional">Optional</span>
+                                    </div>
+                                    <p class="req-doc-desc">You may also attach your Fire Safety Inspection Certificate (FSIC) and official gym Facebook Page link if available.</p>
+                                </div>
+                            </div>
+
+                            <div class="req-docs-tip">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#65a30d" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                <span><strong>Tip:</strong> Make sure all photos or scans are bright, uncropped, and clearly readable so our team can approve your gym faster.</span>
+                            </div>
+
+                            <!-- Step 2 Navigation Row -->
+                            <div class="onboarding-nav-row">
+                                <button type="button" class="split-back-btn" onclick="goToStep(1)">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                                        <polyline points="12 19 5 12 12 5"></polyline>
+                                    </svg>
+                                    <span>Back</span>
+                                </button>
+                                <button type="button" class="split-submit-btn" onclick="goToStep(3)">
+                                    <span>Continue to Upload &amp; Verify</span>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: Verification Documents -->
+                        <div class="split-step-pane step-hidden" id="onboarding-pane-3">
                             <div class="onboarding-section-title">Verification Documents</div>
 
                             <?php if (!didit_is_configured()): ?>
@@ -1803,16 +2012,16 @@ function gym_onboarding_page(): void
                                 </div>
                             </div>
 
-                            <!-- Step 2 Navigation Row -->
+                            <!-- Step 4 Navigation Row -->
                             <div class="onboarding-nav-row">
-                                <button type="button" class="split-back-btn" onclick="goToStep(1)">
+                                <button type="button" class="split-back-btn" onclick="goToStep(3)">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="19" y1="12" x2="5" y2="12"></line>
                                         <polyline points="12 19 5 12 12 5"></polyline>
                                     </svg>
                                     <span>Back</span>
                                 </button>
-                                <button type="button" class="split-submit-btn" onclick="goToStep(3)">
+                                <button type="button" class="split-submit-btn" onclick="goToStep(4)">
                                     <span>Continue to Review</span>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -1822,8 +2031,8 @@ function gym_onboarding_page(): void
                             </div>
                         </div>
 
-                        <!-- STEP 3: Review & Submit -->
-                        <div class="split-step-pane step-hidden" id="onboarding-pane-3">
+                        <!-- STEP 4: Review & Submit -->
+                        <div class="split-step-pane step-hidden" id="onboarding-pane-4">
                             <div class="onboarding-section-title">Review Application Details</div>
 
                             <!-- Review 2-Column Summary Grid -->
@@ -1860,7 +2069,7 @@ function gym_onboarding_page(): void
                                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                                             <span>Verification Documents</span>
                                         </div>
-                                        <button type="button" class="review-edit-btn" onclick="goToStep(2)">Edit</button>
+                                        <button type="button" class="review-edit-btn" onclick="goToStep(3)">Edit</button>
                                     </div>
                                     <div class="review-card-body">
                                         <div class="review-row align-top">
@@ -1914,9 +2123,9 @@ function gym_onboarding_page(): void
                                 <span>All submissions are reviewed by platform admins within 24-48 hours. By submitting, you confirm the provided documents are authentic.</span>
                             </div>
 
-                            <!-- Step 3 Navigation Row -->
+                            <!-- Step 4 Navigation Row -->
                             <div class="onboarding-nav-row">
-                                <button type="button" class="split-back-btn" onclick="goToStep(2)">
+                                <button type="button" class="split-back-btn" onclick="goToStep(3)">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                         <line x1="19" y1="12" x2="5" y2="12"></line>
                                         <polyline points="12 19 5 12 12 5"></polyline>
@@ -2176,7 +2385,8 @@ function gym_onboarding_page(): void
 
                     // Restore Step
                     if (saved.currentStep && saved.currentStep > 1) {
-                        goToStepDirect(saved.currentStep);
+                        const restoredStep = Math.max(1, Math.min(4, Number(saved.currentStep) || 1));
+                        goToStepDirect(restoredStep);
                     }
                 }
             }
@@ -2223,7 +2433,7 @@ function gym_onboarding_page(): void
                                 dt.items.add(file);
                                 input.files = dt.files;
                                 handleDocFileChosen(input, cfg.key, cfg.title);
-                                if (currentStep === 3) {
+                                if (currentStep === 4) {
                                     populateReviewData();
                                 }
                             } catch (e) {
@@ -2690,14 +2900,14 @@ function gym_onboarding_page(): void
             }
         }
 
-        // Moving forward to Step 3: Validate Step 2
-        if (targetStep >= 3) {
+        // Moving forward to Step 4: Validate Step 3 (Verification Documents)
+        if (targetStep >= 4) {
             const permitFile = document.getElementById('input-business-permit');
             const brgyFile = document.getElementById('input-barangay-clearance');
 
             if (DIDIT_REQUIRED) {
                 if (!diditOnboardingApproved) {
-                    goToStepDirect(2);
+                    goToStepDirect(3);
                     const dCard = document.getElementById('didit-onboarding-card');
                     if (dCard) {
                         dCard.style.borderColor = '#ef4444';
@@ -2721,7 +2931,7 @@ function gym_onboarding_page(): void
                 const idFile = document.getElementById('input-valid-id');
 
                 if (!idTypeVal.trim()) {
-                    goToStepDirect(2);
+                    goToStepDirect(3);
                     if (window.validIdFitDropdown) {
                         window.validIdFitDropdown.setError(true);
                         window.validIdFitDropdown.trigger?.focus();
@@ -2732,14 +2942,14 @@ function gym_onboarding_page(): void
 
                 const idOther = document.getElementById('valid_id_type_other');
                 if (idTypeVal === 'Other Valid Government ID' && idOther && !idOther.value.trim()) {
-                    goToStepDirect(2);
+                    goToStepDirect(3);
                     idOther.focus();
                     idOther.reportValidity();
                     return;
                 }
 
                 if (idFile && (!idFile.files || !idFile.files.length)) {
-                    goToStepDirect(2);
+                    goToStepDirect(3);
                     idFile.focus();
                     idFile.reportValidity();
                     return;
@@ -2753,7 +2963,7 @@ function gym_onboarding_page(): void
                     const secIdFile = document.getElementById('input-secondary-id');
 
                     if (!secIdVal.trim()) {
-                        goToStepDirect(2);
+                        goToStepDirect(3);
                         if (window.secondaryValidIdFitDropdown) {
                             window.secondaryValidIdFitDropdown.setError(true);
                             window.secondaryValidIdFitDropdown.trigger?.focus();
@@ -2763,7 +2973,7 @@ function gym_onboarding_page(): void
                     }
 
                     if (secIdVal.toLowerCase() === idTypeVal.toLowerCase()) {
-                        goToStepDirect(2);
+                        goToStepDirect(3);
                         if (window.secondaryValidIdFitDropdown) {
                             window.secondaryValidIdFitDropdown.setError(true);
                             window.secondaryValidIdFitDropdown.trigger?.focus();
@@ -2773,7 +2983,7 @@ function gym_onboarding_page(): void
                     }
 
                     if (secIdVal === 'Other Valid Government ID' && secIdOther && !secIdOther.value.trim()) {
-                        goToStepDirect(2);
+                        goToStepDirect(3);
                         secIdOther.focus();
                         secIdOther.setCustomValidity('Please specify your other supporting valid ID type.');
                         secIdOther.reportValidity();
@@ -2781,7 +2991,7 @@ function gym_onboarding_page(): void
                     }
 
                     if (!secIdFile || !secIdFile.files || !secIdFile.files.length) {
-                        goToStepDirect(2);
+                        goToStepDirect(3);
                         secIdFile.focus();
                         secIdFile.setCustomValidity('Please upload your supporting government ID document.');
                         secIdFile.reportValidity();
@@ -2791,20 +3001,20 @@ function gym_onboarding_page(): void
             }
 
             if (permitFile && (!permitFile.files || !permitFile.files.length)) {
-                goToStepDirect(2);
+                goToStepDirect(3);
                 permitFile.focus();
                 permitFile.reportValidity();
                 return;
             }
 
             if (brgyFile && (!brgyFile.files || !brgyFile.files.length)) {
-                goToStepDirect(2);
+                goToStepDirect(3);
                 brgyFile.focus();
                 brgyFile.reportValidity();
                 return;
             }
 
-            // Populate Step 3 Review details
+            // Populate Step 4 Review details
             populateReviewData();
         }
 
@@ -2815,7 +3025,8 @@ function gym_onboarding_page(): void
         const pane1 = document.getElementById('onboarding-pane-1');
         const pane2 = document.getElementById('onboarding-pane-2');
         const pane3 = document.getElementById('onboarding-pane-3');
-        const panes = [pane1, pane2, pane3];
+        const pane4 = document.getElementById('onboarding-pane-4');
+        const panes = [pane1, pane2, pane3, pane4];
 
         panes.forEach((pane, idx) => {
             if (!pane) return;
@@ -2827,7 +3038,7 @@ function gym_onboarding_page(): void
         });
 
         // Update stepper tabs
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 4; i++) {
             const tab = document.getElementById('stepper-tab-' + i);
             if (!tab) continue;
             tab.classList.remove('active', 'completed');

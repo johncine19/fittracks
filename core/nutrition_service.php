@@ -6,6 +6,68 @@ declare(strict_types=1);
  */
 
 /**
+ * Scales a `food_items` row to a target meal calorie budget using the food's ACTUAL
+ * nutritional profile (calories, protein, carbs, fat) and real `serving_size` rather
+ * than a hardcoded kcal/g density or forced macro ratio.
+ *
+ * Servings are snapped to realistic quarter-serving increments (0.5x – 2.5x).
+ */
+function scale_food_item_for_target(array $food, float $targetCals): array
+{
+    $name = trim((string) ($food['name'] ?? $food['title'] ?? 'Meal'));
+    $servingSize = trim((string) ($food['serving_size'] ?? '1 serving'));
+    if ($servingSize === '') {
+        $servingSize = '1 serving';
+    }
+
+    $baseP = max(0.0, (float) ($food['protein_g'] ?? $food['base_protein'] ?? 0));
+    $baseC = max(0.0, (float) ($food['carbs_g'] ?? $food['base_carbs'] ?? 0));
+    $baseF = max(0.0, (float) ($food['fat_g'] ?? $food['base_fat'] ?? 0));
+    $baseCals = (float) ($food['calories'] ?? $food['base_calories'] ?? 0);
+    if ($baseCals <= 0) {
+        $macroCals = ($baseP * 4.0) + ($baseC * 4.0) + ($baseF * 9.0);
+        $baseCals = $macroCals > 0 ? $macroCals : 300.0;
+    }
+
+    $rawScale = $targetCals > 0 ? ($targetCals / $baseCals) : 1.0;
+    $servings = max(0.5, min(2.5, round($rawScale * 4) / 4));
+
+    $calories = (int) round($baseCals * $servings);
+    $protein  = round($baseP * $servings, 1);
+    $carbs    = round($baseC * $servings, 1);
+    $fat      = round($baseF * $servings, 1);
+
+    $servingsStr = rtrim(rtrim(number_format($servings, 2, '.', ''), '0'), '.');
+    $grams = null;
+    if (preg_match('/^(\d+(?:\.\d+)?)\s*g\b/i', $servingSize, $m)) {
+        $grams = max(25, (int) round(((float) $m[1]) * $servings));
+        $label = $grams . 'g of ' . $name;
+    } elseif (preg_match('/^(\d+(?:\.\d+)?)\s+(serving|bowl|cup|plate|slice|piece|scoop|glass|pack|wrap|sandwich|bar|stick|egg|banana|apple)s?$/i', $servingSize, $m)) {
+        $qty = ((float) $m[1]) * $servings;
+        $qtyStr = rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.');
+        $unit = strtolower($m[2]);
+        if (abs($qty - 1.0) > 0.001) {
+            $unit = in_array($unit, ['glass', 'sandwich'], true) ? ($unit . 'es') : ($unit . 's');
+        }
+        $label = $qtyStr . ' ' . $unit . ' of ' . $name;
+    } elseif (abs($servings - 1.0) < 0.001) {
+        $label = $name . ' (' . $servingSize . ')';
+    } else {
+        $label = $servingsStr . '× ' . $name . ' (' . $servingSize . ')';
+    }
+
+    return [
+        'servings'   => $servings,
+        'food_items' => $label,
+        'calories'   => $calories,
+        'protein_g'  => $protein,
+        'carbs_g'    => $carbs,
+        'fat_g'      => $fat,
+        'grams'      => $grams,
+    ];
+}
+
+/**
 
  * E.g. 'vegetarian' -> ['vegetarian', 'vegan']
  *      'pescatarian' -> ['pescatarian', 'vegetarian', 'vegan']
@@ -289,41 +351,41 @@ function generate_dietary_plan(int $memberUserId, ?int $trainerId = null, bool $
 
         foreach ($mealTargets as $mType => $mCals) {
             $pct = $dist[$mType];
-            // Estimate portion grams (~1.5 kcal/g baseline, minimum 50g) and pick a daily rotating food
-            $portionGrams = max(50, (int) round($mCals / 1.5));
-
             $options = $foodsByType[$mType];
             $selectedFood = !empty($options) ? $options[($d - 1) % count($options)] : null;
 
             if ($selectedFood) {
-                // Scale the selected food's base protein/carbs/fat to match this meal's calorie target ($mCals)
-                $baseCals = max(50, (float)($selectedFood['calories'] ?: 100));
-                $scale = $mCals / $baseCals;
-                $mP = (int) round((float)($selectedFood['protein_g'] ?: ($p_g * $pct)) * $scale);
-                $mC = (int) round((float)($selectedFood['carbs_g'] ?: ($c_g * $pct)) * $scale);
-                $mF = (int) round((float)($selectedFood['fat_g'] ?: ($f_g * $pct)) * $scale);
-                $mFood = $portionGrams . "g of " . $selectedFood['name'];
+                $scaled = scale_food_item_for_target($selectedFood, (float) $mCals);
+                $actualCals = (int) $scaled['calories'];
+                $mP = (int) round($scaled['protein_g']);
+                $mC = (int) round($scaled['carbs_g']);
+                $mF = (int) round($scaled['fat_g']);
+                $mServings = (float) $scaled['servings'];
+                $mFood = $scaled['food_items'];
                 $mImg = !empty($selectedFood['image_url']) 
                     ? $selectedFood['image_url'] 
                     : (function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($selectedFood['name'], $mType) : null);
             } else {
+                $actualCals = (int) $mCals;
                 $mP = (int) round($p_g * $pct);
                 $mC = (int) round($c_g * $pct);
                 $mF = (int) round($f_g * $pct);
-                $mFood = $portionGrams . "g of Healthy " . $mType;
+                $mServings = 1.00;
+                $mFood = '1 serving of Balanced ' . $mType;
                 $mImg = function_exists('get_diet_meal_image_url') ? get_diet_meal_image_url($mFood, $mType) : null;
             }
 
-            $stmtMeal->execute([$planId, $d, $mType, $mFood, $mImg, $mCals, $mP, $mC, $mF]);
+            $stmtMeal->execute([$planId, $d, $mType, $mFood, $mImg, $actualCals, $mP, $mC, $mF]);
             $mealId = (int)$pdo->lastInsertId();
             if ($mealId > 0) {
                 try {
-                    $insMealFood = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, 1.00, ?, ?, ?, ?)');
+                    $insMealFood = $pdo->prepare('INSERT INTO meal_foods (meal_id, food_id, food_name, servings, calories, protein_g, carbs_g, fat_g) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
                     $insMealFood->execute([
                         $mealId,
                         $selectedFood ? (int)$selectedFood['food_id'] : null,
                         $selectedFood ? (string)$selectedFood['name'] : $mFood,
-                        $mCals,
+                        $mServings,
+                        $actualCals,
                         $mP,
                         $mC,
                         $mF
