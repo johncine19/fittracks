@@ -62,6 +62,20 @@ function run_normalize_gyms_migration(?PDO $pdo = null): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
     ");
 
+    // Ensure payout columns exist if gym_payout_accounts was pre-created without them
+    $gpaCols = array_column($pdo->query('SHOW COLUMNS FROM gym_payout_accounts')->fetchAll(PDO::FETCH_ASSOC), 'Field');
+    $gpaMissing = [
+        'xendit_subaccount_id'   => "VARCHAR(64) DEFAULT NULL",
+        'payout_channel'         => "VARCHAR(30) NOT NULL DEFAULT 'gcash'",
+        'payout_account_number'  => "VARCHAR(50) DEFAULT NULL",
+        'payout_account_name'    => "VARCHAR(100) DEFAULT NULL",
+    ];
+    foreach ($gpaMissing as $col => $def) {
+        if (!in_array($col, $gpaCols, true)) {
+            $pdo->exec("ALTER TABLE gym_payout_accounts ADD COLUMN `{$col}` {$def}");
+        }
+    }
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS gym_settings (
             gym_id INT UNSIGNED NOT NULL,
